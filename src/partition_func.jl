@@ -11,19 +11,17 @@ function _load_atomic_data(fname)
     open(fname, "r") do f
         for line in eachline(f)
             if (length(line)>=9) && (line[1:9] == "#   T [K]")
-                append!(temperatures, map(x -> parse(Float64, x),
-                                          split(strip(line[10:length(line)]))))
+                append!(temperatures, parse.(Float64,split(strip(line[10:length(line)]))))
             elseif line[1] == '#'
                 continue
             else # add entries to the dictionary
                 row_entries = split(strip(line))
                 species = popfirst!(row_entries)
-                push!(data_pairs,
-                      (species, Vector(map(x -> parse(Float64, x), row_entries))))
+                push!(data_pairs, (species, parse.(Float64, row_entries)))
             end
         end
     end
-    return (temperatures, data_pairs)
+    (temperatures, data_pairs)
 end
 
 """
@@ -45,9 +43,7 @@ function setup_atomic_partition_funcs()
     fname = joinpath(_data_dir, "BarklemCollet2016-atomic_partition.dat")
     temperatures, data_pairs = _load_atomic_data(fname)
 
-    # note that elem is a struct that unpacks to (key, partition_function_values)
-    _helper = elem -> (elem[1],
-                       Interpolations.LinearInterpolation(temperatures, elem[2],
-                                                          extrapolation_bc=Interpolations.Throw()))
-    Dict(map(_helper,data_pairs))
+    map(data_pairs) do (species, vals)
+        species, LinearInterpolation(temperatures, vals, extrapolation_bc=Throw())
+    end |> Dict
 end
