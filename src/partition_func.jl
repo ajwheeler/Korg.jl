@@ -1,7 +1,5 @@
 using Interpolations
 
-_data_dir = joinpath(@__DIR__, "../data") # may want to pull this out of here later
-
 """
     functon setup_atomic_partition_funcs()
 
