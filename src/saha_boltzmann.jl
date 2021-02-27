@@ -1,3 +1,9 @@
+"""
+   setup_ionization_energies([filename])
+
+Parses the table of ionization energies and returns it as a dictionary mapping elements to
+their ionization energies, `[χ₁, χ₂, χ₃]`.
+"""
 function setup_ionization_energies(fname=joinpath(_data_dir, 
                                                   "BarklemCollet2016-ionization_energies.dat"))
     open(fname, "r") do f
