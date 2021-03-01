@@ -19,3 +19,17 @@ end
     @test issorted(last.(s))
     @test issorted(s[1], rev=true)
 end
+
+@testset "linelist" begin
+    @test SSSynth.parse_species_code("01.00") == "H_I"
+    @test SSSynth.parse_species_code("02.01") == "He_II"
+
+    @testset "linelist stub" begin
+        linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
+        @test length(linelist) == 999
+        @test linelist[1].wl == 7232.0699
+        @test linelist[1].log_gf == -0.826
+        @test linelist[1].species == "Be_II"
+        @test linelist[1].E == 140020.580
+    end
+end
