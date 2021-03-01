@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/juliaastro/FITSIO.jl/workflows/CI/badge.svg?branch=master)](https://github.com/juliaastro/FITSIO.jl/actions)
+
 1D LTE stellar spectral synthesis in pure julia.
 
 # citations
