@@ -8,8 +8,7 @@ using Test
     @test SSSynth.ionization_energies["U"] == [6.1940, 11.590, 19.800]
 end 
 
-@testset "saha" begin
-    s = [SSSynth.saha(SSSynth.ionization_energies["N"], 
+@testset "saha" begin s = [SSSynth.saha(SSSynth.ionization_energies["N"], 
                       [SSSynth.partition_funcs["N_I"], 
                        SSSynth.partition_funcs["N_II"], 
                        SSSynth.partition_funcs["N_III"]], 
@@ -18,4 +17,15 @@ end
     @test issorted(first.(s), rev=true)
     @test issorted(last.(s))
     @test issorted(s[1], rev=true)
+end
+
+@testset "atmosphere" begin
+    atmosphere = SSSynth.read_model_atmosphere("data/sun.krz")
+    @test length(atmosphere) == 56
+    @test issorted(first.(atmosphere))
+    @test atmosphere[1].tau == 9.747804143e-3
+    @test atmosphere[1].temp == 4066.8
+    @test atmosphere[1].electron_density == 3.76980e10
+    @test atmosphere[1].number_density == 4.75478e14
+    @test atmosphere[1].density == 1.00062e-9
 end
