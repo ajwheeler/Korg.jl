@@ -1,3 +1,25 @@
+"""
+The line profile, ϕ, at wavelength `wl` in Ångstroms.
+"""
+function line_profile(temp, atomic_mass, line, wl)
+    #work in cgs
+    λ = wl * 1e-8 
+    λ0 = line.wl * 1e-8
+
+    #doppler-broadening parameter
+    Δλ_D = λ0 * sqrt(2kboltz_cgs*temp / atomic_mass) / c_cgs
+    Δν_D = λ_D / λ0^2 * c_cgs
+
+    #get all damping from line list.  There may be better sources for this.
+    γ = 10^line.log_gamma_rad + 10^line.log_gamma_stark + 10^line.log_gamma_vdW
+
+    #Voigt function parameters
+    v = (λ-λ0) / Δλ_D
+    a = λ^2/(4π * c_cgs) * γ / Δλ_D
+
+    voigt(a, v) / sqrt(π) / Δν_D
+end
+
 function harris_series(v) # assume v < 5
     H₀ = exp(-(v^2))
     H₁ = if (v < 1.3)

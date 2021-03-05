@@ -2,6 +2,7 @@
 
 const kboltz_cgs = 1.380649e-16 # erg/K
 const hplanck_cgs = 6.62607015e-27 # erg*s
+const c_cgs = 2.99792458e10 #cm/s
 
 const electron_mass_cgs = 9.1093897e-28 #g
 const electron_charge_cgs = 4.80320425e-10 # statcoulomb or cm^3/2 * g^1/2 / s

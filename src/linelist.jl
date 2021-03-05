@@ -36,7 +36,10 @@ function read_line_list(fname::String)
             (wl=parse(Float64, line[1:11]), 
              log_gf=parse(Float64, line[12:18]),
              species=parse_species_code(strip(line[19:24])),
-             E=parse(Float64, line[25:36])) #cm^-1
+             E=parse(Float64, line[25:36]),                  #cm^-1
+             log_gamma_rad=parse(Float64, line[81:86]),
+             log_gamma_stark=parse(Float64, line[87:92]),
+             log_gamma_vdW=parse(Float64, line[93:98]))      #van der Waals
         end
     end
 end
