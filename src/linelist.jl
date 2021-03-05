@@ -1,6 +1,8 @@
 """
-parse the "species code" as it is often specified in line lists.
-`01.00` = H I, `02.01` = He II, `0608.00` = CO, etc.
+    parse_species_code(code)
+
+Parse the "species code" as it is often specified in line lists and return a the "astronomy" 
+notation. `01.00` → `"H_I"`, `02.01` → `"He_II"`, `0608.00` → `"CO"`, etc.  
 """
 function parse_species_code(code::AbstractString)
     numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
@@ -27,9 +29,9 @@ function read_line_list(fname::String)
              log_gf=parse(Float64, line[12:18]),
              species=parse_species_code(strip(line[19:24])),
              E=parse(Float64, line[25:36]),                  #cm^-1
-             log_gamma_rad=parse(Float64, line[81:86]),
-             log_gamma_stark=parse(Float64, line[87:92]),
-             log_gamma_vdW=parse(Float64, line[93:98]))      #van der Waals
+             log_gamma_rad=parse(Float64, line[81:86]),      #s^-1
+             log_gamma_stark=parse(Float64, line[87:92]),    #s^-1
+             log_gamma_vdW=parse(Float64, line[93:98]))      #s^-1 (van der Waals)
         end
     end
 end

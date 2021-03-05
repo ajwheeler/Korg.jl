@@ -9,7 +9,7 @@ const atomic_symbols = ["H","He","Li","Be","B","C","N","O","F","Ne",
         "Tl","Pb","Bi","Po","At","Rn","Fr","Ra","Ac","Th",
         "Pa","U","Np","Pu","Am"]
 
-#in amu
+#in grams
 const atomic_masses = Dict(atomic_symbols .=> [
      1.008,4.003,6.941,9.012,10.81,12.01,14.01,16.00,19.00,20.18, 
      22.99,24.31,26.98,28.08,30.97,32.06,35.45,39.95,39.10,40.08,     
