@@ -2,6 +2,8 @@ module SSSynth
 
     _data_dir = joinpath(@__DIR__, "../data") 
     include("constants.jl")
+    include("atomic_data.jl")
+    include("line_profile.jl")
     include("partition_func.jl")
     include("saha_boltzmann.jl")
     include("linelist.jl")

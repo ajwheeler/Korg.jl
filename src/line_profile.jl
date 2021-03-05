@@ -1,23 +1,28 @@
 """
-The line profile, ϕ, at wavelength `wl` in Ångstroms.
+    line_profile(temp, atomic_mass, line, wl)
+
+The line profile, ϕ, at wavelengths `wls` in Ångstroms.
+`temp` should be K, `atomic_mass` should be in g.
+`line` should be one of the entries returned by `read_line_list`.
 """
-function line_profile(temp, atomic_mass, line, wl)
+function line_profile(temp::F, atomic_mass::F, line::NamedTuple, wls::AbstractVector{F}
+                     ) where F <:  AbstractFloat
     #work in cgs
-    λ = wl * 1e-8 
+    λs = wls .* 1e-8 
     λ0 = line.wl * 1e-8
 
     #doppler-broadening parameter
     Δλ_D = λ0 * sqrt(2kboltz_cgs*temp / atomic_mass) / c_cgs
-    Δν_D = λ_D / λ0^2 * c_cgs
 
-    #get all damping from line list.  There may be better sources for this.
+    #get all damping params from line list.  There may be better sources for this.
+    #TODO these are log 10, right?
     γ = 10^line.log_gamma_rad + 10^line.log_gamma_stark + 10^line.log_gamma_vdW
 
     #Voigt function parameters
-    v = (λ-λ0) / Δλ_D
-    a = λ^2/(4π * c_cgs) * γ / Δλ_D
+    v = @. abs(λs-λ0) / Δλ_D
+    a = @. λs^2/(4π * c_cgs) * γ / Δλ_D
 
-    voigt(a, v) / sqrt(π) / Δν_D
+    @. voigt(a, v) / sqrt(π) / Δλ_D * 1e-8 #convert back to Å^-1
 end
 
 function harris_series(v) # assume v < 5
@@ -37,7 +42,6 @@ voigt(x, σ, γ) = lbvoigt(γ/2σ, abs(x)/σ)
 function voigt(α, v)
     if α <= 0.2 
         if (v >= 5)
-            #!!!this line previously had "v" instead of "v^2"!!!
             (α / sqrt(π) / v^2) * (1 + 3/(2v^2) + 15/(4v^4))
         else
             H₀, H₁, H₂ = harris_series(v)

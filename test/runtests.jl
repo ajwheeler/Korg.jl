@@ -20,12 +20,14 @@ end
     @test issorted(s[1], rev=true)
 end
 
-@testset "linelist" begin
-    @test SSSynth.parse_species_code("01.00") == "H_I"
-    @test SSSynth.parse_species_code("02.01") == "He_II"
+@testset "lines" begin
+    @testset "species codes" begin
+        @test SSSynth.parse_species_code("01.00") == "H_I"
+        @test SSSynth.parse_species_code("02.01") == "He_II"
+    end
 
-    @testset "linelist stub" begin
-        linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
+    linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
+    @testset "linelist parsing" begin
         @test length(linelist) == 999
         @test linelist[1].wl == 7232.0699
         @test linelist[1].log_gf == -0.826
@@ -35,4 +37,16 @@ end
         @test linelist[1].log_gamma_stark == -2.41
         @test linelist[1].log_gamma_vdW == -6.91
     end
+
+    @testset "line profile" begin
+        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1], 
+                                            7230 : 0.01 : linelist[1].wl))
+        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1], 
+                                            linelist[1].wl : 0.01 : 7235), rev=true)
+
+        s =  sum(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1],
+                                      7230 : 0.01 : 7235))/100
+        @test 0.999 < s <= 1.0
+    end
 end
+
