@@ -3,7 +3,7 @@
 using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 
 const _H_I_ion_energy = ionization_energies["H"][1] # not sure if this is a good idea
-const _H⁻_binding_energy = 0.7552 # eV
+const _H⁻_ion_energy = 0.7552 # eV
 
 
 H_I_bf_opacity(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy) =
@@ -13,31 +13,52 @@ H_I_ff_opacity(nH_I, ne, ν, T) = hydrogenic_ff_opacity(1, nH_I, ne, ν, T)
 # compute the number density of H⁻ (implements eqn 5.10 of Kurucz 1970). This formula comes from
 # inverting the saha equation, where n(H⁻) is n₀ and n(H I) is n₁. Note that U₀ = 1 at all
 # temperatures.
-function ndens_Hminus(nH_I_div_partition, ne, T, binding_energy = _H⁻_binding_energy)
+"""
+    _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
+
+Compute the number density of H⁻ (implements eqn 5.10 of Kurucz 1970). This is an application of
+the saha equation where the "ground state" is H⁻ and the "first ionization state" is H I. The
+partition function of H⁻ is 1 at all temperatures.
+"""
+function _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
     nHI_groundstate = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
 
     # coef = (h^2/(2*π*m))^1.5
     coef = 3.31283018e-22 # cm³*eV^1.5
     β = 1.0/(kboltz_eV*T)
 
-    0.25 * nHI_groundstate * ne * coef * β^1.5 * exp(binding_energy * β)
+    0.25 * nHI_groundstate * ne * coef * β^1.5 * exp(ion_energy * β)
 end
 
-function _Hminus_bf_cross_section(ν)
-    # taken from Kurucz (1970), who took it from Gingerich (1964)
-    inv_ν = 1.0/ν
-
-    if ν >= 2.111e14
-        6.801e-20 + (5.358e-3 + (1.481e13 + (-5.519e27 + 4.808e41*inv_ν)*inv_ν)*inv_ν)*inv_ν
-    elseif 2.111e14 > ν >= 1.8259e14
-        3.695e-16 + (-1.251e-1 + 1.052e13*inv_ν)*inv_ν
-    else
-        0.
-    end
-end
 
 """
-    Hminus_bf(nHminus, ν, ρ, T, [binding_energy])
+    _Hminus_bf_cross_section(ν)
+
+Compute the H⁻ bound-free cross-section, which has units of cm^2 per H⁻ particle.
+
+The cross-section does not include a correction for stimulated emission.
+"""
+function _Hminus_bf_cross_section(ν::AbstractFloat)
+    λ = clight_cgs*1e8/ν # in Angstroms
+    # we need to somehow factor out this bounds checking
+    if (λ < 2250.0) || (λ > 15000.0)
+        throw(DomainError(ν, "The wavelength must lie in the interval [2250 Å, 15000 Å]"))
+    end
+
+    λ2 = λ*λ
+    λ3 = λ*λ2
+    λ4 = λ*λ3
+    λ5 = λ*λ4
+    λ6 = λ*λ5
+
+    αbf_H⁻ = (1.99654 - 1.18267e-5 * λ + 2.64243e-6 * λ2 - 4.40524e-10 * λ3 + 3.23992e-14 * λ4
+              - 1.39568e-18 * λ5 + 2.78701e-23 * λ6)
+    αbf_H⁻ * 1e-18
+end
+
+
+"""
+    Hminus_bf(nHminus, ν, ρ, T, [ion_energy_H⁻])
 
 Compute the H⁻ bound-free opacity κ
 
@@ -46,23 +67,47 @@ Compute the H⁻ bound-free opacity κ
 - `ν::Flt`: frequency in Hz
 - `ρ::Flt`: mass density in g/cm³
 - `T::Flt`: temperature in K
-- `binding_energy::Flt`: Specifies the binding energy of the single state of H⁻ in eV. This is 
+- `ion_energy_H⁻::Flt`: Specifies the ionization energy of the single state of H⁻ in eV. This is
    roughly 0.7552 eV.
 
 # Notes
-This is taken from Section 5.3 of Kurucz (1970).
-The number density of Hminus comes from eqn (5.10) of Kurucz (1970).
+This function assumes that n(H⁻) ≪ n(H I) + n(H II). The number density of n(H⁻) should not be
+pre-computed (instead it's computed internally by this function).
 
-An alternative approach is presented in equation 8.11 of Grey (2005) who fit a polynomial to more 
-recent work.
+This function is adapted from equation 8.12 from Grey (2005). This equation gives the absorption
+coefficient per H I atom (uncorrected by stimulated emission) is given by:
+    αff_H⁻ * 8.316e-10 * Pₑ * θ^2.5 * 10^(ion_energy_H⁻ * θ) * (U(H⁻,T)/ U(H I,T))
+where:
+- αff_H⁻ is the photo dissociation cross-section. This can estimated with equation 8.11.
+- θ = log10(e)/(k*T) or θ = 5040/T in units of eV⁻¹
+- U(H⁻,T) is the partition function of H⁻ at temperature T. This is always 1
+- U(H I,T) is the partition function of H I at temperature T. This is 2 at low to intermediate T.
+Eqn 8.12 of Grey (2005) implicitly assumes that (U(H⁻,T)/ U(H I,T)) is always equal to 0.5.
+
+This expression is simplicitly a rewritten form of: αff_H⁻ * n(H⁻)/n(H I) where n(H⁻)/n(H I) has
+been replaced with the expanded form of the saha equation, in which n₀ = n(H⁻) and n₁ = n(H I).
+
+Combining 8.18, and 8.19 of Gray (2005), indicate that the version opacity contribution of H⁻
+bound-free absorption (with stimulated emission correction) is given by:
+                     n(H⁻)                                  n(H I)          n(H I) + n(H II)
+   κ_ν = α_bf(H⁻) * ------  * (1 - exp(-h*ν/(k*T))) * ------------------ * -----------------
+                    n(H I)                             n(H I) + n(H II)            ρ
+This can be rewritten as: κ_ν = α_bf(H⁻) * n(H⁻) * (1 - exp(-h*ν/(k*T))) / ρ
+
+This function uses the polynomial provided in equation 8.11 of Gray (2005), that fits the tabulated
+data from Wishart (1979). While Gray (2005) claims that the polynomial fits the data with 0.2%
+precision for 2250 Å ≤ λ ≤ 15000 Å, in practice we find that it fits the data to better than 0.25%
+precision. Wishart (1979) expects the tabulated data to have better than 1% percent accuracy.
 """
 function Hminus_bf(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt, T::Flt,
-                   binding_energy::Flt = 0.7552) where {Flt<:AbstractFloat}
-    nHminus = ndens_Hminus(nH_I_div_partition, ne, T, binding_energy, bHminus)
-    one_minus_exp = 1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))
-    α_ν = _Hminus_boundfree_cross_section(ν) # we use alpha here to match notation from the paper
-    nHminus * α_ν * one_minus_exp/ρ
+                   ion_energy_H⁻::Flt = 0.7552) where {Flt<:AbstractFloat}
+    αbf_H⁻ = _Hminus_bf_cross_section(ν) # does not include contributions from stimulated emission
+    stimulated_emission_correction = (1 - exp(-h*ν/(k*T)))
+    n_H⁻ = ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy)
+    αbf_H⁻ * n_H⁻ * stimulated_emission_correction / ρ
 end
+
+
 
 """
     Hminus_ff(nHI_gs, ne, ν, ρ, T)
@@ -90,8 +135,7 @@ From equations 8.13, 8.18, and 8.19 of Gray (2005), the free-free opacity from H
                               n(H I)          n(H I) + n(H II)
    κ_ν = α_ff(H⁻) * Pₑ * ------------------ * -----------------
                           n(H I) + n(H II)            ρ
-This can be rewritten as: κ_ν = α_ff(H⁻) * Pₑ * n(H I) / ρ. We can rearrange this to get:
-α_ff(H⁻) = κ_ν * ρ / (n(H I) * Pₑ).
+This can be rewritten as: κ_ν = α_ff(H⁻) * Pₑ * n(H I) / ρ
 
 Based on Section 5.3 from Kurucz (1970), I'm fairly confident that the "more correct" version of
 the opacity equation should actually read  κ_ν = α_ff(H⁻) * Pₑ * n(H I, n = 1) / ρ, and that the

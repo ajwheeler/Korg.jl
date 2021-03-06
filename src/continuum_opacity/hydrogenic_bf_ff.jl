@@ -1,17 +1,5 @@
 using Interpolations: LinearInterpolation, Throw
 
-"""
-By default, we will take the continuum opacities from Kurucz (1970). In that paper, they introduce 
-departure coefficients, b(k), (aka "fudge-factors"), to model departures from LTE. When the 
-departure coefficient is introduced, the Boltzmann Equation is re-written as:
-
-      n(k')     b(k')   g(k')
-     ------- = ------- ------- exp( -|E(k') - E(k)|/(k*T) )
-      n(k)      b(k)    g(k)
-
-These fudge factors also make their way into the opacity equations.
-"""
-
 # define the neutral Hydrogen continuum opacities
 
 # compute the value in eV. n should be able to be a floating point value
@@ -35,8 +23,7 @@ state). This can be estimated as Z²*ion_energy of hydrogen or Z²*Rydberg_H.
 This assumes that all hydrogenic species have a statistical weight of gₙ = 2*n².
 
 This was taken from equation (5.4) of Kurucz (1970) (although this comes directly from the 
-boltzmann equation). We have dropped the departure term bₙ, because the term can simply multiplied 
-by the result of this function.
+boltzmann equation).
 """
 function ndens_state_hydrogenic(n::Integer, nsdens_div_partition::Flt, T::Flt,
                                 ion_energy::Flt) where {Flt<:AbstractFloat}
@@ -94,33 +81,19 @@ end
 
 
 function _hydrogenic_bf_summed_opacity(Z::Integer, nmax::Integer, nsdens_div_partition::Flt,
-                                       ν::Flt, ρ::Flt, T::Flt, ion_energy::Flt,
-                                       b_terms::Array{Flt,1} = Flt[]) where {Flt<:AbstractFloat}
-
-    if (nmax < length(b_terms))
-        throw(ArgumentError("nmax must be at least the length of b_terms"))
-    end
+                                       ν::Flt, ρ::Flt, T::Flt,
+                                       ion_energy::Flt) where {Flt<:AbstractFloat}
     ion_freq = _eVtoHz(ion_energy)
     exp_val = exp(-hplanck_eV * ν / (kboltz_eV * T))
 
-    α_sum = 0.0 # the sum of the extinction coefficient values
-
-    # compute contributions to α from all states (if any) that have specified departure terms
-    for (n, b_term) = enumerate(b_terms)
-        ndens_state = b_term * ndens_state_hydrogenic(n, nsdens_div_partition, T, ion_energy)
-        hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ion_freq)
-        α_sum += ndens_state * hydrogenic_bf_cross_section * (1.0 - exp_val / b_term)
-    end
-
-    # all remaining states are assumed to have LTE number densities (i.e. b_term = 1)
     partial_sum = 0.0
-    for n = (length(b_terms)+1) : nmax
+    for n = 1 : nmax
         ndens_state = ndens_state_hydrogenic(n, nsdens_div_partition, T, ion_energy)
         hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ion_freq)
         cur_val = ndens_state * hydrogenic_bf_cross_section
         partial_sum += ndens_state * hydrogenic_bf_cross_section
     end
-    α_sum += partial_sum * (1.0 - exp_val)
+    α_sum = partial_sum * (1.0 - exp_val) # the sum of the extinction coefficient values
     α_sum/ρ
 end
 
@@ -176,19 +149,9 @@ function _hydrogenic_bf_high_n_opacity(Z::Integer, nmin::Integer,
 end
 
 
-# Main objective: estimate the summed opacity for all bound-free transitions
-# For debugging purposes, it might be nice to also have an interface that gives opacity for a
-# single transition.
-#
-# it probably makes a lot more sense to compute the absorption coefficient instead of opacity (so
-# that we don't need to include ρ in our calculation)
-#
-# I am of 2 minds regarding departure coefficients:
-#    1. We just entirely ignore the departure coefficients (assume that they are all 1)
-#    2. We provide an option to specify an array of departure coefficients
 """
     hydrogenic_bf_opacity(Z, nmax_explicit_sum, nsdens_div_partition, ν, ρ, T, 
-                          ion_energy, [b_terms])
+                          ion_energy)
 
 Compute the bound-free opacity contributed by all energy states of a Hydrogenic species
 
@@ -207,19 +170,15 @@ integral.
 - `T::Flt`: temperature in K
 - `ion_energy::AbstractFloat`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
-- `b_terms::Array{Flt}`: Optional array of 0 or more departure terms that characterize the how the 
-   occupation of the lowest energy states deviates from LTE. A value of 1.0 indicates that there is
-   no deviation. The length of this array must not exceed `nmax_explicit_sum`.
 
 # Notes
 This follows the approach described in section 5.1 of Kurucz (1970).
 """
 
 function hydrogenic_bf_opacity(Z::Integer, nmax_explicit_sum::Integer, nsdens_div_partition::Flt,
-                               ν::Flt, ρ::Flt, T::Flt, ion_energy::Flt,
-                               b_terms::Array{Flt,1} = Flt[]) where {Flt<:AbstractFloat}
+                               ν::Flt, ρ::Flt, T::Flt, ion_energy::Flt) where {Flt<:AbstractFloat}
     direct_sum = _hydrogenic_bf_summed_opacity(Z, nmax_explicit_sum, nsdens_div_partition, ν, ρ, T,
-                                               ion_energy, b_terms)
+                                               ion_energy)
     integrated_part = _hydrogenic_bf_high_n_opacity(Z, nmax_explicit_sum+1, nsdens_div_partition,
                                                     ν, ρ, T, ion_energy)
     direct_sum + integrated_part

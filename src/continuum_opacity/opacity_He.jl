@@ -36,7 +36,7 @@ end
 """
     Heminus_ff_opacity(nHI_gs, ne, ν, ρ, T)
 
-Compute the H⁻ free-free opacity κ. 
+Compute the He⁻ free-free opacity κ.
 
 The naming scheme for free-free absorption is counter-inutitive. This actually refers to the 
 reaction:  photon + e⁻ + He I -> e⁻ + He I.
