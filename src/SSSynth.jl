@@ -15,4 +15,9 @@ module SSSynth
     ionization_energies = setup_ionization_energies()
     partition_funcs = setup_atomic_partition_funcs()
 
+    # Define continuum opacity functions. Maybe these should go into a submodule? Unfortunately, the
+    # situation is complicated by the fact that values from constants.jl are needed
+    include("continuum_opacity/continuum_opacity.jl")
+
+
 end # module

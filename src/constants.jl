@@ -1,5 +1,6 @@
 # make things more self-consistent later
 
+const clight_cgs = 2.99792458e10 # cm/s
 const kboltz_cgs = 1.380649e-16 # erg/K
 const hplanck_cgs = 6.62607015e-27 # erg*s
 const c_cgs = 2.99792458e10 #cm/s
