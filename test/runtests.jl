@@ -20,6 +20,7 @@ end
 end
 
 @testset "atmosphere" begin
+    #the MARCS solar model atmosphere
     atmosphere = SSSynth.read_model_atmosphere("data/sun.krz")
     @test length(atmosphere) == 56
     @test issorted(first.(atmosphere))
