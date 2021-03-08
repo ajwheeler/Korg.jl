@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/ajwheeler/SSSynth.jl/workflows/CI/badge.svg?branch=master)](https://github.com/ajwheeler/SSSynth.jl/actions)
+[![Tests](https://github.com/ajwheeler/SSSynth.jl/actions/workflows/Test.yml/badge.svg)](https://github.com/ajwheeler/SSSynth.jl/actions/workflows/Test.yml)
 
 1D LTE stellar spectral synthesis in pure julia.
 
