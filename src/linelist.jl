@@ -18,11 +18,12 @@ end
 
 
 """
-    setup_line_list(fname)
+    read_line_list(fname)
 
-Parse the provided line list in "Kurucz" format.
+Parse the provided line list in "Kurucz" format, 
+[documented here](http://kurucz.harvard.edu/linelists.html).
 """
-function read_line_list(fname::String)
+function read_line_list(fname::String) :: Vector{NamedTuple}
     open(fname) do f
         map(eachline(f)) do line
             (wl=parse(Float64, line[1:11]), 
