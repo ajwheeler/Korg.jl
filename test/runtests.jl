@@ -29,7 +29,7 @@ end
     linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
     @testset "linelist parsing" begin
         @test length(linelist) == 999
-        @test linelist[1].wl == 7232.0699
+        @test linelist[1].wl ≈ 72320.699
         @test linelist[1].log_gf == -0.826
         @test linelist[1].species == "Be_II"
         @test linelist[1].E == 140020.580
@@ -45,7 +45,7 @@ end
                                             linelist[1].wl : 0.01 : 7235), rev=true)
 
         s =  sum(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1],
-                                      7230 : 0.01 : 7235))/100
+                                      72300 : 0.1 : 72350))/10
         @test 0.999 < s <= 1.0
     end
 end

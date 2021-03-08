@@ -26,7 +26,7 @@ Parse the provided line list in "Kurucz" format,
 function read_line_list(fname::String) :: Vector{NamedTuple}
     open(fname) do f
         map(eachline(f)) do line
-            (wl=parse(Float64, line[1:11]), 
+            (wl=parse(Float64, line[1:11])*10.,              #given in nm, convert to Å
              log_gf=parse(Float64, line[12:18]),
              species=parse_species_code(strip(line[19:24])),
              E=parse(Float64, line[25:36]),                  #cm^-1
