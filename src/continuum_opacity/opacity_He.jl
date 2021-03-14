@@ -9,21 +9,21 @@ We are currently missing free-free and bound free contributions from He I.
 using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 const _He_II_ion_energy = ionization_energies["He"][2] # not sure if this is a good idea
 
-He_II_bf_opacity(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_ion_energy) =
-               hydrogenic_bf_opacity(2, 9, nHe_II_div_partition, ν, ρ, T, ion_energy)
-He_II_ff_opacity(nHe_II, ne, ν, T) = hydrogenic_ff_opacity(2, nHe_II, ne, ν, T)
+He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_ion_energy) =
+    hydrogenic_bf_opacity(2, 9, nHe_II_div_partition, ν, ρ, T, ion_energy)
+He_II_ff(nHe_II, ne, ν, T) = hydrogenic_ff_opacity(2, nHe_II, ne, ν, T)
 
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
 function ndens_state_He_I(n::Integer, nsdens_div_partition::Flt, T::Flt) where {Flt<:AbstractFloat}
-    if i == 1
+    if n == 1
         g_n, energy_level = (1.0, 0.0)
-    elseif i == 2
+    elseif n == 2
         g_n, energy_level = (3.0, 19.819)
-    elseif i == 3
+    elseif n == 3
         g_n, energy_level = (1.0, 20.615)
-    elseif i == 4
+    elseif n == 4
         g_n, energy_level = (9.0, 20.964)
     else
         # we definitely could add more energy levels
@@ -81,8 +81,8 @@ expected to be well below 10%."
 An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
 
 """
-function Heminus_ff_opacity(nHe_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
-                            T::Flt) where {Flt<:AbstractFloat}
+function Heminus_ff(nHe_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
+                    T::Flt) where {Flt<:AbstractFloat}
 
     θ = 5040.0 / T
     θ2 = θ * θ
@@ -94,10 +94,10 @@ function Heminus_ff_opacity(nHe_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
     c2 =   2.74020 - 10.62144*θ +  15.50518*θ2 -  8.33845*θ3 +  1.57960*θ4
     c3 =  -0.19923 +  0.77485*θ -   1.13200*θ2 +  0.60994*θ3 -  0.11564*θ4
 
-    logλ = log10(clight_cgs * 1.0e8 / ν)
+    logλ = log10(c_cgs * 1.0e8 / ν)
 
     # α includes contribution from stimulated emission
-    α = 10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
+    α = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
 
     Pe = ne*kboltz_cgs*T # partial pressure contributed by electrons
     nHe_I_gs = ndens_state_He_I(1, nHe_I_div_partition, T)

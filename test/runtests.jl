@@ -61,4 +61,4 @@ end
     @test atmosphere[1].density == 1.00062e-9
 end
 
-include("Hminus_opacity.jl")
+include("continuum_opacity.jl")

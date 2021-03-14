@@ -6,9 +6,9 @@ const _H_I_ion_energy = ionization_energies["H"][1] # not sure if this is a good
 const _H⁻_ion_energy = 0.7552 # eV
 
 
-H_I_bf_opacity(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy) =
-               hydrogenic_bf_opacity(1, 8, nH_I_div_partition, ν, ρ, T, ion_energy)
-H_I_ff_opacity(nH_I, ne, ν, T) = hydrogenic_ff_opacity(1, nH_I, ne, ν, T)
+H_I_bf(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy) =
+    hydrogenic_bf_opacity(1, 8, nH_I_div_partition, ν, ρ, T, ion_energy)
+H_I_ff(nH_I, ne, ν, T) = hydrogenic_ff_opacity(1, nH_I, ne, ν, T)
 
 # compute the number density of H⁻ (implements eqn 5.10 of Kurucz 1970). This formula comes from
 # inverting the saha equation, where n(H⁻) is n₀ and n(H I) is n₁. Note that U₀ = 1 at all
@@ -21,12 +21,22 @@ the saha equation where the "ground state" is H⁻ and the "first ionization sta
 partition function of H⁻ is 1 at all temperatures.
 """
 function _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
+    # The value of _H_I_ion_energy energy doesn't matter at all becasue the exponential evaluates
+    # to 1 for n = 1
     nHI_groundstate = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
+
+    # should should probably factor this out
+    if T < 1000
+        # this isn't a hard requirement at all. This is just a sanity check in case an argument got
+        # forgotten (which is allowed since ion_energy has a default value)
+        # In reality, we should use the lower temperature limit in which the exponential evaluates
+        # to Inf. That should probably be our domain limit
+        throw(DomainError(T, "Unexpected T value."))
+    end
 
     # coef = (h^2/(2*π*m))^1.5
     coef = 3.31283018e-22 # cm³*eV^1.5
     β = 1.0/(kboltz_eV*T)
-
     0.25 * nHI_groundstate * ne * coef * β^1.5 * exp(ion_energy * β)
 end
 
@@ -39,7 +49,7 @@ Compute the H⁻ bound-free cross-section, which has units of cm^2 per H⁻ part
 The cross-section does not include a correction for stimulated emission.
 """
 function _Hminus_bf_cross_section(ν::AbstractFloat)
-    λ = clight_cgs*1e8/ν # in Angstroms
+    λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
     if (λ < 2250.0) || (λ > 15000.0)
         throw(DomainError(ν, "The wavelength must lie in the interval [2250 Å, 15000 Å]"))
@@ -102,8 +112,8 @@ precision. Wishart (1979) expects the tabulated data to have better than 1% perc
 function Hminus_bf(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt, T::Flt,
                    ion_energy_H⁻::Flt = 0.7552) where {Flt<:AbstractFloat}
     αbf_H⁻ = _Hminus_bf_cross_section(ν) # does not include contributions from stimulated emission
-    stimulated_emission_correction = (1 - exp(-h*ν/(k*T)))
-    n_H⁻ = ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy)
+    stimulated_emission_correction = (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T)))
+    n_H⁻ = _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy)
     αbf_H⁻ * n_H⁻ * stimulated_emission_correction / ρ
 end
 
@@ -151,7 +161,7 @@ wrong (it gives lots of negative numbers).
 """
 function Hminus_ff(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
                    T::Flt) where {Flt<:AbstractFloat}
-    λ = clight_cgs*1e8/ν # in Angstroms
+    λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
     if (λ < 2604.0) || (λ > 113918.0)
         throw(DomainError(ν, "The wavelength must lie in the interval [2604 Å, 113918 Å]"))
@@ -207,13 +217,13 @@ This needs to use double precision floats because of the polynomial coefficients
 """
 function H2plus_bf_and_ff(nH_I_div_partition::Float64, nHII::Float64, ν::Float64, ρ::Float64,
                           T::Float64)
-
+    error("This seems to be broken.")
     # compute the number density of H I in the ground state
     nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
 
     one_minus_exp = 1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))
     # E_s is in units of eV
-    E_s = -7.342e-3 + ν* (-2.409e15 +
+    E_s = -7.342e-3 + ν* (-2.409e-15 +
                           ν * (1.028e-30 +
                                ν * (1.028e-30 +
                                     ν * (-4.230e-46 +
@@ -222,5 +232,6 @@ function H2plus_bf_and_ff(nH_I_div_partition::Float64, nHII::Float64, ν::Float6
     tmp = (-E_s/(kboltz_eV*T))
     F_ν = exp(tmp - 3.0233e3 + lnν*(3.7797e2 + lnν*(-1.82496e1 +
                                                     lnν*(3.9207e-1 - 3.1672e-3 * lnν))))
+    println(lnν, " ", E_s, " ", tmp, " ", F_ν)
     nHI_gs * nHII * F_ν * one_minus_exp / ρ
 end

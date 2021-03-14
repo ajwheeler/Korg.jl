@@ -1,3 +1,5 @@
+include("opacity_comparison_funcs.jl")
+
 function _calc_Hminus_ff_absorption_coef(ν, T)
     # We invert the H⁻ opacity to solve for the absorption coefficient:
     # α_ff(H⁻) = κ_ν * ρ / (n(H I) * Pₑ)
@@ -58,7 +60,7 @@ function check_Hminus_ff_values(target_precision = 0.01, verbose = true)
     comp_T = view(_ff_T_vals, 1:9)
 
     success = true
-    ν_vals = (SSSynth.clight_cgs*1e8)./comp_λ
+    ν_vals = (SSSynth.c_cgs*1e8)./comp_λ
     for index = 1:length(comp_T)
         cur_T = comp_T[index]
         ref_coef = view(sub_table, :, index)
@@ -82,6 +84,12 @@ end
 
 @testset "H⁻ free-free opacity" begin
     @test check_Hminus_ff_values(0.0225)
+    # we only have measurements for b and c
+    @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
+        calculated, ref = Gray05_comparison_vals(panel,"Hminus_ff")
+        @test all(calculated .≥ 0.0)
+        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+    end
 end
 
 function check_Hminus_bf_values(target_precision = 0.002, verbose = true)
@@ -102,7 +110,7 @@ function check_Hminus_bf_values(target_precision = 0.002, verbose = true)
     _bf_α_vals = view(_bf_table, :, 2) .* 1e-18 # in cm² per H⁻ particle.
     comp_λ_vals = view(_bf_λ_vals, 8:59)
     comp_α_vals = view(_bf_α_vals, 8:59)
-    ν_vals = (SSSynth.clight_cgs*1e8)./comp_λ_vals
+    ν_vals = (SSSynth.c_cgs*1e8)./comp_λ_vals
 
     coefs = SSSynth.ContinuumOpacity._Hminus_bf_cross_section.(ν_vals)
     precision = abs.(coefs .- comp_α_vals)./comp_α_vals
@@ -124,4 +132,20 @@ end
 
 @testset "H⁻ bound-free opacity" begin
     @test check_Hminus_bf_values(0.0025)
+    @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["a", "b", "c"]
+        calculated, ref = Gray05_comparison_vals(panel,"Hminus_bf")
+        @test all(calculated .≥ 0.0)
+        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+    end
+end
+
+
+@testset "He⁻ free-free opacity" begin
+    # this really only amounts to a sanity check because the absolute tolerance is of the same
+    # magnitude as the actual values
+    @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
+        calculated, ref = Gray05_comparison_vals(panel,"Heminus_ff")
+        @test all(calculated .≥ 0.0)
+        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+    end
 end

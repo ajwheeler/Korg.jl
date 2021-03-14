@@ -1,11 +1,7 @@
 using Interpolations: LinearInterpolation, Throw
 
-# define the neutral Hydrogen continuum opacities
+# define the hydrogenic continuum opacities
 
-# compute the value in eV. n should be able to be a floating point value
-_energy_level(n::T, ion_energy::T) where {T<:AbstractFloat} = ion_energy - ion_energy/(n*n)
-
-# We might want to move this function and generalize since we might use it frequently.
 """
     ndens_state_hydrogenic(n, nsdens_div_partition, ion_energy, T)
 
@@ -27,27 +23,17 @@ boltzmann equation).
 """
 function ndens_state_hydrogenic(n::Integer, nsdens_div_partition::Flt, T::Flt,
                                 ion_energy::Flt) where {Flt<:AbstractFloat}
-    n_float = convert(typeof(ion_energy),n)
-    g_n = 2*n_float*n_float
-    energy_level = _energy_level(n_float, ion_energy)
+    n2 = n*n
+    g_n = 2.0*n2
+    energy_level = ion_energy - ion_energy/n2
     nsdens_div_partition * g_n * exp(-energy_level/(kboltz_eV *T))
 end
 
 _eVtoHz(energy) = energy/hplanck_eV
 _HztoeV(freq) = freq*hplanck_eV
 
-
-_bf_σ_coef = [(0.9916,  2.719e13, -2.268e30),
-              (1.105,  -2.375e14,  4.077e28),
-              (1.101,  -9.863e13,  1.035e28),
-              (1.101,  -5.765e13,  4.593e27),
-              (1.102,  -3.909e13,  2.371e27),
-              (1.0986, -2.704e13,  1.229e27),
-              (1.0,     0.0,       0.0     )]
-
-# from chapter 10 of Rybicki & Lightman (2004), I know that e is the elementary charge and I'm
-# 70% sure that m is the electron mass (in the following equation)
-const _bf_σ_const = 2.815e29 # = 64*π⁴e^10 m / (c h⁶ 3√3)
+# In the following equation, e is the elementary charge in units of statcoulombs
+const _bf_σ_const = 2.815e29 # = 64*π⁴e^10 mₑ / (c h⁶ 3√3)
 
 # this is helper function is the most likely part of the calculation to change.
 # This uses double precision to be safe about the polynomial coefficients.
@@ -59,6 +45,15 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Float64, ion_f
     # - ion_freq is the frequency of the photon carrying the minimum energy needed to ionize the
     #   ground state configuration of the current ion (in Hz). This can be estimated as
     #   _eVtoHz(Z²*RydbergH_eV).
+
+    _bf_σ_coef = [(0.9916,  2.719e13, -2.268e30),
+                  (1.105,  -2.375e14,  4.077e28),
+                  (1.101,  -9.863e13,  1.035e28),
+                  (1.101,  -5.765e13,  4.593e27),
+                  (1.102,  -3.909e13,  2.371e27),
+                  (1.0986, -2.704e13,  1.229e27),
+                  (1.0,     0.0,       0.0     )]
+
     if (n < 1)
         throw(DomainError(n,"n must be a positive integer"))
     end
@@ -70,31 +65,12 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Float64, ion_f
     if ν < (ion_freq*inv_n2)
         0.0
     else
-        
         # the last entry of the table should be used when n > length(_bf_σ_coef)
         A, B, C = _bf_σ_coef[min(n,length(_bf_σ_coef))]
 
         poly = A + (B + C*Z2*inv_ν)*Z2*inv_ν
         _bf_σ_const*Z2*(inv_n2*inv_n2*inv_n)*(inv_ν^3)*poly
     end
-end
-
-
-function _hydrogenic_bf_summed_opacity(Z::Integer, nmax::Integer, nsdens_div_partition::Flt,
-                                       ν::Flt, ρ::Flt, T::Flt,
-                                       ion_energy::Flt) where {Flt<:AbstractFloat}
-    ion_freq = _eVtoHz(ion_energy)
-    exp_val = exp(-hplanck_eV * ν / (kboltz_eV * T))
-
-    partial_sum = 0.0
-    for n = 1 : nmax
-        ndens_state = ndens_state_hydrogenic(n, nsdens_div_partition, T, ion_energy)
-        hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ion_freq)
-        cur_val = ndens_state * hydrogenic_bf_cross_section
-        partial_sum += ndens_state * hydrogenic_bf_cross_section
-    end
-    α_sum = partial_sum * (1.0 - exp_val) # the sum of the extinction coefficient values
-    α_sum/ρ
 end
 
 """
@@ -150,8 +126,8 @@ end
 
 
 """
-    hydrogenic_bf_opacity(Z, nmax_explicit_sum, nsdens_div_partition, ν, ρ, T, 
-                          ion_energy)
+    hydrogenic_bf_opacity(Z, nmax_explicit_sum, nsdens_div_partition, ν, ρ, T,
+                          ion_energy, [integrate_high_n])
 
 Compute the bound-free opacity contributed by all energy states of a Hydrogenic species
 
@@ -170,18 +146,34 @@ integral.
 - `T::Flt`: temperature in K
 - `ion_energy::AbstractFloat`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
+- `integrate_high_n::bool`: When this is `false`, bf opacity from higher energy states are not
+   estimated at all. Default is `true`.
 
 # Notes
 This follows the approach described in section 5.1 of Kurucz (1970).
 """
-
 function hydrogenic_bf_opacity(Z::Integer, nmax_explicit_sum::Integer, nsdens_div_partition::Flt,
-                               ν::Flt, ρ::Flt, T::Flt, ion_energy::Flt) where {Flt<:AbstractFloat}
-    direct_sum = _hydrogenic_bf_summed_opacity(Z, nmax_explicit_sum, nsdens_div_partition, ν, ρ, T,
-                                               ion_energy)
-    integrated_part = _hydrogenic_bf_high_n_opacity(Z, nmax_explicit_sum+1, nsdens_div_partition,
-                                                    ν, ρ, T, ion_energy)
-    direct_sum + integrated_part
+                               ν::Flt, ρ::Flt, T::Flt, ion_energy::Flt,
+                               integrate_high_n::Bool = true) where {Flt<:AbstractFloat}
+    ionization_freq = _eVtoHz(ion_energy)
+
+    # first, directly sum individual the opacity contributions from H I atoms at each of the lowest
+    # lowest energy levels (i.e. all energy levels where n <= nmax_explicit_sum)
+    partial_sum = 0.0
+    for n = 1 : nmax_explicit_sum
+        ndens_state = ndens_state_hydrogenic(n, nsdens_div_partition, T, ion_energy)
+        hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ionization_freq)
+        cur_val = ndens_state * hydrogenic_bf_cross_section
+        partial_sum += ndens_state * hydrogenic_bf_cross_section
+    end
+    κ_low_n = partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))/ρ
+
+    # second, estimate the opacity contributions from H I atoms at higher energy levels using an
+    # integral approximation (assuming integrate_high_n is true)
+    κ_high_n = _hydrogenic_bf_high_n_opacity(Z, nmax_explicit_sum+1, nsdens_div_partition,
+                                             ν, ρ, T, ion_energy)
+
+    κ_low_n + (κ_high_n * integrate_high_n)
 end
 
 
