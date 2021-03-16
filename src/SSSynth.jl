@@ -9,6 +9,7 @@ module SSSynth
     include("saha_boltzmann.jl") #saha equation
     include("linelist.jl")       #parse line lists
     include("atmosphere.jl")     #parse model atmospheres
+    include("synthesize.jl")     #solve radiative transfer equation
 
     #load data when the package is imported. We might as well do this until we ship with alternative 
     #datasets

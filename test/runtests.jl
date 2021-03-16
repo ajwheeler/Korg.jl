@@ -54,7 +54,7 @@ end
     atmosphere = SSSynth.read_model_atmosphere("data/sun.krz")
     @test length(atmosphere) == 56
     @test issorted(first.(atmosphere))
-    @test atmosphere[1].tau == 9.747804143e-3
+    @test atmosphere[1].colmass == 9.747804143e-3
     @test atmosphere[1].temp == 4066.8
     @test atmosphere[1].electron_density == 3.76980e10
     @test atmosphere[1].number_density == 4.75478e14
