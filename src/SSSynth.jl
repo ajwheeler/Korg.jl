@@ -15,4 +15,8 @@ module SSSynth
     ionization_energies = setup_ionization_energies()
     partition_funcs = setup_atomic_partition_funcs()
 
+    # Define continuum opacity functions.
+    include("continuum_opacity/continuum_opacity.jl")
+
+
 end # module

@@ -28,7 +28,7 @@ partition functions `Us`, given the temperature, `T` [K], and electron density, 
 Returns a 3-element vector of the same length which sums to 1.
 """
 function saha(χs, Us, T, nₑ)
-    weights = Vector{Float64}(undef, length(χs)) #there's probably a cleaner way to do this
+    weights = Vector{Float64}(undef, length(Us)) #there's probably a cleaner way to do this
     weights[1] = 1.
     for i in 2:length(χs)
         #I think this should get optimized away?  I'm open to not doing this, but I'm hoping it 
@@ -38,7 +38,7 @@ function saha(χs, Us, T, nₑ)
         k_eV = kboltz_eV
         h = hplanck_cgs
         weights[i] = (weights[i-1]/nₑ * (Us[i](T)/Us[i-1](T)) * (2π*mₑ*k*T/h^2)^1.5 * 
-                      exp(-χs[i]/k_eV/T))
+                      exp(-χs[i-1]/k_eV/T))
     end
     weights ./ sum(weights)
 end
