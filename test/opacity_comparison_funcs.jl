@@ -11,6 +11,7 @@
 # in scripts outside of this framework (to create plots in order to assess disagreement)
 
 using HDF5
+using Interpolations: LinearInterpolation, Throw
 
 # Load Gray05 data for a given panel. This returns a tuple holding two dictionaries:
 # 1. The first holds the panel properties (i.e. the temperature and partial electron pressure that
@@ -59,13 +60,30 @@ end
 include("../misc/solar_abundances.jl")
 const solar_abundance_dict = Dict(SSSynth.atomic_symbols .=> solar_abundances)
 
+# from table D.2. This interpolates the log of the partition function.
+# I updated cases were the table records 0.301 with log10(2.0)
+function _gray05_H_I_partition_func(T)
+    log_2 = log10(2.0)
+    θ_vals = [  0.2,   0.4,   0.6,   0.8,   1.0,   1.2,   1.4,   1.6,   1.8,   2.0]
+    table  = [0.368, 0.303, log_2, log_2, log_2, log_2, log_2, log_2, log_2, log_2]
+    interpolator = LinearInterpolation(θ_vals, table, extrapolation_bc=Throw())
+    10^interpolator(5040.0 / T)
+end
+
+const gray05_partition_funcs =
+    Dict( "H_I" => _gray05_H_I_partition_func,
+          "H_II" => T -> 1.0,
+          "He_I" => T -> (@assert 2520 ≤ T ≤ 25200, 1.0),
+          "He_II" => T -> (@assert 2520 ≤ T ≤ 25200, 2.0),
+          "He_III" => T -> 1.0)
+
 # compute the ratio of the nₑ to n_H (the number density of all H I and H II)
 # this function could be reused in the future for testing solutions to coupled Saha equations
 function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = solar_abundance_dict,
                                               ionization_energies = SSSynth.ionization_energies,
                                               partition_funcs = SSSynth.partition_funcs)
     out = 0.0
-    for element in atomic_symbols
+    for element in SSSynth.atomic_symbols
 
         (χs, Us) = if element == "H"
             (ionization_energies[element][1:2], [partition_funcs["H_I"], partition_funcs["H_II"]])
@@ -121,25 +139,42 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     # Pₑ is the partial pressure of the electrons in dyne/cm²
     ne =  Pₑ/(SSSynth.kboltz_cgs * T)
 
-    # the values of ndens, ρ and nH_I shouldn't actually matter since we will
-    # just divide out all dependence on these variables.
-    nH_I, nH, ρ = _semi_realisitic_dens(ne)
+    # pick arbitrary values of nH and ρ. The values shouldn't really matter since we will just
+    # divide out all dependence on these variables.
+    nH = if true
+        100.0*ne
+    else # this is provided for testing purposes. I don't think this matters
+        ne_div_nH = free_electrons_per_Hydrogen_particle(ne, T, solar_abundance_dict,
+                                                         SSSynth.ionization_energies,
+                                                         SSSynth.partition_funcs)
+        ne/ne_div_nH
+    end
+    ρ = nH * 1.67e-24/0.76
+
+    # the free-free opacity calculation requires that the Saha equation is used to compute the
+    # ratio of nH_I to nH_II
+    χs = SSSynth.ionization_energies["H"][1:2]
+    # need to use the gray05 partition function to handle the 11572 K example
+    Us = [gray05_partition_funcs["H_I"], gray05_partition_funcs["H_II"]]
+    weights = SSSynth.saha(χs, Us, T, ne)
+    nH_I = weights[1]*nH
+    nH_II = weights[2]*nH
 
     partition_func = 2.0 # may want to add temperature dependence to partition function
     ν = (SSSynth.c_cgs*1e8)/λ
 
-    if true
-        opacity = SSSynth.ContinuumOpacity.H_I_bf(nH_I/partition_func, ν, ρ, T,
-                                                  H_I_ion_energy)
+    bf_opac = if true
+        SSSynth.ContinuumOpacity.H_I_bf(nH_I/partition_func, ν, ρ, T, H_I_ion_energy)
     else
-        opacity = SSSynth.ContinuumOpacity.hydrogenic_bf_opacity(1, 10000,
-                                                                 nH_I/partition_func,
-                                                                 ν, ρ, T,
-                                                                 H_I_ion_energy, false)
+        SSSynth.ContinuumOpacity.hydrogenic_bf_opacity(1, 10000, nH_I/partition_func,
+                                                       ν, ρ, T, H_I_ion_energy, false)
     end
-    opacity+= SSSynth.ContinuumOpacity.H_I_ff(nH_I, ne, ν, T)
 
-    opacity * ρ / (Pₑ * nH_I)
+    ff_opac = SSSynth.ContinuumOpacity.H_I_ff(nH_II, ne, ν, ρ, T)
+
+    #println(" λ = ", λ, " weights = ", weights, " bf_opac = ", bf_opac, " ff_opac = ", ff_opac)
+
+    (bf_opac + ff_opac) * ρ / (Pₑ * nH_I)
 end
 
 function Hminus_bf_coefficient(λ, T, Pₑ, ion_energy_H⁻ = 0.7552)

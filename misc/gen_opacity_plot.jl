@@ -25,10 +25,8 @@ include("../test/opacity_comparison_funcs.jl")
 function gen_plot(plot_fname, temperature, Pₑ, panel_dict)
     l = @layout [a; c{0.3h}]
     p = plot(layout = l)
-    for (i, (key, array_pair)) in enumerate(panel_dict)
+    for (i, (key, (orig_λ_vals, orig_data))) in enumerate(panel_dict)
 
-        orig_λ_vals, orig_data = array_pair
-        
         plot!(p[1], orig_λ_vals, orig_data, label = key,
               color = i)
         if haskey(Gray05_opacity_form_funcs, key)

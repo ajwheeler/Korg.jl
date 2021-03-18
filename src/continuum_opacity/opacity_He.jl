@@ -11,20 +11,20 @@ const _He_II_ion_energy = ionization_energies["He"][2] # not sure if this is a g
 
 He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_ion_energy) =
     hydrogenic_bf_opacity(2, 9, nHe_II_div_partition, ν, ρ, T, ion_energy)
-He_II_ff(nHe_II, ne, ν, T) = hydrogenic_ff_opacity(2, nHe_II, ne, ν, T)
+He_II_ff(nHe_II, ne, ν, ρ, T) = hydrogenic_ff_opacity(2, nHe_II, ne, ν, ρ, T)
 
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
 function ndens_state_He_I(n::Integer, nsdens_div_partition::Flt, T::Flt) where {Flt<:AbstractFloat}
-    if n == 1
-        g_n, energy_level = (1.0, 0.0)
+    g_n, energy_level = if n == 1
+        (1.0, 0.0)
     elseif n == 2
-        g_n, energy_level = (3.0, 19.819)
+        (3.0, 19.819)
     elseif n == 3
-        g_n, energy_level = (1.0, 20.615)
+        (1.0, 20.615)
     elseif n == 4
-        g_n, energy_level = (9.0, 20.964)
+        (9.0, 20.964)
     else
         # we definitely could add more energy levels
         throw(DomainError(n," Unknown excited state properties for He I"))
@@ -34,7 +34,7 @@ end
 
 
 """
-    Heminus_ff_opacity(nHI_gs, ne, ν, ρ, T)
+    Heminus_ff_opacity(nHe_I_div_partition, ne, ν, ρ, T)
 
 Compute the He⁻ free-free opacity κ.
 
