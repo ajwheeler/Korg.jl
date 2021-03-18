@@ -31,7 +31,7 @@ end
         @test linelist[1].wl ≈ 72320.699
         @test linelist[1].log_gf == -0.826
         @test linelist[1].species == "Be_II"
-        @test linelist[1].E == 140020.580
+        @test linelist[1].wavenumber == 140020.580
         @test linelist[1].log_gamma_rad == 7.93
         @test linelist[1].log_gamma_stark == -2.41
         @test linelist[1].log_gamma_vdW == -6.91
