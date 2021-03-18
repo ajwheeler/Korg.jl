@@ -57,9 +57,6 @@ end
 # of the ratio of free electrons to protons. In the future, we might want to hardcode the
 # calculated values so that changes to the atomic data doesn't break all of these tests.
 
-include("../misc/solar_abundances.jl")
-const solar_abundance_dict = Dict(SSSynth.atomic_symbols .=> solar_abundances)
-
 # from table D.2. This interpolates the log of the partition function.
 # I updated cases were the table records 0.301 with log10(2.0)
 function _gray05_H_I_partition_func(T)
@@ -79,7 +76,7 @@ const gray05_partition_funcs =
 
 # compute the ratio of the nₑ to n_H (the number density of all H I and H II)
 # this function could be reused in the future for testing solutions to coupled Saha equations
-function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = solar_abundance_dict,
+function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = SSSynth.solar_abundances,
                                               ionization_energies = SSSynth.ionization_energies,
                                               partition_funcs = SSSynth.partition_funcs)
     out = 0.0
@@ -106,7 +103,7 @@ function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = solar_abunda
             nₑ_per_ndens_species += num_electrons_from_state * ion_state_weight
         end
 
-        abundance = 10.0^(abundances[element]-12.0)
+        abundance = abundances[element]
         #println("nₑ/n_", element, " =", nₑ_per_ndens_species,
         #        " n_", element, "/n_H = ", abundance)
         out += abundance * nₑ_per_ndens_species
@@ -144,9 +141,7 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     nH = if true
         100.0*ne
     else # this is provided for testing purposes. I don't think this matters
-        ne_div_nH = free_electrons_per_Hydrogen_particle(ne, T, solar_abundance_dict,
-                                                         SSSynth.ionization_energies,
-                                                         SSSynth.partition_funcs)
+        ne_div_nH = free_electrons_per_Hydrogen_particle(ne, T)
         ne/ne_div_nH
     end
     ρ = nH * 1.67e-24/0.76
@@ -220,9 +215,7 @@ function H2plus_coefficient(λ, T, Pₑ)
     # in the future, we may want to use the abundances, ionization_energies and partition functions
     # used in Gray (2005) since we are comparing to his plots
     ne_div_nH = 
-        free_electrons_per_Hydrogen_particle(ne, T, solar_abundance_dict,
-                                             SSSynth.ionization_energies,
-                                             SSSynth.partition_funcs)
+        free_electrons_per_Hydrogen_particle(ne, T)
     nH = ne/ne_div_nH
 
     χs = SSSynth.ionization_energies["H"][1:2]

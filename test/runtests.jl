@@ -27,7 +27,7 @@ end
 
     linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
     @testset "linelist parsing" begin
-        @test length(linelist) == 999
+        @test length(linelist) == 988
         @test linelist[1].wl ≈ 72320.699
         @test linelist[1].log_gf == -0.826
         @test linelist[1].species == "Be_II"
