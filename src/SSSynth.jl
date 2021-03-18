@@ -5,7 +5,7 @@ module SSSynth
 
     include("constants.jl")      #physical constants
     include("atomic_data.jl")    #symbols and atomic weights
-    include("line_opacities.jl") #opacity, line profile, voigt function
+    include("line_opacity.jl") #opacity, line profile, voigt function
     include("partition_func.jl") #approximate partition functions
     include("saha_boltzmann.jl") #saha equation
     include("linelist.jl")       #parse line lists
