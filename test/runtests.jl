@@ -1,6 +1,8 @@
 using SSSynth
 using Test
 
+include("continuum_opacity.jl")
+
 @testset "ionization energies" begin
     @test length(SSSynth.ionization_energies) == 92
     @test SSSynth.ionization_energies["H"] == [13.5984, -1.000, -1.000]
@@ -61,4 +63,22 @@ end
     @test atmosphere[1].density == 1.00062e-9
 end
 
-include("continuum_opacity.jl")
+@testset "synthesis" begin
+
+    @testset "number densities" begin
+        abundances = Dict("C"=>1e-8, "H"=>0.9)
+        nₜ = 1e15
+        n = SSSynth.per_species_number_density(nₜ, nₜ*1e-3, 4500.0, abundances)
+        @test Set(keys(n)) == Set(["C_I", "C_II", "C_III", "H_I", "H_II"])
+        @test n["C_III"] < n["C_II"] < n["C_I"] < n["H_II"] < n["H_I"]
+        @test n["C_III"] + n["C_II"] + n["C_I"] ≈ abundances["C"] * nₜ
+        @test n["H_II"] + n["H_I"] ≈ abundances["H"] * nₜ
+    end
+
+    @testset "trapezoid rule" begin
+        pdf(x) = exp(-1/2 * x^2) / sqrt(2π)
+        xs = -10:0.1:10
+        @test SSSynth.trapezoid_rule(xs, pdf.(xs) * 0.1) - 1.0 < 1e-5
+    end
+    
+end

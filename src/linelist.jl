@@ -18,7 +18,7 @@ end
 
 #I should probably clean up my nomenclature here and throughout
 "get the chemical symbol for the element of the species"
-get_elem(code::AbstractString) = split(code, '_')[1]
+get_elem(code::AbstractString)::String = split(code, '_')[1]
 
 """
     read_line_list(fname)

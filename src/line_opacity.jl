@@ -5,40 +5,12 @@ Calculate the opacity coefficient, α, from all lines in `linelist`, at waveleng
 
 other arguments:
 - `temp` the temerature in K
-- `total_n_density` the number density of non-electron particles in cm^-3
-- `abundances` should be a `Dict` mapping species to absolute abundances between 0 and 1.
 - `window_size` (optional, default: 20), the maximum distance from the line center at which line 
 opacities should be calculated in included.
 """
-function line_opacity(linelist, wls, temp, electron_density, total_n_density, abundances::Dict, 
-                      atomic_masses::Dict, partition_fns::Dict, ionization_energies::Dict
+function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dict, 
+                      partition_fns::Dict, ionization_energies::Dict
                       ; window_size=20.0)
-    #I don't love passing all these dictionaries arround, but I also don't really want to access 
-    #them as globals.  What do you think?  Maybe globals for some of them wouldn't be so bad?
-
-    #TODO rewrite this to avoid constructing a Set
-    #elements is the set of elements independent of ionization state
-    elements = Set((l->get_elem(l.species)).(linelist))
-    @assert all(s in keys(abundances) for s in elements)
-    #calculate the number density of each species
-    n_densities = Dict()
-    for elem in elements
-        if elem == "H"
-            #I'm not very happy with this, but I'm not sure what a better way to handle H is
-            weights = saha(ionization_energies["H"], [partition_fns["H_I"], partition_fns["H_II"]],
-                         temp, electron_density)
-            n_densities["H_I"] = total_n_density * abundances["H"] * weights[1]
-            n_densities["H_II"] = total_n_density * abundances["H"] * weights[2]
-        else
-            weights = saha(ionization_energies[elem], 
-                           [partition_fns[elem * "_I"], partition_fns[elem * "_II"], 
-                              partition_fns[elem * "_III"]], 
-                           temp, electron_density)
-            n_densities[elem * "_I"] = total_n_density * abundances[elem] * weights[1]
-            n_densities[elem * "_II"] = total_n_density * abundances[elem] * weights[2]
-            n_densities[elem * "_III"] = total_n_density * abundances[elem] * weights[3]
-        end
-    end
 
     α_lines = zeros(length(wls))
     for line in linelist
@@ -53,9 +25,6 @@ function line_opacity(linelist, wls, temp, electron_density, total_n_density, ab
 
         #number density of particles in the relevant excitation state
         boltzmann_factor = exp(- line.wavenumber * c_cgs * hplanck_cgs / kboltz_cgs / temp)
-        #println("boltzmann factor: ", boltzmann_factor)
-        #println("frac in state: ", boltzmann_factor / partition_fns[line.species](temp))
-        #println("n_species: ", n_densities[line.species])
         n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
 
         α_lines[mask] += ϕ * σ * n

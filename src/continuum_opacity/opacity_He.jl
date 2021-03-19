@@ -9,7 +9,7 @@ We are currently missing free-free and bound free contributions from He I.
 using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 const _He_II_ion_energy = ionization_energies["He"][2] # not sure if this is a good idea
 
-He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_ion_energy) =
+He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_II_ion_energy) =
     hydrogenic_bf_opacity(2, 9, nHe_II_div_partition, ν, ρ, T, ion_energy)
 He_II_ff(nHe_II, ne, ν, ρ, T) = hydrogenic_ff_opacity(2, nHe_II, ne, ν, ρ, T)
 
@@ -34,7 +34,7 @@ end
 
 
 """
-    Heminus_ff_opacity(nHe_I_div_partition, ne, ν, ρ, T)
+    Heminus_ff(nHe_I_div_partition, ne, ν, ρ, T)
 
 Compute the He⁻ free-free opacity κ.
 
