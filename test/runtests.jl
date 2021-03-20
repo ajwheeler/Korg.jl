@@ -65,6 +65,33 @@ end
 
 @testset "synthesis" begin
 
+    @testset "calculate absolute abundances" begin
+        @test_throws ArgumentError SSSynth.get_absolute_abundances(["H"], 0.0, Dict("H"=>13))
+
+        @testset for metallicity in [0.0, 1.0], A_X in [Dict(), Dict("C"=>9)]
+            for elements in [SSSynth.atomic_symbols, ["H", "He", "C", "Ba"]]
+                nxnt = SSSynth.get_absolute_abundances(elements, metallicity, A_X)
+
+                #abundances for the right set of elementns
+                @test Set(elements) == Set(keys(nxnt))
+
+                #correct absolute abundances?
+                if "C" in keys(A_X)
+                    @test log10(nxnt["C"]/nxnt["H"]) + 12 ≈ 9
+                end
+                @test log10(nxnt["Ba"]/nxnt["H"]) + 12 ≈ 
+                    SSSynth.solar_abundances["Ba"] + metallicity
+
+                #normalized?
+                if elements == SSSynth.atomic_symbols
+                    @test sum(values(nxnt)) ≈ 1
+                else
+                    @test sum(values(nxnt)) < 1
+                end
+            end
+        end
+    end
+
     @testset "number densities" begin
         abundances = Dict("C"=>1e-8, "H"=>0.9)
         nₜ = 1e15

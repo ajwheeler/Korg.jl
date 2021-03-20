@@ -6,13 +6,11 @@ import ..ContinuumOpacity
 
 Solve the transfer equation to get the resultant astrophysical flux at each wavelength.
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
-- `alpha`, i.e. [alpha/H] is log_10 solar relative
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
 
-Uses solar abundances scaled by `metallicity` and `alpha` for those not provided.
+Uses solar abundances scaled by `metallicity` and for those not provided.
 """
-function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0, 
-                    alpha::F=0.00; abundances=Dict{String, F}()
+function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; abundances=Dict()
                    ) where F <: AbstractFloat
     #all the elements involved in either line or continuum opacity
     elements = Set(get_elem(l.species) for l in linelist) ∪ Set(["H", "He"])
@@ -22,30 +20,15 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0,
         @warn "Abundanc(es) for $(impotent) is specified but not in line list."
     end
 
-    #construct dict of absolute abundances, N_x/N_total
-    #TODO make sure this is correct
-    for elem in elements
-        if !(elem in keys(abundances))
-            #I'm accessing the module global solar_abundances here, because this is a user-facing 
-            #function.  Hopefully that's a reasonable line to draw.
-            #TODO correctly decrease H (and He?) with increasing metallicity.  Currently this is 
-            #TODO implement alpha
-            #slightly broken
-            abundances[elem] = solar_abundances[elem] * 10.0^metallicity
-        else
-            abundances[elem] = 10.0^(abundances[elem]-12.0)
-        end
-    end
+    abundances = get_absolute_abundances(elements, metallicity, abundances)
 
+    #TODO use `elements` below
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    #TODO make undef
     α = Matrix{F}(undef, length(atm), length(λs))
     nH = Vector{F}(undef, length(atm))
     for (i, layer) in enumerate(atm)
         number_densities = per_species_number_density(layer.number_density, layer.electron_density,
                                                       layer.temp, abundances)
-        nH[i] = number_densities["H_I"] + number_densities["H_II"]
-
         α[i, :] = line_opacity(linelist, λs, layer.temp, number_densities, atomic_masses, 
                                partition_funcs, ionization_energies)
 
@@ -59,28 +42,61 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0,
     #the thickness of each atmospheric layer 
     #TODO fix edge case
     Δs = [0 ; diff((l->l.colmass).(atm)) ./ (l->l.density).(atm)[2:end]]
-    
-    #optical depth at each layer at each wavelenth
-    τ = cumsum(α .* Δs, dims=1)
+    τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
 
-    #this is not just the standard solution to the transfer equation
-    #the exponential integral function expint captures the integral over the disk of the star to get
-    #the emergent astrophysical flux.  I was made aware of this form of the solution, by Edmonds+
-    #1969 (https://ui.adsabs.harvard.edu/abs/1969JQSRT...9.1427E/abstract), which presents a form of
-    #the equation.  You can verify it by substituting the variable of integration in the exponential
-    #integal, t, with mu=1/t.
     source_fn = blackbody.((l->l.temp).(atm), λs')
+
+    #This isn't the standard solution to the transfer equation.
+    #The exponential integral function, expint, captures the integral over the disk of the star to 
+    #get the emergent astrophysical flux. I was made aware of this form of the solution, by
+    #Edmonds+ 1969 (https://ui.adsabs.harvard.edu/abs/1969JQSRT...9.1427E/abstract).
+    #You can verify it by substituting the variable of integration in the exponential integal, t,
+    #with mu=1/t.
     flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
         trapezoid_rule(τ_λ, S_λ .* expint.(2, τ_λ))
     end
-    #return the solution, along with quantities usefull for debugging.  I'm ambivalent RE whether 
-    #the API should look like this long-term.
-    (flux=flux, alpha=α, tau=τ, source_fn=source_fn, nH=nH)
+
+    #return the solution, along with other quantities across wavelength and atmospheric layer.
+    #idk whether we should return this extra stuff long-term, but it's useful for debugging
+    (flux=flux, alpha=α, tau=τ, source_fn=source_fn)
 end
 
 """
-    per_species_number_density(total_n_density, abundances)
+Calculate N_X/N_total for each X in `elements` given some `specified_abundances`, A(X).  Use the 
+metallicity [X/H] to calculate those remaining from the solar values (except He).
+"""
+function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
+    #TODO fix He
+    if "H" in keys(A_X)
+        throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
+                           * "\"abundnances\" to implicitely set the ammount of H"))
+    end
 
+    #populate dictionary of absolute abundaces
+    abundances = Dict()
+    for elem in elements
+        if elem == "H"
+            abundances[elem] = 1.0
+        elseif elem in keys(A_X)
+            abundances[elem] = 10^(A_X[elem] - 12.0)
+        else
+            #I'm accessing the module global solar_abundances here, but it doesn't make sense to 
+            #make this an optional argument because this behavior can be completely overridden by 
+            #specifying all abundances explicitely.
+            Δ = elem == "He" ? 0.0 : metallicity
+            abundances[elem] = 10^(solar_abundances[elem] + Δ - 12.0)
+        end
+    end
+    #now normalize so that sum(N_x/N_total) = 1
+    total = sum(values(abundances)) + sum([0; [10^(solar_abundances[elem] + metallicity - 12)
+                                               for elem in atomic_symbols if ! (elem in elements)]])
+    for elem in keys(abundances)
+        abundances[elem] /= total
+    end
+    abundances
+end
+
+"""
 Return a `Dict` which maps each species (i.e. Ba II) to number density [cm^-3]
 - `nₜ` the number density of atoms and mollecules in cm^-3
 - `nₑ` the number density of electrons in cm^-3

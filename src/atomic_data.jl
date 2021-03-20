@@ -24,7 +24,6 @@ const atomic_masses = Dict(atomic_symbols .=> [
 
 
 #solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
-#these are in the format n_X/n_total, where n is number density
 const solar_abundances = begin 
     ϵs = [
       12.00,10.93, 1.05, 1.38, 2.70, 8.43, 7.83, 8.69, 4.56, 7.93,
@@ -37,7 +36,6 @@ const solar_abundances = begin
       0.10, 0.85,-0.12, 0.85, 0.26, 1.40, 1.38, 1.62, 0.92, 1.17,
       0.90, 1.75, 0.65,-5.00,-5.00,-5.00,-5.00,-5.00,-5.00, 0.02,
      -5.00,-0.54,-5.00,-5.00,-5.00]
-    relative_number_density = 10.0.^(ϵs .- 12) 
-    Dict(atomic_symbols .=> (relative_number_density ./ sum(relative_number_density)))
+    Dict(atomic_symbols .=> ϵs)
 end
 
