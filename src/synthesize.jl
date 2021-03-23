@@ -66,7 +66,6 @@ Calculate N_X/N_total for each X in `elements` given some `specified_abundances`
 metallicity [X/H] to calculate those remaining from the solar values (except He).
 """
 function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
-    #TODO fix He
     if "H" in keys(A_X)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
                            * "\"abundnances\" to implicitely set the ammount of H"))

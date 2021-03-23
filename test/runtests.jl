@@ -79,6 +79,7 @@ end
                 if "C" in keys(A_X)
                     @test log10(nxnt["C"]/nxnt["H"]) + 12 ≈ 9
                 end
+                @test log10(nxnt["He"]/nxnt["H"]) + 12 ≈ SSSynth.solar_abundances["He"]
                 @test log10(nxnt["Ba"]/nxnt["H"]) + 12 ≈ 
                     SSSynth.solar_abundances["Ba"] + metallicity
 
