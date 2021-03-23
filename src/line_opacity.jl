@@ -24,6 +24,7 @@ function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dic
         #println("σ: ", σ)
 
         #number density of particles in the relevant excitation state
+        #TODO use low state energy!!!
         boltzmann_factor = exp(- line.wavenumber * c_cgs * hplanck_cgs / kboltz_cgs / temp)
         n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
 

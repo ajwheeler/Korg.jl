@@ -22,24 +22,52 @@ end
 end
 
 @testset "lines" begin
-    @testset "species codes" begin
-        @test SSSynth.parse_species_code("01.00") == "H_I"
-        @test SSSynth.parse_species_code("02.01") == "He_II"
-    end
+    @testset "line lists" begin 
+        @testset "species codes" begin
+            @test SSSynth.parse_species_code("01.00") == "H_I"
+            @test SSSynth.parse_species_code("02.01") == "He_II"
+        end
 
-    linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
-    @testset "linelist parsing" begin
-        @test length(linelist) == 988
-        @test linelist[1].wl ≈ 72320.699
-        @test linelist[1].log_gf == -0.826
-        @test linelist[1].species == "Be_II"
-        @test linelist[1].wavenumber == 140020.580
-        @test linelist[1].log_gamma_rad == 7.93
-        @test linelist[1].log_gamma_stark == -2.41
-        @test linelist[1].log_gamma_vdW == -6.91
+        @test_throws ArgumentError SSSynth.read_line_list(""; format="abc")
+
+        kurucz_linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
+        @testset "kurucz linelist parsing" begin
+            @test all((l->l.E_upper > l.E_lower).(kurucz_linelist))
+            @test issorted(kurucz_linelist, by=l->l.wl)
+            @test length(kurucz_linelist) == 988
+            @test kurucz_linelist[1].wl ≈ 72320.699
+            @test kurucz_linelist[1].log_gf == -0.826
+            @test kurucz_linelist[1].species == "Be_II"
+            @test kurucz_linelist[1].E_upper ≈ 17.531776
+            @test kurucz_linelist[1].E_lower ≈ 17.360339371573698
+            @test kurucz_linelist[1].log_gamma_rad == 7.93
+            @test kurucz_linelist[1].log_gamma_stark == -2.41
+            @test kurucz_linelist[1].log_gamma_vdW == -6.91
+        end
+
+        vald_linelist = SSSynth.read_line_list("data/Ylines.vald"; format="vald")
+        @testset "vald linelist parsing" begin
+            @test all((l->l.E_upper > l.E_lower).(vald_linelist))
+            @test issorted(vald_linelist, by=l->l.wl)
+            @test length(vald_linelist) == 4584
+            @test vald_linelist[1].wl ≈ 3002.20106
+            @test vald_linelist[1].log_gf == -1.132
+            @test vald_linelist[1].species == "Y_II"
+            @test vald_linelist[1].E_lower ≈ 3.3757
+            @test vald_linelist[1].E_upper ≈ 7.5055 
+            @test vald_linelist[1].log_gamma_rad == 8.620
+            @test vald_linelist[1].log_gamma_stark == -5.580
+            @test vald_linelist[1].log_gamma_vdW == -7.710
+        end
+
+        @test typeof(vald_linelist) == typeof(kurucz_linelist)
     end
+        
+
 
     @testset "line profile" begin
+        linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
+
         @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1], 
                                             7230 : 0.01 : linelist[1].wl))
         @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1], 
