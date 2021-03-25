@@ -60,7 +60,6 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; a
     #idk whether we should return this extra stuff long-term, but it's useful for debugging
     (flux=flux, alpha=α, tau=τ, source_fn=source_fn)
 end
-
 """
 Calculate N_X/N_total for each X in `elements` given some `specified_abundances`, A(X).  Use the 
 metallicity [X/H] to calculate those remaining from the solar values (except He).

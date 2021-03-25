@@ -75,7 +75,8 @@ end
 
         s =  sum(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1],
                                       72300 : 0.1 : 72350))/10
-        @test 0.999 < s <= 1.0
+        #must convert from cm^-1 to Å^-1
+        @test 0.999 < s * 1e-8 <= 1.0
     end
 end
 

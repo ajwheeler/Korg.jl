@@ -21,14 +21,15 @@ function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dic
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
-        #println("σ: ", σ)
 
+        #stat mech quatities
         #number density of particles in the relevant excitation state
-        #TODO use low state energy!!!
-        boltzmann_factor = exp(- line.wavenumber * c_cgs * hplanck_cgs / kboltz_cgs / temp)
+        boltzmann_factor = exp(- line.E_lower / kboltz_eV / temp)
         n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
+        #the factor (1 - exp(hν₀ / kT))
+        levels_factor = 1 - exp(-c_cgs * hplanck_cgs / (line.wl * 1e-8) / kboltz_cgs / temp)
 
-        α_lines[mask] += ϕ * σ * n
+        α_lines[mask] += ϕ * σ * n * levels_factor 
     end
     α_lines
 end
@@ -45,7 +46,6 @@ function sigma_line(wl, log_gf) where F <: AbstractFloat
     mₑ = electron_mass_cgs
     c  = c_cgs
 
-    #TODO is this right?  I'm confused about where g comes in
     (π*e^2/mₑ/c) * (λ^2/c) * 10^log_gf 
 end
 
@@ -55,6 +55,7 @@ end
 The line profile, ϕ, at wavelengths `wls` in Ångstroms.
 `temp` should be K, `atomic_mass` should be in g.
 `line` should be one of the entries returned by `read_line_list`.
+Note that this returns values in units of cm^-1, not Å^-1
 """
 function line_profile(temp::F, atomic_mass::F, line::NamedTuple, wls::AbstractVector{F}
                      ) where F <:  AbstractFloat
@@ -73,7 +74,7 @@ function line_profile(temp::F, atomic_mass::F, line::NamedTuple, wls::AbstractVe
     v = @. abs(λs-λ0) / Δλ_D
     a = @. λs^2/(4π * c_cgs) * γ / Δλ_D
 
-    @. voigt(a, v) / sqrt(π) / Δλ_D * 1e-8 #convert back to Å^-1
+    @. voigt(a, v) / sqrt(π) / Δλ_D 
 end
 
 function harris_series(v) # assume v < 5
