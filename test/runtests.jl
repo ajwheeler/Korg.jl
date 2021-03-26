@@ -68,12 +68,12 @@ end
     @testset "line profile" begin
         linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
 
-        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1], 
+        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 1e5, linelist[1], 
                                             7230 : 0.01 : linelist[1].wl))
-        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1], 
+        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 0.0, linelist[1], 
                                             linelist[1].wl : 0.01 : 7235), rev=true)
 
-        s =  sum(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], linelist[1],
+        s =  sum(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 2e5, linelist[1],
                                       72300 : 0.1 : 72350))/10
         #must convert from cm^-1 to Å^-1
         @test 0.999 < s * 1e-8 <= 1.0
