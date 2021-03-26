@@ -29,6 +29,9 @@ Pass `format="kurucz"` for a [Kurucz line list](http://kurucz.harvard.edu/lineli
 Pass `format="vald"` for a Vald line list. 
 """
 function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
+    #at present, we preserve whatever order the linelist is in (e.g. groups by species, sorted by
+    #wavelength) because the line opacity code makes no assumptions about linelist order, but we may 
+    #want to normalize it in the future.
     linelist = if format == "kurucz"
         linelist = open(fname) do f
             map(eachline(f)) do line
@@ -84,8 +87,6 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
         @warn "omitting $(sum(.! mask)) lines of high (> III) ionization states"
     end
     linelist[mask]
-
-    #TODO sort
 end
 
 

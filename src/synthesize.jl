@@ -7,11 +7,12 @@ import ..ContinuumOpacity
 Solve the transfer equation to get the resultant astrophysical flux at each wavelength.
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
+- `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
-function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; abundances=Dict()
-                   ) where F <: AbstractFloat
+function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
+                    abundances=Dict()) where F <: AbstractFloat
     #all the elements involved in either line or continuum opacity
     elements = Set(get_elem(l.species) for l in linelist) ∪ Set(["H", "He"])
 
@@ -30,7 +31,7 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; a
         number_densities = per_species_number_density(layer.number_density, layer.electron_density,
                                                       layer.temp, abundances)
         α[i, :] = line_opacity(linelist, λs, layer.temp, number_densities, atomic_masses, 
-                               partition_funcs, ionization_energies)
+                               partition_funcs, ionization_energies, vmic*1e5)
 
         #continuum opacities are in frequency form, but this calculation is in wavelength form.
         νs = (c_cgs ./ λs) * 1e8

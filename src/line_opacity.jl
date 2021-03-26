@@ -7,9 +7,10 @@ other arguments:
 - `temp` the temerature in K
 - `window_size` (optional, default: 20), the maximum distance from the line center at which line 
 opacities should be calculated in included.
+- `vmic` is the microturbulent velocity in cm/s
 """
 function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dict, 
-                      partition_fns::Dict, ionization_energies::Dict
+                      partition_fns::Dict, ionization_energies::Dict, vmic
                       ; window_size=20.0)
 
     α_lines = zeros(length(wls))
@@ -17,7 +18,7 @@ function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dic
         mask = line.wl - window_size .< wls .< line.wl + window_size
 
         #line profile (normalized)
-        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], line, wls[mask])
+        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], vmic, line, wls[mask])
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
@@ -50,24 +51,23 @@ function sigma_line(wl, log_gf) where F <: AbstractFloat
 end
 
 """
-    line_profile(temp, atomic_mass, line, wl)
+    line_profile(temp, atomic_mass, ξ, line, wl)
 
 The line profile, ϕ, at wavelengths `wls` in Ångstroms.
-`temp` should be K, `atomic_mass` should be in g.
+`temp` should be K, `atomic_mass` should be in g, `ξ` should be in cm/s,
 `line` should be one of the entries returned by `read_line_list`.
 Note that this returns values in units of cm^-1, not Å^-1
 """
-function line_profile(temp::F, atomic_mass::F, line::NamedTuple, wls::AbstractVector{F}
+function line_profile(temp::F, atomic_mass::F, ξ, line::NamedTuple, wls::AbstractVector{F}
                      ) where F <:  AbstractFloat
     #work in cgs
     λs = wls .* 1e-8 
     λ0 = line.wl * 1e-8
 
     #doppler-broadening parameter
-    Δλ_D = λ0 * sqrt(2kboltz_cgs*temp / atomic_mass) / c_cgs
+    Δλ_D = λ0 * sqrt(2kboltz_cgs*temp / atomic_mass + ξ^2) / c_cgs
 
     #get all damping params from line list.  There may be better sources for this.
-    #TODO these are log 10, right?
     γ = 10^line.log_gamma_rad + 10^line.log_gamma_stark + 10^line.log_gamma_vdW
 
     #Voigt function parameters
