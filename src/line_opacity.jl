@@ -54,7 +54,7 @@ end
     line_profile(temp, atomic_mass, ξ, line, wl)
 
 The line profile, ϕ, at wavelengths `wls` in Ångstroms.
-`temp` should be K, `atomic_mass` should be in g, `ξ` should be in cm/s,
+`temp` should be in K, `atomic_mass` should be in g, `ξ` should be in cm/s,
 `line` should be one of the entries returned by `read_line_list`.
 Note that this returns values in units of cm^-1, not Å^-1
 """
