@@ -23,7 +23,7 @@ function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dic
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
 
-        #stat mech quatities
+        #stat mech quantities
         #number density of particles in the relevant excitation state
         boltzmann_factor = exp(- line.E_lower / kboltz_eV / temp)
         n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
