@@ -58,7 +58,7 @@ The line profile, ϕ, at wavelengths `wls` in Ångstroms.
 `line` should be one of the entries returned by `read_line_list`.
 Note that this returns values in units of cm^-1, not Å^-1
 """
-function line_profile(temp::F, atomic_mass::F, ξ, line::NamedTuple, wls::AbstractVector{F}
+function line_profile(temp::F, atomic_mass::F, ξ::F, line::NamedTuple, wls::AbstractVector{F}
                      ) where F <:  AbstractFloat
     #work in cgs
     λs = wls .* 1e-8 
