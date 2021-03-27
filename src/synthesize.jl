@@ -23,26 +23,24 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
 
     abundances = get_absolute_abundances(elements, metallicity, abundances)
 
-    #TODO use `elements` below
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{F}(undef, length(atm), length(λs))
-    nH = Vector{F}(undef, length(atm))
     for (i, layer) in enumerate(atm)
         number_densities = per_species_number_density(layer.number_density, layer.electron_density,
                                                       layer.temp, abundances)
+
         α[i, :] = line_opacity(linelist, λs, layer.temp, number_densities, atomic_masses, 
                                partition_funcs, ionization_energies, vmic*1e5)
 
-        #continuum opacities are in frequency form, but this calculation is in wavelength form.
         νs = (c_cgs ./ λs) * 1e8
-        #dλdν = (c_cgs ./ νs.^2) * 1e8
         α[i, :] += total_continuum_opacity(νs, layer.temp, layer.electron_density, layer.density,
                                            number_densities, partition_funcs) * layer.density
     end
 
     #the thickness of each atmospheric layer 
-    #TODO fix edge case
-    Δs = [0 ; diff((l->l.colmass).(atm)) ./ (l->l.density).(atm)[2:end]]
+    Δcolmass = diff((l->l.colmass).(atm))
+    Δs = 0.5([0 ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm)
+
     τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
 
     source_fn = blackbody.((l->l.temp).(atm), λs')
@@ -61,6 +59,7 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
     #idk whether we should return this extra stuff long-term, but it's useful for debugging
     (flux=flux, alpha=α, tau=τ, source_fn=source_fn)
 end
+
 """
 Calculate N_X/N_total for each X in `elements` given some `specified_abundances`, A(X).  Use the 
 metallicity [X/H] to calculate those remaining from the solar values (except He).
