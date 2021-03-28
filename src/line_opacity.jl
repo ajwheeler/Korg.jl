@@ -8,10 +8,10 @@ other arguments:
 - `n_densities`, a Dict mapping species to absolute number density [cm^-3].
 - `window_size` (optional, default: 20), the maximum distance from the line center at which line 
 opacities should be calculated in included.
-- `vmic` is the microturbulent velocity in cm/s
+- `ξ` is the microturbulent velocity in cm/s
 """
 function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dict, 
-                      partition_fns::Dict, ionization_energies::Dict, vmic
+                      partition_fns::Dict, ionization_energies::Dict, ξ
                       ; window_size=20.0)
 
     α_lines = zeros(length(wls))
@@ -19,7 +19,7 @@ function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dic
         mask = line.wl - window_size .< wls .< line.wl + window_size
 
         #line profile (normalized)
-        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], vmic, line, wls[mask])
+        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], ξ, line, wls[mask])
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
@@ -55,8 +55,8 @@ end
     line_profile(temp, atomic_mass, ξ, line, wl)
 
 The line profile, ϕ, at wavelengths `wls` in Ångstroms.
-`temp` should be in K, `atomic_mass` should be in g, `ξ` should be in cm/s,
-`line` should be one of the entries returned by `read_line_list`.
+`temp` should be in K, `atomic_mass` should be in g, microturbulent velocity, `ξ`, should be in 
+cm/s, `line` should be one of the entries returned by `read_line_list`.
 Note that this returns values in units of cm^-1, not Å^-1
 """
 function line_profile(temp::F, atomic_mass::F, ξ::F, line::NamedTuple, wls::AbstractVector{F}
