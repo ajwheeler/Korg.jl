@@ -39,7 +39,8 @@ end
 """
     sigma_line(wl, log_gf)
 
-The cross-section of `line`.
+The cross-section at wavelength `wl` in Ångstroms of a transition for which the product of the
+degeneracy and oscillator strength is `10^log_gf`.
 """
 function sigma_line(wl, log_gf) where F <: AbstractFloat
     #work in cgs
