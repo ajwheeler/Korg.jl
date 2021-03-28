@@ -8,17 +8,56 @@ include("continuum_opacity.jl")
     @test SSSynth.ionization_energies["H"] == [13.5984, -1.000, -1.000]
     @test SSSynth.ionization_energies["Ru"] == [7.3605, 16.760, 28.470]
     @test SSSynth.ionization_energies["U"] == [6.1940, 11.590, 19.800]
-end 
+end
 
-@testset "saha" begin s = [SSSynth.saha(SSSynth.ionization_energies["N"], 
-                      [SSSynth.partition_funcs["N_I"], 
-                       SSSynth.partition_funcs["N_II"], 
-                       SSSynth.partition_funcs["N_III"]], 
-                      T, 1.0) 
-         for T in 1:100:10000]
-    @test issorted(first.(s), rev=true)
-    @test issorted(last.(s))
-    @test issorted(s[1], rev=true)
+
+"""
+Compute nₑ (number density of free electrons) in a pure Hydrogen atmosphere, where `nH_tot` is the
+total number density of H I and H II (in cm⁻³), the temperature is `T`, and `HI_partition_val` is
+the the value of the H I partition function.
+
+This is a relatively naive implementation. More numerically stable solutions exist.
+"""
+function electron_ndens_Hplasma(nH_tot, T, H_I_partition_val = 2.0)
+    # Define the Saha equation as: nₑ*n_{H II} / n_{H I} = RHS
+    # coef ∼ 4.829e15
+    coef = 2.0 * (2.0*π*SSSynth.electron_mass_cgs*SSSynth.kboltz_cgs / SSSynth.hplanck_cgs^2)^1.5
+    RHS = coef * T^1.5 * exp(-SSSynth.RydbergH_eV/(SSSynth.kboltz_eV*T))/H_I_partition_val
+    # In a pure Hydrogen atmosphere: nₑ = n_{H II}. The Saha eqn becomes:  nₑ²/(nH_tot - ne) = RHS
+    # We recast the Saha eqn as: a*nₑ² + b*nₑ + c = 0 and compute the coefficients
+    a, b, c = (1.0, RHS, -1*RHS*nH_tot)
+    # solve quadratic equation. Since b is always positive and c is always negative:
+    #    (-b + sqrt(b²-4*a*c))/(2*a) is always ≥ 0
+    #    (-b - sqrt(b²-4*a*c))/(2*a) is always negative
+    nₑ = (-b + sqrt(b*b-4*a*c))/(2*a)
+    nₑ
+end
+
+@testset "saha" begin
+    @testset "pure Hydrogen atmosphere" begin
+        nH_tot = 1e15
+        # specify χs and Us to decouple this testset from other parts of the code
+        χs, Us = [SSSynth.RydbergH_eV, -1.0], [T -> 2.0, T -> 1.0]
+        # iterate from less than 1% ionized to more than 99% ionized
+        for T in [3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3, 1e4, 1.1e4, 1.2e4, 1.3e4, 1.4e4, 1.5e5]
+            nₑ = electron_ndens_Hplasma(nH_tot, T, 2.0)
+            weights = SSSynth.saha(χs, Us, T, nₑ)
+            @test length(weights) == 2
+            @test (weights[1] + weights[2]) ≈ 1.0 rtol = 1e-15
+            rtol = (T == 1.5e5) ? 1e-9 : 1e-14
+            @test weights[2] ≈ (nₑ/nH_tot) rtol = rtol
+        end
+    end
+
+    @testset "monotonic N_I and N_III Temperature dependence" begin
+        s = [SSSynth.saha(SSSynth.ionization_energies["N"], [SSSynth.partition_funcs["N_I"],
+                                                             SSSynth.partition_funcs["N_II"],
+                                                             SSSynth.partition_funcs["N_III"]],
+                          T, 1.0) for T in 1:100:10000]
+        @test issorted(first.(s), rev=true)
+        @test issorted(last.(s))
+        @test issorted(s[1], rev=true)
+    end
 end
 
 @testset "lines" begin

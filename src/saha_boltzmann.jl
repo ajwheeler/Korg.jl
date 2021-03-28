@@ -37,7 +37,7 @@ function saha(χs, Us, T, nₑ)
         k = kboltz_cgs
         k_eV = kboltz_eV
         h = hplanck_cgs
-        weights[i] = (weights[i-1]/nₑ * (Us[i](T)/Us[i-1](T)) * (2π*mₑ*k*T/h^2)^1.5 * 
+        weights[i] = (2.0*weights[i-1]/nₑ * (Us[i](T)/Us[i-1](T)) * (2π*mₑ*k*T/h^2)^1.5 *
                       exp(-χs[i-1]/k_eV/T))
     end
     weights ./ sum(weights)
