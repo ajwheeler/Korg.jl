@@ -148,8 +148,6 @@ integral.
 
 # Arguments
 - `Z::Integer`: Z is the atomic number of the species (e.g. 1 for H I or 2 for He II)
-- `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
-   the explicit sum. The contributions from higher levels are included in the integral.
 - `nsdens_div_partition::Flt` is the total number density of the species divided by the species's
    partition function.
 - `ν::Flt`: frequency in Hz
@@ -157,14 +155,16 @@ integral.
 - `T::Flt`: temperature in K
 - `ion_energy::AbstractFloat`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
+- `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
+   the explicit sum. The contributions from higher levels are included in the integral.
 - `integrate_high_n::bool`: When this is `false`, bf opacity from higher energy states are not
    estimated at all. Default is `true`.
 
 # Notes
 This follows the approach described in section 5.1 of Kurucz (1970).
 """
-function hydrogenic_bf_opacity(Z::Integer, nmax_explicit_sum::Integer, nsdens_div_partition::Flt,
-                               ν::Flt, ρ::Flt, T::Flt, ion_energy::Flt,
+function hydrogenic_bf_opacity(Z::Integer, nsdens_div_partition::Flt, ν::Flt, ρ::Flt, T::Flt,
+                               ion_energy::Flt, nmax_explicit_sum::Integer,
                                integrate_high_n::Bool = true) where {Flt<:AbstractFloat}
     ionization_freq = _eVtoHz(ion_energy)
 

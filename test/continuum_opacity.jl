@@ -230,3 +230,128 @@ end
         end
     end
 end
+
+
+"""
+    gray_H_I_bf_absorption_coef(λ, T)
+
+Computes the H I bound-free absorption coefficient per neutral Hydrogen atom (with the stimulated
+emission correction term) by adapting equation 8.8 from Gray (2005). 
+
+In contrast to `SSSynth.ContinuumOpacity.H_I_bf`, this implementation:
+- uses a completely different approximation for computing the cross-section (this includes
+  differences in gaunt factor estimation).
+- uses different logic for approximating the contributions of higher energy levels to the opacity. 
+  In this approximation the lowest 2 energy levels that can be ionized at a given wavelength, λ,
+  are always explicitly summed and the contributions from all higher energy levels are always 
+  integrated.
+- uses constants that have been cast into a completely different format.
+
+# Arguments
+- `λ`: wavelength in Å
+- `T`: temperature in K
+
+# Notes
+This implicitly assumes that the H I partition function is always equal to 2.
+"""
+function gray_H_I_bf_absorption_coef(λ, T)
+    # equation 8.8 gives the formula without stimulated emission corrections
+    # λ must have units of Å and T must have units of K
+
+    θ = 5040/T # eV^-1
+    photon_energy_eV = SSSynth.hplanck_eV * SSSynth.c_cgs * 1e8/λ
+
+    # They are not particularly tranparent about this, but I believe n0 should be the lowest energy
+    # state for which the ionization energy is greater than or equal to photon_energy_eV
+    full_ion_energy = 13.6 # ionization from ground state
+
+    # to ionize electron in state n, need:   photon_energy_eV ≥ full_ion_energy /n²
+    # Rearrange eqn to determine values of n that can be excited by a given photon_energy_eV:
+    #                                                      n  ≥ √(full_ion_energy/photon_energy_eV)
+    # Then n₀ is the minimum value of n that satisfies this:
+    n₀ = ceil(Int64, sqrt(full_ion_energy / photon_energy_eV))
+
+    # Let's compute the summation in equation 8.8 that runs from n₀ through n₀+2
+    Σ_term = 0.0
+    for n = n₀:(n₀+2)
+        # compute excitation potential, χ, (from equation 8.3):
+        χ = full_ion_energy * (1.0 - 1.0/(n*n)) #eV
+        # estimate bound-free gaunt factor (from equation 8.5):
+        R = 1.0968e-3 # Å⁻¹
+        gaunt_bf = 1.0 - 0.3456*(λ*R/(n*n) - 0.5)/cbrt(λ*R)
+
+        Σ_term += 10.0^(-θ*χ) * gaunt_bf / n^3
+    end
+
+    # Let's compute the "integal_term"
+    χ₃ = full_ion_energy * (1 - 1/(n₀+3)^2)
+    loge = 0.43429 # = log₁₀e
+    integral_term = (10^(-χ₃*θ) - 10^(-full_ion_energy*θ)) * 0.5 * loge / (θ * full_ion_energy)
+
+    α₀ = 1.0449e-26 #cm² Å⁻³
+    uncorrected_absorption_coef = α₀ * λ^3 * (Σ_term + integral_term)
+
+    # according to equation 8.18, we need to correct the value for stimulated emission
+    χ_λ = 1.2398e4/λ
+    uncorrected_absorption_coef * (1 - 10.0^(-χ_λ * θ))
+end
+
+@testset "H I bound-free opacity" begin
+    @testset "Gray (2005) implementation comparison" begin
+        # Compare the different formulations of the bound-free opacity under the conditions of the
+        # panels of figure 8.5 of Gray (2005). Outside of these conditions, it's unclear if/where
+        # Gray's approximation for the gaunt factor breaks down.
+        # This comparison is much more constraining than directly comparing against the relevant
+        # curve extracted from the panel because the relevant curve includes both free-free and
+        # bound-free absorption. It's also much more constraining when H I bf opacity is subdominant
+
+        H_I_ion_energy = SSSynth.RydbergH_eV # use this to decouple test from ionization energies
+        H_I_partition_val = 2.0 # implicitly assumed by the Gray implementation
+
+        λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
+        ν_vals = SSSynth.c_cgs*1e8./λ_vals
+
+        for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
+            ref_absorption_coef = gray_H_I_bf_absorption_coef.(λ_vals, T)
+
+            nₑ = 10.0^logPₑ / (SSSynth.kboltz_cgs * T)
+            nH_I = nₑ * 100.0 # this is totally arbitrary
+            ρ = nH_I * 1.67e-24/0.76 # this is totally arbitrary
+
+            absorption_coef = SSSynth.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
+                                                               T, H_I_ion_energy) * ρ/nH_I
+            #println(maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef))
+            @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.004
+            @test all(absorption_coef .≥ 0.0)
+        end
+    end
+
+    @testset "Integral-Summation Equivalence" begin
+        # SSSynth.ContinuumOpacity.H_I_bf approximates the sum of the absorption contributions from
+        # bound-free transitions originating from high energy levels with an integral. These tests
+        # check that the integral does a reasonable job reproducing the direct sum.
+
+        H_I_ion_energy = SSSynth.RydbergH_eV # use this to decouple test from ionization energies
+        H_I_partition_val = 2.0 # implicitly assumed by the Gray implementation
+
+        λ_vals = [3e3 + (i-1)*500 for i = 1:35] # equally spaced vals from 3e3 Å through 2e4 Å
+        ν_vals = SSSynth.c_cgs*1e8./λ_vals
+
+        nstop_sum = 100
+
+        for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
+            ref_absorption_coef = gray_H_I_bf_absorption_coef.(λ_vals, T)
+
+            nₑ = 10.0^logPₑ / (SSSynth.kboltz_cgs * T)
+            nH_I = nₑ * 100.0 # this is totally arbitrary
+            ρ = nH_I * 1.67e-24/0.76 # this is totally arbitrary
+
+            opacity_integral = SSSynth.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
+                                                                T, H_I_ion_energy)
+            opacity_sum = SSSynth.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
+                                                           T, H_I_ion_energy, nstop_sum, false)
+            #println(maximum(abs.(opacity_integral - opacity_sum)/opacity_sum))
+            @test maximum(abs.(opacity_integral - opacity_sum)/opacity_sum) < 0.003
+        end
+    end
+end

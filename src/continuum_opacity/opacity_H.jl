@@ -6,8 +6,10 @@ const _H_I_ion_energy = ionization_energies["H"][1] # not sure if this is a good
 const _H⁻_ion_energy = 0.7552 # eV
 
 
-H_I_bf(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy) =
-    hydrogenic_bf_opacity(1, 8, nH_I_div_partition, ν, ρ, T, ion_energy)
+H_I_bf(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy,
+       nmax_explicit_sum = 8, integrate_high_n = true) =
+           hydrogenic_bf_opacity(1, nH_I_div_partition, ν, ρ, T, ion_energy, nmax_explicit_sum,
+                                 integrate_high_n)
 # H I free-free actually refers to the reaction: photon + e⁻ + H II -> e⁻ + H II.
 H_I_ff(nH_II, ne, ν, ρ, T) = hydrogenic_ff_opacity(1, nH_II, ne, ν, ρ, T)
 
