@@ -149,3 +149,84 @@ end
         @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
     end
 end
+
+
+"""
+    gray_H_I_ff_absorption_coef(λ, T, [gaunt_func])
+
+Computes the H I free-free absorption coefficient per neutral Hydrogen atom by adapting equation
+8.10 from Gray (2005). In contrast to `SSSynth.ContinuumOpacity.H_I_ff`, this implementation
+directly combines the Saha equation and uses constants that have been cast into a completely
+separate format.
+
+# Arguments
+- `λ`: wavelength in Å
+- `T`: temperature in K
+- `gaunt_func`: optional argument specifying a function to compute the free-free gaunt factor. The
+  function should accept log_u and log_γ2 as arguments. By default, this uses the approximation
+  provided by equation 8.6 from Gray (2005).
+
+# Notes
+I worked out the algebra in detail and can confirm that the this is assumes that partition function
+of H I is 2.0 at all temperatures.
+"""
+function gray_H_I_ff_absorption_coef(λ, T, gaunt_func = nothing)
+
+    # adapt equation 8.10
+    R = 1.0968e5 # cm⁻¹
+    I = SSSynth.hplanck_eV * SSSynth.c_cgs * R # eV
+    θ = 5040/T # eV^-1
+    loge = log10(MathConstants.e)
+    α₀ = 1.0449e-26 #cm² Å⁻³
+    χ_λ = 1.2398e4/λ # eV
+    Z2 = 1 # this is an implicit assumption from the textbook
+
+    gaunt_ff = if isnothing(gaunt_func)
+        # equation 8.6 from Gray (2005)
+        temp_R = R/1e8 # Å⁻¹
+        1.0 + 0.3456*(0.5 + loge/(θ*χ_λ))/cbrt(λ*temp_R)
+    else
+        β = 1.0/(SSSynth.kboltz_eV * T)
+        ν = SSSynth.c_cgs * 1e8 / λ
+        log_u = log10(SSSynth.hplanck_eV * ν * β)
+        log_γ2 = log10(SSSynth.RydbergH_eV * Z2 * β)
+        gaunt_func(log_u, log_γ2)
+    end
+
+    uncorrected = α₀ *λ^3 * gaunt_ff * loge * 10.0^(-θ*I)/ (2*θ*I)
+    # according to equation 8.18, we need to correct the value for stimulated emission
+    uncorrected*(1 - 10.0^(-χ_λ * θ))
+end
+
+
+@testset "H I free-free opacity" begin
+    @testset "Gray (2005) implementation comparison" begin
+        # Compare the different formulations of the free-free opacity under the conditions of the
+        # panels of figure 8.5 of Gray (2005). Outside of these conditions, it's unclear where
+        # Gray's approximation for the gaunt factor breaks down.
+        # This comparison is much more constraining than directly comparing against the relevant
+        # curve extracted from the panel because the relevant curve includes both free-free and
+        # bound-free absorption. It's also much more constraining when H I ff opacity is subdominant
+        χs = [SSSynth.RydbergH_eV, -1.0]
+        Us = [T -> 2.0, T -> 1.0] # implicitly assumed by the Gray implementation
+
+        λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
+        ν_vals = SSSynth.c_cgs*1e8./λ_vals
+
+        for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
+            ref_absorption_coef = gray_H_I_ff_absorption_coef.(λ_vals, T)
+
+            nₑ = 10.0^logPₑ / (SSSynth.kboltz_cgs * T)
+            nH_total = nₑ * 100.0 # this is totally arbitrary
+            ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
+
+            weights = SSSynth.saha(χs, Us, T, nₑ)
+            nH_I = nH_total * weights[1]
+            nH_II = nH_total * weights[2]
+            # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II
+            absorption_coef = SSSynth.ContinuumOpacity.H_I_ff.(nH_II, nₑ, ν_vals, ρ, T) * ρ/nH_I
+            @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.0015
+            @test all(absorption_coef .≥ 0.0)
+        end
+    end
+end
