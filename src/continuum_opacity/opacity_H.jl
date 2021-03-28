@@ -186,8 +186,8 @@ function Hminus_ff(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
     # Pₑ * α_ff(H⁻) gives the absorption coefficient in units of cm² per ground state H I atom
     Pₑ = ne * kboltz_cgs * T
 
-    # Going to account for the fact that n(H I, n=1) might be slightly smaller than the entire
-    # number density of H I. This is only a difference at the highest temperatures. For the
+    # Account for the fact that n(H I, n=1) might be slightly smaller than the entire number
+    # density of H I. There is only really a difference at the highest temperatures. For the
     # temperature range where this approximation is valid, less than 0.23% of all H I atoms are not
     # in the ground state.
 
