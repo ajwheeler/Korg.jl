@@ -355,3 +355,18 @@ end
         end
     end
 end
+
+
+# this is only included here for completeness.
+# Given the strong consistency when comparing the bf and ff values individually against the
+# alternative implementations described in Gray (2005), I'm unconcerned by the need for large
+# tolerances.
+@testset "combine H I bf and ff opacity opacity" begin
+    @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
+                                                                          ("c",0.125),
+                                                                          ("d",35)]
+        calculated, ref = Gray05_comparison_vals(panel,"H")
+        @test all(calculated .≥ 0.0)
+        @test all(abs.(calculated - ref) .≤ atol)
+    end
+end
