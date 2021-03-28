@@ -5,6 +5,7 @@ Calculate the opacity coefficient, α, from all lines in `linelist`, at waveleng
 
 other arguments:
 - `temp` the temerature in K
+- `n_densities`, a Dict mapping species to absolute number density [cm^-3].
 - `window_size` (optional, default: 20), the maximum distance from the line center at which line 
 opacities should be calculated in included.
 - `vmic` is the microturbulent velocity in cm/s
