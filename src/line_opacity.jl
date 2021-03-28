@@ -36,7 +36,7 @@ function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dic
 end
 
 """
-    sigma_line(line, wls)
+    sigma_line(wl, log_gf)
 
 The cross-section of `line`.
 """
