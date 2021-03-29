@@ -55,7 +55,7 @@ function sigma_line(wl, log_gf) where F <: AbstractFloat
 end
 
 """
-    line_profile(temp, atomic_mass, ξ, line, wl)
+    line_profile(temp, atomic_mass, ξ, line, wls)
 
 The line profile, ϕ, at wavelengths `wls` in Ångstroms.
 `temp` should be in K, `atomic_mass` should be in g, microturbulent velocity, `ξ`, should be in 

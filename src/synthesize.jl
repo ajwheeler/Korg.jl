@@ -2,9 +2,12 @@ using SpecialFunctions: expint
 import ..ContinuumOpacity
 
 """
-    synthesize(atm, linelist, λs, [metallicity], [alpha]; abundances=Dict())
+    synthesize(atm, linelist, λs, [metallicity, [alpha]]; abundances=Dict())
 
-Solve the transfer equation to get the resultant astrophysical flux at each wavelength.
+Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
+wavelengths `λs` to get the resultant astrophysical flux at each wavelength.
+
+Other arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
