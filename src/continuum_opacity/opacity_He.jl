@@ -9,9 +9,12 @@ We are currently missing free-free and bound free contributions from He I.
 using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 const _He_II_ion_energy = ionization_energies["He"][2] # not sure if this is a good idea
 
-He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_II_ion_energy) =
-    hydrogenic_bf_opacity(2, 9, nHe_II_div_partition, ν, ρ, T, ion_energy)
-He_II_ff(nHe_II, ne, ν, ρ, T) = hydrogenic_ff_opacity(2, nHe_II, ne, ν, ρ, T)
+He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_II_ion_energy,
+         nmax_explicit_sum = 9, integrate_high_n = true) =
+             hydrogenic_bf_opacity(1, nHe_II_div_partition, ν, ρ, T, ion_energy, nmax_explicit_sum,
+                                   integrate_high_n)
+# He II free-free actually refers to the reaction: photon + e⁻ + He III -> e⁻ + He III.
+He_II_ff(nHe_III, ne, ν, ρ, T) = hydrogenic_ff_opacity(2, nHe_III, ne, ν, ρ, T)
 
 
 # Compute the number density of atoms in different He I states

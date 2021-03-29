@@ -148,8 +148,6 @@ integral.
 
 # Arguments
 - `Z::Integer`: Z is the atomic number of the species (e.g. 1 for H I or 2 for He II)
-- `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
-   the explicit sum. The contributions from higher levels are included in the integral.
 - `nsdens_div_partition::Flt` is the total number density of the species divided by the species's
    partition function.
 - `ν::Flt`: frequency in Hz
@@ -157,14 +155,16 @@ integral.
 - `T::Flt`: temperature in K
 - `ion_energy::AbstractFloat`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
+- `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
+   the explicit sum. The contributions from higher levels are included in the integral.
 - `integrate_high_n::bool`: When this is `false`, bf opacity from higher energy states are not
    estimated at all. Default is `true`.
 
 # Notes
 This follows the approach described in section 5.1 of Kurucz (1970).
 """
-function hydrogenic_bf_opacity(Z::Integer, nmax_explicit_sum::Integer, nsdens_div_partition::Flt,
-                               ν::Flt, ρ::Flt, T::Flt, ion_energy::Flt,
+function hydrogenic_bf_opacity(Z::Integer, nsdens_div_partition::Flt, ν::Flt, ρ::Flt, T::Flt,
+                               ion_energy::Flt, nmax_explicit_sum::Integer,
                                integrate_high_n::Bool = true) where {Flt<:AbstractFloat}
     ionization_freq = _eVtoHz(ion_energy)
 
@@ -192,20 +192,20 @@ end
 # this table is taken from section 5.1 of Kurucz (1970)
 const _ff_interpolator = begin
     table_val = [5.53 5.49 5.46 5.43 5.40 5.25 5.00 4.69 4.48 4.16 3.85;
-                   4.91 4.87 4.84 4.80 4.77 4.63 4.40 4.13 3.87 3.52 3.27;
-                   4.29 4.25 4.22 4.18 4.15 4.02 3.80 3.57 3.27 2.98 2.70;
-                   3.64 3.61 3.59 3.56 3.54 3.41 3.22 2.97 2.70 2.45 2.20;
-                   3.00 2.98 2.97 2.95 2.94 2.81 2.65 2.44 2.21 2.01 1.81;
-                   2.41 2.41 2.41 2.41 2.41 2.32 2.19 2.02 1.84 1.67 1.50;
-                   1.87 1.89 1.91 1.93 1.95 1.90 1.80 1.68 1.52 1.41 1.30;
-                   1.33 1.39 1.44 1.49 1.55 1.56 1.51 1.42 1.33 1.25 1.17;
-                   0.90 0.95 1.00 1.08 1.17 1.30 1.32 1.30 1.20 1.15 1.11;
-                   0.45 0.48 0.52 0.60 0.75 0.91 1.15 1.18 1.15 1.11 1.08;
-                   0.33 0.36 0.39 0.46 0.59 0.76 0.97 1.09 1.13 1.10 1.08;
-                   0.19 0.21 0.24 0.28 0.38 0.53 0.76 0.96 1.08 1.09 1.09]
-    # The x-axis is log₁₀(RydbergH*Z²/(k*T))
+                 4.91 4.87 4.84 4.80 4.77 4.63 4.40 4.13 3.87 3.52 3.27;
+                 4.29 4.25 4.22 4.18 4.15 4.02 3.80 3.57 3.27 2.98 2.70;
+                 3.64 3.61 3.59 3.56 3.54 3.41 3.22 2.97 2.70 2.45 2.20;
+                 3.00 2.98 2.97 2.95 2.94 2.81 2.65 2.44 2.21 2.01 1.81;
+                 2.41 2.41 2.41 2.41 2.41 2.32 2.19 2.02 1.84 1.67 1.50;
+                 1.87 1.89 1.91 1.93 1.95 1.90 1.80 1.68 1.52 1.41 1.30;
+                 1.33 1.39 1.44 1.49 1.55 1.56 1.51 1.42 1.33 1.25 1.17;
+                 0.90 0.95 1.00 1.08 1.17 1.30 1.32 1.30 1.20 1.15 1.11;
+                 0.45 0.48 0.52 0.60 0.75 0.91 1.15 1.18 1.15 1.11 1.08;
+                 0.33 0.36 0.39 0.46 0.59 0.76 0.97 1.09 1.13 1.10 1.08;
+                 0.19 0.21 0.24 0.28 0.38 0.53 0.76 0.96 1.08 1.09 1.09]
+    # The x-axis is log₁₀(RydbergH*Z²/(k*T)) = log₁₀(γ²)
     xaxis = [-3.0, -2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0]
-    # The y-axis is log₁₀(h*ν/(k*T))
+    # The y-axis is log₁₀(h*ν/(k*T)) = log₁₀(u)
     yaxis = [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5]
 
     # Since the grid is regularly spaced, we could probably make this faster
@@ -214,13 +214,42 @@ const _ff_interpolator = begin
 end
 
 """
+    gaunt_ff_kurucz(log_u, log_γ2)
+
+computes the thermally averaged free-free gaunt factor by interpolating the table provided in
+section 5.1 of Kurucz (1970). The table was derived from a figure in Karsas and Latter (1961).
+
+# Arguments
+- `log_u::F`: Equal to log₁₀(u) = log₁₀(h*ν/(k*T))
+- `log_γ2::F`: Equal to log₁₀(γ²) = log₁₀(RydbergH*Z²/(k*T))
+
+# Note
+There is some ambiguity over whether we should replace RydbergH*Z² in the definition of γ² with the
+ionization energy, but it's probably a negligible difference (given the log scale).
+
+In the future, we may want to the interpolate the table reported in van Hoof, Ferland, Williams,
+Volk, Chatzikos, Lykins, & Porter (2013) because it's more accurate and applies over a larger range
+of values.
+"""
+gaunt_ff_kurucz(log_u, log_γ2) = _ff_interpolator(log_u, log_γ2)
+
+
+"""
     hydrogenic_ff_opacity(Z, ni, ne, ν, ρ, T)
 
 computes the free-free opacity for a hydrogenic species
 
+The naming convention for free-free absorption is counter-intuitive. A free-free interaction is
+named as though the species interacting with the free electron had one more bound electron (in 
+other words it's named as though the free-electron and ion were bound together). In practice, this
+means that `ni` should refer to:
+- the number density of H II if computing the H I free-free opacity
+- the number density of He III if computing the He II free-free opacity
+- the number density of Li IV if computing the Li III free-free opacity
+
 # Arguments
 - `Z::Integer`: the charge of the ion. For example, this is 1 for ionized H.
-- `ni::Flt`: the number density of the ion species.
+- `ni::Flt`: the number density of the ion species in cm⁻³.
 - `ne::Flt`: the number density of free electrons.
 - `ν::Flt`: frequency in Hz
 - `ρ::Flt`: mass density in g/cm³
@@ -238,16 +267,6 @@ be computed from eqn 5.18a).
 With this in mind, equation 5.8 of Kurucz (1970) should actually read
     ne * n(H II) * F_ν(T) * (1 - exp(-hplanck*ν/(kboltz*T))) / ρ
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
-
-To get g_ff, we interpolate values from the table given in section 5.1 of Kurucz (1970), which
-itself was derived from a figure in Karsas and Latter (1961). The table's x-axis is
-log₁₀(RydbergH*Z²/(k*T)) and the y-axis is log₁₀(h*ν/(k*T)). There is some ambiguity over whether we
-should replace RydbergH*Z² with the ionization energy, but it's probably a negligible difference
-(given the log scale).
-
-In the future, it may be worth considering interpolating the gaunt factors reported by
-van Hoof, Ferland, Williams, Volk, Chatzikos, Lykins, & Porter (2013, 2015). This data has been
-computed more recently presumably has more precision/accuracy.
 """
 function hydrogenic_ff_opacity(Z::Integer, ni::Flt, ne::Flt, ν::Flt, ρ::Flt,
                                T::Flt) where {Flt<:AbstractFloat}
@@ -255,12 +274,11 @@ function hydrogenic_ff_opacity(Z::Integer, ni::Flt, ne::Flt, ν::Flt, ρ::Flt,
     Z2 = convert(Flt, Z*Z)
 
     hν_div_kT = hplanck_eV * ν * β
-    ion_energy_div_kT = RydbergH_eV * Z2 * β
+    log_u = log10(hν_div_kT)
+    log_γ2 = log10(RydbergH_eV * Z2 * β)
+    gaunt_ff = gaunt_ff_kurucz(log_u, log_γ2)
 
-    # recall we pass in (y,x) to the interpolator
-    interpolated_value = _ff_interpolator(log10(hν_div_kT), log10(ion_energy_div_kT))
-
-    F_ν = 3.6919e8*interpolated_value*Z2/((ν*ν*ν)*sqrt(T))
+    F_ν = 3.6919e8*gaunt_ff*Z2/((ν*ν*ν)*sqrt(T))
 
     ni*ne*F_ν*(1-exp(-hν_div_kT))/ρ
 end

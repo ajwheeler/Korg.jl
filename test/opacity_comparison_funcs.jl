@@ -93,19 +93,14 @@ function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = SSSynth.sola
             continue
         end
 
-        #println(element, " ionization potentials = ", ion_energies, " ", length(Us),
-        #        " running sum = ", out)
         ion_state_weights = SSSynth.saha(χs, Us, T, nₑ)
-        #println(nₑ, " ", T, " weights = ", ion_state_weights)
         nₑ_per_ndens_species = 0.0
         for (i,ion_state_weight) in enumerate(ion_state_weights)
             num_electrons_from_state = i - 1
             nₑ_per_ndens_species += num_electrons_from_state * ion_state_weight
         end
 
-        abundance = abundances[element]
-        #println("nₑ/n_", element, " =", nₑ_per_ndens_species,
-        #        " n_", element, "/n_H = ", abundance)
+        abundance = 10.0^(abundances[element]-12.0)
         out += abundance * nₑ_per_ndens_species
     end
     out
@@ -130,46 +125,35 @@ end
 
 # Now actually define the functions that compute the opacities in the form comparable with Gray05
 
-# This includes both bound-free and free-free, but I think bound-free dominates for our examples
+# Combined H I bound-free and free-free opacity
 function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     # λ should have units of Ångstroms
     # Pₑ is the partial pressure of the electrons in dyne/cm²
-    ne =  Pₑ/(SSSynth.kboltz_cgs * T)
-
-    # pick arbitrary values of nH and ρ. The values shouldn't really matter since we will just
-    # divide out all dependence on these variables.
-    nH = if true
-        100.0*ne
-    else # this is provided for testing purposes. I don't think this matters
-        ne_div_nH = free_electrons_per_Hydrogen_particle(ne, T)
-        ne/ne_div_nH
-    end
-    ρ = nH * 1.67e-24/0.76
-
-    # the free-free opacity calculation requires that the Saha equation is used to compute the
-    # ratio of nH_I to nH_II
-    χs = SSSynth.ionization_energies["H"][1:2]
-    # need to use the gray05 partition function to handle the 11572 K example
-    Us = [gray05_partition_funcs["H_I"], gray05_partition_funcs["H_II"]]
-    weights = SSSynth.saha(χs, Us, T, ne)
-    nH_I = weights[1]*nH
-    nH_II = weights[2]*nH
-
-    partition_func = 2.0 # may want to add temperature dependence to partition function
+    nₑ =  Pₑ/(SSSynth.kboltz_cgs * T)
     ν = (SSSynth.c_cgs*1e8)/λ
 
-    bf_opac = if true
-        SSSynth.ContinuumOpacity.H_I_bf(nH_I/partition_func, ν, ρ, T, H_I_ion_energy)
-    else
-        SSSynth.ContinuumOpacity.hydrogenic_bf_opacity(1, 10000, nH_I/partition_func,
-                                                       ν, ρ, T, H_I_ion_energy, false)
+    bf_coef = begin
+        H_I_partition_val = 2.0 # implicitly in the implementation provided by Gray (2005)
+        nH_I = nₑ * 100.0 # this is totally arbitrary
+        ρ = nH_I * 1.67e-24/0.76 # this is totally arbitrary
+        bf_opac = SSSynth.ContinuumOpacity.H_I_bf(nH_I/H_I_partition_val, ν, ρ, T, H_I_ion_energy)
+        bf_opac * ρ / (Pₑ * nH_I)
     end
 
-    ff_opac = SSSynth.ContinuumOpacity.H_I_ff(nH_II, ne, ν, ρ, T)
+    ff_coef = begin
+        χs = [H_I_ion_energy, -1.0]
+        Us = [T -> 2.0, T -> 1.0] # assumption in the approach described by Gray (2005)
+        nH_total = nₑ * 100.0 # this is totally arbitrary
+        ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
 
-    #println(" λ = ", λ, " weights = ", weights, " bf_opac = ", bf_opac, " ff_opac = ", ff_opac)
+        weights = SSSynth.saha(χs, Us, T, nₑ)
+        nH_I = nH_total * weights[1]
+        nH_II = nH_total * weights[2]
+        ff_opac = SSSynth.ContinuumOpacity.H_I_ff(nH_II, nₑ, ν, ρ, T)
+        ff_opac * ρ / (Pₑ * nH_I)
+    end
 
-    (bf_opac + ff_opac) * ρ / (Pₑ * nH_I)
+    bf_coef + ff_coef
 end
 
 function Hminus_bf_coefficient(λ, T, Pₑ, ion_energy_H⁻ = 0.7552)
@@ -206,7 +190,7 @@ end
 
 # computes the combine H₂⁺ free-free and bound-free absorption in units of cm^2 per H atom (not a
 # typo)
-# There seems to be an in our function to compute H₂⁺
+# There seems to be an error in our function to compute H₂⁺
 function H2plus_coefficient(λ, T, Pₑ)
     # λ should have units of Ångstroms
     # Pₑ is the partial pressure of the electrons in dyne/cm²
@@ -300,7 +284,7 @@ const Gray05_opacity_form_funcs =
          "Hminus_bf"  => (Hminus_bf_coefficient,  Bounds(2250.0, 15000.0),  "H⁻ bound-free"),
          "Hminus_ff"  => (Hminus_ff_coefficient,  Bounds(2604.0, 113918.0), "H⁻ free-free"),
          "Heminus_ff" => (Heminus_ff_coefficient, Bounds(5e3, 1.5e5),       "He⁻ free-free"),
-         #"H2plus"     => (H2plus_coefficiient,    Bounds(nothing,nothing),   "H₂⁺ ff and bf"),
+         #"H2plus"     => (H2plus_coefficient,     Bounds(nothing,nothing),   "H₂⁺ ff and bf"),
          )
 
 # the absolute tolerances for values the opacity contributions from
@@ -308,7 +292,7 @@ const Gray05_opacity_form_funcs =
 #    - H⁻ free-free
 #    - He⁻ free-free
 # There is a much larger discrepancy between the summed H I bf and ff opacity at large λ. But
-# unlike for H₂⁺, this could simply be a consequence of the different approximations that are used
+# unlike for H₂⁺, this could simply be a consequence of the different approximaitons that are used
 const Gray05_atols = Dict("a" => 0.05, "b" => 0.02, "c" => 0.04)
 
 # this function is defined to make tests easier

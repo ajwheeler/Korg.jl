@@ -6,13 +6,23 @@ import ..ContinuumOpacity
 
 Solve the transfer equation to get the resultant astrophysical flux at each wavelength.
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
-- `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
 - `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
+- `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
+- `line_window` (default: 10): the farthest any line can be from the provede wavelenth range 
+   before it is discarded.
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
 function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
-                    abundances=Dict()) where F <: AbstractFloat
+                    abundances=Dict(), line_window::F=10.0) where F <: AbstractFloat
+    #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
+    #because that will hopefully be set dynamically soon
+    nlines = length(linelist)
+    filter!(l-> λs[1] - line_window <= l.wl <= λs[end] + line_window, linelist)
+    if length(linelist) != nlines
+        @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
+    end
+    
     #all the elements involved in either line or continuum opacity
     elements = Set(get_elem(l.species) for l in linelist) ∪ Set(["H", "He"])
 
@@ -29,8 +39,8 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
         number_densities = per_species_number_density(layer.number_density, layer.electron_density,
                                                       layer.temp, abundances)
 
-        α[i, :] = line_opacity(linelist, λs, layer.temp, number_densities, atomic_masses, 
-                               partition_funcs, ionization_energies, vmic*1e5)
+        α[i, :] = line_absorption(linelist, λs, layer.temp, number_densities, atomic_masses, 
+                                  partition_funcs, ionization_energies, vmic*1e5)
 
         νs = (c_cgs ./ λs) * 1e8
         α[i, :] += total_continuum_opacity(νs, layer.temp, layer.electron_density, layer.density,
@@ -139,22 +149,21 @@ function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_de
                                  partition_funcs::Dict) where F <: AbstractFloat
     κ = zeros(F, length(νs))
 
+    #TODO check all arguments
+
     #Hydrogen continuum opacities
     nH_I = number_densities["H_I"]
     nH_I_div_U = nH_I / partition_funcs["H_I"](T)
     κ += ContinuumOpacity.H_I_bf.(nH_I_div_U, νs, ρ, T) 
-    κ += ContinuumOpacity.H_I_ff.(nH_I, nₑ, νs, ρ, T)
+    κ += ContinuumOpacity.H_I_ff.(number_densities["H_II"], nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_bf.(nH_I_div_U, nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_ff.(nH_I_div_U, nₑ, νs, ρ, T)
-    #TODO uncomment when fixed
+    #TODO fix
     #κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities["H_II"], νs, ρ, T)
     
     #He continuum opacities
-    nHe_II = number_densities["He_II"]
-    nHe_II_div_U = nHe_II / partition_funcs["He_II"](T)
-    κ += ContinuumOpacity.He_II_bf.(nHe_II_div_U, νs, ρ, T)
-    #TODO fix
-    #κ += ContinuumOpacity.He_II_ff.(nHe_II, nₑ, νs, ρ, T)
+    κ += ContinuumOpacity.He_II_bf.(number_densities["He_II"]/partition_funcs["He_II"](T), νs, ρ, T)
+    #κ += ContinuumOpacity.He_II_ff.(number_densities["He_III"], nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Heminus_ff.(number_densities["He_I"]/partition_funcs["He_I"](T), 
                                       nₑ, νs, ρ, T)
     

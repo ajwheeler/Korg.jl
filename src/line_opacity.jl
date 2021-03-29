@@ -1,7 +1,9 @@
 """
-    line_opacity(linelist, wls, temp, n_density, abundances; window_size)
+    line_opacity(linelist, wls, temp, n_densities, atomic_masses, partition_fns, 
+                 ionization_energies; window_size)
 
-Calculate the opacity coefficient, α, from all lines in `linelist`, at wavelengths `wls`.
+Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
+`wls`. 
 
 other arguments:
 - `temp` the temerature in K
@@ -10,9 +12,9 @@ other arguments:
 opacities should be calculated in included.
 - `ξ` is the microturbulent velocity in cm/s
 """
-function line_opacity(linelist, wls, temp, n_densities::Dict, atomic_masses::Dict, 
-                      partition_fns::Dict, ionization_energies::Dict, ξ
-                      ; window_size=20.0)
+function line_absorption(linelist, wls, temp, n_densities::Dict, atomic_masses::Dict, 
+                         partition_fns::Dict, ionization_energies::Dict, ξ
+                         ; window_size=20.0)
 
     α_lines = zeros(length(wls))
     for line in linelist

@@ -84,7 +84,7 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
         split(line.species, "_")[2] in ["I", "II", "III"]
     end
     if sum(.! mask) > 0
-        @warn "omitting $(sum(.! mask)) lines of high (> III) ionization states"
+        @info "omitting $(sum(.! mask)) lines of high (> III) ionization states"
     end
     linelist[mask]
 end

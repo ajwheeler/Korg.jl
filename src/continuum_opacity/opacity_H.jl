@@ -6,9 +6,12 @@ const _H_I_ion_energy = ionization_energies["H"][1] # not sure if this is a good
 const _H⁻_ion_energy = 0.7552 # eV
 
 
-H_I_bf(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy) =
-    hydrogenic_bf_opacity(1, 8, nH_I_div_partition, ν, ρ, T, ion_energy)
-H_I_ff(nH_I, ne, ν, ρ, T) = hydrogenic_ff_opacity(1, nH_I, ne, ν, ρ, T)
+H_I_bf(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy,
+       nmax_explicit_sum = 8, integrate_high_n = true) =
+           hydrogenic_bf_opacity(1, nH_I_div_partition, ν, ρ, T, ion_energy, nmax_explicit_sum,
+                                 integrate_high_n)
+# H I free-free actually refers to the reaction: photon + e⁻ + H II -> e⁻ + H II.
+H_I_ff(nH_II, ne, ν, ρ, T) = hydrogenic_ff_opacity(1, nH_II, ne, ν, ρ, T)
 
 # compute the number density of H⁻ (implements eqn 5.10 of Kurucz 1970). This formula comes from
 # inverting the saha equation, where n(H⁻) is n₀ and n(H I) is n₁. Note that U₀ = 1 at all
@@ -184,10 +187,10 @@ function Hminus_ff(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
     # Pₑ * α_ff(H⁻) gives the absorption coefficient in units of cm² per ground state H I atom
     Pₑ = ne * kboltz_cgs * T
 
-    # in this case, I'm going to account for the fact that n(H I, n=1) might be slightly
-    # smaller than the entire number density of H I. This is only a difference at the highest
-    # temperatures. For the temperature range where this approximation is valid, less that
-    # 0.23% of all H I atoms are not in the ground state.
+    # Account for the fact that n(H I, n=1) might be slightly smaller than the entire number
+    # density of H I. There is only really a difference at the highest temperatures. For the
+    # temperature range where this approximation is valid, less than 0.23% of all H I atoms are not
+    # in the ground state.
 
     # this calculation could reduce to nHI_gs = 2.0*nH_I_div_partition
     nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)

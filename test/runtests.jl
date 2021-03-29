@@ -172,6 +172,7 @@ end
     end
 
     @testset "trapezoid rule" begin
+        #gaussian PDF should integral to 1.
         pdf(x) = exp(-1/2 * x^2) / sqrt(2π)
         xs = -10:0.1:10
         @test SSSynth.trapezoid_rule(xs, pdf.(xs) * 0.1) - 1.0 < 1e-5
