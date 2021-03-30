@@ -54,8 +54,8 @@ The cross-section does not include a correction for stimulated emission.
 function _Hminus_bf_cross_section(ν::AbstractFloat)
     λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
-    if (λ < 2250.0) || (λ > 15000.0)
-        throw(DomainError(ν, "The wavelength must lie in the interval [2250 Å, 15000 Å]"))
+    if !(2250 <= λ <= 15000.0)
+        throw(DomainError(λ, "The wavelength must lie in the interval [2250 Å, 15000 Å]"))
     end
 
     λ2 = λ*λ
@@ -71,12 +71,13 @@ end
 
 
 """
-    Hminus_bf(nHminus, ν, ρ, T, [ion_energy_H⁻])
+    Hminus_bf(nH_I_div_partition, ne, ν, ρ, T, [ion_energy_H⁻])
 
 Compute the H⁻ bound-free opacity κ
 
 # Arguments
 - `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
+- `ne` the electron number density
 - `ν::Flt`: frequency in Hz
 - `ρ::Flt`: mass density in g/cm³
 - `T::Flt`: temperature in K
@@ -123,7 +124,7 @@ end
 
 
 """
-    Hminus_ff(nHI_gs, ne, ν, ρ, T)
+    Hminus_ff(nH_I_div_partition, ne, ν, ρ, T)
 
 Compute the H⁻ free-free opacity κ
 
@@ -166,9 +167,9 @@ function Hminus_ff(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
                    T::Flt) where {Flt<:AbstractFloat}
     λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
-    if (λ < 2604.0) || (λ > 113918.0)
-        throw(DomainError(ν, "The wavelength must lie in the interval [2604 Å, 113918 Å]"))
-    elseif (T < 2520.0) || (T > 10080.0)
+    if !(2604 <= λ <= 113918.0)
+        throw(DomainError(λ, "The wavelength must lie in the interval [2604 Å, 113918 Å]"))
+    elseif !(2520.0 <= T <= 10080.0)
         throw(DomainError(T, "The temperature must lie in the interval [2520 K, 10080 K]"))
     end
 

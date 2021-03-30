@@ -30,7 +30,7 @@ Returns a 3-element vector of the same length which sums to 1.
 function saha(χs, Us, T, nₑ)
     weights = Vector{Float64}(undef, length(Us)) #there's probably a cleaner way to do this
     weights[1] = 1.
-    for i in 2:length(χs)
+    for i in 2:length(Us)
         #I think this should get optimized away?  I'm open to not doing this, but I'm hoping it 
         #makes formulas easier to read
         mₑ = electron_mass_cgs 

@@ -2,3 +2,4 @@
 *.zhistory
 Manifest.toml
 *.jl~
+misc/Playground.ipynb

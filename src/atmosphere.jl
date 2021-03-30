@@ -12,7 +12,7 @@ function read_model_atmosphere(fname::AbstractString)
             toks = strip.(split(line, ','))
             #spherical atmospheres have a sixth column with distance from reference height.
             #ignore that for now.
-            (tau=parse(Float64, toks[1]),              #optical depth
+            (colmass=parse(Float64, toks[1]),          #g cm^-2
              temp=parse(Float64, toks[2]),             #K
              electron_density=parse(Float64, toks[3]), #cm^-3
              number_density=parse(Float64, toks[4]),   #of everything except elections, cm^-3
