@@ -18,6 +18,5 @@ module SSSynth
 
     include("continuum_opacity/continuum_opacity.jl") #Define continuum opacity functions.
     include("synthesize.jl")                          #solve radiative transfer equation
-    include("LSF.jl")
 
 end # module
