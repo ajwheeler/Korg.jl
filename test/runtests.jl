@@ -182,12 +182,13 @@ end
 @testset "LSF" begin
     wls = 5000:0.35:6000
     R = 1800.0
-    M = SSSynth.line_spread_matrix(wls, R)
-    
-    #normalized?
-    @test all(isapprox.(sum.(eachrow(M)), 1.0, atol=1e-5))
+    flux = zeros(Float64, length(wls))
+    flux[500] = 5.0
 
-    #centered on λ0?
-    @test argmax.(eachrow(M)) == 1:size(M, 1)
-    
+    convF = SSSynth.constant_R_LSF(flux, wls, R)
+    #normalized?
+    @test sum(flux) ≈ sum(convF)
+
+    #preserves line center?
+    @test argmax(convF) == 500
 end

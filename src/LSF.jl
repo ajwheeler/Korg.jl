@@ -7,12 +7,16 @@ Returns the matrix which transforms a spectrum to its LSF-convolved version for 
 This will have weird behavior if your wavelength grid is not locally linearly-spaced.
 It is intended to be run on a fine wavelength grid, then downsampled to the observational (or otherwise desired) grid.
 """
-function line_spread_matrix(wls, R)
-    M = Matrix{Float64}(undef, length(wls), length(wls))
+function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: AbstractFloat
+    #ideas - require wls to be a range object? Use erf to account for grid edges?
+    convF = zeros(F, length(flux))
     for i in 1:length(wls)
         λ0 = wls[i]
-        M[i, :] = normal_pdf.(wls .- λ0, λ0 / R / 2)
-        M[i, :] /= sum(M[i, :])
+        σ = λ0 / R / 2
+        mask = λ0 - 4σ .< wls .< λ0 + 4σ
+        ϕ = normal_pdf.(wls[mask] .- λ0, λ0 / R / 2)
+        ϕ ./= sum(ϕ)
+        convF[mask] += flux[i]*ϕ
     end
-    M
+    convF
 end
