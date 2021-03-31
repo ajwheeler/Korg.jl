@@ -177,5 +177,17 @@ end
         xs = -10:0.1:10
         @test SSSynth.trapezoid_rule(xs, pdf.(xs) * 0.1) - 1.0 < 1e-5
     end
+end
+
+@testset "LSF" begin
+    wls = 5000:0.35:6000
+    R = 1800.0
+    M = SSSynth.line_spread_matrix(wls, R)
+    
+    #normalized?
+    @test all(isapprox.(sum.(eachrow(M)), 1.0, atol=1e-5))
+
+    #centered on λ0?
+    @test argmax.(eachrow(M)) == 1:size(M, 1)
     
 end
