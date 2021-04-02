@@ -42,7 +42,7 @@ function line_absorption(linelist, wls, temp, n_densities::Dict, atomic_masses::
         #the factor (1 - exp(hν₀ / kT))
         levels_factor = 1 - exp(-c_cgs * hplanck_cgs / (line.wl * 1e-8) / kboltz_cgs / temp)
 
-        α_lines[lb:ub] += ϕ * σ * n * levels_factor 
+        @. α_lines[lb:ub] += ϕ * σ * n * levels_factor 
     end
     α_lines
 end
