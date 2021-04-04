@@ -42,7 +42,7 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
                     abs(parse(Float64,s)) * c_cgs * hplanck_eV
                 end
 
-                (wl=parse(Float64, line[1:11])*10.,              #given in nm, convert to Å
+                (wl=parse(Float64, line[1:11])*1e-7,             #given in nm, convert to cm
                  log_gf=parse(Float64, line[12:18]),
                  species=parse_species_code(strip(line[19:24])),
                  E_upper=max(E_levels...),                       #eV
@@ -62,7 +62,7 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
 
         map(lines) do line
                 toks = split(line, ',')
-                (wl=parse(Float64, toks[2]),
+                (wl=parse(Float64, toks[2])*1e-8,
                  log_gf=parse(Float64, toks[3]),
                  species=begin 
                      symbol, num = split(toks[1][2:end-1], ' ')
