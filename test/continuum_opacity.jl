@@ -213,8 +213,13 @@ function check_H2plus_ff_and_bf_opacity(target_precision, verbose = true)
     return success
 end
 
-@testset "H₂⁺ ff and bf opacity" begin
-    @test check_H2plus_ff_and_bf_opacity(0.111)
+@testset "combined H₂⁺ ff and bf opacity" begin
+    @test check_H2plus_ff_and_bf_opacity(0.015)
+    @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b"]
+        calculated, ref = Gray05_comparison_vals(panel,"H2plus")
+        @test all(calculated .≥ 0.0)
+        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+    end
 end
 
 
@@ -428,7 +433,7 @@ end
 # Given the strong consistency when comparing the bf and ff values individually against the
 # alternative implementations described in Gray (2005), I'm unconcerned by the need for large
 # tolerances.
-@testset "combine H I bf and ff opacity opacity" begin
+@testset "combined H I bf and ff opacity" begin
     @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
                                                                           ("c",0.125),
                                                                           ("d",35)]

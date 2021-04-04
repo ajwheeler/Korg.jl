@@ -122,7 +122,6 @@ function Hminus_bf(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt, T::Flt,
 end
 
 
-
 """
     Hminus_ff(nH_I_div_partition, ne, ν, ρ, T)
 
@@ -199,53 +198,91 @@ function Hminus_ff(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
 end
     
 
-
 """
-    H2plus_bf_and_ff(nH_I_div_partition, nHII, ν, ρ, T)
+    H2plus_bf_and_ff(nH_I_div_partition, n_HII, ν, ρ, T)
 
-Compute the combined H₂⁺ bound-free and free-free opacity κ
+Compute the combined H₂⁺ bound-free and free-free opacity κ.
+
+This uses polynomial fits from Gray (2005). that were derived from data tabulated in
+[Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
 
 # Arguments
 - `nH_I_div_partition::Float64`: the total number density of H I divided by its partition 
    function.
-- `nHII::Float64`: the number density of HII (not of H₂⁺).
+- `nH_II::Float64`: the number density of H II (not of H₂⁺).
 - `ν::Float64`: frequency in Hz
 - `ρ::Float64`: mass density in g/cm³
 - `T::Float64`: temperature in K
 
 # Notes
-This is taken from Section 5.2 of Kurucz (1970). They have a whole discussion about the fact that 
-since n(H₂⁺) << n(HI) + n(HII) + n(H₂), we can compute the H₂⁺ opacity from n(HI) and n(HII)
+This follows equation 8.15 of Gray (2005), which involves 2 polynomials that were fit to data
+provided in [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
 
-This fits the [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract) at
-3846.15 Å <= λ <= 25000.0 Å and 2500.0 K <= T <= 12000.0 K to better than 11.1%. Bates (1952)
-suggested that the tabulated data is probably correct "to well within one part in ten."
+The combined H₂⁺ bound-free and free-free opacity opacity calculation can be cast as:
+    κ = const * σ₁ * exp(-U₁ / (kboltz*T)) * n(H I, n=1) * n(H II) * (1 - exp(-hν/(kboltz*T))) / ρ
+where σ₁ and U₁ are just functions of ν. Note that Bates (1952) and Gray (2005) both use the number
+density of all energy states of H I instead of n(H I, n=1). However, Kurucz (1970) makes a note in
+section 5.2 about how the photodisociation of H₂⁺ produces a ground state H atom and that we should
+therefore use n(H I, n=1) instead. This difference will only cause Bates/Gray to be wrong by a
+fraction of a percent (at most) for T ≤ 1.2e4 K. In this function we use n(H I, n=1).
 
-This needs to use double precision floats because of the polynomial coefficients
+In this function, we use polynomial approximations that Gray (2005) fit for σ₁ and U₁ using data
+from Table 1 of Bates (1952). Gray (2005) notes that the approximations match Bates' (1952)
+tabulated absorption data for 3800 Å ≤ λ ≤ 25000 Å at an accuracy of 0.3%. After reviewing the data
+in Bates (1952) I've concluded that Gray (2005) actually rounded down the lower end of the
+wavelength from 10⁵/26 Å or ∼3847 Å. (In other words, the approximation is good for
+3847 Å ≤ λ ≤ 25000.0 Å).
+
+While this may fit to σ₁ and U₁ to better than 0.3%, comparisons against values from table 2 of
+Bates (1952) indicate that the function reproduces the full absorption coeffient at better than
+1.5%. Gray (2005) did not provide a temperature range, but Bates (1952) only computed the
+absorption coefficient for 2500 K ≤ T ≤ 12000 K. In the text they have a comment that the proton's
+De Broglie wavelength is large at 2500 K and their semi-classical treatment may start to break
+down. However, as long as use n(H I, n=1), there doesn't seem to be any reason for us to enforce an
+upper Temperature limit.
+
+Bates (1952) states that his classical treatment of the interaction is probably most accurate at
+higher temperatures and longer wavelengths (note that the longest λ considered in the paper is 8
+times larger than the max λ the polynomials are fit against). He suggests that treatment is
+probably correct "to well within one part in ten even at the lower temperatures and [lower
+wavelengths]."
 """
-function H2plus_bf_and_ff(nH_I_div_partition::Float64, nHII::Float64, ν::Float64, ρ::Float64,
+function H2plus_bf_and_ff(nH_I_div_partition::Float64, nH_II::Float64, ν::Float64, ρ::Float64,
                           T::Float64)
     λ = c_cgs*1e8/ν # in ångstroms
     if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
         throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))
     end
 
-    if !(2500.0 <= T <= 12000.0)
-        throw(DomainError(T, "The temperature must lie in the interval [2500 K, 12000 K]"))
+    if T < 2500  # we might be able to drop upper limit
+        throw(DomainError(T, "The temperature must be greater than or equal to 2500 K."))
     end
-    # compute the number density of H I in the ground state
-    nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
 
-    one_minus_exp = 1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))
-    # E_s is in units of eV
-    E_s = -7.342e-3 + ν * (-2.409e-15 +
-                           ν * (1.028e-30 +
-                                ν * (-4.230e-46 +
-                                     ν * (1.224e-61 - 1.351e-77 * ν))))
+    β_eV = 1.0/(kboltz_eV * T)
 
-    lnν = log(ν)
-    tmp = (-E_s/(kboltz_eV*T))
-    F_ν = exp(tmp - 3.0233e3 + lnν*(3.7797e2 + lnν*(-1.82496e1 +
-                                                    lnν*(3.9207e-1 - 3.1672e-3 * lnν))))
-    nHI_gs * nHII * F_ν * one_minus_exp / ρ
+    # coef should be roughly 2.51e-42
+    coef = 16*π^4*bohr_radius_cgs^5*electron_charge_cgs^2/(3*hplanck_cgs*c_cgs) # cm⁵
+    stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
+
+    logλ = log10(λ)
+    log2λ = logλ*logλ
+    log3λ = log2λ*logλ
+
+    atomic_cross_section = begin
+        σ1 = -1040.54 + 1345.71 * logλ - 547.628 * log2λ + 71.9684 * log3λ
+        # there was a typo in Gray (2005). In the book they give the following polynomial
+        # as the fit for U₁. In reality, it is the fit for negative U₁
+        neg_U1 = 54.0532 - 32.713 * logλ + 6.6699 * log2λ - 0.4574 * log3λ
+
+        # note: Gray (2005) used the equivalent expression: σ1*10^(neg_U1 * θ) where θ = 5040/T
+        σ1 * exp(neg_U1 * β_eV)
+    end
+
+    # see the docstring for an explanation of why we explicitly consider the ground state density
+    nH_I_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
+
+    uncorrected_opacity = coef * atomic_cross_section * nH_I_gs * nH_II/ρ
+
+    # Gray (2005) notes that they remove the stimulated emission factor. We need to put it back:
+    uncorrected_opacity * stimulated_emission_correction
 end
