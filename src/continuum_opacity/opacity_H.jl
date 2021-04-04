@@ -217,25 +217,35 @@ Compute the combined H₂⁺ bound-free and free-free opacity κ
 This is taken from Section 5.2 of Kurucz (1970). They have a whole discussion about the fact that 
 since n(H₂⁺) << n(HI) + n(HII) + n(H₂), we can compute the H₂⁺ opacity from n(HI) and n(HII)
 
+This fits the [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract) at
+3846.15 Å <= λ <= 25000.0 Å and 2500.0 K <= T <= 12000.0 K to better than 11.1%. Bates (1952)
+suggested that the tabulated data is probably correct "to well within one part in ten."
+
 This needs to use double precision floats because of the polynomial coefficients
 """
 function H2plus_bf_and_ff(nH_I_div_partition::Float64, nHII::Float64, ν::Float64, ρ::Float64,
                           T::Float64)
-    error("This seems to be broken.")
+    λ = c_cgs*1e8/ν # in ångstroms
+    if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
+        throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))
+    end
+
+    if !(2500.0 <= T <= 12000.0)
+        throw(DomainError(T, "The temperature must lie in the interval [2500 K, 12000 K]"))
+    end
     # compute the number density of H I in the ground state
     nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
 
     one_minus_exp = 1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))
     # E_s is in units of eV
-    E_s = -7.342e-3 + ν* (-2.409e-15 +
-                          ν * (1.028e-30 +
-                               ν * (1.028e-30 +
-                                    ν * (-4.230e-46 +
-                                         ν * (1.224e-61 - 1.351e-77 * ν)))))
+    E_s = -7.342e-3 + ν * (-2.409e-15 +
+                           ν * (1.028e-30 +
+                                ν * (-4.230e-46 +
+                                     ν * (1.224e-61 - 1.351e-77 * ν))))
+
     lnν = log(ν)
     tmp = (-E_s/(kboltz_eV*T))
     F_ν = exp(tmp - 3.0233e3 + lnν*(3.7797e2 + lnν*(-1.82496e1 +
                                                     lnν*(3.9207e-1 - 3.1672e-3 * lnν))))
-    println(lnν, " ", E_s, " ", tmp, " ", F_ν)
     nHI_gs * nHII * F_ν * one_minus_exp / ρ
 end

@@ -150,6 +150,73 @@ end
     end
 end
 
+function check_H2plus_ff_and_bf_opacity(target_precision, verbose = true)
+    # table II from Bates (1952) gives the absorption coefficient (corrected for stimulated
+    # emission) in units of 1e-39 cm⁻¹ / (H atom/cm³) / (H⁺ ion/cm³).
+    # Note: we clipped some of the upper rows
+    _table = [  3.4  2.60  2.10  1.77  1.35  1.09  0.92  0.79  0.62  0.51;  #  4000
+                4.0  2.98  2.36  1.96  1.47  1.17  0.98  0.84  0.66  0.54;  #  5000
+                4.8  3.4   2.63  2.15  1.57  1.25  1.04  0.89  0.69  0.57;  #  6000
+                5.6  3.9   2.91  2.33  1.67  1.31  1.08  0.92  0.71  0.58;  #  7000
+                6.7  4.4   3.2   2.53  1.77  1.37  1.12  0.95  0.73  0.59;  #  8000
+                7.9  5.0   3.5   2.74  1.87  1.43  1.16  0.97  0.74  0.60;  #  9000
+                9.3  5.6   3.9   2.95  1.97  1.48  1.19  0.99  0.75  0.61;  # 10000
+               13.0  7.2   4.7   3.4   2.18  1.58  1.25  1.03  0.77  0.62;  # 12000
+               18.1  9.3   5.7   4.0   2.40  1.69  1.30  1.06  0.78  0.62;  # 14000
+               25.1 11.9   7.0   4.7   2.64  1.80  1.36  1.09  0.78  0.62;  # 16000
+               35   15.2   8.4   5.4   2.91  1.91  1.41  1.11  0.79  0.61;  # 18000
+               47   19.3  10.2   6.3   3.2   2.03  1.46  1.14  0.79  0.61;  # 20000
+               64   24.3  12.2   7.3   3.5   2.16  1.52  1.16  0.79  0.60;  # 22000
+               86   31    14.6   8.4   3.8   2.29  1.57  1.18  0.79  0.59;  # 24000
+              114   38    17.3   9.6   4.2   2.42  1.63  1.21  0.79  0.58]  # 26000
+    # the columns of this table are Temperatures (in K)
+    _T_vals = [2.5e3 3.0e3 3.5e3 4.0e3 5.0e3 6.0e3 7.0e3 8.0e3 1.0e4 1.2e4]
+    # the rows are different wavenumbers (in cm⁻¹)
+    _wavenumbers = [ 4000,  5000,  6000,  7000,  8000,  9000, 10000, 12000, 14000, 16000, 18000,
+                    20000, 22000, 24000, 26000]
+
+    sub_table = _table
+    comp_λ = 1.0e8 ./ _wavenumbers
+    comp_T = _T_vals
+    ν_vals = _wavenumbers .* SSSynth.c_cgs
+
+    # to match the implicit assumption in Bates (1952) that ndens(H I) = ndens(H I, n = 1)
+    partition_val = 2.0
+
+    # pick stupid dummy values (we're just going to remove them later):
+    nH_I = 1e15
+    nH_II = 1e13
+    ρ = 1.0
+
+    nH_I_divU = nH_I/partition_val
+    success = true
+    for index = 1:length(comp_T)
+        cur_T = comp_T[index]
+        ref_coef = view(sub_table, :, index)
+        calc_opacity = SSSynth.ContinuumOpacity.H2plus_bf_and_ff.(nH_I_divU, nH_II, ν_vals, ρ,
+                                                                  cur_T)
+        calc_coef = 1e39 * calc_opacity * ρ/(nH_I * nH_II)
+        precision = (abs.(calc_coef .- ref_coef)./ref_coef)
+        max_err, max_err_ind = findmax(precision)
+        if max_err > target_precision
+            if verbose
+                if success
+                    println("There is a problem. The max error of polynomial should be: ",
+                            target_precision*100, "%.")
+                end
+                println("Max error for T = ", cur_T, "K is: ", 100 * max_err,
+                        "% at λ = ", comp_λ[max_err_ind], " Å.")
+            end
+            success = false
+        end
+    end
+    return success
+end
+
+@testset "H₂⁺ ff and bf opacity" begin
+    @test check_H2plus_ff_and_bf_opacity(0.111)
+end
+
 
 """
     gray_H_I_ff_absorption_coef(λ, T, [gaunt_func])
