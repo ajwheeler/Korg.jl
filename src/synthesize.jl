@@ -18,7 +18,7 @@ Uses solar abundances scaled by `metallicity` and for those not provided.
 function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
                     abundances=Dict(), line_window::F=10.0) where F <: AbstractFloat
     #work in cm
-    λs *= 1e-8
+    λs = λs * 1e-8
 
     #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
     #because that will hopefully be set dynamically soon
