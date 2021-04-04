@@ -280,7 +280,7 @@ const Gray05_opacity_form_funcs =
     Dict("H"          => (HI_coefficient,         Bounds(nothing, nothing), "H I bf and ff"),
          "Hminus_bf"  => (Hminus_bf_coefficient,  Bounds(2250.0, 15000.0),  "H⁻ bound-free"),
          "Hminus_ff"  => (Hminus_ff_coefficient,  Bounds(2604.0, 113918.0), "H⁻ free-free"),
-         "Heminus_ff" => (Heminus_ff_coefficient, Bounds(5e3, 1.5e5),       "He⁻ free-free"),
+         "Heminus_ff" => (Heminus_ff_coefficient, Bounds(5063.0, 151878.0), "He⁻ free-free"),
          "H2plus"     => (H2plus_coefficient,     Bounds(3847.0, 25000.0),   "H₂⁺ ff and bf"),
          )
 

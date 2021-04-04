@@ -166,8 +166,9 @@ function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_de
     #He continuum opacities
     κ += ContinuumOpacity.He_II_bf.(number_densities["He_II"]/partition_funcs["He_II"](T), νs, ρ, T)
     #κ += ContinuumOpacity.He_II_ff.(number_densities["He_III"], nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.Heminus_ff.(number_densities["He_I"]/partition_funcs["He_I"](T), 
-                                      nₑ, νs, ρ, T)
+    # ContinuumOpacity.Heminus_ff is only valid for λ ≥ 5063 Å
+    #κ += ContinuumOpacity.Heminus_ff.(number_densities["He_I"]/partition_funcs["He_I"](T),
+    #                                  nₑ, νs, ρ, T)
     
     #electron scattering
     κ .+= ContinuumOpacity.electron_scattering(nₑ, ρ)

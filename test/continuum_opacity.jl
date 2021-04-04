@@ -22,6 +22,41 @@ function _calc_Hminus_ff_absorption_coef(ν, T)
     αff_H⁻/1e-26
 end
 
+# the first axis of ref_val_matrix should have the same length as λ_vals_cm
+# the second axis of ref_val_matrix should have the same length as T_vals
+function _compare_against_table(ref_val_matrix, λ_vals_cm, T_vals, calc_func, target_precision,
+                                verbose = true)
+    @assert ((length(size(ref_val_matrix)) == 2) &
+             (length(size(λ_vals_cm)) == 1) &
+             (length(size(T_vals)) == 1))
+    @assert size(ref_val_matrix)[1] == size(λ_vals_cm)[1]
+    @assert size(ref_val_matrix)[2] == size(T_vals)[1]
+
+    ν_vals = SSSynth.c_cgs ./ λ_vals_cm
+
+    success = true
+    for index = 1:length(T_vals)
+        cur_T = T_vals[index]
+        ref_vals = view(ref_val_matrix, :, index)
+        calc_vals = calc_func.(ν_vals, cur_T)
+        precision = (abs.(calc_vals .- ref_vals)./ref_vals)
+        max_err, max_err_ind = findmax(precision)
+        if max_err > target_precision
+            if verbose
+                if success
+                    @info string("There is a problem. The max error of should be: ",
+                                 target_precision*100, "%.")
+                end
+                @info string("Max error for T = ", cur_T, "K is: ", 100 * max_err,
+                             "% at λ = ", (λ_vals_cm[max_err_ind] * 1.e8), " Å.")
+            end
+            success = false
+        end
+    end
+    return success
+
+end
+
 
 function check_Hminus_ff_values(target_precision = 0.01, verbose = true)
     # I tabulated this data from Bell & Berrington (1987)
@@ -55,31 +90,9 @@ function check_Hminus_ff_values(target_precision = 0.01, verbose = true)
                  0.0178 0.0222 0.0308 0.0402 0.0498 0.0596 0.0695 0.0795 0.0896 0.131  0.172]
 
     # only look at the subtable that might be relevant
-    sub_table = view(_ff_table, 2:20, 1:9)
-    comp_λ = view(_ff_λ_vals, 2:20)
-    comp_T = view(_ff_T_vals, 1:9)
-
-    success = true
-    ν_vals = (SSSynth.c_cgs*1e8)./comp_λ
-    for index = 1:length(comp_T)
-        cur_T = comp_T[index]
-        ref_coef = view(sub_table, :, index)
-        calc_coef = _calc_Hminus_ff_absorption_coef.(ν_vals, cur_T)
-        precision = (abs.(calc_coef .- ref_coef)./ref_coef)
-        max_err, max_err_ind = findmax(precision)
-        if max_err > target_precision
-            if verbose
-                if success
-                    println("There is a problem. The max error of polynomial should be: ",
-                            target_precision*100, "%.")
-                end
-                println("Max error for T = ", cur_T, "K is: ", 100 * max_err,
-                        "% at λ = ", comp_λ[max_err_ind], " Å.")
-            end
-            success = false
-        end
-    end
-    return success
+    _compare_against_table(view(_ff_table, 2:20, 1:9), view(_ff_λ_vals, 2:20) ./ 1e8,
+                           view(_ff_T_vals, 1:9), _calc_Hminus_ff_absorption_coef,
+                           target_precision, verbose)
 end
 
 @testset "H⁻ free-free opacity" begin
@@ -140,7 +153,54 @@ end
 end
 
 
+# gives the atomic absorption coefficient (or cross section)
+function check_Heminus_ff_opacity(target_precision, verbose = true)
+
+    # taken from Table 2 of John (1994):
+    _Heminus_table =
+        [27.979 30.907 35.822 39.921 43.488 46.678 49.583 52.262 54.757 63.395 70.580;
+         15.739 17.386 20.151 22.456 24.461 26.252 27.882 29.384 30.782 35.606 39.598;
+         10.074 11.128 12.897 14.372 15.653 16.798 17.838 18.795 19.685 22.747 25.268;
+          4.479  4.947  5.733  6.387  6.955  7.460  7.918  8.338  8.728 10.059 11.147;
+          2.520  2.784  3.226  3.593  3.910  4.193  4.448  4.681  4.897  5.632  6.234;
+          1.614  1.783  2.065  2.299  2.502  2.681  2.842  2.990  3.126  3.592  3.979;
+          1.121  1.239  1.435  1.597  1.737  1.860  1.971  2.073  2.167  2.490  2.765;
+          0.632  0.698  0.808  0.899  0.977  1.045  1.108  1.165  1.218  1.405  1.574;
+          0.405  0.447  0.518  0.576  0.625  0.670  0.710  0.747  0.782  0.910  1.030;
+          0.282  0.311  0.360  0.400  0.435  0.466  0.495  0.522  0.547  0.643  0.737;
+          0.159  0.176  0.204  0.227  0.247  0.266  0.283  0.300  0.316  0.380  0.444;
+          0.102  0.113  0.131  0.147  0.160  0.173  0.186  0.198  0.210  0.258  0.305;
+          0.072  0.079  0.092  0.103  0.114  0.124  0.133  0.143  0.152  0.190  0.227;
+          0.053  0.059  0.069  0.077  0.086  0.094  0.102  0.109  0.117  0.148  0.178;
+          0.041  0.045  0.053  0.061  0.067  0.074  0.081  0.087  0.094  0.120  0.145;
+          0.033  0.036  0.043  0.049  0.055  0.061  0.066  0.072  0.078  0.100  0.121] .* 1e-26
+
+    _θ_vals_He⁻_ff_john94 = [0.5 0.6 0.8 1.0 1.2 1.4 1.6 1.8 2.0 2.8 3.6]
+    _λ_vals_He⁻_ff_john94 = [15.1878, 11.3909, 9.1127, 6.0751, 4.5564, 3.6451, 3.0376, 2.2782,
+                             1.8225,  1.5188, 1.1391, 0.9113, 0.7594, 0.6509, 0.5695, 0.5063] #μm
+
+    T_vals = 5040.0 ./ _θ_vals_He⁻_ff_john94
+    ν_vals = (SSSynth.c_cgs*1e4) ./_λ_vals_He⁻_ff_john94
+
+    # For the sake of easy comparisons, let's pick the following semi-realistic values:
+    ρ = 1.67e-24 * 1e15 / 0.76 # g cm⁻³
+    nₑ = 1e13 # cm⁻³
+    nHe_I = 8.5e13 # cm⁻³
+    # for simplicity, assume that the He I partition function is always just equal to 1 and (thus
+    # the number density in the ground state is equal to the total number density of He I)
+    nHe_I_div_U, nHe_I_gs = nHe_I, nHe_I
+
+    # this includes the correction for stimulated emission
+    Pₑ = nₑ*SSSynth.kboltz_cgs.*T_vals
+    ref_κ_vals = _Heminus_table .* nHe_I .* Pₑ / ρ
+
+    calc_func(ν,T) = SSSynth.ContinuumOpacity.Heminus_ff(nHe_I_div_U, nₑ, ν, ρ, T)
+    _compare_against_table(view(ref_κ_vals, :, 1:9), _λ_vals_He⁻_ff_john94 ./ 1e4,
+                           view(T_vals, 1:9), calc_func, target_precision, verbose)
+end
+
 @testset "He⁻ free-free opacity" begin
+    @test check_Heminus_ff_opacity(0.031)
     # this really only amounts to a sanity check because the absolute tolerance is of the same
     # magnitude as the actual values
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
@@ -170,15 +230,10 @@ function check_H2plus_ff_and_bf_opacity(target_precision, verbose = true)
                86   31    14.6   8.4   3.8   2.29  1.57  1.18  0.79  0.59;  # 24000
               114   38    17.3   9.6   4.2   2.42  1.63  1.21  0.79  0.58]  # 26000
     # the columns of this table are Temperatures (in K)
-    _T_vals = [2.5e3 3.0e3 3.5e3 4.0e3 5.0e3 6.0e3 7.0e3 8.0e3 1.0e4 1.2e4]
+    _T_vals = [2.5e3, 3.0e3, 3.5e3, 4.0e3, 5.0e3, 6.0e3, 7.0e3, 8.0e3, 1.0e4, 1.2e4]
     # the rows are different wavenumbers (in cm⁻¹)
     _wavenumbers = [ 4000,  5000,  6000,  7000,  8000,  9000, 10000, 12000, 14000, 16000, 18000,
                     20000, 22000, 24000, 26000]
-
-    sub_table = _table
-    comp_λ = 1.0e8 ./ _wavenumbers
-    comp_T = _T_vals
-    ν_vals = _wavenumbers .* SSSynth.c_cgs
 
     # to match the implicit assumption in Bates (1952) that ndens(H I) = ndens(H I, n = 1)
     partition_val = 2.0
@@ -189,28 +244,11 @@ function check_H2plus_ff_and_bf_opacity(target_precision, verbose = true)
     ρ = 1.0
 
     nH_I_divU = nH_I/partition_val
-    success = true
-    for index = 1:length(comp_T)
-        cur_T = comp_T[index]
-        ref_coef = view(sub_table, :, index)
-        calc_opacity = SSSynth.ContinuumOpacity.H2plus_bf_and_ff.(nH_I_divU, nH_II, ν_vals, ρ,
-                                                                  cur_T)
-        calc_coef = 1e39 * calc_opacity * ρ/(nH_I * nH_II)
-        precision = (abs.(calc_coef .- ref_coef)./ref_coef)
-        max_err, max_err_ind = findmax(precision)
-        if max_err > target_precision
-            if verbose
-                if success
-                    println("There is a problem. The max error of polynomial should be: ",
-                            target_precision*100, "%.")
-                end
-                println("Max error for T = ", cur_T, "K is: ", 100 * max_err,
-                        "% at λ = ", comp_λ[max_err_ind], " Å.")
-            end
-            success = false
-        end
-    end
-    return success
+    const_factor = 1e39 * ρ/(nH_I * nH_II)
+    calc_func(ν,T) =  const_factor * SSSynth.ContinuumOpacity.H2plus_bf_and_ff.(nH_I_divU, nH_II,
+                                                                                ν, ρ, T)
+    λ_cgs = 1.0 ./_wavenumbers
+    _compare_against_table(_table, λ_cgs, _T_vals, calc_func, target_precision, verbose)
 end
 
 @testset "combined H₂⁺ ff and bf opacity" begin
