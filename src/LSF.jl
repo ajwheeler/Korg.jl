@@ -1,11 +1,12 @@
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
 """
-Returns the matrix which transforms a spectrum to its LSF-convolved version for spectral resolution 
+Returns the matrix which a gaussian line spread function with constant spectral resolution, 
 (λ / Δλ) R.
 
 This will have weird behavior if your wavelength grid is not locally linearly-spaced.
-It is intended to be run on a fine wavelength grid, then downsampled to the observational (or otherwise desired) grid.
+It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
+otherwise desired) grid.
 """
 function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: AbstractFloat
     #ideas - require wls to be a range object? Use erf to account for grid edges?
