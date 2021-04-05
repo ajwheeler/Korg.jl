@@ -5,27 +5,29 @@ import ..ContinuumOpacity
     synthesize(atm, linelist, λs, [metallicity, [alpha]]; abundances=Dict())
 
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
-wavelengths `λs` to get the resultant astrophysical flux at each wavelength.
+wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
 
 Other arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
-- `line_window` (default: 10): the farthest any line can be from the provede wavelenth range 
-   before it is discarded.
-
+- `line_window` (default: 10): the farthest any line can be from the provide wavelenth range range
+   before it is discarded (in Å).
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
 function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
                     abundances=Dict(), line_window::F=10.0) where F <: AbstractFloat
+    #work in cm
+    λs = λs * 1e-8
+
     #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
     #because that will hopefully be set dynamically soon
     nlines = length(linelist)
-    linelist = filter(l-> λs[1] - line_window <= l.wl <= λs[end] + line_window, linelist)
+    linelist = filter(l-> λs[1] - line_window*1e-8 <= l.wl <= λs[end] + line_window*1e-8, linelist)
     if length(linelist) != nlines
         @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
     end
-    
+
     #all the elements involved in either line or continuum opacity
     elements = Set(get_elem(l.species) for l in linelist) ∪ Set(["H", "He"])
 
@@ -45,9 +47,9 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
         α[i, :] = line_absorption(linelist, λs, layer.temp, number_densities, atomic_masses, 
                                   partition_funcs, ionization_energies, vmic*1e5)
 
-        νs = (c_cgs ./ λs) * 1e8
-        α[i, :] += total_continuum_opacity(νs, layer.temp, layer.electron_density, layer.density,
-                                           number_densities, partition_funcs) * layer.density
+        α[i, :] += (total_continuum_opacity(c_cgs ./ λs, layer.temp, layer.electron_density, 
+                                           layer.density, number_densities, partition_funcs) *
+                    layer.density)
     end
 
     #the thickness of each atmospheric layer 
@@ -183,7 +185,6 @@ end
 The value of the Planck blackbody function for temperature `T` at wavelength `λ`.
 """
 function blackbody(T, λ)
-    λ *= 1e-8 #convert to cm
     h = hplanck_cgs
     c = c_cgs
     k = kboltz_cgs
