@@ -15,21 +15,21 @@ opacities should be calculated in included.
 function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::Dict, 
                          partition_fns::Dict, ionization_energies::Dict, ξ
                          ; window_size=20.0*1e-8)
-    α_lines = zeros(length(wls))
+    α_lines = zeros(length(λs))
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
     lb = 1
     ub = 1
     for line in linelist
-        while wls[lb] < line.wl - window_size
+        while λs[lb] < line.wl - window_size
             lb += 1
         end
-        while wls[ub+1] < line.wl + window_size && ub+1 < length(wls)
+        while λs[ub+1] < line.wl + window_size && ub+1 < length(λs)
             ub += 1
         end
 
         #line profile (normalized)
-        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], ξ, line, view(wls,lb:ub))
+        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], ξ, line, view(λs,lb:ub))
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
