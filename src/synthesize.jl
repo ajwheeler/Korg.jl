@@ -17,8 +17,11 @@ Uses solar abundances scaled by `metallicity` and for those not provided.
 """
 function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
                     abundances=Dict(), line_window::F=10.0) where F <: AbstractFloat
-    #work in cm
-    λs = λs * 1e-8
+    #sort the lines if necessary and check that λs is sorted
+    issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
+    if !issorted(λs)
+        throw(ArgumentError("λs must be sorted"))
+    end
 
     #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
     #because that will hopefully be set dynamically soon

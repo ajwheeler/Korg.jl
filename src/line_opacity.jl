@@ -15,13 +15,21 @@ opacities should be calculated in included.
 function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::Dict, 
                          partition_fns::Dict, ionization_energies::Dict, ξ
                          ; window_size=20.0*1e-8)
-
-    α_lines = zeros(length(λs))
+    α_lines = zeros(length(wls))
+    #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
+    #and longest wavelengths which feel the effect of each line 
+    lb = 1
+    ub = 1
     for line in linelist
-        mask = line.wl - window_size .< λs .< line.wl + window_size
+        while wls[lb] < line.wl - window_size
+            lb += 1
+        end
+        while wls[ub+1] < line.wl + window_size && ub+1 < length(wls)
+            ub += 1
+        end
 
         #line profile (normalized)
-        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], ξ, line, λs[mask])
+        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], ξ, line, view(wls,lb:ub))
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
@@ -33,7 +41,7 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
         #the factor (1 - exp(hν₀ / kT))
         levels_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
 
-        α_lines[mask] += ϕ * σ * n * levels_factor 
+        @. α_lines[lb:ub] += ϕ * σ * n * levels_factor 
     end
     α_lines
 end
@@ -89,7 +97,6 @@ function harris_series(v) # assume v < 5
     H₀, H₁, H₂
 end
 
-voigt(x, σ, γ) = lbvoigt(γ/2σ, abs(x)/σ)
 function voigt(α, v)
     if α <= 0.2 
         if (v >= 5)
