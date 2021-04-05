@@ -1,8 +1,7 @@
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
 """
-Returns the matrix which a gaussian line spread function with constant spectral resolution, 
-(λ / Δλ) R.
+Applies a gaussian line spread function with constant spectral resolution, R = λ/Δλ.
 
 This will have weird behavior if your wavelength grid is not locally linearly-spaced.
 It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
