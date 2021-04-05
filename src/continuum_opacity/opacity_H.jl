@@ -203,7 +203,7 @@ end
 
 Compute the combined H₂⁺ bound-free and free-free opacity κ.
 
-This uses polynomial fits from Gray (2005). that were derived from data tabulated in
+This uses polynomial fits from Gray (2005) that were derived from data tabulated in
 [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
 
 # Arguments
@@ -268,15 +268,12 @@ function H2plus_bf_and_ff(nH_I_div_partition::Float64, nH_II::Float64, ν::Float
     log2λ = logλ*logλ
     log3λ = log2λ*logλ
 
-    atomic_cross_section = begin
-        σ1 = -1040.54 + 1345.71 * logλ - 547.628 * log2λ + 71.9684 * log3λ
-        # there was a typo in Gray (2005). In the book they give the following polynomial
-        # as the fit for U₁. In reality, it is the fit for negative U₁
-        neg_U1 = 54.0532 - 32.713 * logλ + 6.6699 * log2λ - 0.4574 * log3λ
-
-        # note: Gray (2005) used the equivalent expression: σ1*10^(neg_U1 * θ) where θ = 5040/T
-        σ1 * exp(neg_U1 * β_eV)
-    end
+    σ1 = -1040.54 + 1345.71 * logλ - 547.628 * log2λ + 71.9684 * log3λ
+    # there was a typo in Gray (2005). In the book they give the following polynomial as the fit
+    # for U₁. In reality, it is the fit for negative U₁
+    neg_U1 = 54.0532 - 32.713 * logλ + 6.6699 * log2λ - 0.4574 * log3λ
+    # note: Gray (2005) used the equivalent expression: σ1*10^(neg_U1 * θ) where θ = 5040/T
+    atomic_cross_section = σ1 * exp(neg_U1 * β_eV)
 
     # see the docstring for an explanation of why we explicitly consider the ground state density
     nH_I_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
