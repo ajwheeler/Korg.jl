@@ -22,6 +22,41 @@ function _calc_Hminus_ff_absorption_coef(ν, T)
     αff_H⁻/1e-26
 end
 
+# the first axis of ref_val_matrix should have the same length as λ_vals_cm
+# the second axis of ref_val_matrix should have the same length as T_vals
+function _compare_against_table(ref_val_matrix, λ_vals_cm, T_vals, calc_func, target_precision,
+                                verbose = true)
+    @assert ((length(size(ref_val_matrix)) == 2) &
+             (length(size(λ_vals_cm)) == 1) &
+             (length(size(T_vals)) == 1))
+    @assert size(ref_val_matrix)[1] == size(λ_vals_cm)[1]
+    @assert size(ref_val_matrix)[2] == size(T_vals)[1]
+
+    ν_vals = SSSynth.c_cgs ./ λ_vals_cm
+
+    success = true
+    for index = 1:length(T_vals)
+        cur_T = T_vals[index]
+        ref_vals = view(ref_val_matrix, :, index)
+        calc_vals = calc_func.(ν_vals, cur_T)
+        precision = (abs.(calc_vals .- ref_vals)./ref_vals)
+        max_err, max_err_ind = findmax(precision)
+        if max_err > target_precision
+            if verbose
+                if success
+                    @info string("There is a problem. The max error of should be: ",
+                                 target_precision*100, "%.")
+                end
+                @info string("Max error for T = ", cur_T, "K is: ", 100 * max_err,
+                             "% at λ = ", (λ_vals_cm[max_err_ind] * 1.e8), " Å.")
+            end
+            success = false
+        end
+    end
+    return success
+
+end
+
 
 function check_Hminus_ff_values(target_precision = 0.01, verbose = true)
     # I tabulated this data from Bell & Berrington (1987)
@@ -55,31 +90,9 @@ function check_Hminus_ff_values(target_precision = 0.01, verbose = true)
                  0.0178 0.0222 0.0308 0.0402 0.0498 0.0596 0.0695 0.0795 0.0896 0.131  0.172]
 
     # only look at the subtable that might be relevant
-    sub_table = view(_ff_table, 2:20, 1:9)
-    comp_λ = view(_ff_λ_vals, 2:20)
-    comp_T = view(_ff_T_vals, 1:9)
-
-    success = true
-    ν_vals = (SSSynth.c_cgs*1e8)./comp_λ
-    for index = 1:length(comp_T)
-        cur_T = comp_T[index]
-        ref_coef = view(sub_table, :, index)
-        calc_coef = _calc_Hminus_ff_absorption_coef.(ν_vals, cur_T)
-        precision = (abs.(calc_coef .- ref_coef)./ref_coef)
-        max_err, max_err_ind = findmax(precision)
-        if max_err > target_precision
-            if verbose
-                if success
-                    println("There is a problem. The max error of polynomial should be: ",
-                            target_precision*100, "%.")
-                end
-                println("Max error for T = ", cur_T, "K is: ", 100 * max_err,
-                        "% at λ = ", comp_λ[max_err_ind], " Å.")
-            end
-            success = false
-        end
-    end
-    return success
+    _compare_against_table(view(_ff_table, 2:20, 1:9), view(_ff_λ_vals, 2:20) ./ 1e8,
+                           view(_ff_T_vals, 1:9), _calc_Hminus_ff_absorption_coef,
+                           target_precision, verbose)
 end
 
 @testset "H⁻ free-free opacity" begin
@@ -140,11 +153,108 @@ end
 end
 
 
+# gives the atomic absorption coefficient (or cross section)
+function check_Heminus_ff_opacity(target_precision, verbose = true)
+
+    # taken from Table 2 of John (1994):
+    _Heminus_table =
+        [27.979 30.907 35.822 39.921 43.488 46.678 49.583 52.262 54.757 63.395 70.580;
+         15.739 17.386 20.151 22.456 24.461 26.252 27.882 29.384 30.782 35.606 39.598;
+         10.074 11.128 12.897 14.372 15.653 16.798 17.838 18.795 19.685 22.747 25.268;
+          4.479  4.947  5.733  6.387  6.955  7.460  7.918  8.338  8.728 10.059 11.147;
+          2.520  2.784  3.226  3.593  3.910  4.193  4.448  4.681  4.897  5.632  6.234;
+          1.614  1.783  2.065  2.299  2.502  2.681  2.842  2.990  3.126  3.592  3.979;
+          1.121  1.239  1.435  1.597  1.737  1.860  1.971  2.073  2.167  2.490  2.765;
+          0.632  0.698  0.808  0.899  0.977  1.045  1.108  1.165  1.218  1.405  1.574;
+          0.405  0.447  0.518  0.576  0.625  0.670  0.710  0.747  0.782  0.910  1.030;
+          0.282  0.311  0.360  0.400  0.435  0.466  0.495  0.522  0.547  0.643  0.737;
+          0.159  0.176  0.204  0.227  0.247  0.266  0.283  0.300  0.316  0.380  0.444;
+          0.102  0.113  0.131  0.147  0.160  0.173  0.186  0.198  0.210  0.258  0.305;
+          0.072  0.079  0.092  0.103  0.114  0.124  0.133  0.143  0.152  0.190  0.227;
+          0.053  0.059  0.069  0.077  0.086  0.094  0.102  0.109  0.117  0.148  0.178;
+          0.041  0.045  0.053  0.061  0.067  0.074  0.081  0.087  0.094  0.120  0.145;
+          0.033  0.036  0.043  0.049  0.055  0.061  0.066  0.072  0.078  0.100  0.121] .* 1e-26
+
+    _θ_vals_He⁻_ff_john94 = [0.5 0.6 0.8 1.0 1.2 1.4 1.6 1.8 2.0 2.8 3.6]
+    _λ_vals_He⁻_ff_john94 = [15.1878, 11.3909, 9.1127, 6.0751, 4.5564, 3.6451, 3.0376, 2.2782,
+                             1.8225,  1.5188, 1.1391, 0.9113, 0.7594, 0.6509, 0.5695, 0.5063] #μm
+
+    T_vals = 5040.0 ./ _θ_vals_He⁻_ff_john94
+    ν_vals = (SSSynth.c_cgs*1e4) ./_λ_vals_He⁻_ff_john94
+
+    # For the sake of easy comparisons, let's pick the following semi-realistic values:
+    ρ = 1.67e-24 * 1e15 / 0.76 # g cm⁻³
+    nₑ = 1e13 # cm⁻³
+    nHe_I = 8.5e13 # cm⁻³
+    # for simplicity, assume that the He I partition function is always just equal to 1 and (thus
+    # the number density in the ground state is equal to the total number density of He I)
+    nHe_I_div_U, nHe_I_gs = nHe_I, nHe_I
+
+    # this includes the correction for stimulated emission
+    Pₑ = nₑ*SSSynth.kboltz_cgs.*T_vals
+    ref_κ_vals = _Heminus_table .* nHe_I .* Pₑ / ρ
+
+    calc_func(ν,T) = SSSynth.ContinuumOpacity.Heminus_ff(nHe_I_div_U, nₑ, ν, ρ, T)
+    _compare_against_table(view(ref_κ_vals, :, 1:9), _λ_vals_He⁻_ff_john94 ./ 1e4,
+                           view(T_vals, 1:9), calc_func, target_precision, verbose)
+end
+
 @testset "He⁻ free-free opacity" begin
+    @test check_Heminus_ff_opacity(0.031)
     # this really only amounts to a sanity check because the absolute tolerance is of the same
     # magnitude as the actual values
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray05_comparison_vals(panel,"Heminus_ff")
+        @test all(calculated .≥ 0.0)
+        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+    end
+end
+
+function check_H2plus_ff_and_bf_opacity(target_precision, verbose = true)
+    # table II from Bates (1952) gives the absorption coefficient (corrected for stimulated
+    # emission) in units of 1e-39 cm⁻¹ / (H atom/cm³) / (H⁺ ion/cm³).
+    # Note: we clipped some of the upper rows
+    _table = [  3.4  2.60  2.10  1.77  1.35  1.09  0.92  0.79  0.62  0.51;  #  4000
+                4.0  2.98  2.36  1.96  1.47  1.17  0.98  0.84  0.66  0.54;  #  5000
+                4.8  3.4   2.63  2.15  1.57  1.25  1.04  0.89  0.69  0.57;  #  6000
+                5.6  3.9   2.91  2.33  1.67  1.31  1.08  0.92  0.71  0.58;  #  7000
+                6.7  4.4   3.2   2.53  1.77  1.37  1.12  0.95  0.73  0.59;  #  8000
+                7.9  5.0   3.5   2.74  1.87  1.43  1.16  0.97  0.74  0.60;  #  9000
+                9.3  5.6   3.9   2.95  1.97  1.48  1.19  0.99  0.75  0.61;  # 10000
+               13.0  7.2   4.7   3.4   2.18  1.58  1.25  1.03  0.77  0.62;  # 12000
+               18.1  9.3   5.7   4.0   2.40  1.69  1.30  1.06  0.78  0.62;  # 14000
+               25.1 11.9   7.0   4.7   2.64  1.80  1.36  1.09  0.78  0.62;  # 16000
+               35   15.2   8.4   5.4   2.91  1.91  1.41  1.11  0.79  0.61;  # 18000
+               47   19.3  10.2   6.3   3.2   2.03  1.46  1.14  0.79  0.61;  # 20000
+               64   24.3  12.2   7.3   3.5   2.16  1.52  1.16  0.79  0.60;  # 22000
+               86   31    14.6   8.4   3.8   2.29  1.57  1.18  0.79  0.59;  # 24000
+              114   38    17.3   9.6   4.2   2.42  1.63  1.21  0.79  0.58]  # 26000
+    # the columns of this table are Temperatures (in K)
+    _T_vals = [2.5e3, 3.0e3, 3.5e3, 4.0e3, 5.0e3, 6.0e3, 7.0e3, 8.0e3, 1.0e4, 1.2e4]
+    # the rows are different wavenumbers (in cm⁻¹)
+    _wavenumbers = [ 4000,  5000,  6000,  7000,  8000,  9000, 10000, 12000, 14000, 16000, 18000,
+                    20000, 22000, 24000, 26000]
+
+    # to match the implicit assumption in Bates (1952) that ndens(H I) = ndens(H I, n = 1)
+    partition_val = 2.0
+
+    # pick stupid dummy values (we're just going to remove them later):
+    nH_I = 1e15
+    nH_II = 1e13
+    ρ = 1.0
+
+    nH_I_divU = nH_I/partition_val
+    const_factor = 1e39 * ρ/(nH_I * nH_II)
+    calc_func(ν,T) =  const_factor * SSSynth.ContinuumOpacity.H2plus_bf_and_ff.(nH_I_divU, nH_II,
+                                                                                ν, ρ, T)
+    λ_cgs = 1.0 ./_wavenumbers
+    _compare_against_table(_table, λ_cgs, _T_vals, calc_func, target_precision, verbose)
+end
+
+@testset "combined H₂⁺ ff and bf opacity" begin
+    @test check_H2plus_ff_and_bf_opacity(0.015)
+    @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b"]
+        calculated, ref = Gray05_comparison_vals(panel,"H2plus")
         @test all(calculated .≥ 0.0)
         @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
     end
@@ -361,7 +471,7 @@ end
 # Given the strong consistency when comparing the bf and ff values individually against the
 # alternative implementations described in Gray (2005), I'm unconcerned by the need for large
 # tolerances.
-@testset "combine H I bf and ff opacity opacity" begin
+@testset "combined H I bf and ff opacity" begin
     @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
                                                                           ("c",0.125),
                                                                           ("d",35)]

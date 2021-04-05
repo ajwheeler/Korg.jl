@@ -1,9 +1,9 @@
 """
-    line_opacity(linelist, wls, temp, n_densities, atomic_masses, partition_fns, 
+    line_absorption(linelist, λs, temp, n_densities, atomic_masses, partition_fns, 
                  ionization_energies; window_size)
 
 Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
-`wls`. 
+`λs`. 
 
 other arguments:
 - `temp` the temerature in K
@@ -12,10 +12,9 @@ other arguments:
 opacities should be calculated in included.
 - `ξ` is the microturbulent velocity in cm/s
 """
-function line_absorption(linelist, wls, temp, n_densities::Dict, atomic_masses::Dict, 
+function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::Dict, 
                          partition_fns::Dict, ionization_energies::Dict, ξ
-                         ; window_size=20.0)
-
+                         ; window_size=20.0*1e-8)
     α_lines = zeros(length(wls))
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
@@ -40,7 +39,7 @@ function line_absorption(linelist, wls, temp, n_densities::Dict, atomic_masses::
         boltzmann_factor = exp(- line.E_lower / kboltz_eV / temp)
         n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
         #the factor (1 - exp(hν₀ / kT))
-        levels_factor = 1 - exp(-c_cgs * hplanck_cgs / (line.wl * 1e-8) / kboltz_cgs / temp)
+        levels_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
 
         @. α_lines[lb:ub] += ϕ * σ * n * levels_factor 
     end
@@ -53,9 +52,8 @@ end
 The cross-section at wavelength `wl` in Ångstroms of a transition for which the product of the
 degeneracy and oscillator strength is `10^log_gf`.
 """
-function sigma_line(wl, log_gf) where F <: AbstractFloat
+function sigma_line(λ, log_gf) where F <: AbstractFloat
     #work in cgs
-    λ = wl .* 1e-8 
     e  = electron_charge_cgs
     mₑ = electron_mass_cgs
     c  = c_cgs
@@ -64,27 +62,23 @@ function sigma_line(wl, log_gf) where F <: AbstractFloat
 end
 
 """
-    line_profile(temp, atomic_mass, ξ, line, wls)
+    line_profile(temp, atomic_mass, ξ, line, λs)
 
-The line profile, ϕ, at wavelengths `wls` in Ångstroms.
+The line profile, ϕ, at wavelengths `λs` in cm.
 `temp` should be in K, `atomic_mass` should be in g, microturbulent velocity, `ξ`, should be in 
 cm/s, `line` should be one of the entries returned by `read_line_list`.
 Note that this returns values in units of cm^-1, not Å^-1
 """
-function line_profile(temp::F, atomic_mass::F, ξ::F, line::NamedTuple, wls::AbstractVector{F}
+function line_profile(temp::F, atomic_mass::F, ξ::F, line::NamedTuple, λs::AbstractVector{F}
                      ) where F <:  AbstractFloat
-    #work in cgs
-    λs = wls .* 1e-8 
-    λ0 = line.wl * 1e-8
-
     #doppler-broadening parameter
-    Δλ_D = λ0 * sqrt(2kboltz_cgs*temp / atomic_mass + ξ^2) / c_cgs
+    Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / atomic_mass + ξ^2) / c_cgs
 
     #get all damping params from line list.  There may be better sources for this.
     γ = 10^line.log_gamma_rad + 10^line.log_gamma_stark + 10^line.log_gamma_vdW
 
     #Voigt function parameters
-    v = @. abs(λs-λ0) / Δλ_D
+    v = @. abs(λs-line.wl) / Δλ_D
     a = @. λs^2/(4π * c_cgs) * γ / Δλ_D
 
     @. voigt(a, v) / sqrt(π) / Δλ_D 

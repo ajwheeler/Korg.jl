@@ -74,7 +74,7 @@ end
             @test all((l->l.E_upper > l.E_lower).(kurucz_linelist))
             @test issorted(kurucz_linelist, by=l->l.wl)
             @test length(kurucz_linelist) == 988
-            @test kurucz_linelist[1].wl ≈ 72320.699
+            @test kurucz_linelist[1].wl ≈ 72320.699 * 1e-8
             @test kurucz_linelist[1].log_gf == -0.826
             @test kurucz_linelist[1].species == "Be_II"
             @test kurucz_linelist[1].E_upper ≈ 17.531776
@@ -89,7 +89,7 @@ end
             @test all((l->l.E_upper > l.E_lower).(vald_linelist))
             @test issorted(vald_linelist, by=l->l.wl)
             @test length(vald_linelist) == 4584
-            @test vald_linelist[1].wl ≈ 3002.20106
+            @test vald_linelist[1].wl ≈ 3002.20106 * 1e-8
             @test vald_linelist[1].log_gf == -1.132
             @test vald_linelist[1].species == "Y_II"
             @test vald_linelist[1].E_lower ≈ 3.3757
@@ -108,14 +108,15 @@ end
         linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
 
         @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 1e5, linelist[1], 
-                                            7230 : 0.01 : linelist[1].wl))
+                                            72.30e-5 : 1e-10 : linelist[1].wl))
         @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 0.0, linelist[1], 
-                                            linelist[1].wl : 0.01 : 7235), rev=true)
+                                            linelist[1].wl : 1e-10 : 72.35e-5), rev=true)
 
+        Δ = 1e-9 #cm (== 0.1 Å)
         s =  sum(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 2e5, linelist[1],
-                                      72300 : 0.1 : 72350))/10
+                                      72.300e-5 : Δ : 72.350e-5))
         #must convert from cm^-1 to Å^-1
-        @test 0.999 < s * 1e-8 <= 1.0
+        @test 0.999 < s * Δ <= 1.0
     end
 end
 

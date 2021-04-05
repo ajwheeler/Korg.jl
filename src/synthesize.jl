@@ -5,15 +5,14 @@ import ..ContinuumOpacity
     synthesize(atm, linelist, λs, [metallicity, [alpha]]; abundances=Dict())
 
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
-wavelengths `λs` to get the resultant astrophysical flux at each wavelength.
+wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
 
 Other arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
-- `line_window` (default: 10): the farthest any line can be from the provede wavelenth range 
-   before it is discarded.
-
+- `line_window` (default: 10): the farthest any line can be from the provide wavelenth range range
+   before it is discarded (in Å).
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
 function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
@@ -27,11 +26,11 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
     #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
     #because that will hopefully be set dynamically soon
     nlines = length(linelist)
-    filter!(l-> λs[1] - line_window <= l.wl <= λs[end] + line_window, linelist)
+    linelist = filter(l-> λs[1] - line_window*1e-8 <= l.wl <= λs[end] + line_window*1e-8, linelist)
     if length(linelist) != nlines
         @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
     end
-    
+
     #all the elements involved in either line or continuum opacity
     elements = Set(get_elem(l.species) for l in linelist) ∪ Set(["H", "He"])
 
@@ -51,9 +50,9 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
         α[i, :] = line_absorption(linelist, λs, layer.temp, number_densities, atomic_masses, 
                                   partition_funcs, ionization_energies, vmic*1e5)
 
-        νs = (c_cgs ./ λs) * 1e8
-        α[i, :] += total_continuum_opacity(νs, layer.temp, layer.electron_density, layer.density,
-                                           number_densities, partition_funcs) * layer.density
+        α[i, :] += (total_continuum_opacity(c_cgs ./ λs, layer.temp, layer.electron_density, 
+                                           layer.density, number_densities, partition_funcs) *
+                    layer.density)
     end
 
     #the thickness of each atmospheric layer 
@@ -86,7 +85,7 @@ metallicity [X/H] to calculate those remaining from the solar values (except He)
 function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
     if "H" in keys(A_X)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
-                           * "\"abundnances\" to implicitely set the ammount of H"))
+                           * "\"abundances\" to implicitly set the amount of H"))
     end
 
     #populate dictionary of absolute abundaces
@@ -167,14 +166,14 @@ function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_de
     κ += ContinuumOpacity.H_I_ff.(number_densities["H_II"], nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_bf.(nH_I_div_U, nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_ff.(nH_I_div_U, nₑ, νs, ρ, T)
-    #TODO fix
-    #κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities["H_II"], νs, ρ, T)
+    κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities["H_II"], νs, ρ, T)
     
     #He continuum opacities
     κ += ContinuumOpacity.He_II_bf.(number_densities["He_II"]/partition_funcs["He_II"](T), νs, ρ, T)
     #κ += ContinuumOpacity.He_II_ff.(number_densities["He_III"], nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.Heminus_ff.(number_densities["He_I"]/partition_funcs["He_I"](T), 
-                                      nₑ, νs, ρ, T)
+    # ContinuumOpacity.Heminus_ff is only valid for λ ≥ 5063 Å
+    #κ += ContinuumOpacity.Heminus_ff.(number_densities["He_I"]/partition_funcs["He_I"](T),
+    #                                  nₑ, νs, ρ, T)
     
     #electron scattering
     κ .+= ContinuumOpacity.electron_scattering(nₑ, ρ)
@@ -189,7 +188,6 @@ end
 The value of the Planck blackbody function for temperature `T` at wavelength `λ`.
 """
 function blackbody(T, λ)
-    λ *= 1e-8 #convert to cm
     h = hplanck_cgs
     c = c_cgs
     k = kboltz_cgs
