@@ -23,7 +23,7 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
     #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
     #because that will hopefully be set dynamically soon
     nlines = length(linelist)
-    filter!(l-> λs[1] - line_window*1e-8 <= l.wl <= λs[end] + line_window*1e-8, linelist)
+    linelist = filter(l-> λs[1] - line_window*1e-8 <= l.wl <= λs[end] + line_window*1e-8, linelist)
     if length(linelist) != nlines
         @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
     end
@@ -82,7 +82,7 @@ metallicity [X/H] to calculate those remaining from the solar values (except He)
 function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
     if "H" in keys(A_X)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
-                           * "\"abundnances\" to implicitely set the ammount of H"))
+                           * "\"abundances\" to implicitly set the amount of H"))
     end
 
     #populate dictionary of absolute abundaces
