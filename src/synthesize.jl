@@ -21,7 +21,7 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
     #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
     #because that will hopefully be set dynamically soon
     nlines = length(linelist)
-    filter!(l-> λs[1] - line_window <= l.wl <= λs[end] + line_window, linelist)
+    linelist = filter(l-> λs[1] - line_window <= l.wl <= λs[end] + line_window, linelist)
     if length(linelist) != nlines
         @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
     end
