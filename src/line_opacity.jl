@@ -85,9 +85,7 @@ function line_profile(temp::F, atomic_mass::F, ξ::F, line::NamedTuple, wls::Abs
 
     #Voigt function parameters
     v = @. abs(λs-λ0) / Δλ_D
-    #technically, a depends on λ, but at the sub-percent level, which is below the precision of our
-    #voigt approximation
-    a = λ0^2/(4π * c_cgs) * γ / Δλ_D
+    a = @. λs^2/(4π * c_cgs) * γ / Δλ_D
 
     @. voigt(a, v) / sqrt(π) / Δλ_D 
 end
