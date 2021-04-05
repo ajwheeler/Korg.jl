@@ -41,7 +41,7 @@ end
 
 Compute the He⁻ free-free opacity κ.
 
-The naming scheme for free-free absorption is counter-inutitive. This actually refers to the 
+The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
 reaction:  photon + e⁻ + He I -> e⁻ + He I.
 
 # Arguments
@@ -53,39 +53,46 @@ reaction:  photon + e⁻ + He I -> e⁻ + He I.
 
 # Notes
 
-This follows equation 8.16 of Grey (2005) which provides a polynomial fit absorption to data 
+This follows equation 8.16 of Grey (2005) which provides a polynomial fit absorption to data
 tabulated in [John 1994](https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract). According
-to that equation the "continuous absorption coefficient per Hydrogen" is given by: 
+to that equation the "continuous absorption coefficient per Hydrogen" is given by:
     α(He⁻_ff)*Pₑ*A(He) / (1 + Φ(He)/Pₑ)
-in which 
-- log_10(α(He⁻_ff)) is the polynomial term. 
+in which
+- log_10(α(He⁻_ff)) is the polynomial term.
 - A(He) is the number abundance of Helium particles relative to Hydrogen particles. For reference,
   A(He) = [n(He I) + n(He II) + n(He III)] / [n(H I) + n(H II)]
 - Pₑ is the partial pressure contributed by electrons. For reference, Pₑ = nₑ*kb * T.
 - 1/(1 + Φ(He)/Pₑ) comes from the Saha equation and expresses n(He I) / [n(He I) + n(He II)].
 
-In the above expression, α(He⁻_ff)*Pₑ specifies the free-free atomic absorption coefficient per 
+In the above expression, α(He⁻_ff)*Pₑ specifies the free-free atomic absorption coefficient per
 ground state He I atom. The expression seems to implicitly assume that
 - approximately all He I is in the ground state
 - n(He I) / [n(He I) + n(He II)] is roughly n(He I) / [n(He I) + n(He II) + n(HeIII)]
-(at least for the range of temperatures where α can be accurately computed). 
+(at least for the range of temperatures where α can be accurately computed).
 
-To convert the expression to opacity, they divided it by the product of the mean molecular weight 
-and the Hydrogen mass. With that in mind, we can write an the equation for opacity (removing the 
+To convert the expression to opacity, they divided it by the product of the mean molecular weight
+and the Hydrogen mass. With that in mind, we can write an the equation for opacity (removing the
 apparent assumptions) as κ_ν = α(He⁻_ff)*Pₑ*n(He I, n=1)/ρ.
 
-For 5e3 Å ≤ λ ≤ 1.5e5 Å and 2520 K ≤ T ≤ 10080 K, the polynomial fits the tabulated data at a 
-precision of 1% or better. For reference, the tabulated data in these ranges of values consist 
-of an irregularly spaced rectangular grid with 15 λ values and 9 Temperature values. According to 
-John (1994), improved calculations are unlikely to alter the tabulated data for λ > 1e4Å, "by more 
-than about 2%." The errors introduced by the approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are 
-expected to be well below 10%."
+For 5063 Å ≤ λ ≤ 151878 Å and 2520 K ≤ T ≤ 10080 K, Gray (2005) claims that the polynomial fit the
+tabulated data at a precision of 1% or better. In practice, we found that it only fits the data to
+better than 3.1% (it's possible that for smaller λ the fit may be better). For reference, the
+tabulated data in these ranges of values consist of an irregularly spaced rectangular grid with 15
+λ values and 9 Temperature values. According to John (1994), improved calculations are unlikely to
+alter the tabulated data for λ > 1e4Å, "by more than about 2%." The errors introduced by the
+approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10%."
 
 An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
-
 """
 function Heminus_ff(nHe_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
                     T::Flt) where {Flt<:AbstractFloat}
+
+    λ = c_cgs * 1.0e8 / ν # Å
+    if !(5063.0 <= λ <= 151878.0)
+        throw(DomainError(λ, "The wavelength must lie in the interval [5063 Å, 151878 Å]"))
+    elseif !(2520.0 <= T <= 10080.0)
+        throw(DomainError(T, "The temperature must lie in the interval [2520 K, 10080 K]"))
+    end
 
     θ = 5040.0 / T
     θ2 = θ * θ
@@ -97,7 +104,7 @@ function Heminus_ff(nHe_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
     c2 =   2.74020 - 10.62144*θ +  15.50518*θ2 -  8.33845*θ3 +  1.57960*θ4
     c3 =  -0.19923 +  0.77485*θ -   1.13200*θ2 +  0.60994*θ3 -  0.11564*θ4
 
-    logλ = log10(c_cgs * 1.0e8 / ν)
+    logλ = log10(λ)
 
     # α includes contribution from stimulated emission
     α = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))

@@ -208,8 +208,6 @@ function H2plus_coefficient(λ, T, Pₑ)
     nH_I = weights[1]*nH
     nH_II = weights[2]*nH
 
-    println(nH_I, " ", nH_II)
-
     # set the partition function to 2.0 in nH_I_div_partition so that n(H I, n=1) = n(H I) for this
     # calculation, which is an assumption that Gray (2005) implicitly uses
     nH_I_div_partition = nH_I/2.0
@@ -217,7 +215,6 @@ function H2plus_coefficient(λ, T, Pₑ)
 
     ν = (SSSynth.c_cgs*1e8)/λ
     opacity = SSSynth.ContinuumOpacity.H2plus_bf_and_ff(nH_I_div_partition, nH_II, ν, ρ, T)
-    println(opacity)
     opacity * ρ / (Pₑ * nH_I)
 end
 
@@ -283,8 +280,8 @@ const Gray05_opacity_form_funcs =
     Dict("H"          => (HI_coefficient,         Bounds(nothing, nothing), "H I bf and ff"),
          "Hminus_bf"  => (Hminus_bf_coefficient,  Bounds(2250.0, 15000.0),  "H⁻ bound-free"),
          "Hminus_ff"  => (Hminus_ff_coefficient,  Bounds(2604.0, 113918.0), "H⁻ free-free"),
-         "Heminus_ff" => (Heminus_ff_coefficient, Bounds(5e3, 1.5e5),       "He⁻ free-free"),
-         #"H2plus"     => (H2plus_coefficient,     Bounds(nothing,nothing),   "H₂⁺ ff and bf"),
+         "Heminus_ff" => (Heminus_ff_coefficient, Bounds(5063.0, 151878.0), "He⁻ free-free"),
+         "H2plus"     => (H2plus_coefficient,     Bounds(3847.0, 25000.0),   "H₂⁺ ff and bf"),
          )
 
 # the absolute tolerances for values the opacity contributions from

@@ -8,6 +8,9 @@ const electron_mass_cgs = 9.1093897e-28 #g
 const electron_charge_cgs = 4.80320425e-10 # statcoulomb or cm^3/2 * g^1/2 / s
 const amu_cgs = 1.6605402e-24 #g
 
+# 2018 CODATA recommended value:
+const bohr_radius_cgs =  5.29177210903e-9 # cm
+
 const kboltz_eV = 8.617333262145e-5 #eV/K
 const hplanck_eV = 4.135667696e-15 #eV*s
 const RydbergH_eV = 13.595 #eV - this could be updated
