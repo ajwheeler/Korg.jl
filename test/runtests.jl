@@ -178,5 +178,18 @@ end
         xs = -10:0.1:10
         @test SSSynth.trapezoid_rule(xs, pdf.(xs) * 0.1) - 1.0 < 1e-5
     end
-    
+end
+
+@testset "LSF" begin
+    wls = 5000:0.35:6000
+    R = 1800.0
+    flux = zeros(Float64, length(wls))
+    flux[500] = 5.0
+
+    convF = SSSynth.constant_R_LSF(flux, wls, R)
+    #normalized?
+    @test sum(flux) ≈ sum(convF)
+
+    #preserves line center?
+    @test argmax(convF) == 500
 end
