@@ -31,14 +31,69 @@ function saha(χs, Us, T, nₑ)
     weights = Vector{Float64}(undef, length(Us)) #there's probably a cleaner way to do this
     weights[1] = 1.
     for i in 2:length(Us)
-        #I think this should get optimized away?  I'm open to not doing this, but I'm hoping it 
-        #makes formulas easier to read
-        mₑ = electron_mass_cgs 
-        k = kboltz_cgs
         k_eV = kboltz_eV
-        h = hplanck_cgs
-        weights[i] = (2.0*weights[i-1]/nₑ * (Us[i](T)/Us[i-1](T)) * (2π*mₑ*k*T/h^2)^1.5 *
-                      exp(-χs[i-1]/k_eV/T))
+        weights[i] = (2.0*weights[i-1]/nₑ * (Us[i](T)/Us[i-1](T)) *
+                      free_partition_factor(electron_mass_cgs, T) * exp(-χs[i-1]/k_eV/T))
     end
     weights ./ sum(weights)
+end
+
+"""
+The statitical multiplicities from the free movement of a particle. TODO reword.
+Used in the Saha equation.
+
+arguments
+- `m` is the particle mass
+- `T` is the temperature in K
+"""
+function free_partition_factor(m, T)
+     k = kboltz_cgs
+     h = hplanck_cgs
+     (2π*m*k*T/h^2)^1.5
+end
+
+#using NLsolve
+
+function molecular_equilibrium_equations(species)
+    #remove ionization info
+    species = get_elem.(species)
+
+    #compute list of molecules, and the atoms of which they are composed
+    molecules = collect(filter(ismolecule, species))
+    atoms_pairs = map(collect(molecules)) do m
+        #all molecules are diatomic, extract the two elements
+        if isuppercase(m[2])
+            el1, el2 = m[1:1], m[2:end]
+        elseif isuppercase(m[3])
+            el1, el2 = m[1:2], m[3:end]
+        else
+            @error "This doesn't look like a diatomic molecule: $(m)"
+        end
+        el1, el2        
+    end
+    atoms = collect(Set([first.(atoms_pairs) ; last.(atoms_pairs)]))
+
+    #construct a mapping from each atom and molecular to a integer
+    #these will be the indeces of each number density in the system equations, the xᵢs in the vector
+    #for of the residual equation, F(x) = 0.
+    var_indices = Dict{String, Int}()
+    i = 1
+    for a in atoms
+        var_indices[i] = a
+        i += 1
+    end
+    for m in molecules
+        var_indeces[i] = m
+    end
+
+    #the residuals of the molecular equilibrium equations
+    function residuals!(F, x)
+        #molecular saha equations
+    end
+end
+
+
+function molecular_equilibrium()
+
+
 end

@@ -33,6 +33,14 @@ function electron_ndens_Hplasma(nH_tot, T, H_I_partition_val = 2.0)
     nₑ
 end
 
+@testset "O I-III and CN partition functions are monotonic in T" begin
+    Ts = 1:100:10000
+    @test issorted(SSSynth.partition_funcs["O_I"].(Ts))
+    @test issorted(SSSynth.partition_funcs["O_II"].(Ts))
+    @test issorted(SSSynth.partition_funcs["O_III"].(Ts))
+    @test issorted(SSSynth.partition_funcs["CN"].(Ts))
+end
+
 @testset "saha" begin
     @testset "pure Hydrogen atmosphere" begin
         nH_tot = 1e15
@@ -65,6 +73,19 @@ end
         @testset "species codes" begin
             @test SSSynth.parse_species_code("01.00") == "H_I"
             @test SSSynth.parse_species_code("02.01") == "He_II"
+            @test SSSynth.parse_species_code("0608") == "CO"
+        end
+
+        @testset "strip ionization info" begin
+            @test SSSynth.get_elem("H_I") == "H"
+            @test SSSynth.get_elem("H_II") == "H"
+            @test SSSynth.get_elem("CO") == "CO"
+        end
+
+        @testset "distinguish atoms from molecules" begin
+            @test !SSSynth.ismolecule(SSSynth.get_elem("H_I"))
+            @test !SSSynth.ismolecule(SSSynth.get_elem("H_II"))
+            @test SSSynth.ismolecule(SSSynth.get_elem("CO"))
         end
 
         @test_throws ArgumentError SSSynth.read_line_list(""; format="abc")

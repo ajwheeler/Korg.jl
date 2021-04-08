@@ -4,14 +4,14 @@ const numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
     parse_species_code(code)
 
 Parse the "species code" as it is often specified in line lists and return a the "astronomy" 
-notation. `01.00` → `"H_I"`, `02.01` → `"He_II"`, `0608.00` → `"CO"`, etc.  
+notation. `01.00` → `"H_I"`, `02.01` → `"He_II"`, `0608` → `"CO"`, etc.  
 """
 function parse_species_code(code::AbstractString)
-    if 4 <= length(code) <= 5
+    if length(code) == 4 && !contains(code, ".")
+        atomic_symbols[parse(Int, code[1:2])] * atomic_symbols[parse(Int, code[3:4])]
+    elseif 4 <= length(code) <= 5
         Z, charge = split(code, '.')
         atomic_symbols[parse(Int, Z)] * "_" * numerals[parse(Int, charge)+1]
-    elseif length(code) == 7
-        throw(ArgumentError("Molecular species codes not yet supported"))
     else
         throw(ArgumentError("Invalid species code: " * code))
     end
@@ -20,6 +20,8 @@ end
 #I should probably clean up my nomenclature here and throughout
 "get the chemical symbol for the element of the species"
 get_elem(code::AbstractString)::String = split(code, '_')[1]
+
+ismolecule(species::String) = sum(isuppercase(c) for c in species) > 1
 
 """
     read_line_list(fname; format="kurucz")

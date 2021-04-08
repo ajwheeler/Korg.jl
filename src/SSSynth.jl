@@ -14,7 +14,7 @@ module SSSynth
     #load data when the package is imported. We might as well do this until we ship with alternative 
     #datasets
     ionization_energies = setup_ionization_energies()
-    partition_funcs = setup_atomic_partition_funcs()
+    partition_funcs = setup_partition_funcs()
 
     include("continuum_opacity/continuum_opacity.jl") #Define continuum opacity functions.
     include("synthesize.jl")                          #solve radiative transfer equation
