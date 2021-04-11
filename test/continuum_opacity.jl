@@ -317,8 +317,9 @@ end
         # This comparison is much more constraining than directly comparing against the relevant
         # curve extracted from the panel because the relevant curve includes both free-free and
         # bound-free absorption. It's also much more constraining when H I ff opacity is subdominant
-        χs = [SSSynth.RydbergH_eV, -1.0]
-        Us = [T -> 2.0, T -> 1.0] # implicitly assumed by the Gray implementation
+        χs = Dict(["H"=>[SSSynth.RydbergH_eV, -1.0, -1.0]])
+        # implicitly assumed by the Gray implementation
+        Us = Dict(["H_I"=>(T -> 2.0), "H_II"=>(T -> 1.0)])
 
         λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
         ν_vals = SSSynth.c_cgs*1e8./λ_vals
@@ -330,9 +331,9 @@ end
             nH_total = nₑ * 100.0 # this is totally arbitrary
             ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
 
-            weights = SSSynth.saha(χs, Us, T, nₑ)
-            nH_I = nH_total * weights[1]
-            nH_II = nH_total * weights[2]
+            wII, wIII = SSSynth.saha_ion_weights(T, nₑ, "H", χs, Us)
+            nH_I = nH_total / (1 + wII) 
+            nH_II = nH_total * wII / (1 + wII)
             # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II
             absorption_coef = SSSynth.ContinuumOpacity.H_I_ff.(nH_II, nₑ, ν_vals, ρ, T) * ρ/nH_I
             @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.0015

@@ -45,26 +45,26 @@ end
     @testset "pure Hydrogen atmosphere" begin
         nH_tot = 1e15
         # specify χs and Us to decouple this testset from other parts of the code
-        χs, Us = [SSSynth.RydbergH_eV, -1.0], [T -> 2.0, T -> 1.0]
+        χs = Dict("H"=>[SSSynth.RydbergH_eV, -1.0, -1.0])
+        Us = Dict(["H_I"=>(T -> 2.0), "H_II"=>(T -> 1.0)])
         # iterate from less than 1% ionized to more than 99% ionized
         for T in [3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3, 1e4, 1.1e4, 1.2e4, 1.3e4, 1.4e4, 1.5e5]
             nₑ = electron_ndens_Hplasma(nH_tot, T, 2.0)
-            weights = SSSynth.saha(χs, Us, T, nₑ)
-            @test length(weights) == 2
-            @test (weights[1] + weights[2]) ≈ 1.0 rtol = 1e-15
+            wII, wIII = SSSynth.saha_ion_weights(T, nₑ, "H", χs, Us)
+            @test wIII ≈ 0.0 rtol = 1e-15
             rtol = (T == 1.5e5) ? 1e-9 : 1e-14
-            @test weights[2] ≈ (nₑ/nH_tot) rtol = rtol
+            @test wII/(1 + wII + wIII) ≈ (nₑ/nH_tot) rtol= rtol
         end
     end
 
-    @testset "monotonic N_I and N_III Temperature dependence" begin
-        s = [SSSynth.saha(SSSynth.ionization_energies["N"], [SSSynth.partition_funcs["N_I"],
-                                                             SSSynth.partition_funcs["N_II"],
-                                                             SSSynth.partition_funcs["N_III"]],
-                          T, 1.0) for T in 1:100:10000]
-        @test issorted(first.(s), rev=true)
-        @test issorted(last.(s))
-        @test issorted(s[1], rev=true)
+    @testset "monotonic N ions Temperature dependence" begin
+        weights = [SSSynth.saha_ion_weights(T, 1.0, "N", SSSynth.ionization_energies, 
+                                            SSSynth.partition_funcs) for T in 1:100:10000]
+        #N II + NIII grows with T === N I shrinks with T
+        @test issorted(first.(weights) + last.(weights))
+        
+        # NIII grows with T
+        @test issorted(last.(weights))
     end
 end
 
@@ -86,6 +86,14 @@ end
             @test !SSSynth.ismolecule(SSSynth.get_elem("H_I"))
             @test !SSSynth.ismolecule(SSSynth.get_elem("H_II"))
             @test SSSynth.ismolecule(SSSynth.get_elem("CO"))
+        end
+
+        @testset "break molecules into atoms" begin
+            @test SSSynth.get_atoms("CO") == ("C", "O")
+            @test SSSynth.get_atoms("C2") == ("C", "C")
+            @test SSSynth.get_atoms("MgO") == ("Mg", "O")
+            #nonsensical but it doesn't matter
+            @test SSSynth.get_atoms("OMg") == ("O", "Mg")
         end
 
         @test_throws ArgumentError SSSynth.read_line_list(""; format="abc")
@@ -183,15 +191,16 @@ end
         end
     end
 
-    @testset "number densities" begin
-        abundances = Dict("C"=>1e-8, "H"=>0.9)
-        nₜ = 1e15
-        n = SSSynth.per_species_number_density(nₜ, nₜ*1e-3, 4500.0, abundances)
-        @test Set(keys(n)) == Set(["C_I", "C_II", "C_III", "H_I", "H_II"])
-        @test n["C_III"] < n["C_II"] < n["C_I"] < n["H_II"] < n["H_I"]
-        @test n["C_III"] + n["C_II"] + n["C_I"] ≈ abundances["C"] * nₜ
-        @test n["H_II"] + n["H_I"] ≈ abundances["H"] * nₜ
-    end
+    #TODO write tests for moleq
+    #@testset "number densities" begin
+    #    abundances = Dict("C"=>1e-8, "H"=>0.9)
+    #    nₜ = 1e15
+    #    n = SSSynth.per_species_number_density(nₜ, nₜ*1e-3, 4500.0, abundances)
+    #    @test Set(keys(n)) == Set(["C_I", "C_II", "C_III", "H_I", "H_II"])
+    #    @test n["C_III"] < n["C_II"] < n["C_I"] < n["H_II"] < n["H_I"]
+    #    @test n["C_III"] + n["C_II"] + n["C_I"] ≈ abundances["C"] * nₜ
+    #    @test n["H_II"] + n["H_I"] ≈ abundances["H"] * nₜ
+    #end
 
     @testset "trapezoid rule" begin
         #gaussian PDF should integral to 1.

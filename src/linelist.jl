@@ -21,7 +21,24 @@ end
 "get the chemical symbol for the element of the species"
 get_elem(code::AbstractString)::String = split(code, '_')[1]
 
-ismolecule(species::String) = sum(isuppercase(c) for c in species) > 1
+ismolecule(species::String) = sum(isuppercase(c) for c in species) > 1 || '2' in species
+
+"""
+Get the atoms that make up a diatomic molecule
+"""
+function get_atoms(molecule)
+    if molecule[end] == '2'
+        el1 = molecule[1:end-1]
+        el2 = molecule[1:end-1]
+    elseif isuppercase(molecule[2])
+        el1, el2 = molecule[1:1], molecule[2:end]
+    elseif isuppercase(molecule[3])
+        el1, el2 = molecule[1:2], molecule[3:end]
+    else
+        @error "This doesn't look like a diatomic molecule: $(molecule)"
+    end
+    el1, el2        
+end
 
 """
     read_line_list(fname; format="kurucz")

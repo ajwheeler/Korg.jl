@@ -21,6 +21,10 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
     lb = 1
     ub = 1
     for line in linelist
+        if ismolecule(get_elem(line.species))
+            continue #TODO
+        end
+
         while λs[lb] < line.wl - window_size
             lb += 1
         end
@@ -38,10 +42,10 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
         #number density of particles in the relevant excitation state
         boltzmann_factor = exp(- line.E_lower / kboltz_eV / temp)
         n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
-        #the factor (1 - exp(hν₀ / kT))
-        levels_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
+        #the factor (1 - exp(hν₀ / kT)) to account for stimulated emission
+        emission_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
 
-        @. α_lines[lb:ub] += ϕ * σ * n * levels_factor 
+        @. α_lines[lb:ub] += ϕ * σ * n * emission_factor 
     end
     α_lines
 end
