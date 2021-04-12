@@ -38,7 +38,7 @@ end
     @test issorted(SSSynth.partition_funcs["O_I"].(Ts))
     @test issorted(SSSynth.partition_funcs["O_II"].(Ts))
     @test issorted(SSSynth.partition_funcs["O_III"].(Ts))
-    @test issorted(SSSynth.partition_funcs["CN"].(Ts))
+    @test issorted(SSSynth.partition_funcs["CN_I"].(Ts))
 end
 
 @testset "saha" begin
