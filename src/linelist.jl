@@ -17,9 +17,8 @@ function parse_species_code(code::AbstractString)
     end
 end
 
-#I should probably clean up my nomenclature here and throughout
 "get the chemical symbol for the element of the species"
-get_elem(code::AbstractString)::String = split(code, '_')[1]
+strip_ionization(code::AbstractString)::String = split(code, '_')[1]
 
 ismolecule(species::String) = sum(isuppercase(c) for c in species) > 1 || '2' in species
 
@@ -107,5 +106,3 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
     end
     linelist[mask]
 end
-
-

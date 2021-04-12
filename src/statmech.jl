@@ -184,7 +184,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ, absolute_abundances, ionizat
         n₁ = number_densities[el1*"_I"]
         n₂ = number_densities[el2*"_I"]
         K = equilibrium_constants[m]
-        number_densities[m] = n₁ * n₂ * kboltz_cgs * T / 10^K(T)
+        number_densities[m*"_I"] = n₁ * n₂ * kboltz_cgs * T / 10^K(T)
     end
 
     number_densities

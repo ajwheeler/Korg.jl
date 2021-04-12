@@ -3,10 +3,17 @@ using Interpolations
 """
 Returns a Dict holding the default (Barklem & Collet 2016) partition functions.
 """
-function setup_partition_funcs(fnames=joinpath.(_data_dir, 
-                                                ["BarklemCollet2016-molecular_partition.dat",
-                                                 "BarklemCollet2016-atomic_partition.dat"]))
-    merge(read_partition_funcs.(fnames)...)
+function setup_partition_funcs(atoms=joinpath(_data_dir, "BarklemCollet2016-atomic_partition.dat"),
+                              mols=joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat"))
+    atomUs, molUs = read_partition_funcs.([atoms, mols])
+    new_molUs = typeof(molUs)()
+    #use only neutral molecules, add "I"
+    for (m, f) in molUs
+        if !('+' in m) && !('-' in m)
+            new_molUs[m*"_I"] = f
+        end
+    end
+    merge(atomUs, new_molUs)
 end
 
 """

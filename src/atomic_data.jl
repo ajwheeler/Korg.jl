@@ -23,6 +23,18 @@ const atomic_masses = Dict(atomic_symbols .=> [
      231.0,238.0]#,237.0,244.0,243.0] 
                            .* amu_cgs)
 
+"""
+Returns the mass of `atom_or_molecule` in g.
+"""
+function get_mass(atom_or_molecule)
+    if ismolecule(atom_or_molecule)
+        el1, el2 = get_atoms(atom_or_molecule)
+        atomic_masses[el1] + atomic_masses[el2]
+    else
+        atomic_masses[atom_or_molecule]
+    end
+end
+
 
 #solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
 const solar_abundances = begin 

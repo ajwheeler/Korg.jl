@@ -77,15 +77,15 @@ end
         end
 
         @testset "strip ionization info" begin
-            @test SSSynth.get_elem("H_I") == "H"
-            @test SSSynth.get_elem("H_II") == "H"
-            @test SSSynth.get_elem("CO") == "CO"
+            @test SSSynth.strip_ionization("H_I") == "H"
+            @test SSSynth.strip_ionization("H_II") == "H"
+            @test SSSynth.strip_ionization("CO") == "CO"
         end
 
         @testset "distinguish atoms from molecules" begin
-            @test !SSSynth.ismolecule(SSSynth.get_elem("H_I"))
-            @test !SSSynth.ismolecule(SSSynth.get_elem("H_II"))
-            @test SSSynth.ismolecule(SSSynth.get_elem("CO"))
+            @test !SSSynth.ismolecule(SSSynth.strip_ionization("H_I"))
+            @test !SSSynth.ismolecule(SSSynth.strip_ionization("H_II"))
+            @test SSSynth.ismolecule(SSSynth.strip_ionization("CO"))
         end
 
         @testset "break molecules into atoms" begin

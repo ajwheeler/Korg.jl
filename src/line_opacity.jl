@@ -21,10 +21,6 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
     lb = 1
     ub = 1
     for line in linelist
-        if ismolecule(get_elem(line.species))
-            continue #TODO
-        end
-
         while λs[lb] < line.wl - window_size
             lb += 1
         end
@@ -32,8 +28,11 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
             ub += 1
         end
 
-        #line profile (normalized)
-        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], ξ, line, view(λs,lb:ub))
+        if ismolecule(strip_ionization(line.species))
+            continue
+        end
+
+        ϕ = line_profile(temp, get_mass(strip_ionization(line.species)), ξ, line, view(λs,lb:ub))
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
