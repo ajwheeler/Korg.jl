@@ -34,7 +34,7 @@ function get_atoms(molecule)
     elseif isuppercase(molecule[3])
         el1, el2 = molecule[1:2], molecule[3:end]
     else
-        @error "This doesn't look like a diatomic molecule: $(molecule)"
+        throw(ArgumentError("This doesn't look like a diatomic molecule: $(molecule)"))
     end
     el1, el2        
 end
@@ -46,7 +46,7 @@ Parse the provided line list. in "Kurucz" format.
 Pass `format="kurucz"` for a [Kurucz line list](http://kurucz.harvard.edu/linelists.html).
 Pass `format="vald"` for a Vald line list. 
 """
-function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
+function read_line_list(fname::String; format="kurucz", skiplines=2) :: Vector{NamedTuple}
     #at present, we preserve whatever order the linelist is in (e.g. groups by species, sorted by
     #wavelength) because the line opacity code makes no assumptions about linelist order, but we may 
     #want to normalize it in the future.
@@ -75,7 +75,7 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
             lines = collect(eachline(f))
             #take only every fourth line in the file skipping the header and footer
             #the other three file lines per spectral line don't contain info we need.
-            lines[3:4:findfirst(l->startswith(l, "*"), lines)-1]
+            lines[skiplines+1:4:findfirst(l->startswith(l, "*"), lines)-1]
         end
 
         map(lines) do line

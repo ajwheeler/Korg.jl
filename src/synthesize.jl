@@ -58,10 +58,7 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
     α = Matrix{F}(undef, length(atm), length(λs))
     for (i, layer) in enumerate(atm)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
-                                                 layer.electron_density, abundances, 
-                                                 ionization_energies, partition_funcs, 
-                                                 equilibrium_constants)
-
+                                                 layer.electron_density)
 
         α[i, :] = line_absorption(linelist, λs, layer.temp, number_densities, atomic_masses, 
                                   partition_funcs, ionization_energies, vmic*1e5)

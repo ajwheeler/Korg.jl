@@ -41,7 +41,7 @@ end
     @test issorted(SSSynth.partition_funcs["CN_I"].(Ts))
 end
 
-@testset "saha" begin
+@testset "stat mech" begin
     @testset "pure Hydrogen atmosphere" begin
         nH_tot = 1e15
         # specify χs and Us to decouple this testset from other parts of the code
@@ -65,6 +65,39 @@ end
         
         # NIII grows with T
         @test issorted(last.(weights))
+    end
+
+    @testset "molecular equilibrium" begin
+        #solar abundances
+        abundances = SSSynth.get_absolute_abundances(SSSynth.atomic_symbols, 0.0, Dict())
+        nₜ = 1e15 
+        nₑ = 1e-3 * nₜ #arbitrary
+
+        MEQs = SSSynth.molecular_equilibrium_equations(abundances, SSSynth.ionization_energies, 
+                                                       SSSynth.partition_funcs, 
+                                                       SSSynth.equilibrium_constants)
+
+        #this should hold for the default atomic/molecular data
+        @test Set(MEQs.atoms) == Set(SSSynth.atomic_symbols)
+
+        n = SSSynth.molecular_equilibrium(MEQs, 5700.0, nₜ, nₑ)
+        #make sure number densities are sensible
+        @test n["C_III"] < n["C_II"] < n["C_I"] < n["H_II"] < n["H_I"]
+
+        #total number of carbons is correct
+        total_C = map(collect(keys(n))) do species
+            s = SSSynth.strip_ionization(species)
+            if s == "C2"
+                n[species] * 2
+            elseif SSSynth.ismolecule(s) && "C" in SSSynth.get_atoms(s)
+                n[species]
+            elseif s == "C"
+                n[species]
+            else
+                0.0
+            end
+        end |> sum
+        @test total_C ≈ abundances["C"] * nₜ
     end
 end
 
@@ -94,6 +127,7 @@ end
             @test SSSynth.get_atoms("MgO") == ("Mg", "O")
             #nonsensical but it doesn't matter
             @test SSSynth.get_atoms("OMg") == ("O", "Mg")
+            @test_throws ArgumentError SSSynth.get_atoms("hello world")
         end
 
         @test_throws ArgumentError SSSynth.read_line_list(""; format="abc")
@@ -190,17 +224,6 @@ end
             end
         end
     end
-
-    #TODO write tests for moleq
-    #@testset "number densities" begin
-    #    abundances = Dict("C"=>1e-8, "H"=>0.9)
-    #    nₜ = 1e15
-    #    n = SSSynth.per_species_number_density(nₜ, nₜ*1e-3, 4500.0, abundances)
-    #    @test Set(keys(n)) == Set(["C_I", "C_II", "C_III", "H_I", "H_II"])
-    #    @test n["C_III"] < n["C_II"] < n["C_I"] < n["H_II"] < n["H_I"]
-    #    @test n["C_III"] + n["C_II"] + n["C_I"] ≈ abundances["C"] * nₜ
-    #    @test n["H_II"] + n["H_I"] ≈ abundances["H"] * nₜ
-    #end
 
     @testset "trapezoid rule" begin
         #gaussian PDF should integral to 1.

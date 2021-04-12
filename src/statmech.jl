@@ -142,7 +142,9 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
     #passing atoms and molecules might seem a little weird architecturally, but it's partly in 
     #anticipation if automatically culling the list of species considered by what's in the line list
     #in the future
-    (atoms=atoms, molecules=molecules, equations=system)
+    (atoms=atoms, molecules=molecules, equations=system, absolute_abundances,
+     ionization_energies=ionization_energies, partition_fns=partition_fns, 
+     equilibrium_constants=equilibrium_constants)
 end
 
 """
@@ -160,9 +162,8 @@ arguments:
 - a Dict of partition functions, `partition_fns`
 - a Dict of log molecular equilibrium constants, `equilibrium_constants`, in partial pressure form.
 """
-function molecular_equilibrium(MEQs, T, nₜ, nₑ, absolute_abundances, ionization_energies, 
-                               partition_fns, equilibrium_constants; 
-                               x0=[nₜ*absolute_abundances[a]* 0.8 for a in MEQs.atoms]) :: Dict
+function molecular_equilibrium(MEQs, T, nₜ, nₑ;
+                               x0=[nₜ*MEQs.absolute_abundances[a]* 0.8 for a in MEQs.atoms]) :: Dict
     #numerically solve for equlibrium.  This uses finite difference rather that autodiff bacause 
     #it's fast enough this way and requires fewer deps, but enabling autodiff is trivial
     sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=20, store_trace=true, ftol=nₜ * 1e-12, 
@@ -175,7 +176,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ, absolute_abundances, ionizat
     number_densities = Dict((MEQs.atoms .* "_I") .=> sol.zero)
     #now the ionized atomic species
     for a in MEQs.atoms
-        wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
+        wII, wIII = saha_ion_weights(T, nₑ, a, MEQs.ionization_energies, MEQs.partition_fns)
         number_densities[a*"_II"] = wII * number_densities[a*"_I"]
         number_densities[a*"_III"] = wIII * number_densities[a*"_I"]
     end
@@ -184,7 +185,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ, absolute_abundances, ionizat
         el1, el2 = get_atoms(m)
         n₁ = number_densities[el1*"_I"]
         n₂ = number_densities[el2*"_I"]
-        K = equilibrium_constants[m]
+        K = MEQs.equilibrium_constants[m]
         number_densities[m*"_I"] = n₁ * n₂ * kboltz_cgs * T / 10^K(T)
     end
 

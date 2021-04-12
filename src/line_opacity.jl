@@ -28,10 +28,6 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
             ub += 1
         end
 
-        if ismolecule(strip_ionization(line.species))
-            continue
-        end
-
         ϕ = line_profile(temp, get_mass(strip_ionization(line.species)), ξ, line, view(λs,lb:ub))
 
         #cross section
