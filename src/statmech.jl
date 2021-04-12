@@ -165,7 +165,8 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ, absolute_abundances, ionizat
                                x0=[nₜ*absolute_abundances[a]* 0.8 for a in MEQs.atoms]) :: Dict
     #numerically solve for equlibrium.  This uses finite difference rather that autodiff bacause 
     #it's fast enough this way and requires fewer deps, but enabling autodiff is trivial
-    sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=20, store_trace=true, ftol=nₜ * 1e-12)
+    sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=20, store_trace=true, ftol=nₜ * 1e-12, 
+                  autodiff=:forward)
     if !sol.f_converged
         error("Mollecular equlibrium unconverged", sol, "\n", sol.trace)
     end
