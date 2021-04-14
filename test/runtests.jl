@@ -86,12 +86,11 @@ end
 
         #total number of carbons is correct
         total_C = map(collect(keys(n))) do species
-            s = SSSynth.strip_ionization(species)
-            if s == "C2"
+            println(species)
+            if SSSynth.strip_ionization(species) == "C2"
                 n[species] * 2
-            elseif SSSynth.ismolecule(s) && "C" in SSSynth.get_atoms(s)
-                n[species]
-            elseif s == "C"
+            elseif ((SSSynth.strip_ionization(species) == "C") || 
+                    (SSSynth.ismolecule(species) && ("C" in SSSynth.get_atoms(species))))
                 n[species]
             else
                 0.0
@@ -119,6 +118,10 @@ end
             @test !SSSynth.ismolecule(SSSynth.strip_ionization("H_I"))
             @test !SSSynth.ismolecule(SSSynth.strip_ionization("H_II"))
             @test SSSynth.ismolecule(SSSynth.strip_ionization("CO"))
+
+            @test !SSSynth.ismolecule("H_I")
+            @test !SSSynth.ismolecule("H_II")
+            @test SSSynth.ismolecule("CO")
         end
 
         @testset "break molecules into atoms" begin

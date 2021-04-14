@@ -20,12 +20,28 @@ end
 "get the chemical symbol for the element of the species"
 strip_ionization(code::AbstractString)::String = split(code, '_')[1]
 
-ismolecule(species::String) = sum(isuppercase(c) for c in species) > 1 || '2' in species
+"""
+true if the string passed represents a molecule (with or without its ionization state)
+"""
+function ismolecule(species)
+    count = 0
+    for c in species
+        if c == '_'
+            break
+        else
+            count += isdigit(c) + isuppercase(c)
+        end
+    end
+    count > 1
+end
 
 """
 Get the atoms that make up a diatomic molecule
 """
 function get_atoms(molecule)
+    if '_' in molecule
+        molecule = split(molecule,'_')[1]
+    end
     if molecule[end] == '2'
         el1 = molecule[1:end-1]
         el2 = molecule[1:end-1]
