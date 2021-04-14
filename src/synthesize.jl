@@ -7,16 +7,27 @@ import ..ContinuumOpacity
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
 wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
 
-Other arguments:
+optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
 - `line_window` (default: 10): the farthest any line can be from the provide wavelenth range range
    before it is discarded (in Å).
+- `ionization_energies`, a Dict containing the first three ionization energies of each element, 
+   defaults to `SSSynth.ionization_energies`.
+- `partition_funcs`, a Dict mapping species to partition functions. Defaults to data from 
+   Barklem & Collet 2016, `SSSynth.partition_funcs`.
+- `equilibrium_constants`, a Dict mapping diatomic molecules to theirmolecular equilbrium constants
+  in partial pressure form.  Defaults to data from Barklem and Collet 2016, 
+  `SSSynth.equilibrium_constants`.
+
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
 function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
-                    abundances=Dict(), line_window::F=10.0) where F <: AbstractFloat
+                    abundances=Dict(), line_window::F=10.0, 
+                    ionization_energies=ionization_energies, 
+                    partition_funcs=partition_funcs,
+                    equilibrium_constants=equilibrium_constants) where F <: AbstractFloat
     #work in cm
     λs = λs * 1e-8
 
@@ -34,21 +45,20 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
         @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
     end
 
-    #all the elements involved in either line or continuum opacity
-    elements = Set(get_elem(l.species) for l in linelist) ∪ Set(["H", "He"])
+    #impotent = setdiff(Set(keys(abundances)), elements)
+    #if length(impotent) > 0
+    #    @warn "Abundanc(es) for $(impotent) is specified but not in line list."
+    #end
 
-    impotent = setdiff(Set(keys(abundances)), elements)
-    if length(impotent) > 0
-        @warn "Abundanc(es) for $(impotent) is specified but not in line list."
-    end
-
-    abundances = get_absolute_abundances(elements, metallicity, abundances)
+    abundances = get_absolute_abundances(atomic_symbols, metallicity, abundances)
+    MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
+                                           equilibrium_constants)
 
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{F}(undef, length(atm), length(λs))
     for (i, layer) in enumerate(atm)
-        number_densities = per_species_number_density(layer.number_density, layer.electron_density,
-                                                      layer.temp, abundances)
+        number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
+                                                 layer.electron_density)
 
         α[i, :] = line_absorption(linelist, λs, layer.temp, number_densities, atomic_masses, 
                                   partition_funcs, ionization_energies, vmic*1e5)
@@ -113,37 +123,6 @@ function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
         abundances[elem] /= total
     end
     abundances
-end
-
-"""
-Return a `Dict` which maps each species (i.e. Ba II) to number density [cm^-3]
-- `nₜ` the number density of atoms and mollecules in cm^-3
-- `nₑ` the number density of electrons in cm^-3
-- `temp` the termperature in K
-- `abundances` should be a `Dict` mapping species to absolute abundances between 0 and 1.
-"""
-function per_species_number_density(nₜ::Flt, nₑ::Flt, temp::Flt, abundances::Dict
-                                   ) where Flt <: AbstractFloat
-    #calculate the number density of each species
-    n_densities = Dict()
-    for (elem, abund) in abundances
-        if elem == "H"
-            #I'm not very happy with this, but I'm not sure what a better way to handle H is
-            weights = saha(ionization_energies["H"], [partition_funcs["H_I"], 
-                                                      partition_funcs["H_II"]],temp, nₑ)
-            n_densities["H_I"] = nₜ * abund * weights[1]
-            n_densities["H_II"] = nₜ * abund * weights[2]
-        else
-            weights = saha(ionization_energies[elem], 
-                           [partition_funcs[elem * "_I"], partition_funcs[elem * "_II"], 
-                              partition_funcs[elem * "_III"]], 
-                           temp, nₑ)
-            n_densities[elem * "_I"]   = nₜ * abund * weights[1]
-            n_densities[elem * "_II"]  = nₜ * abund * weights[2]
-            n_densities[elem * "_III"] = nₜ * abund * weights[3]
-        end
-    end
-    n_densities
 end
 
 """

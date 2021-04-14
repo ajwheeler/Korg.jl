@@ -4,22 +4,56 @@ const numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
     parse_species_code(code)
 
 Parse the "species code" as it is often specified in line lists and return a the "astronomy" 
-notation. `01.00` → `"H_I"`, `02.01` → `"He_II"`, `0608.00` → `"CO"`, etc.  
+notation. `01.00` → `"H_I"`, `02.01` → `"He_II"`, `0608` → `"CO"`, etc.  
 """
 function parse_species_code(code::AbstractString)
-    if 4 <= length(code) <= 5
+    if length(code) == 4 && !contains(code, ".")
+        atomic_symbols[parse(Int, code[1:2])] * atomic_symbols[parse(Int, code[3:4])]
+    elseif 4 <= length(code) <= 5
         Z, charge = split(code, '.')
         atomic_symbols[parse(Int, Z)] * "_" * numerals[parse(Int, charge)+1]
-    elseif length(code) == 7
-        throw(ArgumentError("Molecular species codes not yet supported"))
     else
         throw(ArgumentError("Invalid species code: " * code))
     end
 end
 
-#I should probably clean up my nomenclature here and throughout
 "get the chemical symbol for the element of the species"
-get_elem(code::AbstractString)::String = split(code, '_')[1]
+strip_ionization(code::AbstractString)::String = split(code, '_')[1]
+
+"""
+true if the string passed represents a molecule (with or without its ionization state)
+"""
+function ismolecule(species)
+    count = 0
+    for c in species
+        if c == '_'
+            break
+        else
+            count += isdigit(c) + isuppercase(c)
+        end
+    end
+    count > 1
+end
+
+"""
+Get the atoms that make up a diatomic molecule
+"""
+function get_atoms(molecule)
+    if '_' in molecule
+        molecule = split(molecule,'_')[1]
+    end
+    if molecule[end] == '2'
+        el1 = molecule[1:end-1]
+        el2 = molecule[1:end-1]
+    elseif isuppercase(molecule[2])
+        el1, el2 = molecule[1:1], molecule[2:end]
+    elseif isuppercase(molecule[3])
+        el1, el2 = molecule[1:2], molecule[3:end]
+    else
+        throw(ArgumentError("This doesn't look like a diatomic molecule: $(molecule)"))
+    end
+    el1, el2        
+end
 
 """
     read_line_list(fname; format="kurucz")
@@ -28,7 +62,7 @@ Parse the provided line list. in "Kurucz" format.
 Pass `format="kurucz"` for a [Kurucz line list](http://kurucz.harvard.edu/linelists.html).
 Pass `format="vald"` for a Vald line list. 
 """
-function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
+function read_line_list(fname::String; format="kurucz", skiplines=2) :: Vector{NamedTuple}
     #at present, we preserve whatever order the linelist is in (e.g. groups by species, sorted by
     #wavelength) because the line opacity code makes no assumptions about linelist order, but we may 
     #want to normalize it in the future.
@@ -57,7 +91,7 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
             lines = collect(eachline(f))
             #take only every fourth line in the file skipping the header and footer
             #the other three file lines per spectral line don't contain info we need.
-            lines[3:4:findfirst(l->startswith(l, "*"), lines)-1]
+            lines[skiplines+1:4:findfirst(l->startswith(l, "*"), lines)-1]
         end
 
         map(lines) do line
@@ -88,5 +122,3 @@ function read_line_list(fname::String; format="kurucz") :: Vector{NamedTuple}
     end
     linelist[mask]
 end
-
-

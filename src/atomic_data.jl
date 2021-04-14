@@ -5,9 +5,9 @@ const atomic_symbols = ["H","He","Li","Be","B","C","N","O","F","Ne",
         "Nb","Mo","Tc","Ru","Rh","Pd","Ag","Cd","In","Sn",
         "Sb","Te","I","Xe","Cs","Ba","La","Ce","Pr","Nd",
         "Pm","Sm","Eu","Gd","Tb","Dy","Ho","Er","Tm","Yb",
-        "Lu","Hf","Ta","Wl","Re","Os","Ir","Pt","Au","Hg",
+        "Lu","Hf","Ta","W","Re","Os","Ir","Pt","Au","Hg",
         "Tl","Pb","Bi","Po","At","Rn","Fr","Ra","Ac","Th",
-        "Pa","U","Np","Pu","Am"]
+        "Pa","U"] #,"Np","Pu","Am"] # we don't have partition funcs for these last three
 
 #in grams
 const atomic_masses = Dict(atomic_symbols .=> [
@@ -20,7 +20,20 @@ const atomic_masses = Dict(atomic_symbols .=> [
      145.0,150.4,152.0,157.3,158.9,162.5,164.9,167.3,168.9,173.0,     
      175.0,178.5,181.0,183.9,186.2,190.2,192.2,195.1,197.0,200.6,     
      204.4,207.2,209.0,210.0,210.0,222.0,223.0,226.0,227.0,232.0,     
-     231.0,238.0,237.0,244.0,243.0] .* amu_cgs)
+     231.0,238.0]#,237.0,244.0,243.0] 
+                           .* amu_cgs)
+
+"""
+Returns the mass of `atom_or_molecule` in g.
+"""
+function get_mass(atom_or_molecule)
+    if ismolecule(atom_or_molecule)
+        el1, el2 = get_atoms(atom_or_molecule)
+        atomic_masses[el1] + atomic_masses[el2]
+    else
+        atomic_masses[atom_or_molecule]
+    end
+end
 
 
 #solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
@@ -35,7 +48,7 @@ const solar_abundances = begin
      -5.00, 0.96, 0.52, 1.07, 0.30, 1.10, 0.48, 0.92, 0.10, 0.84,
       0.10, 0.85,-0.12, 0.85, 0.26, 1.40, 1.38, 1.62, 0.92, 1.17,
       0.90, 1.75, 0.65,-5.00,-5.00,-5.00,-5.00,-5.00,-5.00, 0.02,
-     -5.00,-0.54,-5.00,-5.00,-5.00]
+      -5.00,-0.54]#,-5.00,-5.00,-5.00]
     Dict(atomic_symbols .=> ϵs)
 end
 

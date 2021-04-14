@@ -67,13 +67,6 @@ function _gray05_H_I_partition_func(T)
     10^interpolator(5040.0 / T)
 end
 
-const gray05_partition_funcs =
-    Dict( "H_I" => _gray05_H_I_partition_func,
-          "H_II" => T -> 1.0,
-          "He_I" => T -> (@assert 2520 ≤ T ≤ 25200, 1.0),
-          "He_II" => T -> (@assert 2520 ≤ T ≤ 25200, 2.0),
-          "He_III" => T -> 1.0)
-
 # compute the ratio of the nₑ to n_H (the number density of all H I and H II)
 # this function could be reused in the future for testing solutions to coupled Saha equations
 function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = SSSynth.solar_abundances,
@@ -81,25 +74,10 @@ function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = SSSynth.sola
                                               partition_funcs = SSSynth.partition_funcs)
     out = 0.0
     for element in SSSynth.atomic_symbols
+        wII, wIII = SSSynth.saha_ion_weights(T, nₑ, element, SSSynth.ionization_energies, 
+                                             SSSynth.partition_funcs)
 
-        (χs, Us) = if element == "H"
-            (ionization_energies[element][1:2], [partition_funcs["H_I"], partition_funcs["H_II"]])
-        elseif haskey(ionization_energies,element)
-            (ionization_energies[element],
-             [partition_funcs[string(element, "_I")],
-              partition_funcs[string(element, "_II")],
-              partition_funcs[string(element, "_III")]])
-        else
-            continue
-        end
-
-        ion_state_weights = SSSynth.saha(χs, Us, T, nₑ)
-        nₑ_per_ndens_species = 0.0
-        for (i,ion_state_weight) in enumerate(ion_state_weights)
-            num_electrons_from_state = i - 1
-            nₑ_per_ndens_species += num_electrons_from_state * ion_state_weight
-        end
-
+        nₑ_per_ndens_species = wII/(1 + wII + wIII) + 2wIII/(1 + wII + wIII)
         abundance = 10.0^(abundances[element]-12.0)
         out += abundance * nₑ_per_ndens_species
     end
@@ -141,14 +119,16 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     end
 
     ff_coef = begin
-        χs = [H_I_ion_energy, -1.0]
-        Us = [T -> 2.0, T -> 1.0] # assumption in the approach described by Gray (2005)
+        χs = [H_I_ion_energy, NaN, NaN]
+        # assumption in the approach described by Gray (2005)
+        Us = [T -> 2.0, T -> 1.0, T -> NaN]
+
         nH_total = nₑ * 100.0 # this is totally arbitrary
         ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
 
-        weights = SSSynth.saha(χs, Us, T, nₑ)
-        nH_I = nH_total * weights[1]
-        nH_II = nH_total * weights[2]
+        wII, wIII = SSSynth.saha_ion_weights(T, nₑ, χs, Us)
+        nH_I = nH_total / (1 + wII)
+        nH_II = nH_total * wII/(1 + wII)
         ff_opac = SSSynth.ContinuumOpacity.H_I_ff(nH_II, nₑ, ν, ρ, T)
         ff_opac * ρ / (Pₑ * nH_I)
     end
@@ -202,11 +182,11 @@ function H2plus_coefficient(λ, T, Pₑ)
         free_electrons_per_Hydrogen_particle(ne, T)
     nH = ne/ne_div_nH
 
-    χs = SSSynth.ionization_energies["H"][1:2]
-    Us = [SSSynth.partition_funcs["H_I"], SSSynth.partition_funcs["H_II"]]
-    weights = SSSynth.saha(χs, Us, T, ne)
-    nH_I = weights[1]*nH
-    nH_II = weights[2]*nH
+    wII, wIII = SSSynth.saha_ion_weights(T, ne, "H", SSSynth.ionization_energies, 
+                                         SSSynth.partition_funcs)
+    nH_I = nH / (1 + wII)
+    nH_II = nH * wII / (1 + wII)
+
 
     # set the partition function to 2.0 in nH_I_div_partition so that n(H I, n=1) = n(H I) for this
     # calculation, which is an assumption that Gray (2005) implicitly uses
@@ -239,14 +219,18 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     nHe = nH*8.51e-2
     # we need to figure out the abundance of neutral Helium. We will use the ionization potentials
     # tabulated in table D.1
-    χs = [24.587]
+    χs = [24.587, NaN, NaN]
     # technically, this should be χs = [24.587, 54.418] to account for both single and double
     # ionization, but equation 8.16 in Gray (2005) only accounts for single ionization.
-    Us = [x -> 1.0,      # Table D.2 of Gray (2005) records the partion function of He II to be
-          x -> 10^0.301] # as 10^0.301, the closest value at the table's precision to 2.0
+
+    # Table D.2 of Gray (2005) records the partion function of He II to be
+    # as 10^0.301, the closest value at the table's precision to 2.0
+    Us = [T -> 1.0,      # Table D.2 of Gray (2005) records the partion function of He II to be
+          T -> 10^0.301, # as 10^0.301, the closest value at the table's precision to 2.0
+          T -> NaN]
                          
-    weights = SSSynth.saha(χs, Us, T, ne)
-    nHe_I = weights[1]*nHe
+    wII, wIII = SSSynth.saha_ion_weights(T, ne, χs, Us)
+    nHe_I = nHe / (1 + wII) #Gray ignores He III
 
     # may want to include the temperature dependence of the partition function
     partition_func = 2.0

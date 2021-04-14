@@ -28,8 +28,7 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
             ub += 1
         end
 
-        #line profile (normalized)
-        ϕ = line_profile(temp, atomic_masses[get_elem(line.species)], ξ, line, view(λs,lb:ub))
+        ϕ = line_profile(temp, get_mass(strip_ionization(line.species)), ξ, line, view(λs,lb:ub))
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
@@ -38,10 +37,10 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
         #number density of particles in the relevant excitation state
         boltzmann_factor = exp(- line.E_lower / kboltz_eV / temp)
         n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
-        #the factor (1 - exp(hν₀ / kT))
-        levels_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
+        #the factor (1 - exp(hν₀ / kT)) to account for stimulated emission
+        emission_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
 
-        @. α_lines[lb:ub] += ϕ * σ * n * levels_factor 
+        @. α_lines[lb:ub] += ϕ * σ * n * emission_factor 
     end
     α_lines
 end
