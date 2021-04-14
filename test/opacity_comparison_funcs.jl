@@ -189,11 +189,6 @@ function H2plus_coefficient(λ, T, Pₑ)
     nH_I = nH / (1 + wII)
     nH_II = nH * wII / (1 + wII)
 
-    #χs = SSSynth.ionization_energies["H"][1:2]
-    #Us = [SSSynth.partition_funcs["H_I"], SSSynth.partition_funcs["H_II"]]
-    #weights = SSSynth.saha(χs, Us, T, ne)
-    #nH_I = weights[1]*nH
-    #nH_II = weights[2]*nH
 
     # set the partition function to 2.0 in nH_I_div_partition so that n(H I, n=1) = n(H I) for this
     # calculation, which is an assumption that Gray (2005) implicitly uses
