@@ -13,7 +13,7 @@ function setup_ionization_energies(fname=joinpath(_data_dir,
         for line in eachline(f)
             if line[1] != '#'        
                 toks = split(strip(line))
-                #the first token is the atomiz number, which we ignore
+                #the first token is the atomic number, which we ignore
                 d[toks[2]] = parse.(Float64, toks[3:end])
             end
         end
