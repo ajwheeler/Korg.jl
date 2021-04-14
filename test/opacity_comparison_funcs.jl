@@ -72,8 +72,6 @@ end
 function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = SSSynth.solar_abundances,
                                               ionization_energies = SSSynth.ionization_energies,
                                               partition_funcs = SSSynth.partition_funcs)
-    #why doesn't this just use nₑ and nₜ directly?
-
     out = 0.0
     for element in SSSynth.atomic_symbols
         wII, wIII = SSSynth.saha_ion_weights(T, nₑ, element, SSSynth.ionization_energies, 
