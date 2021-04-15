@@ -86,7 +86,6 @@ end
 
         #total number of carbons is correct
         total_C = map(collect(keys(n))) do species
-            println(species)
             if SSSynth.strip_ionization(species) == "C2"
                 n[species] * 2
             elseif ((SSSynth.strip_ionization(species) == "C") || 
@@ -104,8 +103,11 @@ end
     @testset "line lists" begin 
         @testset "species codes" begin
             @test SSSynth.parse_species_code("01.00") == "H_I"
+            @test SSSynth.parse_species_code("01.0000") == "H_I"
             @test SSSynth.parse_species_code("02.01") == "He_II"
-            @test SSSynth.parse_species_code("0608") == "CO"
+            @test SSSynth.parse_species_code("02.1000") == "He_II"
+            @test SSSynth.parse_species_code("0608") == "CO_I"
+            @test SSSynth.parse_species_code("0608.00") == "CO_I"
         end
 
         @testset "strip ionization info" begin
@@ -133,17 +135,16 @@ end
             @test_throws ArgumentError SSSynth.get_atoms("hello world")
         end
 
-        @test_throws ArgumentError SSSynth.read_line_list(""; format="abc")
+        @test_throws ArgumentError SSSynth.read_line_list("data/gfallvac08oct17.stub.dat";
+                                                          format="abc")
 
         kurucz_linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
         @testset "kurucz linelist parsing" begin
-            @test all((l->l.E_upper > l.E_lower).(kurucz_linelist))
             @test issorted(kurucz_linelist, by=l->l.wl)
             @test length(kurucz_linelist) == 988
             @test kurucz_linelist[1].wl ≈ 72320.699 * 1e-8
             @test kurucz_linelist[1].log_gf == -0.826
             @test kurucz_linelist[1].species == "Be_II"
-            @test kurucz_linelist[1].E_upper ≈ 17.531776
             @test kurucz_linelist[1].E_lower ≈ 17.360339371573698
             @test kurucz_linelist[1].log_gamma_rad == 7.93
             @test kurucz_linelist[1].log_gamma_stark == -2.41
@@ -152,23 +153,24 @@ end
 
         vald_linelist = SSSynth.read_line_list("data/Ylines.vald"; format="vald")
         @testset "vald linelist parsing" begin
-            @test all((l->l.E_upper > l.E_lower).(vald_linelist))
             @test issorted(vald_linelist, by=l->l.wl)
             @test length(vald_linelist) == 4584
             @test vald_linelist[1].wl ≈ 3002.20106 * 1e-8
             @test vald_linelist[1].log_gf == -1.132
             @test vald_linelist[1].species == "Y_II"
             @test vald_linelist[1].E_lower ≈ 3.3757
-            @test vald_linelist[1].E_upper ≈ 7.5055 
             @test vald_linelist[1].log_gamma_rad == 8.620
             @test vald_linelist[1].log_gamma_stark == -5.580
             @test vald_linelist[1].log_gamma_vdW == -7.710
         end
 
-        @test typeof(vald_linelist) == typeof(kurucz_linelist)
-    end
-        
+        moog_linelist = SSSynth.read_line_list("data/s5eqw_short.moog"; format="moog")
+        @testset "moog linelist parsing" begin
+            @test issorted(moog_linelist, by=l->l.wl)
+        end
 
+        @test typeof(vald_linelist) == typeof(kurucz_linelist) == typeof(moog_linelist)
+    end
 
     @testset "line profile" begin
         linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")

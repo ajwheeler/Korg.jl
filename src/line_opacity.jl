@@ -68,7 +68,7 @@ The line profile, ϕ, at wavelengths `λs` in cm.
 cm/s, `line` should be one of the entries returned by `read_line_list`.
 Note that this returns values in units of cm^-1, not Å^-1
 """
-function line_profile(temp::F, atomic_mass::F, ξ::F, line::NamedTuple, λs::AbstractVector{F}
+function line_profile(temp::F, atomic_mass::F, ξ::F, line::Line, λs::AbstractVector{F}
                      ) where F <:  AbstractFloat
     #doppler-broadening parameter
     Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / atomic_mass + ξ^2) / c_cgs
