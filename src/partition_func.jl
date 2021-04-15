@@ -1,4 +1,4 @@
-using Interpolations
+using Interpolations: LinearInterpolation, Throw
 
 """
 Returns a Dict holding the default (Barklem & Collet 2016) partition functions.
