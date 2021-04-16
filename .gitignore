@@ -3,3 +3,4 @@
 Manifest.toml
 *.jl~
 misc/Playground.ipynb
+docs/build/
