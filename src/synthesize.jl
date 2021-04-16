@@ -1,4 +1,5 @@
 using SpecialFunctions: expint
+using Interpolations: LinearInterpolation, Throw
 import ..ContinuumOpacity
 
 """
@@ -24,12 +25,14 @@ optional arguments:
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
 function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
-                    abundances=Dict(), line_window::F=10.0, 
+                    abundances=Dict(), line_window::F=10.0, cntm_step=1.0::F,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs,
                     equilibrium_constants=equilibrium_constants) where F <: AbstractFloat
     #work in cm
     λs = λs * 1e-8
+    cntm_step *= 1e-8
+    cntmλs = λs[1] - cntm_step : cntm_step : λs[end] + cntm_step
 
     #sort the lines if necessary and check that λs is sorted
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
@@ -63,9 +66,9 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
         α[i, :] = line_absorption(linelist, λs, layer.temp, number_densities, atomic_masses, 
                                   partition_funcs, ionization_energies, vmic*1e5)
 
-        α[i, :] += (total_continuum_opacity(c_cgs ./ λs, layer.temp, layer.electron_density, 
-                                           layer.density, number_densities, partition_funcs) *
-                    layer.density)
+        cntmα = total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, layer.electron_density, 
+                                   layer.density, number_densities, partition_funcs) * layer.density
+        α[i, :] += LinearInterpolation(cntmλs, cntmα, extrapolation_bc=Throw()).(λs)
     end
 
     #the thickness of each atmospheric layer 
