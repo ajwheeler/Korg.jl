@@ -9,4 +9,5 @@ makedocs(sitename="SSSynth Documentation",
                 "All Functions" => "API.md"
                ])
 
-deploydocs(repo = "github.com/ajwheeler/SSSynth.jl.git")
+deploydocs(repo = "github.com/ajwheeler/SSSynth.jl.git",
+           devbranch="main")
