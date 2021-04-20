@@ -152,6 +152,10 @@ function parse_kurucz_linelist(f)
     end
 end
 
+
+#used in parse_vald_linelist
+zeroToNInf(x) = x == 0.0 ? -Inf : x
+
 function parse_vald_linelist(f, skiplines)
     lines = collect(eachline(f))
     #take only every fourth line in the file skipping the header and footer
@@ -168,8 +172,8 @@ function parse_vald_linelist(f, skiplines)
              end,
              parse(Float64, toks[4]),
              parse(Float64, toks[end-3]),
-             parse(Float64, toks[end-2]),
-             parse(Float64, toks[end-1]))
+             zeroToNInf(parse(Float64, toks[end-2])),
+             zeroToNInf(parse(Float64, toks[end-1])))
     end
 end
 

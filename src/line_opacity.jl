@@ -12,7 +12,7 @@ other arguments:
 opacities should be calculated in included.
 - `ξ` is the microturbulent velocity in cm/s
 """
-function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::Dict, 
+function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, atomic_masses::Dict, 
                          partition_fns::Dict, ionization_energies::Dict, ξ
                          ; window_size=20.0*1e-8)
     α_lines = zeros(length(λs))
@@ -28,7 +28,8 @@ function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::
             ub += 1
         end
 
-        ϕ = line_profile(temp, get_mass(strip_ionization(line.species)), ξ, line, view(λs,lb:ub))
+        ϕ = line_profile(temp, n_densities["H_I"], nₑ, get_mass(strip_ionization(line.species)), ξ,
+                         line, view(λs,lb:ub))
 
         #cross section
         σ = sigma_line(line.wl, line.log_gf)
@@ -68,13 +69,13 @@ The line profile, ϕ, at wavelengths `λs` in cm.
 cm/s, `line` should be one of the entries returned by `read_line_list`.
 Note that this returns values in units of cm^-1, not Å^-1
 """
-function line_profile(temp::F, atomic_mass::F, ξ::F, line::Line, λs::AbstractVector{F}
-                     ) where F <:  AbstractFloat
+function line_profile(temp::F, nHI::F, nₑ::F, atomic_mass::F, ξ::F, line::Line{F}, 
+                      λs::AbstractVector{F}) where F <:  AbstractFloat
     #doppler-broadening parameter
     Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / atomic_mass + ξ^2) / c_cgs
 
     #get all damping params from line list.  There may be better sources for this.
-    γ = 10^line.log_gamma_rad + 10^line.log_gamma_stark + 10^line.log_gamma_vdW
+    γ = 10^line.log_gamma_rad + nₑ*10^line.log_gamma_stark  + nHI*10^line.log_gamma_vdW
 
     #Voigt function parameters
     v = @. abs(λs-line.wl) / Δλ_D

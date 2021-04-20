@@ -60,8 +60,9 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
                                                  layer.electron_density)
 
-        α[i, :] = line_absorption(linelist, λs, layer.temp, number_densities, atomic_masses, 
-                                  partition_funcs, ionization_energies, vmic*1e5)
+        α[i, :] = line_absorption(linelist, λs, layer.temp, layer.electron_density, 
+                                  number_densities, atomic_masses, partition_funcs, 
+                                  ionization_energies, vmic*1e5)
 
         α[i, :] += (total_continuum_opacity(c_cgs ./ λs, layer.temp, layer.electron_density, 
                                            layer.density, number_densities, partition_funcs) *

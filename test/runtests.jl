@@ -174,15 +174,17 @@ end
 
     @testset "line profile" begin
         linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
+        nHI, nₑ = 1e14, 1e10 #arbitrary
 
-        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 1e5, linelist[1], 
-                                            72.30e-5 : 1e-10 : linelist[1].wl))
-        @test issorted(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 0.0, linelist[1], 
-                                            linelist[1].wl : 1e-10 : 72.35e-5), rev=true)
+        @test issorted(SSSynth.line_profile(5000.0, nHI, nₑ, SSSynth.get_mass("Be"), 1e5, 
+                                            linelist[1], 72.30e-5 : 1e-10 : linelist[1].wl))
+        @test issorted(SSSynth.line_profile(5000.0, nHI, nₑ, SSSynth.get_mass("Be"), 0.0, 
+                                            linelist[1], linelist[1].wl : 1e-10 : 72.35e-5), 
+                       rev=true)
 
         Δ = 1e-9 #cm (== 0.1 Å)
-        s =  sum(SSSynth.line_profile(5000.0, SSSynth.atomic_masses["Be"], 2e5, linelist[1],
-                                      72.300e-5 : Δ : 72.350e-5))
+        s =  sum(SSSynth.line_profile(5000.0, nHI, nₑ, SSSynth.atomic_masses["Be"], 2e5, 
+                                      linelist[1], 72.300e-5 : Δ : 72.350e-5))
         #must convert from cm^-1 to Å^-1
         @test 0.999 < s * Δ <= 1.0
     end
