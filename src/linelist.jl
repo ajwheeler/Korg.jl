@@ -134,6 +134,9 @@ function read_line_list(fname::String; format="kurucz", skiplines=2) :: Vector{L
     end
 end
 
+#used in to parse vald and kurucz lineslists
+zeroToNInf(x) = x == 0.0 ? -Inf : x
+
 function parse_kurucz_linelist(f)
     map(eachline(f)) do line
         #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
@@ -146,15 +149,11 @@ function parse_kurucz_linelist(f)
              parse(Float64, line[12:18]),
              parse_species_code(strip(line[19:24])),
              min(E_levels...),
-             parse(Float64, line[81:86]),
-             parse(Float64, line[87:92]),
-             parse(Float64, line[93:98]))
+             zeroToNInf(parse(Float64, line[81:86])),
+             zeroToNInf(parse(Float64, line[87:92])),
+             zeroToNInf(parse(Float64, line[93:98])))
     end
 end
-
-
-#used in parse_vald_linelist
-zeroToNInf(x) = x == 0.0 ? -Inf : x
 
 function parse_vald_linelist(f, skiplines)
     lines = collect(eachline(f))
