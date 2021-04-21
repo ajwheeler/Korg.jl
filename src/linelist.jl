@@ -170,9 +170,9 @@ function parse_vald_linelist(f, skiplines)
                  symbol * "_" * numerals[num]
              end,
              parse(Float64, toks[4]),
-             parse(Float64, toks[end-3]),
-             zeroToNInf(parse(Float64, toks[end-2])),
-             zeroToNInf(parse(Float64, toks[end-1])))
+             parse(Float64, toks[11]),
+             zeroToNInf(parse(Float64, toks[12])),
+             zeroToNInf(parse(Float64, toks[13])))
     end
 end
 
