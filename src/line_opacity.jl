@@ -1,5 +1,5 @@
 """
-    line_absorption(linelist, λs, temp, nₑ, n_densities, atomic_masses, partition_fns, ξ
+    line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
                    ; window_size)
 
 Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
@@ -12,8 +12,8 @@ other arguments:
 opacities should be calculated in included.
 - `ξ` is the microturbulent velocity in cm/s
 """
-function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, atomic_masses::Dict, 
-                         partition_fns::Dict, ξ ; window_size=80.0*1e-8)
+function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
+                         ; window_size=80.0*1e-8)
     α_lines = zeros(length(λs))
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
