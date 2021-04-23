@@ -1,5 +1,6 @@
 using SpecialFunctions: expint
-using Interpolations: LinearInterpolation, Throw
+import Interpolations #for Interpolations.line
+using Interpolations: LinearInterpolation
 import ..ContinuumOpacity
 
 """
@@ -63,13 +64,16 @@ function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; v
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
                                                  layer.electron_density)
 
-        α[i, :] = line_absorption(linelist, λs, layer.temp, layer.electron_density, 
-                                  number_densities, atomic_masses, partition_funcs, 
-                                  ionization_energies, vmic*1e5)
+        α_cntm = LinearInterpolation(cntmλs,
+                                    total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
+                                        layer.electron_density, layer.density, number_densities, 
+                                                            partition_funcs) * layer.density,
+                                    extrapolation_bc=Interpolations.Line())
+        α[i, :] = α_cntm.(λs)
 
-        cntmα = total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, layer.electron_density, 
-                                   layer.density, number_densities, partition_funcs) * layer.density
-        α[i, :] += LinearInterpolation(cntmλs, cntmα, extrapolation_bc=Throw()).(λs)
+        α[i, :] += line_absorption(linelist, λs, layer.temp, layer.electron_density, 
+                                   number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
+
     end
 
     #the thickness of each atmospheric layer 

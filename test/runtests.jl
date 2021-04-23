@@ -172,21 +172,25 @@ end
         @test typeof(vald_linelist) == typeof(kurucz_linelist) == typeof(moog_linelist)
     end
 
+    @testset "move_bounds" begin
+        a = collect(0.5 .+ (1:9))
+        for lb in [1, 3, 9], ub in [1, 5, 9]
+            @test SSSynth.move_bounds(a, lb, ub, 5., 2.) == (3, 6)
+            @test SSSynth.move_bounds(a, lb, ub, 0., 3.) == (1, 2)
+            @test SSSynth.move_bounds(a, lb, ub, 6., 4.) == (2, 9)
+        end
+    end
+
     @testset "line profile" begin
-        linelist = SSSynth.read_line_list("data/gfallvac08oct17.stub.dat")
-        nHI, nₑ = 1e14, 1e10 #arbitrary
-
-        @test issorted(SSSynth.line_profile(5000.0, nHI, nₑ, SSSynth.get_mass("Be"), 1e5, 
-                                            linelist[1], 72.30e-5 : 1e-10 : linelist[1].wl))
-        @test issorted(SSSynth.line_profile(5000.0, nHI, nₑ, SSSynth.get_mass("Be"), 0.0, 
-                                            linelist[1], linelist[1].wl : 1e-10 : 72.35e-5), 
-                       rev=true)
-
-        Δ = 1e-9 #cm (== 0.1 Å)
-        s =  sum(SSSynth.line_profile(5000.0, nHI, nₑ, SSSynth.atomic_masses["Be"], 2e5, 
-                                      linelist[1], 72.300e-5 : Δ : 72.350e-5))
-        #must convert from cm^-1 to Å^-1
-        @test 0.999 < s * Δ <= 1.0
+        Δ = 0.01
+        wls = (4955 : Δ : 5045) * 1e-8
+        Δ *= 1e-8
+        for Δλ_D in [1e-7, 1e-8, 1e-9], Δλ_L in [1e-8, 1e-9]
+            ϕ = SSSynth.line_profile(5e-5, Δλ_D, Δλ_L, wls)
+            @test issorted(ϕ[1 : Int(ceil(end/2))])
+            @test issorted(ϕ[Int(ceil(end/2)) : end], rev=true)
+            @test 0.99 < sum(ϕ .* Δ) < 1
+        end
     end
 end
 
