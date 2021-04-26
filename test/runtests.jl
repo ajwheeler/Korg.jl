@@ -108,6 +108,7 @@ end
             @test SSSynth.parse_species_code("02.1000") == "He_II"
             @test SSSynth.parse_species_code("0608") == "CO_I"
             @test SSSynth.parse_species_code("0608.00") == "CO_I"
+            @test_throws ArgumentError SSSynth.parse_species_code("06.05.04")
         end
 
         @testset "strip ionization info" begin
