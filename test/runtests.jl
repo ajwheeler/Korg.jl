@@ -3,6 +3,13 @@ using Test
 
 include("continuum_opacity.jl")
 
+@testset "atomic data" begin 
+    @test (Set(SSSynth.atomic_symbols) == Set(keys(SSSynth.atomic_masses))
+             == Set(keys(SSSynth.solar_abundances)))
+    @test SSSynth.get_mass("CO") ≈ SSSynth.get_mass("C") + SSSynth.get_mass("O")
+    @test SSSynth.get_mass("C2") ≈ 2SSSynth.get_mass("C")
+end
+
 @testset "ionization energies" begin
     @test length(SSSynth.ionization_energies) == 92
     @test SSSynth.ionization_energies["H"] == [13.5984, -1.000, -1.000]
@@ -109,6 +116,7 @@ end
             @test SSSynth.parse_species_code("0608") == "CO_I"
             @test SSSynth.parse_species_code("0608.00") == "CO_I"
             @test_throws ArgumentError SSSynth.parse_species_code("06.05.04")
+            @test_throws Exception SSSynth.parse_species_code("99.01")
         end
 
         @testset "strip ionization info" begin
