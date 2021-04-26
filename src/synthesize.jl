@@ -23,7 +23,7 @@ optional arguments:
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
-function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
+function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, vmic=1.0,
                     abundances=Dict(), line_window::F=10.0, 
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs,
