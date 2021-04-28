@@ -69,24 +69,39 @@ end
 """
 This type represents an individual line.
 """
-struct Line{F}
+struct Line{F} 
     wl::F              #given in nm, convert to cm
     log_gf::F          #unitless
     species::String    
     E_lower::F         #eV
-    log_gamma_rad::F   #s^-1
-    log_gamma_stark::F #s^-1
-    log_gamma_vdW::F   #s^-1 (van der Waals)
-end
+    gamma_rad::F   #s^-1
+    gamma_stark::F #s^-1
+    vdW::Union{F, Tuple{F,F}} #either Γ_vdW per electron or (σ, α) from ABO theory
 
+    """
+    Construct a `Line` with a possibly packed vdW parameter (sigma.alpha) format.  If vdW < 0,
+    interpret it as log10(Γ) per particle.  Otherwise, interpret it as packed ABO parameters.
+    """
+    function Line(wl::F, log_gf::F, species::String, E_lower::F, gamma_rad::F, gamma_stark::F,
+                  vdW::F) where F <: AbstractFloat
+        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
+             if vdW > 0
+                 (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
+             elseif vdW == 0
+                 0.0
+             else
+                 10^vdW
+             end) 
+    end
+end
 """
 Construct a `Line` without explicit broadening parameters.
 """
-function Line(wl::F, log_gf::F, species::String, E_lower::F) where F
+function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: AbstractFloat
     e = electron_charge_cgs
     m = electron_mass_cgs
     c = c_cgs
-    Line(wl, log_gf, species, E_lower, log10(8π^2 * e^2 / m / c / wl^2) + log_gf, -Inf, -Inf)
+    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf, 0.0, 0.0)
 end
 
 #pretty-print lines in REPL and jupyter notebooks
@@ -135,7 +150,7 @@ function read_line_list(fname::String; format="kurucz", skiplines=2) :: Vector{L
 end
 
 #used in to parse vald and kurucz lineslists
-zeroToNInf(x) = x == 0.0 ? -Inf : x
+expOrZero(x) = x == 0.0 ? 0.0 : 10.0^x
 
 function parse_kurucz_linelist(f)
     map(eachline(f)) do line
@@ -149,9 +164,9 @@ function parse_kurucz_linelist(f)
              parse(Float64, line[12:18]),
              parse_species_code(strip(line[19:24])),
              min(E_levels...),
-             zeroToNInf(parse(Float64, line[81:86])),
-             zeroToNInf(parse(Float64, line[87:92])),
-             zeroToNInf(parse(Float64, line[93:98])))
+             expOrZero(parse(Float64, line[81:86])),
+             expOrZero(parse(Float64, line[87:92])),
+             parse(Float64, line[93:98]))
     end
 end
 
@@ -170,12 +185,13 @@ function parse_vald_linelist(f, skiplines)
                  symbol * "_" * numerals[num]
              end,
              parse(Float64, toks[4]),
-             parse(Float64, toks[11]),
-             zeroToNInf(parse(Float64, toks[12])),
-             zeroToNInf(parse(Float64, toks[13])))
+             expOrZero(parse(Float64, toks[11])),
+             expOrZero(parse(Float64, toks[12])),
+             parse(Float64, toks[13]))
     end
 end
 
+#todo support moog linelists with broadening parameters?
 function parse_moog_linelist(f)
     lines = collect(eachline(f))
     #moog format requires blank first line

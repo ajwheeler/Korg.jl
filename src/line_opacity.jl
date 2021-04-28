@@ -1,3 +1,5 @@
+using SpecialFunctions: gamma
+
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
                    ; window_size)
@@ -34,8 +36,11 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / mass + ξ^2) / c_cgs
 
         #get all damping params from line list.  There may be better sources for this.
-        γ = 10^line.log_gamma_rad + nₑ*10^line.log_gamma_stark  + n_densities["H_I"]*10^line.log_gamma_vdW
-        #this parameter involves an implicit assumption that λ(ν) is linear over the line window
+        γ = (line.gamma_rad + nₑ*line.gamma_stark  + 
+             (n_densities["H_I"] + 0.42n_densities["He_I"])*gamma_vdW(line.vdW, mass, temp))
+
+
+        #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = γ * line.wl^2 / c_cgs
 
         #cross section
@@ -64,6 +69,18 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         @. α_lines[lb:ub] += ϕ * line_amplitude
     end
     α_lines
+end
+
+gamma_vdW(vdW::AbstractFloat, m, T) = vdW
+function gamma_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
+    v₀ = 1e6 #σ is given at 10_000 m/s
+    σ = vdW[1]
+    α = vdW[2]
+
+    invμ = 1/(1.008*amu_cgs) + 1/m #inverse reduced mass
+    vbar = sqrt(8 * kboltz_cgs * T / π * invμ) #relative velocity
+    #n.b. "gamma" is the gamma function, not a broadening parameter
+    (4/π)^(α/2) * gamma((4-α)/2) * v₀ * σ * (vbar/v₀)^(1-α)
 end
 
 #walk lb and ub to be window_size away from λ₀. assumes λs is sorted

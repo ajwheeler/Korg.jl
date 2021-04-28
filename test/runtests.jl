@@ -146,22 +146,25 @@ end
             @test kurucz_linelist[1].log_gf == -0.826
             @test kurucz_linelist[1].species == "Be_II"
             @test kurucz_linelist[1].E_lower ≈ 17.360339371573698
-            @test kurucz_linelist[1].log_gamma_rad == 7.93
-            @test kurucz_linelist[1].log_gamma_stark == -2.41
-            @test kurucz_linelist[1].log_gamma_vdW == -6.91
+            @test kurucz_linelist[1].gamma_rad ≈ 8.511380382023759e7
+            @test kurucz_linelist[1].gamma_stark ≈ 0.003890451449942805
+            @test kurucz_linelist[1].vdW ≈ 1.2302687708123812e-7
         end
 
-        vald_linelist = SSSynth.read_line_list("data/Ylines.vald"; format="vald")
+        vald_linelist = SSSynth.read_line_list("data/twolines.vald"; format="vald")
         @testset "vald linelist parsing" begin
             @test issorted(vald_linelist, by=l->l.wl)
-            @test length(vald_linelist) == 4584
+            @test length(vald_linelist) == 2
             @test vald_linelist[1].wl ≈ 3002.20106 * 1e-8
             @test vald_linelist[1].log_gf == -1.132
             @test vald_linelist[1].species == "Y_II"
             @test vald_linelist[1].E_lower ≈ 3.3757
-            @test vald_linelist[1].log_gamma_rad == 8.620
-            @test vald_linelist[1].log_gamma_stark == -5.580
-            @test vald_linelist[1].log_gamma_vdW == -7.710
+            @test vald_linelist[1].gamma_rad ≈ 4.1686938347033465e8
+            @test vald_linelist[1].gamma_stark ≈ 2.6302679918953817e-6
+            @test vald_linelist[1].vdW ≈ 1.9498445997580454e-8
+
+            @test vald_linelist[2].vdW[1] ≈ 1.3917417470792187e-14
+            @test vald_linelist[2].vdW[2] ≈ 0.227
         end
 
         moog_linelist = SSSynth.read_line_list("data/s5eqw_short.moog"; format="moog")
