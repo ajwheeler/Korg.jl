@@ -14,6 +14,7 @@ optional arguments:
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
 - `line_window` (default: 10): the farthest any line can be from the provide wavelenth range range
    before it is discarded (in Å).
+- `cntm_step`: the wavelength resolution with which continuum opacities are calculated.
 - `ionization_energies`, a Dict containing the first three ionization energies of each element, 
    defaults to `SSSynth.ionization_energies`.
 - `partition_funcs`, a Dict mapping species to partition functions. Defaults to data from 
