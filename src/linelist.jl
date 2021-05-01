@@ -70,12 +70,12 @@ end
 This type represents an individual line.
 """
 struct Line{F} 
-    wl::F              #given in nm, convert to cm
-    log_gf::F          #unitless
-    species::String    
-    E_lower::F         #eV
-    gamma_rad::F   #s^-1
-    gamma_stark::F #s^-1
+    wl::F                     #given in nm, convert to cm
+    log_gf::F                 #unitless
+    species::String           
+    E_lower::F                #eV
+    gamma_rad::F              #s^-1
+    gamma_stark::F            #s^-1
     vdW::Union{F, Tuple{F,F}} #either Γ_vdW per electron or (σ, α) from ABO theory
 
     """
@@ -102,6 +102,26 @@ function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Abstract
     m = electron_mass_cgs
     c = c_cgs
     Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf, 0.0, 0.0)
+end
+
+"""
+The Unsoeld (1995) approximation for van der Waals broadening.  Used for atomic lines with no vdW 
+broadening info in the line list.
+"""
+function unsoeld(line; ionization_energies=ionization_energies)
+    ionization = split(line.species, '_')[2]
+    Z = if ionization == "I"
+        1
+    elseif ionization == "II"
+        2
+    elseif ionization == "III"
+        3
+    end
+    χ = ionization_energies[strip_ionization(line)][Z]
+    nstar2 = RydbergH_eV * Z*Z / (χ - line.E_lower)
+    #rbar2 = 
+
+    #10^()
 end
 
 #pretty-print lines in REPL and jupyter notebooks
