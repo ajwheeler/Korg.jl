@@ -1,4 +1,4 @@
-module SSSynth
+module Korg
     export synthesize
 
     _data_dir = joinpath(@__DIR__, "../data") 

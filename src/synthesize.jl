@@ -16,16 +16,17 @@ optional arguments:
    before it is discarded (in Å).
 - `cntm_step`: the wavelength resolution with which continuum opacities are calculated.
 - `ionization_energies`, a Dict containing the first three ionization energies of each element, 
-   defaults to `SSSynth.ionization_energies`.
+   defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a Dict mapping species to partition functions. Defaults to data from 
-   Barklem & Collet 2016, `SSSynth.partition_funcs`.
+   Barklem & Collet 2016, `Korg.partition_funcs`.
 - `equilibrium_constants`, a Dict mapping diatomic molecules to theirmolecular equilbrium constants
   in partial pressure form.  Defaults to data from Barklem and Collet 2016, 
-  `SSSynth.equilibrium_constants`.
+  `Korg.equilibrium_constants`.
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
-function synthesize(atm, linelist, λs::AbstractVector{F}, metallicity::F=0.0; vmic=1.0, 
+
+function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, vmic=1.0, 
                     abundances=Dict(), line_window::F=10.0, cntm_step=1.0::F,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs,
