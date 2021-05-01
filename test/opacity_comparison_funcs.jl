@@ -69,13 +69,13 @@ end
 
 # compute the ratio of the nₑ to n_H (the number density of all H I and H II)
 # this function could be reused in the future for testing solutions to coupled Saha equations
-function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = SSSynth.solar_abundances,
-                                              ionization_energies = SSSynth.ionization_energies,
-                                              partition_funcs = SSSynth.partition_funcs)
+function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = Korg.solar_abundances,
+                                              ionization_energies = Korg.ionization_energies,
+                                              partition_funcs = Korg.partition_funcs)
     out = 0.0
-    for element in SSSynth.atomic_symbols
-        wII, wIII = SSSynth.saha_ion_weights(T, nₑ, element, SSSynth.ionization_energies, 
-                                             SSSynth.partition_funcs)
+    for element in Korg.atomic_symbols
+        wII, wIII = Korg.saha_ion_weights(T, nₑ, element, Korg.ionization_energies, 
+                                             Korg.partition_funcs)
 
         nₑ_per_ndens_species = wII/(1 + wII + wIII) + 2wIII/(1 + wII + wIII)
         abundance = 10.0^(abundances[element]-12.0)
@@ -107,14 +107,14 @@ end
 function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     # λ should have units of Ångstroms
     # Pₑ is the partial pressure of the electrons in dyne/cm²
-    nₑ =  Pₑ/(SSSynth.kboltz_cgs * T)
-    ν = (SSSynth.c_cgs*1e8)/λ
+    nₑ =  Pₑ/(Korg.kboltz_cgs * T)
+    ν = (Korg.c_cgs*1e8)/λ
 
     bf_coef = begin
         H_I_partition_val = 2.0 # implicitly in the implementation provided by Gray (2005)
         nH_I = nₑ * 100.0 # this is totally arbitrary
         ρ = nH_I * 1.67e-24/0.76 # this is totally arbitrary
-        bf_opac = SSSynth.ContinuumOpacity.H_I_bf(nH_I/H_I_partition_val, ν, ρ, T, H_I_ion_energy)
+        bf_opac = Korg.ContinuumOpacity.H_I_bf(nH_I/H_I_partition_val, ν, ρ, T, H_I_ion_energy)
         bf_opac * ρ / (Pₑ * nH_I)
     end
 
@@ -126,10 +126,10 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
         nH_total = nₑ * 100.0 # this is totally arbitrary
         ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
 
-        wII, wIII = SSSynth.saha_ion_weights(T, nₑ, χs, Us)
+        wII, wIII = Korg.saha_ion_weights(T, nₑ, χs, Us)
         nH_I = nH_total / (1 + wII)
         nH_II = nH_total * wII/(1 + wII)
-        ff_opac = SSSynth.ContinuumOpacity.H_I_ff(nH_II, nₑ, ν, ρ, T)
+        ff_opac = Korg.ContinuumOpacity.H_I_ff(nH_II, nₑ, ν, ρ, T)
         ff_opac * ρ / (Pₑ * nH_I)
     end
 
@@ -139,32 +139,32 @@ end
 function Hminus_bf_coefficient(λ, T, Pₑ, ion_energy_H⁻ = 0.7552)
     # λ should have units of Ångstroms
     # Pₑ is the partial pressure of the electrons in dyne/cm²
-    ne =  Pₑ/(SSSynth.kboltz_cgs * T)
+    ne =  Pₑ/(Korg.kboltz_cgs * T)
 
     # the values of ndens, ρ and nH_I shouldn't actually matter since we will
     # just divide out all dependence on these variables.
     nH_I, nH, ρ = _semi_realisitic_dens(ne)
 
     partition_func = 2.0 # may want to include the temperature dependence of the partition function
-    ν = (SSSynth.c_cgs*1e8)/λ
+    ν = (Korg.c_cgs*1e8)/λ
 
-    opacity = SSSynth.ContinuumOpacity.Hminus_bf(nH_I/partition_func, ne, ν, ρ, T, ion_energy_H⁻)
+    opacity = Korg.ContinuumOpacity.Hminus_bf(nH_I/partition_func, ne, ν, ρ, T, ion_energy_H⁻)
     opacity * ρ / (Pₑ * nH_I)
 end
 
 function Hminus_ff_coefficient(λ, T, Pₑ)
     # λ should have units of Ångstroms
     # Pₑ is the partial pressure of the electrons in dyne/cm²
-    ne =  Pₑ/(SSSynth.kboltz_cgs * T)
+    ne =  Pₑ/(Korg.kboltz_cgs * T)
 
     # the values of ndens, ρ and nH_I shouldn't actually matter since we will
     # just divide out all dependence on these variables.
     nH_I, nH, ρ = _semi_realisitic_dens(ne)
 
     partition_func = 2.0 # may want to include the temperature dependence of the partition function
-    ν = (SSSynth.c_cgs*1e8)/λ
+    ν = (Korg.c_cgs*1e8)/λ
 
-    opacity = SSSynth.ContinuumOpacity.Hminus_ff(nH_I/partition_func, ne, ν, ρ, T)
+    opacity = Korg.ContinuumOpacity.Hminus_ff(nH_I/partition_func, ne, ν, ρ, T)
     opacity * ρ / (Pₑ * nH_I)
 end
 
@@ -174,7 +174,7 @@ end
 function H2plus_coefficient(λ, T, Pₑ)
     # λ should have units of Ångstroms
     # Pₑ is the partial pressure of the electrons in dyne/cm²
-    ne =  Pₑ/(SSSynth.kboltz_cgs * T)
+    ne =  Pₑ/(Korg.kboltz_cgs * T)
 
     # in the future, we may want to use the abundances, ionization_energies and partition functions
     # used in Gray (2005) since we are comparing to his plots
@@ -182,8 +182,8 @@ function H2plus_coefficient(λ, T, Pₑ)
         free_electrons_per_Hydrogen_particle(ne, T)
     nH = ne/ne_div_nH
 
-    wII, wIII = SSSynth.saha_ion_weights(T, ne, "H", SSSynth.ionization_energies, 
-                                         SSSynth.partition_funcs)
+    wII, wIII = Korg.saha_ion_weights(T, ne, "H", Korg.ionization_energies, 
+                                         Korg.partition_funcs)
     nH_I = nH / (1 + wII)
     nH_II = nH * wII / (1 + wII)
 
@@ -193,8 +193,8 @@ function H2plus_coefficient(λ, T, Pₑ)
     nH_I_div_partition = nH_I/2.0
     ρ = 1.0 # arbitrary value because we divide it out after
 
-    ν = (SSSynth.c_cgs*1e8)/λ
-    opacity = SSSynth.ContinuumOpacity.H2plus_bf_and_ff(nH_I_div_partition, nH_II, ν, ρ, T)
+    ν = (Korg.c_cgs*1e8)/λ
+    opacity = Korg.ContinuumOpacity.H2plus_bf_and_ff(nH_I_div_partition, nH_II, ν, ρ, T)
     opacity * ρ / (Pₑ * nH_I)
 end
 
@@ -204,7 +204,7 @@ end
 function Heminus_ff_coefficient(λ, T, Pₑ)
     # λ should have units of Ångstroms
     # Pₑ is the partial pressure of the electrons in dyne/cm²
-    ne =  Pₑ/(SSSynth.kboltz_cgs * T)
+    ne =  Pₑ/(Korg.kboltz_cgs * T)
 
     # the values of ndens, ρ and nH_I shouldn't actually matter since we will
     # just divide out all dependence on these variables.
@@ -229,15 +229,15 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
           T -> 10^0.301, # as 10^0.301, the closest value at the table's precision to 2.0
           T -> NaN]
                          
-    wII, wIII = SSSynth.saha_ion_weights(T, ne, χs, Us)
+    wII, wIII = Korg.saha_ion_weights(T, ne, χs, Us)
     nHe_I = nHe / (1 + wII) #Gray ignores He III
 
     # may want to include the temperature dependence of the partition function
     partition_func = 2.0
-    ν = (SSSynth.c_cgs*1e8)/λ
+    ν = (Korg.c_cgs*1e8)/λ
 
 
-    opacity = SSSynth.ContinuumOpacity.Heminus_ff(nHe_I/Us[1](T), ne, ν, ρ, T)
+    opacity = Korg.ContinuumOpacity.Heminus_ff(nHe_I/Us[1](T), ne, ν, ρ, T)
     opacity * ρ / (Pₑ * nH_I)
 end
 

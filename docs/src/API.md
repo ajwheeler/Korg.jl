@@ -2,5 +2,5 @@ This is an automatically generated list of all functions in no particular order.
 should organize this and add context.
 
 ```@autodocs
-Modules = [SSSynth, SSSynth.ContinuumOpacity]
+Modules = [Korg, Korg.ContinuumOpacity]
 ```

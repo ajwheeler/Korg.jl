@@ -14,12 +14,12 @@ optional arguments:
 - `line_window` (default: 10): the farthest any line can be from the provide wavelenth range range
    before it is discarded (in Å).
 - `ionization_energies`, a Dict containing the first three ionization energies of each element, 
-   defaults to `SSSynth.ionization_energies`.
+   defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a Dict mapping species to partition functions. Defaults to data from 
-   Barklem & Collet 2016, `SSSynth.partition_funcs`.
+   Barklem & Collet 2016, `Korg.partition_funcs`.
 - `equilibrium_constants`, a Dict mapping diatomic molecules to theirmolecular equilbrium constants
   in partial pressure form.  Defaults to data from Barklem and Collet 2016, 
-  `SSSynth.equilibrium_constants`.
+  `Korg.equilibrium_constants`.
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """

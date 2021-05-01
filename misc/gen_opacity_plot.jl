@@ -19,7 +19,7 @@
 
 
 using Plots
-include("../src/SSSynth.jl")
+include("../src/Korg.jl")
 include("../test/opacity_comparison_funcs.jl")
            
 function gen_plot(plot_fname, temperature, Pₑ, panel_dict)
