@@ -14,8 +14,8 @@ function _calc_Hminus_ff_absorption_coef(ν, T)
     # n(H I, n = 1) = n(H I).
     nH_I_div_partition = nH_I/2.0
 
-    κ_ν = SSSynth.ContinuumOpacity.Hminus_ff(nH_I_div_partition, ne, ν, ρ, T)
-    Pₑ = ne * SSSynth.kboltz_cgs * T
+    κ_ν = Korg.ContinuumOpacity.Hminus_ff(nH_I_div_partition, ne, ν, ρ, T)
+    Pₑ = ne * Korg.kboltz_cgs * T
     αff_H⁻ = κ_ν * ρ / (nH_I * Pₑ)
 
     # finally divide by 1e-26 to match the units of the table
@@ -32,7 +32,7 @@ function _compare_against_table(ref_val_matrix, λ_vals_cm, T_vals, calc_func, t
     @assert size(ref_val_matrix)[1] == size(λ_vals_cm)[1]
     @assert size(ref_val_matrix)[2] == size(T_vals)[1]
 
-    ν_vals = SSSynth.c_cgs ./ λ_vals_cm
+    ν_vals = Korg.c_cgs ./ λ_vals_cm
 
     success = true
     for index = 1:length(T_vals)
@@ -123,9 +123,9 @@ function check_Hminus_bf_values(target_precision = 0.002, verbose = true)
     _bf_α_vals = view(_bf_table, :, 2) .* 1e-18 # in cm² per H⁻ particle.
     comp_λ_vals = view(_bf_λ_vals, 8:59)
     comp_α_vals = view(_bf_α_vals, 8:59)
-    ν_vals = (SSSynth.c_cgs*1e8)./comp_λ_vals
+    ν_vals = (Korg.c_cgs*1e8)./comp_λ_vals
 
-    coefs = SSSynth.ContinuumOpacity._Hminus_bf_cross_section.(ν_vals)
+    coefs = Korg.ContinuumOpacity._Hminus_bf_cross_section.(ν_vals)
     precision = abs.(coefs .- comp_α_vals)./comp_α_vals
     max_err, max_err_ind = findmax(precision)
 
@@ -180,7 +180,7 @@ function check_Heminus_ff_opacity(target_precision, verbose = true)
                              1.8225,  1.5188, 1.1391, 0.9113, 0.7594, 0.6509, 0.5695, 0.5063] #μm
 
     T_vals = 5040.0 ./ _θ_vals_He⁻_ff_john94
-    ν_vals = (SSSynth.c_cgs*1e4) ./_λ_vals_He⁻_ff_john94
+    ν_vals = (Korg.c_cgs*1e4) ./_λ_vals_He⁻_ff_john94
 
     # For the sake of easy comparisons, let's pick the following semi-realistic values:
     ρ = 1.67e-24 * 1e15 / 0.76 # g cm⁻³
@@ -191,10 +191,10 @@ function check_Heminus_ff_opacity(target_precision, verbose = true)
     nHe_I_div_U, nHe_I_gs = nHe_I, nHe_I
 
     # this includes the correction for stimulated emission
-    Pₑ = nₑ*SSSynth.kboltz_cgs.*T_vals
+    Pₑ = nₑ*Korg.kboltz_cgs.*T_vals
     ref_κ_vals = _Heminus_table .* nHe_I .* Pₑ / ρ
 
-    calc_func(ν,T) = SSSynth.ContinuumOpacity.Heminus_ff(nHe_I_div_U, nₑ, ν, ρ, T)
+    calc_func(ν,T) = Korg.ContinuumOpacity.Heminus_ff(nHe_I_div_U, nₑ, ν, ρ, T)
     _compare_against_table(view(ref_κ_vals, :, 1:9), _λ_vals_He⁻_ff_john94 ./ 1e4,
                            view(T_vals, 1:9), calc_func, target_precision, verbose)
 end
@@ -245,7 +245,7 @@ function check_H2plus_ff_and_bf_opacity(target_precision, verbose = true)
 
     nH_I_divU = nH_I/partition_val
     const_factor = 1e39 * ρ/(nH_I * nH_II)
-    calc_func(ν,T) =  const_factor * SSSynth.ContinuumOpacity.H2plus_bf_and_ff.(nH_I_divU, nH_II,
+    calc_func(ν,T) =  const_factor * Korg.ContinuumOpacity.H2plus_bf_and_ff.(nH_I_divU, nH_II,
                                                                                 ν, ρ, T)
     λ_cgs = 1.0 ./_wavenumbers
     _compare_against_table(_table, λ_cgs, _T_vals, calc_func, target_precision, verbose)
@@ -265,7 +265,7 @@ end
     gray_H_I_ff_absorption_coef(λ, T, [gaunt_func])
 
 Computes the H I free-free absorption coefficient per neutral Hydrogen atom by adapting equation
-8.10 from Gray (2005). In contrast to `SSSynth.ContinuumOpacity.H_I_ff`, this implementation
+8.10 from Gray (2005). In contrast to `Korg.ContinuumOpacity.H_I_ff`, this implementation
 directly combines the Saha equation and uses constants that have been cast into a completely
 separate format.
 
@@ -284,7 +284,7 @@ function gray_H_I_ff_absorption_coef(λ, T, gaunt_func = nothing)
 
     # adapt equation 8.10
     R = 1.0968e5 # cm⁻¹
-    I = SSSynth.hplanck_eV * SSSynth.c_cgs * R # eV
+    I = Korg.hplanck_eV * Korg.c_cgs * R # eV
     θ = 5040/T # eV^-1
     loge = log10(MathConstants.e)
     α₀ = 1.0449e-26 #cm² Å⁻³
@@ -296,10 +296,10 @@ function gray_H_I_ff_absorption_coef(λ, T, gaunt_func = nothing)
         temp_R = R/1e8 # Å⁻¹
         1.0 + 0.3456*(0.5 + loge/(θ*χ_λ))/cbrt(λ*temp_R)
     else
-        β = 1.0/(SSSynth.kboltz_eV * T)
-        ν = SSSynth.c_cgs * 1e8 / λ
-        log_u = log10(SSSynth.hplanck_eV * ν * β)
-        log_γ2 = log10(SSSynth.RydbergH_eV * Z2 * β)
+        β = 1.0/(Korg.kboltz_eV * T)
+        ν = Korg.c_cgs * 1e8 / λ
+        log_u = log10(Korg.hplanck_eV * ν * β)
+        log_γ2 = log10(Korg.RydbergH_eV * Z2 * β)
         gaunt_func(log_u, log_γ2)
     end
 
@@ -317,25 +317,25 @@ end
         # This comparison is much more constraining than directly comparing against the relevant
         # curve extracted from the panel because the relevant curve includes both free-free and
         # bound-free absorption. It's also much more constraining when H I ff opacity is subdominant
-        χs = Dict(["H"=>[SSSynth.RydbergH_eV, -1.0, -1.0]])
+        χs = Dict(["H"=>[Korg.RydbergH_eV, -1.0, -1.0]])
         # implicitly assumed by the Gray implementation
         Us = Dict(["H_I"=>(T -> 2.0), "H_II"=>(T -> 1.0)])
 
         λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
-        ν_vals = SSSynth.c_cgs*1e8./λ_vals
+        ν_vals = Korg.c_cgs*1e8./λ_vals
 
         for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
             ref_absorption_coef = gray_H_I_ff_absorption_coef.(λ_vals, T)
 
-            nₑ = 10.0^logPₑ / (SSSynth.kboltz_cgs * T)
+            nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_total = nₑ * 100.0 # this is totally arbitrary
             ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
 
-            wII, wIII = SSSynth.saha_ion_weights(T, nₑ, "H", χs, Us)
+            wII, wIII = Korg.saha_ion_weights(T, nₑ, "H", χs, Us)
             nH_I = nH_total / (1 + wII) 
             nH_II = nH_total * wII / (1 + wII)
             # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II
-            absorption_coef = SSSynth.ContinuumOpacity.H_I_ff.(nH_II, nₑ, ν_vals, ρ, T) * ρ/nH_I
+            absorption_coef = Korg.ContinuumOpacity.H_I_ff.(nH_II, nₑ, ν_vals, ρ, T) * ρ/nH_I
             @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.0015
             @test all(absorption_coef .≥ 0.0)
         end
@@ -349,7 +349,7 @@ end
 Computes the H I bound-free absorption coefficient per neutral Hydrogen atom (with the stimulated
 emission correction term) by adapting equation 8.8 from Gray (2005). 
 
-In contrast to `SSSynth.ContinuumOpacity.H_I_bf`, this implementation:
+In contrast to `Korg.ContinuumOpacity.H_I_bf`, this implementation:
 - uses a completely different approximation for computing the cross-section (this includes
   differences in gaunt factor estimation).
 - uses different logic for approximating the contributions of higher energy levels to the opacity. 
@@ -370,7 +370,7 @@ function gray_H_I_bf_absorption_coef(λ, T)
     # λ must have units of Å and T must have units of K
 
     θ = 5040/T # eV^-1
-    photon_energy_eV = SSSynth.hplanck_eV * SSSynth.c_cgs * 1e8/λ
+    photon_energy_eV = Korg.hplanck_eV * Korg.c_cgs * 1e8/λ
 
     # They are not particularly tranparent about this, but I believe n0 should be the lowest energy
     # state for which the ionization energy is greater than or equal to photon_energy_eV
@@ -416,20 +416,20 @@ end
         # curve extracted from the panel because the relevant curve includes both free-free and
         # bound-free absorption. It's also much more constraining when H I bf opacity is subdominant
 
-        H_I_ion_energy = SSSynth.RydbergH_eV # use this to decouple test from ionization energies
+        H_I_ion_energy = Korg.RydbergH_eV # use this to decouple test from ionization energies
         H_I_partition_val = 2.0 # implicitly assumed by the Gray implementation
 
         λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
-        ν_vals = SSSynth.c_cgs*1e8./λ_vals
+        ν_vals = Korg.c_cgs*1e8./λ_vals
 
         for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
             ref_absorption_coef = gray_H_I_bf_absorption_coef.(λ_vals, T)
 
-            nₑ = 10.0^logPₑ / (SSSynth.kboltz_cgs * T)
+            nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_I = nₑ * 100.0 # this is totally arbitrary
             ρ = nH_I * 1.67e-24/0.76 # this is totally arbitrary
 
-            absorption_coef = SSSynth.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
+            absorption_coef = Korg.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
                                                                T, H_I_ion_energy) * ρ/nH_I
             #println(maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef))
             @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.004
@@ -438,28 +438,28 @@ end
     end
 
     @testset "Integral-Summation Equivalence" begin
-        # SSSynth.ContinuumOpacity.H_I_bf approximates the sum of the absorption contributions from
+        # Korg.ContinuumOpacity.H_I_bf approximates the sum of the absorption contributions from
         # bound-free transitions originating from high energy levels with an integral. These tests
         # check that the integral does a reasonable job reproducing the direct sum.
 
-        H_I_ion_energy = SSSynth.RydbergH_eV # use this to decouple test from ionization energies
+        H_I_ion_energy = Korg.RydbergH_eV # use this to decouple test from ionization energies
         H_I_partition_val = 2.0 # implicitly assumed by the Gray implementation
 
         λ_vals = [3e3 + (i-1)*500 for i = 1:35] # equally spaced vals from 3e3 Å through 2e4 Å
-        ν_vals = SSSynth.c_cgs*1e8./λ_vals
+        ν_vals = Korg.c_cgs*1e8./λ_vals
 
         nstop_sum = 100
 
         for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
             ref_absorption_coef = gray_H_I_bf_absorption_coef.(λ_vals, T)
 
-            nₑ = 10.0^logPₑ / (SSSynth.kboltz_cgs * T)
+            nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_I = nₑ * 100.0 # this is totally arbitrary
             ρ = nH_I * 1.67e-24/0.76 # this is totally arbitrary
 
-            opacity_integral = SSSynth.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
+            opacity_integral = Korg.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
                                                                 T, H_I_ion_energy)
-            opacity_sum = SSSynth.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
+            opacity_sum = Korg.ContinuumOpacity.H_I_bf.(nH_I/H_I_partition_val, ν_vals, ρ,
                                                            T, H_I_ion_energy, nstop_sum, false)
             #println(maximum(abs.(opacity_integral - opacity_sum)/opacity_sum))
             @test maximum(abs.(opacity_integral - opacity_sum)/opacity_sum) < 0.003

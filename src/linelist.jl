@@ -15,8 +15,10 @@ function parse_species_code(code::AbstractString)
         else
             "_" * numerals[parse(Int, replace(toks[2], "0"=>""))+1]
         end
-    else
+    elseif length(toks) == 1
         "_I"
+    else
+        throw(ArgumentError("invalid species code"))
     end
 
     atom_or_molecule = if length(toks[1]) < 3

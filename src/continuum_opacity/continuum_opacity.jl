@@ -1,6 +1,6 @@
 module ContinuumOpacity
 
-using ..SSSynth: ionization_energies # not sure that this is the best idea
+using ..Korg: ionization_energies # not sure that this is the best idea
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
 # define helper functions
