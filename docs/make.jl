@@ -1,9 +1,9 @@
 push!(LOAD_PATH,"../src/")
 
-using Documenter, SSSynth
+using Documenter, Korg
 
-makedocs(sitename="SSSynth", 
-         modules=[SSSynth],
+makedocs(sitename="Korg", 
+         modules=[Korg],
          pages=[
                 "Quickstart" => "index.md"
                 "All Functions" => "API.md"
@@ -13,5 +13,5 @@ makedocs(sitename="SSSynth",
         format=Documenter.HTML(assets=["assets/favicon.ico"])
        )
 
-deploydocs(repo = "github.com/ajwheeler/SSSynth.jl.git",
+deploydocs(repo = "github.com/ajwheeler/Korg.jl.git",
            devbranch="main")
