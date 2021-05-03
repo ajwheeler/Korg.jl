@@ -36,12 +36,11 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / mass + ξ^2) / c_cgs
 
         #get all damping params from line list.  There may be better sources for this.
-        γ = (line.gamma_rad + nₑ*line.gamma_stark  + 
+        Γ = (line.gamma_rad + nₑ*line.gamma_stark  + 
              (n_densities["H_I"] + 0.42n_densities["He_I"])*gamma_vdW(line.vdW, mass, temp))
 
-
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
-        Δλ_L = γ * line.wl^2 / c_cgs
+        Δλ_L = Γ * line.wl^2 / c_cgs
 
         #cross section
         σ = sigma_line(line.wl)
@@ -71,9 +70,9 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     α_lines
 end
 
-gamma_vdW(vdW::AbstractFloat, m, T) = vdW
+gamma_vdW(vdW::AbstractFloat, m, T, T₀=10_000) = vdW * (T/T₀)^0.3
 function gamma_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
-    v₀ = 1e6 #σ is given at 10_000 m/s
+    v₀ = 1e6 #σ is given at 10_000 m/s = 10^6 cm/s
     σ = vdW[1]
     α = vdW[2]
 

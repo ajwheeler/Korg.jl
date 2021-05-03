@@ -78,7 +78,7 @@ struct Line{F}
     E_lower::F                #eV
     gamma_rad::F              #s^-1
     gamma_stark::F            #s^-1
-    vdW::Union{F, Tuple{F,F}} #either Γ_vdW per electron or (σ, α) from ABO theory
+    vdW::Union{F, Tuple{F,F}} #either log(Γ_vdW) per electron or (σ, α) from ABO theory
 
     """
     Construct a `Line` with a possibly packed vdW parameter (sigma.alpha) format.  If vdW < 0,
@@ -87,13 +87,12 @@ struct Line{F}
     function Line(wl::F, log_gf::F, species::String, E_lower::F, gamma_rad::F, gamma_stark::F,
                   vdW::F) where F <: AbstractFloat
         new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
-             if vdW > 0
-                 (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
-             elseif vdW == 0
-                 0.0
-             else
-                 10^vdW
-             end) 
+               if vdW > 0
+                   floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
+               else 
+                   10^vdW
+               end
+              )
     end
 end
 """
