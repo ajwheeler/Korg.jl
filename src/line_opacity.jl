@@ -79,7 +79,7 @@ function gamma_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
     invμ = 1/(1.008*amu_cgs) + 1/m #inverse reduced mass
     vbar = sqrt(8 * kboltz_cgs * T / π * invμ) #relative velocity
     #n.b. "gamma" is the gamma function, not a broadening parameter
-    (4/π)^(α/2) * gamma((4-α)/2) * v₀ * σ * (vbar/v₀)^(1-α)
+    2 * (4/π)^(α/2) * gamma((4-α)/2) * v₀ * σ * (vbar/v₀)^(1-α)
 end
 
 #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
