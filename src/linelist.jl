@@ -102,15 +102,25 @@ function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Abstract
     e = electron_charge_cgs
     m = electron_mass_cgs
     c = c_cgs
-    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf, 0.0, 0.0)
+    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf, 0.0, 
+         unsoeld(wl, species, E_lower))
 end
 
 """
-The Unsoeld (1995) approximation for van der Waals broadening.  Used for atomic lines with no vdW 
-broadening info in the line list.
+A simplified form of the Unsoeld (1995) approximation for van der Waals broadening at 10,000 K.
+Returns log10(γ_vdW).
+
+Uses the approximation that
+\\overbar{r}^2 = 5/2 {n^*}^4 / Z^2
+instead of the form given in Warner 1967.
+
+Used for atomic lines with no vdW broadening info in the line list.
 """
-function unsoeld(line; ionization_energies=ionization_energies)
-    ionization = split(line.species, '_')[2]
+
+unsoeld(line; ionization_energies=ionization_energies) =
+    unsoeld(line.wl, line.species, line.E_lower; ionization_energies=ionization_energies)
+function unsoeld(wl, species, E_lower; ionization_energies=ionization_energies)
+    ionization = split(species, '_')[2]
     Z = if ionization == "I"
         1
     elseif ionization == "II"
@@ -118,11 +128,14 @@ function unsoeld(line; ionization_energies=ionization_energies)
     elseif ionization == "III"
         3
     end
-    χ = ionization_energies[strip_ionization(line)][Z]
-    nstar2 = RydbergH_eV * Z*Z / (χ - line.E_lower)
-    #rbar2 = 
-
-    #10^()
+    χ = ionization_energies[strip_ionization(species)][Z]
+    c = c_cgs
+    h = hplanck_eV
+    k = kboltz_cgs
+    E_upper = E_lower + (h * c / wl)
+    Δrbar2 = (5/2) * RydbergH_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
+    #From R J Rutten's course notes
+    6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
 end
 
 #pretty-print lines in REPL and jupyter notebooks
