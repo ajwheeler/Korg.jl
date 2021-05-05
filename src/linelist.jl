@@ -102,24 +102,26 @@ function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Abstract
     e = electron_charge_cgs
     m = electron_mass_cgs
     c = c_cgs
-    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf, 0.0, 
-         unsoeld(wl, species, E_lower))
+    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf,
+         approximate_gammas(wl, species, E_lower)...)
 end
 
+
 """
-A simplified form of the Unsoeld (1995) approximation for van der Waals broadening at 10,000 K.
+A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
+10,000 K.  The stark broadening 
 Returns log10(γ_vdW).
 
-Uses the approximation that
+In the calculation of n*², uses the approximation that
 \\overbar{r}^2 = 5/2 {n^*}^4 / Z^2
-instead of the form given in Warner 1967.
+which neglects the dependence on the angular momentum quantum number, l, in the the form given by
+Warner 1967.
 
-Used for atomic lines with no vdW broadening info in the line list.
+Used for atomic lines with no vdW and stark broadening info in the line list.
 """
-
-unsoeld(line; ionization_energies=ionization_energies) =
-    unsoeld(line.wl, line.species, line.E_lower; ionization_energies=ionization_energies)
-function unsoeld(wl, species, E_lower; ionization_energies=ionization_energies)
+approximate_gammas(line; ionization_energies=ionization_energies) =
+    approximate_gammas(line.wl, line.species, line.E_lower; ionization_energies=ionization_energies)
+function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
     ionization = split(species, '_')[2]
     Z = if ionization == "I"
         1
@@ -133,9 +135,16 @@ function unsoeld(wl, species, E_lower; ionization_energies=ionization_energies)
     h = hplanck_eV
     k = kboltz_cgs
     E_upper = E_lower + (h * c / wl)
+
+    nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
+    #From Cowley 1971
+    γstark = 0.77e-18 * nstar4_upper * wl^2
+
     Δrbar2 = (5/2) * RydbergH_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
-    #From R J Rutten's course notes
-    6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+    #From R J Rutten's course notes, en equivalent form is also in Gray 2005
+    γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+
+    γstark, γvdW
 end
 
 #pretty-print lines in REPL and jupyter notebooks

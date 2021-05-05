@@ -36,8 +36,9 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / mass + ξ^2) / c_cgs
 
         #get all damping params from line list.  There may be better sources for this.
-        Γ = (line.gamma_rad + nₑ*line.gamma_stark  + 
-             (n_densities["H_I"] + 0.42n_densities["He_I"])*gamma_vdW(line.vdW, mass, temp))
+        Γ = (line.gamma_rad + 
+                nₑ*scaled_stark(line.gamma_stark, temp)  + 
+                (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
 
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = Γ * line.wl^2 / c_cgs
@@ -70,8 +71,16 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     α_lines
 end
 
-gamma_vdW(vdW::AbstractFloat, m, T, T₀=10_000) = vdW * (T/T₀)^0.3
-function gamma_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
+"the stark broadening gamma scaled acording to its temperature dependence"
+scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)
+
+             
+"""
+the vdW broadening gamma scaled acording to its temperature dependence, using either simple scaling 
+or ABO
+"""
+scaled_vdW(vdW::AbstractFloat, m, T, T₀=10_000) = vdW * (T/T₀)^0.3
+function scaled_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
     v₀ = 1e6 #σ is given at 10_000 m/s = 10^6 cm/s
     σ = vdW[1]
     α = vdW[2]
@@ -81,6 +90,7 @@ function gamma_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
     #n.b. "gamma" is the gamma function, not a broadening parameter
     2 * (4/π)^(α/2) * gamma((4-α)/2) * v₀ * σ * (vbar/v₀)^(1-α)
 end
+
 
 #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
 function move_bounds(λs, lb, ub, λ₀, window_size)
