@@ -119,8 +119,6 @@ Warner 1967.
 
 Used for atomic lines with no vdW and stark broadening info in the line list.
 """
-approximate_gammas(line; ionization_energies=ionization_energies) =
-    approximate_gammas(line.wl, line.species, line.E_lower; ionization_energies=ionization_energies)
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
     ionization = split(species, '_')[2]
     Z = if ionization == "I"
