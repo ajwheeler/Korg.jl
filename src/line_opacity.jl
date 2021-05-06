@@ -63,10 +63,11 @@ end
 """
     line_profile(temp, atomic_mass, ξ, line, λs)
 
-The line profile, ϕ, at wavelengths `λs` in cm.
+The line profile, ``\\phi``, evaluated at wavelengths `λs` in cm.
 `temp` should be in K, `atomic_mass` should be in g, microturbulent velocity, `ξ`, should be in 
 cm/s, `line` should be one of the entries returned by `read_line_list`.
-Note that this returns values in units of cm^-1, not Å^-1
+Note that this returns values in units of cm^-1, not Å^-1, and that 
+``\\int\\phi\\textrm{d}\\lambda = 1``.
 """
 function line_profile(temp::F, atomic_mass::F, ξ::F, line::Line, λs::AbstractVector{F}
                      ) where F <:  AbstractFloat
@@ -96,6 +97,11 @@ function harris_series(v) # assume v < 5
     H₀, H₁, H₂
 end
 
+"""
+    voigt(α, v)
+
+The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions), ``H``.
+"""
 function voigt(α, v)
     if α <= 0.2 
         if (v >= 5)

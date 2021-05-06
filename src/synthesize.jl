@@ -25,7 +25,6 @@ optional arguments:
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
-
 function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, vmic=1.0, 
                     abundances=Dict(), line_window::F=10.0, cntm_step=1.0::F,
                     ionization_energies=ionization_energies, 
