@@ -191,6 +191,10 @@ end
         moog_linelist = Korg.read_line_list("data/s5eqw_short.moog"; format="moog")
         @testset "moog linelist parsing" begin
             @test issorted(moog_linelist, by=l->l.wl)
+            @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
+            @test moog_linelist[1].log_gf ≈ -0.280
+            @test moog_linelist[1].species == "Ti_I"
+            @test moog_linelist[2].E_lower ≈ 3.265
         end
 
         @test typeof(vald_linelist) == typeof(kurucz_linelist) == typeof(moog_linelist)
