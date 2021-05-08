@@ -159,13 +159,13 @@ Pass `format="kurucz"` for a [Kurucz line list](http://kurucz.harvard.edu/lineli
 
 Note that dissociation energies in a MOOG line list will be ignored.
 """
-function read_line_list(fname::String; format="kurucz", skiplines=2) :: Vector{Line}
+function read_line_list(fname::String; format="vald") :: Vector{Line}
     format = lowercase(format)
     linelist = open(fname) do f
         if format == "kurucz"
             parse_kurucz_linelist(f)
         elseif format == "vald"
-            parse_vald_linelist(f, skiplines)
+            parse_vald_linelist(f)
         elseif format == "moog"
             parse_moog_linelist(f)
         else
@@ -211,24 +211,53 @@ function parse_kurucz_linelist(f)
     end
 end
 
-function parse_vald_linelist(f, skiplines)
+function _vald_to_korg_species_code(s)
+     symbol, num = split(s[2:end-1], ' ')
+     num = parse(Int, num)
+     symbol * "_" * numerals[num]
+end
+
+function parse_vald_linelist(f)
     lines = collect(eachline(f))
-    #take only every fourth line in the file skipping the header and footer
-    #the other three file lines per spectral line don't contain info we need.
-    lines = lines[skiplines+1:4:findfirst(l->startswith(l, "*"), lines)-1]
+
+    #figure out how big the header is
+    firstline = findfirst(lines) do line
+        line[1] == '\''
+    end
+
+    #vald short or long format?
+    if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
+        Δ = 1 # short format
+        shortformat = true
+    else 
+        Δ = 4 #long format
+        shortformat = false
+    end
+    lines = lines[firstline:Δ:end]
+    lastline = -1 + findfirst(lines) do line
+        !((line[1] == '\'') && isuppercase(line[2]))
+    end
+    lines = lines[1:lastline]
+
     map(lines) do line
         toks = split(line, ',')
-        Line(parse(Float64, toks[2])*1e-8,
-             parse(Float64, toks[3]),
-             begin 
-                 symbol, num = split(toks[1][2:end-1], ' ')
-                 num = parse(Int, num)
-                 symbol * "_" * numerals[num]
-             end,
-             parse(Float64, toks[4]),
-             expOrZero(parse(Float64, toks[11])),
-             expOrZero(parse(Float64, toks[12])),
-             parse(Float64, toks[13]))
+        if shortformat
+            Line(parse(Float64, toks[2])*1e-8,
+                 parse(Float64, toks[5]),
+                 _vald_to_korg_species_code(toks[1]),
+                 parse(Float64, toks[3]),
+                 expOrZero(parse(Float64, toks[6])),
+                 expOrZero(parse(Float64, toks[7])),
+                 parse(Float64, toks[8]))
+        else
+            Line(parse(Float64, toks[2])*1e-8,
+                 parse(Float64, toks[3]),
+                 _vald_to_korg_species_code(toks[1]),
+                 parse(Float64, toks[4]),
+                 expOrZero(parse(Float64, toks[11])),
+                 expOrZero(parse(Float64, toks[12])),
+                 parse(Float64, toks[13]))
+        end
     end
 end
 

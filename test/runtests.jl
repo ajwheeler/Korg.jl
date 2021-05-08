@@ -147,7 +147,7 @@ end
         @test_throws ArgumentError Korg.read_line_list("data/gfallvac08oct17.stub.dat";
                                                           format="abc")
 
-        kurucz_linelist = Korg.read_line_list("data/gfallvac08oct17.stub.dat")
+        kurucz_linelist = Korg.read_line_list("data/gfallvac08oct17.stub.dat", format="kurucz")
         @testset "kurucz linelist parsing" begin
             @test issorted(kurucz_linelist, by=l->l.wl)
             @test length(kurucz_linelist) == 988
@@ -160,9 +160,8 @@ end
             @test kurucz_linelist[1].vdW ≈ 1.2302687708123812e-7
         end
 
-        vald_linelist = Korg.read_line_list("data/twolines.vald"; format="vald")
-        @testset "vald linelist parsing" begin
-            @test issorted(vald_linelist, by=l->l.wl)
+        vald_linelist = Korg.read_line_list("data/twolines.vald")
+        @testset "vald long format linelist parsing" begin
             @test length(vald_linelist) == 2
             @test vald_linelist[1].wl ≈ 3002.20106 * 1e-8
             @test vald_linelist[1].log_gf == -1.132
@@ -172,8 +171,21 @@ end
             @test vald_linelist[1].gamma_stark ≈ 2.6302679918953817e-6
             @test vald_linelist[1].vdW ≈ 1.9498445997580454e-8
 
+            #test ABO parameters
             @test vald_linelist[2].vdW[1] ≈ 1.3917417470792187e-14
             @test vald_linelist[2].vdW[2] ≈ 0.227
+        end
+
+        vald_shortformat_linelist = Korg.read_line_list("data/short.vald")
+        @testset "vald short format linelist parsing" begin
+            @test length(vald_linelist) == 2
+            @test vald_shortformat_linelist[1].wl ≈ 3000.0414 * 1e-8
+            @test vald_shortformat_linelist[1].log_gf == -2.957
+            @test vald_shortformat_linelist[1].species == "Fe_I"
+            @test vald_shortformat_linelist[1].E_lower ≈ 3.3014
+            @test vald_shortformat_linelist[1].gamma_rad ≈ 1.905460717963248e7
+            @test vald_shortformat_linelist[1].gamma_stark ≈ 0.0001230268770812381
+            @test vald_shortformat_linelist[1].vdW ≈ 4.6773514128719815e-8
         end
 
         moog_linelist = Korg.read_line_list("data/s5eqw_short.moog"; format="moog")
