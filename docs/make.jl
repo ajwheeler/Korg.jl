@@ -6,6 +6,7 @@ makedocs(sitename="Korg",
          modules=[Korg],
          pages=[
                 "Quickstart" => "index.md"
+                "Install" => "install.md"
                 "All Functions" => "API.md"
                 "References" => "refs.md"
                ],
