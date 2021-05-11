@@ -147,7 +147,7 @@ end
         @test_throws ArgumentError Korg.read_line_list("data/gfallvac08oct17.stub.dat";
                                                           format="abc")
 
-        kurucz_linelist = Korg.read_line_list("data/gfallvac08oct17.stub.dat")
+        kurucz_linelist = Korg.read_line_list("data/gfallvac08oct17.stub.dat", format="kurucz")
         @testset "kurucz linelist parsing" begin
             @test issorted(kurucz_linelist, by=l->l.wl)
             @test length(kurucz_linelist) == 988
@@ -155,45 +155,70 @@ end
             @test kurucz_linelist[1].log_gf == -0.826
             @test kurucz_linelist[1].species == "Be_II"
             @test kurucz_linelist[1].E_lower ≈ 17.360339371573698
-            @test kurucz_linelist[1].log_gamma_rad == 7.93
-            @test kurucz_linelist[1].log_gamma_stark == -2.41
-            @test kurucz_linelist[1].log_gamma_vdW == -6.91
+            @test kurucz_linelist[1].gamma_rad ≈ 8.511380382023759e7
+            @test kurucz_linelist[1].gamma_stark ≈ 0.003890451449942805
+            @test kurucz_linelist[1].vdW ≈ 1.2302687708123812e-7
         end
 
-        vald_linelist = Korg.read_line_list("data/Ylines.vald"; format="vald")
-        @testset "vald linelist parsing" begin
-            @test issorted(vald_linelist, by=l->l.wl)
-            @test length(vald_linelist) == 4584
+        vald_linelist = Korg.read_line_list("data/twolines.vald")
+        @testset "vald long format linelist parsing" begin
+            @test length(vald_linelist) == 2
             @test vald_linelist[1].wl ≈ 3002.20106 * 1e-8
             @test vald_linelist[1].log_gf == -1.132
             @test vald_linelist[1].species == "Y_II"
             @test vald_linelist[1].E_lower ≈ 3.3757
-            @test vald_linelist[1].log_gamma_rad == 8.620
-            @test vald_linelist[1].log_gamma_stark == -5.580
-            @test vald_linelist[1].log_gamma_vdW == -7.710
+            @test vald_linelist[1].gamma_rad ≈ 4.1686938347033465e8
+            @test vald_linelist[1].gamma_stark ≈ 2.6302679918953817e-6
+            @test vald_linelist[1].vdW ≈ 1.9498445997580454e-8
+
+            #test ABO parameters
+            @test vald_linelist[2].vdW[1] ≈ 1.3917417470792187e-14
+            @test vald_linelist[2].vdW[2] ≈ 0.227
+        end
+
+        vald_shortformat_linelist = Korg.read_line_list("data/short.vald")
+        @testset "vald short format linelist parsing" begin
+            @test length(vald_linelist) == 2
+            @test vald_shortformat_linelist[1].wl ≈ 3000.0414 * 1e-8
+            @test vald_shortformat_linelist[1].log_gf == -2.957
+            @test vald_shortformat_linelist[1].species == "Fe_I"
+            @test vald_shortformat_linelist[1].E_lower ≈ 3.3014
+            @test vald_shortformat_linelist[1].gamma_rad ≈ 1.905460717963248e7
+            @test vald_shortformat_linelist[1].gamma_stark ≈ 0.0001230268770812381
+            @test vald_shortformat_linelist[1].vdW ≈ 4.6773514128719815e-8
         end
 
         moog_linelist = Korg.read_line_list("data/s5eqw_short.moog"; format="moog")
         @testset "moog linelist parsing" begin
             @test issorted(moog_linelist, by=l->l.wl)
+            @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
+            @test moog_linelist[1].log_gf ≈ -0.280
+            @test moog_linelist[1].species == "Ti_I"
+            @test moog_linelist[2].E_lower ≈ 3.265
         end
 
         @test typeof(vald_linelist) == typeof(kurucz_linelist) == typeof(moog_linelist)
     end
 
+    @testset "move_bounds" begin
+        a = collect(0.5 .+ (1:9))
+        for lb in [1, 3, 9], ub in [1, 5, 9]
+            @test Korg.move_bounds(a, lb, ub, 5., 2.) == (3, 6)
+            @test Korg.move_bounds(a, lb, ub, 0., 3.) == (1, 2)
+            @test Korg.move_bounds(a, lb, ub, 6., 4.) == (2, 9)
+        end
+    end
+
     @testset "line profile" begin
-        linelist = Korg.read_line_list("data/gfallvac08oct17.stub.dat")
-
-        @test issorted(Korg.line_profile(5000.0, Korg.atomic_masses["Be"], 1e5, linelist[1], 
-                                            72.30e-5 : 1e-10 : linelist[1].wl))
-        @test issorted(Korg.line_profile(5000.0, Korg.atomic_masses["Be"], 0.0, linelist[1], 
-                                            linelist[1].wl : 1e-10 : 72.35e-5), rev=true)
-
-        Δ = 1e-9 #cm (== 0.1 Å)
-        s =  sum(Korg.line_profile(5000.0, Korg.atomic_masses["Be"], 2e5, linelist[1],
-                                      72.300e-5 : Δ : 72.350e-5))
-        #must convert from cm^-1 to Å^-1
-        @test 0.999 < s * Δ <= 1.0
+        Δ = 0.01
+        wls = (4955 : Δ : 5045) * 1e-8
+        Δ *= 1e-8
+        for Δλ_D in [1e-7, 1e-8, 1e-9], Δλ_L in [1e-8, 1e-9]
+            ϕ = Korg.line_profile(5e-5, Δλ_D, Δλ_L, wls)
+            @test issorted(ϕ[1 : Int(ceil(end/2))])
+            @test issorted(ϕ[Int(ceil(end/2)) : end], rev=true)
+            @test 0.99 < sum(ϕ .* Δ) < 1
+        end
     end
 end
 

@@ -1,0 +1,130 @@
+                                                                    Lande factors       Damping parameters
+Elm Ion      WL_vac(A)   log gf* E_low(eV) J lo E_up(eV)  J up  lowe
+'Y 2',       3002.20106,  -1.132,  3.3757,  2.0,  7.5055,  2.0,  0.760,  1.090,  0.930, 8.620,-5.580,  -7.710
+'  LS                                                                            4d.5p z3F*'
+'  LS                                                                               5p2 f1D'
+'_          Kurucz Y II 2011  66 wl:K11  66 gf:K11  66 K11  66 K11  66 K11  66 K11  66 K11  66 K11  66 K11             Y+'
+'Fe 2',      3002.27425,  -1.086,  8.0350,  0.5, 12.1647,  1.5,  0.870,  1.550,  1.710, 8.910,-5.720, 497.227
+'  LS                                                                     3d6.(3P2).4p z2P*'
+'  LS                                                                        3d6.(3P).5s 4P'
+* oscillator strengths were scaled by the solar isotopic ratios.
+ References:
+  1. Plez 2012 Ti50O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  2. Plez 2012 Ti47O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  3. Plez 2012 Ti46O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  4. Plez 2012 Ti48O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  5. Plez 2012 Ti49O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  6. ISAN data
+  7. Brooke 2014 obs:  CN
+  8. Kurucz obs. energy level: V 2
+  9. Kurucz obs. energy level: Mn 3
+ 10. Mn 3: Raassen & Uylings
+ 11. Brooke 2013 obs:  C2-12
+ 12. Kurucz obs. energy level: Fe 1
+ 13. Brooke 2014 obs:  CN
+ 14. Th 3: DREAM data
+ 15. Ce 2: DREAM data
+ 16. Kurucz 2019 obs:  OH
+ 17. Kurucz 2010 obs:  CO
+ 18. Kurucz obs. energy level: V 1
+ 19. Hf 1 - U 2 Bell
+ 20. Ce 3: DREAM data
+ 21. Kurucz obs. energy level: Cr 2
+ 22. Cr 2: Raassen & Uylings
+ 23. Van der Waals data
+ 24. Li 1 - K 5 Bell
+ 25. Kurucz obs. energy level: Cr 3
+ 26. Kurucz obs. energy level: O 4
+ 27. Kurucz obs. energy level: Fe 5
+ 28. Kurucz obs. energy level: Sc 2
+ 29. Yb 3: DREAM data
+ 30. Kurucz obs. energy level: Mn 2
+ 31. Kurucz obs. energy level: Cu 2
+ 32. Kurucz obs. energy level: Fe 3
+ 33. Fe 1: exp. data
+ 34. Kurucz obs. energy level: Cr 1
+ 35. Kurucz obs. energy level: Fe 2
+ 36. Fe 2: Raassen & Uylings
+ 37. Hg 2 theor. data
+ 38. Wisconsin exp. data with IS
+ 39. Yb 2: DREAM data
+ 40. Kurucz obs. energy level: Ca 1
+ 41. Kurucz obs. energy level: Ti 2
+ 42. Kurucz obs. energy level: Co 1
+ 43. Kurucz obs. energy level: Co 2
+ 44. Co 2: Raassen & Uylings
+ 45. Kurucz obs. energy level: Mn 1
+ 46. Kurucz obs. energy level: Ti 1
+ 47. Ho 3: DREAM data
+ 48. Kurucz obs. energy level: V 3
+ 49. Kurucz obs. energy level: Ni 3
+ 50. NH: Brooks 2015 XX, Fernando 2018 AX
+ 51. Kurucz obs. energy level: Fe 4
+ 52. Cu 1 - Ba 2 Bell
+ 53. Kurucz obs. energy level: Ni 2
+ 54. Er 3: DREAM data
+ 55. Kurucz obs. energy level: Ti 3
+ 56. Kurucz obs. energy level: Co 5
+ 57. Kurucz obs. energy level: Sc 4
+ 58. Co: NBS data
+ 59. Tm 2: DREAM data
+ 60. Kurucz obs. energy level: S 1
+ 61. Kurucz obs. energy level: Co 3
+ 62. Ti1-Cr1-Mn1-Mn2-Ni2 Wisconsin exp. data
+ 63. Cr: NBS data
+ 64. Kurucz obs. energy level: Ni 5
+ 65. Kurucz obs. energy level: Cu 1
+ 66. Kurucz obs. energy level: Y 2
+ 67. Ne 1-9: NIST 2010
+ 68. Tm 3: DREAM data
+ 69. Lund: theor. data
+ 70. ISAN data
+ 71. Kurucz obs. energy level: Y 1
+ 72. Kurucz obs. energy level: Ni 1
+ 73. Kurucz obs. energy level: P 2
+ 74. La 1 - Lu 2 Bell
+ 75. VALD2: Ni 1
+ 76. Kurucz obs. energy level: Si 1
+ 77. Fe 2: exp. data
+ 78. Kurucz obs. energy level: Ni 7
+ 79. Ti1-Ti2-Mn1 IC exp. data
+ 80. Kurucz obs. energy level: Ni 6
+ 81. Kurucz obs. energy level: Ca 2
+ 82. Lund: exp. data
+ 83. C 1-6, N 1-7, O 1-8, Na 1, Mg 1: NIST 2010
+ 84. Kurucz obs. energy level: C 2
+ 85. Wallace wavelength data
+ 86. Kurucz obs. energy level: V 4
+ 87. Kurucz obs. energy level: Co 6
+ 88. Kurucz obs. energy level: Ca 3
+ 89. Kurucz obs. energy level: Sc 5
+ 90. Kurucz obs. energy level: Ni 8
+ 91. VALD2: Ru
+ 92. Kurucz obs. energy level: Sc 1
+ 93. Kurucz obs. energy level: Si 2
+ 94. Mn: NBS data
+ 95. La 3: DREAM data
+ 96. Kurucz obs. energy level: Ni 4
+ 97. VALD2: Y 3
+ 98. VALD2: Sc
+ 99. VALD2: Au
+100. VALD2: Pb 2
+101. V : NBS data
+102. Kurucz obs. energy level: Co 4
+103. VALD2: Mn 2
+104. Kurucz obs. energy level: Cr 4
+105. Lu 2: DREAM data
+106. Kurucz obs. energy level: V 5
+107. Kurucz obs. energy level: Fe 7
+108. NLTE lines: K
+109. Sc: NBS data
+110. Kurucz obs. energy level: K 2
+111. NLTE lines: Al
+112. Kurucz obs. energy level: Mn 4
+113. Lu 3: DREAM data
+114. VALD2: Ti 2
+115. Kurucz obs. energy level: Ca 9
+116. Er 2: DREAM data
+117. C 1-6, N 1-7, O 1-8, Na 1, Mg 1: NIST 2010
+118. Ti: NBS data
+119. Kurucz obs. energy level: Sr 2
