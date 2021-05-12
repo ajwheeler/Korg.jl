@@ -24,7 +24,14 @@ otherwise specified
 """
 function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
                          ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
-    α_lines = zeros(length(λs))
+    if length(linelist) == 0
+        return 0
+    end
+
+    #type shenanigans to allow autodiff to do its thing
+    α_type = typeof(promote(linelist[1].wl, λs[1], temp, nₑ, n_densities["H_I"], ξ, cutoff_threshold
+                           )[1])
+    α_lines = zeros(α_type, length(λs))
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
     lb = 1
@@ -81,8 +88,8 @@ scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)
 the vdW broadening gamma scaled acording to its temperature dependence, using either simple scaling 
 or ABO
 """
-scaled_vdW(vdW::AbstractFloat, m, T, T₀=10_000) = vdW * (T/T₀)^0.3
-function scaled_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
+scaled_vdW(vdW::Real, m, T, T₀=10_000) = vdW * (T/T₀)^0.3
+function scaled_vdW(vdW::Tuple{F, F}, m, T) where F <: Real
     v₀ = 1e6 #σ is given at 10_000 m/s = 10^6 cm/s
     σ = vdW[1]
     α = vdW[2]
@@ -123,7 +130,7 @@ end
 The cross-section (divided by gf) at wavelength `wl` in Ångstroms of a transition for which the product of the
 degeneracy and oscillator strength is `10^log_gf`.
 """
-function sigma_line(λ) where F <: AbstractFloat
+function sigma_line(λ) where F <: Real
     #work in cgs
     e  = electron_charge_cgs
     mₑ = electron_mass_cgs
@@ -138,11 +145,11 @@ end
 A normalized voigt profile centered on λ₀ with doppler width `invΔλ_D` = 1/Δλ_D and lorentz width 
 `Δλ_L` evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
 """
-function line_profile(λ₀, invΔλ_D::F, Δλ_L, line_amplitude::F, λ::F) where F <: AbstractFloat
+function line_profile(λ₀, invΔλ_D::F, Δλ_L, line_amplitude::F, λ::F) where F <: Real
     _line_profile(λ₀, invΔλ_D, Δλ_L*invΔλ_D/(4π), line_amplitude*invΔλ_D/sqrt(π), λ)
 end
 function _line_profile(λ₀, invΔλ_D::F, Δλ_L_invΔλ_D_div_4π::F, amplitude_invΔλ_D_div_sqrt_π::F, λ::F
-                      ) where F <:  AbstractFloat
+                      ) where F <: Real
     voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 

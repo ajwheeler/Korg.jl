@@ -2,6 +2,7 @@ using SpecialFunctions: expint
 import Interpolations #for Interpolations.line
 using Interpolations: LinearInterpolation
 import ..ContinuumOpacity
+import ForwardDiff
 
 """
     synthesize(atm, linelist, λs, [metallicity, [alpha]]; abundances=Dict())
@@ -26,11 +27,10 @@ optional arguments:
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
-function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, vmic=1.0, 
-                    abundances=Dict(), line_window::F=10.0, cntm_step=1.0::F,
-                    ionization_energies=ionization_energies, 
-                    partition_funcs=partition_funcs,
-                    equilibrium_constants=equilibrium_constants) where F <: AbstractFloat
+function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, abundances=Dict(), 
+                    line_window::Real=10.0, cntm_step::Real=1.0, 
+                    ionization_energies=ionization_energies, partition_funcs=partition_funcs,
+                    equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
@@ -61,7 +61,10 @@ function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, v
                                            equilibrium_constants)
 
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α = Matrix{F}(undef, length(atm), length(λs))
+    α_type = typeof(promote(atm[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
+                            metallicity, vmic, abundances["H"])[1])
+    println(α_type)
+    α = Matrix{α_type}(undef, length(atm), length(λs))
     for (i, layer) in enumerate(atm)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
                                                  layer.electron_density)
@@ -75,8 +78,8 @@ function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, v
                                                            ) * layer.density)
         α[i, :] = α_cntm.(λs)
 
-        α[i, :] += line_absorption(linelist, λs, layer.temp, layer.electron_density, 
-                                   number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
+        α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_density, 
+                                    number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
 
     end
 
@@ -148,7 +151,7 @@ The total continuum opacity, κ, at many frequencies, ν.
 - `partition_funcs` is a `Dict mapping each species to its partition function
 """
 function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_densities::Dict, 
-                                 partition_funcs::Dict) where F <: AbstractFloat
+                                 partition_funcs::Dict) where F <: Real
     κ = zeros(F, length(νs))
 
     #TODO check all arguments

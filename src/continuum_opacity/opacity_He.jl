@@ -19,7 +19,7 @@ He_II_ff(nHe_III, ne, ν, ρ, T) = hydrogenic_ff_opacity(2, nHe_III, ne, ν, ρ,
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
-function ndens_state_He_I(n::Integer, nsdens_div_partition::Flt, T::Flt) where {Flt<:AbstractFloat}
+function ndens_state_He_I(n::Integer, nsdens_div_partition::Real, T::Real)
     g_n, energy_level = if n == 1
         (1.0, 0.0)
     elseif n == 2
@@ -84,8 +84,7 @@ approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10
 
 An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
 """
-function Heminus_ff(nHe_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
-                    T::Flt) where {Flt<:AbstractFloat}
+function Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real)
 
     λ = c_cgs * 1.0e8 / ν # Å
     if !(5063.0 <= λ <= 151878.0)
