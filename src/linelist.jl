@@ -85,7 +85,7 @@ struct Line{F}
     interpret it as log10(Γ) per particle.  Otherwise, interpret it as packed ABO parameters.
     """
     function Line(wl::F, log_gf::F, species::String, E_lower::F, gamma_rad::F, gamma_stark::F,
-                  vdW::F) where F <: AbstractFloat
+                  vdW::F) where F <: Real
         new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
                if vdW > 0
                    floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
@@ -98,7 +98,7 @@ end
 """
 Construct a `Line` without explicit broadening parameters.
 """
-function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: AbstractFloat
+function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Real
     e = electron_charge_cgs
     m = electron_mass_cgs
     c = c_cgs

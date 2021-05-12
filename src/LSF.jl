@@ -7,7 +7,7 @@ This will have weird behavior if your wavelength grid is not locally linearly-sp
 It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
 otherwise desired) grid.
 """
-function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: AbstractFloat
+function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
     convF = zeros(F, length(flux))
     for i in 1:length(wls)

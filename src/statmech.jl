@@ -50,7 +50,7 @@ function saha_ion_weights(T, nₑ, atom::String, ionization_energies::Dict, part
     wII, wIII
 end
 "convieience method for easier testing"
-function saha_ion_weights(T, nₑ, χs::Vector{<:AbstractFloat}, Us::Vector{Function})
+function saha_ion_weights(T, nₑ, χs::Vector{<:Real}, Us::Vector{Function})
     ionization_energies = Dict(["X" => χs])
     partition_funcs = Dict(["X_I" => Us[1], "X_II" => Us[2], "X_III" => Us[3]])
     saha_ion_weights(T, nₑ, "X", ionization_energies, partition_funcs)

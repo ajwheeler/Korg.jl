@@ -92,8 +92,7 @@ end
 # This is mostly used for comparisons against panels of figure 8.5 from Gray (2005). For most
 # curves, we can simply assert that there is a fixed ionization fraction because we divide out the
 # dependence on all of these terms during the calculation
-function _semi_realisitic_dens(ne::Flt, fion::Flt = 0.02,
-                               HydrogenMassFrac::Flt = 0.76) where {Flt<:AbstractFloat}
+function _semi_realisitic_dens(ne::F, fion::F= 0.02, HydrogenMassFrac::F= 0.76) where F <: Real
     # In the interest of semi-realistic numbers, Let's assume all free electrons come from Hydrogen
     nH_I = ne/fion
     nH = ne + nH_I
@@ -252,7 +251,7 @@ struct Bounds
     end
 end
 
-function inbounds(bounds::Bounds, vals::Array{T}) where {T<:AbstractFloat}
+function inbounds(bounds::Bounds, vals::Array{F}) where F <: Real
     map(vals) do val
         ((isnothing(bounds.lower) || bounds.lower <= val) &&
          (isnothing(bounds.upper) || bounds.upper >= val))

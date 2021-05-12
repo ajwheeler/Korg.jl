@@ -51,7 +51,7 @@ Compute the H⁻ bound-free cross-section, which has units of cm^2 per H⁻ part
 
 The cross-section does not include a correction for stimulated emission.
 """
-function _Hminus_bf_cross_section(ν::AbstractFloat)
+function _Hminus_bf_cross_section(ν::Real)
     λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
     if !(2250 <= λ <= 15000.0)
@@ -113,8 +113,8 @@ data from Wishart (1979). While Gray (2005) claims that the polynomial fits the 
 precision for 2250 Å ≤ λ ≤ 15000 Å, in practice we find that it fits the data to better than 0.25%
 precision. Wishart (1979) expects the tabulated data to have better than 1% percent accuracy.
 """
-function Hminus_bf(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt, T::Flt,
-                   ion_energy_H⁻::Flt = 0.7552) where {Flt<:AbstractFloat}
+function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real, 
+                   ion_energy_H⁻::Real = 0.7552)
     αbf_H⁻ = _Hminus_bf_cross_section(ν) # does not include contributions from stimulated emission
     stimulated_emission_correction = (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T)))
     n_H⁻ = _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy)
@@ -162,8 +162,7 @@ n(H I, n = 1) over the temperature range where the polynomial is valid.
 We also considered the polynomial fit in Section 5.3 from Kurucz (1970). Unfortunately, it seems
 wrong (it gives lots of negative numbers).
 """
-function Hminus_ff(nH_I_div_partition::Flt, ne::Flt, ν::Flt, ρ::Flt,
-                   T::Flt) where {Flt<:AbstractFloat}
+function Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real)
     λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
     if !(2604 <= λ <= 113918.0)
@@ -207,12 +206,12 @@ This uses polynomial fits from Gray (2005) that were derived from data tabulated
 [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
 
 # Arguments
-- `nH_I_div_partition::Float64`: the total number density of H I divided by its partition 
+- `nH_I_div_partition`: the total number density of H I divided by its partition 
    function.
-- `nH_II::Float64`: the number density of H II (not of H₂⁺).
-- `ν::Float64`: frequency in Hz
-- `ρ::Float64`: mass density in g/cm³
-- `T::Float64`: temperature in K
+- `nH_II`: the number density of H II (not of H₂⁺).
+- `ν`: frequency in Hz
+- `ρ`: mass density in g/cm³
+- `T`: temperature in K
 
 # Notes
 This follows equation 8.15 of Gray (2005), which involves 2 polynomials that were fit to data
@@ -247,8 +246,7 @@ times larger than the max λ the polynomials are fit against). He suggests that 
 probably correct "to well within one part in ten even at the lower temperatures and [lower
 wavelengths]."
 """
-function H2plus_bf_and_ff(nH_I_div_partition::Float64, nH_II::Float64, ν::Float64, ρ::Float64,
-                          T::Float64)
+function H2plus_bf_and_ff(nH_I_div_partition::Real, nH_II::Real, ν::Real, ρ::Real, T::Real)
     λ = c_cgs*1e8/ν # in ångstroms
     if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
         throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))
