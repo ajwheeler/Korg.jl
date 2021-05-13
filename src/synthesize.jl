@@ -63,7 +63,6 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α_type = typeof(promote(atm[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
                             metallicity, vmic, abundances["H"])[1])
-    println(α_type)
     α = Matrix{α_type}(undef, length(atm), length(λs))
     for (i, layer) in enumerate(atm)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
