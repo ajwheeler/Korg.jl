@@ -1,7 +1,6 @@
 import Interpolations #for Interpolations.line
 using Interpolations: LinearInterpolation
 import ..ContinuumOpacity
-import ForwardDiff
 
 """
     synthesize(atm, linelist, λs, [metallicity, [alpha]]; abundances=Dict())
