@@ -1,4 +1,3 @@
-using SpecialFunctions: expint
 import Interpolations #for Interpolations.line
 using Interpolations: LinearInterpolation
 import ..ContinuumOpacity
@@ -31,7 +30,7 @@ Uses solar abundances scaled by `metallicity` and for those not provided.
 function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, abundances=Dict(), 
                     line_window::Real=10.0, cntm_step::Real=1.0, 
                     ionization_energies=ionization_energies, partition_funcs=partition_funcs,
-                    equilibrium_constants=equilibrium_constants)
+                    equilibrium_constants=equilibrium_constants, verbose=true)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
@@ -47,8 +46,9 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     #because that will hopefully be set dynamically soon
     nlines = length(linelist)
     linelist = filter(l-> λs[1] - line_window*1e-8 <= l.wl <= λs[end] + line_window*1e-8, linelist)
-    if length(linelist) != nlines
-        @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
+    if verbose && length(linelist) != nlines
+        println("omitting $(nlines - length(linelist))" * 
+                " lines which fall outside the wavelength range")
     end
 
     #impotent = setdiff(Set(keys(abundances)), elements)
@@ -88,14 +88,13 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
     source_fn = blackbody.((l->l.temp).(atm), λs')
 
-    #This isn't the standard solution to the transfer equation.
     #The exponential integral function, expint, captures the integral over the disk of the star to 
     #get the emergent astrophysical flux. I was made aware of this form of the solution, by
     #Edmonds+ 1969 (https://ui.adsabs.harvard.edu/abs/1969JQSRT...9.1427E/abstract).
     #You can verify it by substituting the variable of integration in the exponential integal, t,
     #with mu=1/t.
     flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
-        trapezoid_rule(τ_λ, S_λ .* expint.(2, τ_λ))
+        trapezoid_rule(τ_λ, S_λ .* exponential_integral_2.(τ_λ))
     end
 
     #return the solution, along with other quantities across wavelength and atmospheric layer.
@@ -203,3 +202,76 @@ function trapezoid_rule(xs, fs)
     weights = [0 ; Δs] + [Δs ; 0]
     sum(0.5 * weights .* fs)
 end
+
+"""
+Approximate second order exponential integral, E_2(x).  This stiches together several series 
+expansions to get an approximation which is accurate within 1% for all `x`.
+"""
+function exponential_integral_2(x) 
+    if x < 1.1
+        _expint_small(x)
+    elseif x < 2.5
+        _expint_2(x)
+    elseif x < 3.5
+        _expint_3(x)
+    elseif x < 4.5
+        _expint_4(x)
+    elseif x < 5.5
+        _expint_5(x)
+    elseif x < 6.5
+        _expint_6(x)
+    elseif x < 7.5
+        _expint_7(x)
+    elseif x < 9
+        _expint_8(x)
+    else
+        _expint_large(x)
+    end
+end
+
+function _expint_small(x) 
+    #euler mascheroni constant
+    ℇ = 0.57721566490153286060651209008240243104215933593992
+    1 + ((log(x) + ℇ - 1) + (-0.5 + (0.08333333333333333 + (-0.013888888888888888 + 
+                                                            0.0020833333333333333*x)*x)*x)*x)*x
+end
+function _expint_large(x)
+    invx = 1/x
+    exp(-x) * (1 + (-2 + (6 + (-24 + 120*invx)*invx)*invx)*invx)*invx
+end
+function _expint_2(x)
+    x -= 2
+    0.037534261820486914 + (-0.04890051070806112 + (0.033833820809153176 + (-0.016916910404576574 + 
+                                          (0.007048712668573576 -0.0026785108140579598*x)*x)*x)*x)*x
+end
+function _expint_3(x)
+    x -= 3
+    0.010641925085272673   + (-0.013048381094197039   + (0.008297844727977323   + 
+            (-0.003687930990212144   + (0.0013061422257001345  - 0.0003995258572729822*x)*x)*x)*x)*x
+end
+function _expint_4(x)
+    x -= 4
+    0.0031982292493385146  + (-0.0037793524098489054  + (0.0022894548610917728  + 
+            (-0.0009539395254549051  + (0.00031003034577284415 - 8.466213288412284e-5*x )*x)*x)*x)*x
+end
+function _expint_5(x)
+    x -= 5
+    0.000996469042708825   + (-0.0011482955912753257  + (0.0006737946999085467  +
+            (-0.00026951787996341863 + (8.310134632205409e-5   - 2.1202073223788938e-5*x)*x)*x)*x)*x
+end
+function _expint_6(x)
+    x -= 6
+    0.0003182574636904001  + (-0.0003600824521626587  + (0.00020656268138886323 + 
+            (-8.032993165122457e-5   + (2.390771775334065e-5   - 5.8334831318151185e-6*x)*x)*x)*x)*x
+end
+function _expint_7(x)
+    x -= 7
+    0.00010350984428214624 + (-0.00011548173161033826 + (6.513442611103688e-5   + 
+            (-2.4813114708966427e-5  + (7.200234178941151e-6   - 1.7027366981408086e-6*x)*x)*x)*x)*x
+end
+function _expint_8(x)
+    x -= 8
+    3.413764515111217e-5   + (-3.76656228439249e-5    + (2.096641424390699e-5   + 
+            (-7.862405341465122e-6   + (2.2386015208338193e-6  - 5.173353514609864e-7*x )*x)*x)*x)*x
+end
+
