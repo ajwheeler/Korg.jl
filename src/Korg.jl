@@ -18,6 +18,6 @@ module Korg
 
     include("continuum_opacity/continuum_opacity.jl") #Define continuum opacity functions.
     include("synthesize.jl")                          #solve radiative transfer equation
-    include("LSF.jl")                                 #functions to apply LSF
+    include("utils.jl")                               #functions to apply LSF, vac<->air wls
 
 end # module
