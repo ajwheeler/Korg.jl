@@ -225,6 +225,17 @@ function parse_vald_linelist(f)
         line[1] == '\''
     end
 
+    #air or vacuum wls?
+    wl_header = split(lines[firstline-1])[3]
+    if contains(wl_header, "air")
+        wl_transform = air_to_vacuum
+    elseif contains(wl_header, "vac")
+        wl_transform = identity
+    else
+        throw(ArgumentError(
+            "Can't parse line list.  I don't understant this wavelength column name: " * wl_header))
+    end
+
     #vald short or long format?
     if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
         Δ = 1 # short format
