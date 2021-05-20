@@ -20,3 +20,15 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     end
     convF
 end
+
+function air_to_vacuum(λ)
+    s = 1e4/λ
+    n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - s^2) + 0.0001599740894897 / (38.92568793293 - s^2)
+    λ * n
+end
+
+function vacuum_to_air(λ)
+    s = 1e4/λ
+    n = 1 + 0.0000834254 + 0.02406147 / (130 - s^2) + 0.00015998 / (38.9 - s^2)
+    λ / n
+end
