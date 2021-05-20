@@ -147,7 +147,8 @@ end
 
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", line::Line)
-    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å")
+    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å [log(gf) = ", 
+          round(line.log_gf, digits=3), "]")
 end
 
 """
@@ -224,17 +225,7 @@ function parse_vald_linelist(f)
     firstline = findfirst(lines) do line
         line[1] == '\''
     end
-
-    #air or vacuum wls?
-    wl_header = split(lines[firstline-1])[3]
-    if contains(wl_header, "air")
-        wl_transform = air_to_vacuum
-    elseif contains(wl_header, "vac")
-        wl_transform = identity
-    else
-        throw(ArgumentError(
-            "Can't parse line list.  I don't understant this wavelength column name: " * wl_header))
-    end
+    header = split(lines[firstline-1])
 
     #vald short or long format?
     if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
@@ -250,21 +241,41 @@ function parse_vald_linelist(f)
     end
     lines = lines[1:lastline]
 
+    #air or vacuum wls?
+    if contains(header[3], "air")
+        wl_transform = air_to_vacuum
+    elseif contains(header[3], "vac")
+        wl_transform = identity
+    else
+        throw(ArgumentError(
+            "Can't parse line list.  I don't understand this wavelength column name: " * header[3]))
+    end
+    #Energy in cm^-1 or eV?
+    E_col = header[shortformat ? 4 : 6]
+    if contains(E_col, "eV")
+        E_transform = identity
+    elseif contains(E_col, "cm")
+        E_transform(x) = x * c_cgs * hplanck_eV
+    else
+        throw(ArgumentError(
+            "Can't parse line list.  I don't understand this energy column name: " * E_col))
+    end
+
     map(lines) do line
         toks = split(line, ',')
         if shortformat
-            Line(parse(Float64, toks[2])*1e-8,
+            Line(wl_transform(parse(Float64, toks[2])*1e-8),
                  parse(Float64, toks[5]),
                  _vald_to_korg_species_code(toks[1]),
-                 parse(Float64, toks[3]),
+                 E_transform(parse(Float64, toks[3])),
                  expOrZero(parse(Float64, toks[6])),
                  expOrZero(parse(Float64, toks[7])),
                  parse(Float64, toks[8]))
         else
-            Line(parse(Float64, toks[2])*1e-8,
+            Line(wl_transform(parse(Float64, toks[2])*1e-8),
                  parse(Float64, toks[3]),
                  _vald_to_korg_species_code(toks[1]),
-                 parse(Float64, toks[4]),
+                 E_transform(parse(Float64, toks[4])),
                  expOrZero(parse(Float64, toks[11])),
                  expOrZero(parse(Float64, toks[12])),
                  parse(Float64, toks[13]))
