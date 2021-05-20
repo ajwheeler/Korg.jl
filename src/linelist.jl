@@ -259,17 +259,7 @@ function parse_vald_linelist(f)
     firstline = findfirst(lines) do line
         line[1] == '\''
     end
-
-    #air or vacuum wls?
-    wl_header = split(lines[firstline-1])[3]
-    if contains(wl_header, "air")
-        wl_transform = air_to_vacuum
-    elseif contains(wl_header, "vac")
-        wl_transform = identity
-    else
-        throw(ArgumentError(
-            "Can't parse line list.  I don't understant this wavelength column name: " * wl_header))
-    end
+    header = split(lines[firstline-1])
 
     #vald short or long format?
     if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
@@ -288,6 +278,26 @@ function parse_vald_linelist(f)
     #filter out ions beyond III
     filter!(lines) do line
         findfirst(split(_vald_to_korg_species_code(split(line, ',')[1]), '_')[2] .== numerals) <= 3
+    end
+
+    #air or vacuum wls?
+    if contains(header[3], "air")
+        wl_transform = air_to_vacuum
+    elseif contains(header[3], "vac")
+        wl_transform = identity
+    else
+        throw(ArgumentError(
+            "Can't parse line list.  I don't understand this wavelength column name: " * header[3]))
+    end
+    #Energy in cm^-1 or eV?
+    E_col = header[shortformat ? 4 : 6]
+    if contains(E_col, "eV")
+        E_transform = identity
+    elseif contains(E_col, "cm")
+        E_transform(x) = x * c_cgs * hplanck_eV
+    else
+        throw(ArgumentError(
+            "Can't parse line list.  I don't understand this energy column name: " * E_col))
     end
 
     map(lines) do line
