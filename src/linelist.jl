@@ -106,14 +106,13 @@ function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Real
          approximate_gammas(wl, species, E_lower)...)
 end
 
-
 """
 A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
 10,000 K.  The stark broadening 
 Returns log10(γ_vdW).
 
 In the calculation of n*², uses the approximation that
-\\overbar{r}^2 = 5/2 {n^*}^4 / Z^2
+\\overbar{r^2} = 5/2 {n^*}^4 / Z^2
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
 Warner 1967.
 
