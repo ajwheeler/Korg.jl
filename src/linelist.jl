@@ -124,7 +124,7 @@ A simplified form of the Unsoeld (1995) approximation for van der Waals and Star
 Returns log10(γ_vdW).
 
 In the calculation of n*², uses the approximation that
-\\overbar{r}^2 = 5/2 {n^*}^4 / Z^2
+\\overbar{r^2} = 5/2 {n^*}^4 / Z^2
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
 Warner 1967.
 

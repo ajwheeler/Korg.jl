@@ -1,5 +1,6 @@
 module Korg
-    export synthesize, constant_R_LSF, read_line_list, read_model_atmosphere
+    export synthesize, constant_R_LSF, rectify, air_to_vacuum, vacuum_to_air, read_line_list, 
+            read_model_atmosphere
 
     _data_dir = joinpath(@__DIR__, "../data") 
 
@@ -18,6 +19,6 @@ module Korg
 
     include("continuum_opacity/continuum_opacity.jl") #Define continuum opacity functions.
     include("synthesize.jl")                          #solve radiative transfer equation
-    include("utils.jl")                               #functions to apply LSF, vac<->air wls
+    include("utils.jl")                               #functions to apply LSF, vac<->air wls, etc
 
 end # module
