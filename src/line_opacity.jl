@@ -49,6 +49,13 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
                   (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
         end
 
+        #hack in Hα resonant broadening
+        if line.species == "H_I" && (6e-5 < line.wl < 7e-5)
+            Γauto = scaled_vdW((1180*bohr_radius_cgs^2, 0.677), mass, temp) * n_densities["H_I"] 
+            Γstark = nₑ*scaled_stark(line.gamma_stark, temp)
+            Γ += Γauto - Γstark
+        end
+
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = Γ * line.wl^2 / c_cgs
 

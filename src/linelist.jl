@@ -303,14 +303,30 @@ function parse_vald_linelist(f)
     map(lines) do line
         toks = split(line, ',')
         if shortformat
-            new_line_imputing_zeros(
-                parse(Float64, toks[2])*1e-8,
-                parse(Float64, toks[5]),
-                _vald_to_korg_species_code(toks[1]),
-                parse(Float64, toks[3]),
-                expOrZero(parse(Float64, toks[6])),
-                expOrZero(parse(Float64, toks[7])),
-                parse(Float64, toks[8]))
+            #extract all
+            if firstline == 3
+                new_lines_imputing_zeros(
+                     wl_transform(parse(Float64, toks[2])*1e-8),
+                     parse(Float64, toks[4]),
+                     _vald_to_korg_species_code(toks[1]),
+                     E_transform(parse(Float64, toks[3])),
+                     expOrZero(parse(Float64, toks[5])),
+                     expOrZero(parse(Float64, toks[6])),
+                     parse(Float64, toks[7]))
+            #extract stellar
+            elseif firstline == 4
+                new_line_imputing_zeros(
+                     wl_transform(parse(Float64, toks[2])*1e-8),
+                     parse(Float64, toks[5]),
+                     _vald_to_korg_species_code(toks[1]),
+                     E_transform(parse(Float64, toks[3])),
+                     expOrZero(parse(Float64, toks[6])),
+                     expOrZero(parse(Float64, toks[7])),
+                     parse(Float64, toks[8]))
+            else
+                throw(ArgumentError("Can't determine if this is an \"extract all\" or \"extract " *
+                                    "stellar\" format linelist"))
+            end
         else
             new_line_imputing_zeros(
                 parse(Float64, toks[2])*1e-8,
