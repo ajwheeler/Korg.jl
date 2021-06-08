@@ -2,7 +2,7 @@ using SpecialFunctions: gamma
 
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
-                   ; window_size)
+                   ; α_cntm, cutoff_threshold, window_size)
 
 Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
 `λs`. 

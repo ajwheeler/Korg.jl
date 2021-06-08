@@ -1,5 +1,5 @@
 """
-    read_model_atmosphere(fname)
+    read_model_atmosphere(filename)
 
 Parse the provided model atmosphere file in 
 ["Kurucz" format](https://marcs.astro.uu.se/krz_format.html).
