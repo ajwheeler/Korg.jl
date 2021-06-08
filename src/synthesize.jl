@@ -12,8 +12,9 @@ optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
 - `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
-- `line_window` (default: 10): the farthest any line can be from the provide wavelenth range range
-   before it is discarded (in Å).
+- `line_buffer` (default: 10): the farthest (in Å) any line can be from the provide wavelenth range 
+   before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
+   this up.
 - `cntm_step`: the wavelength resolution with which continuum opacities are calculated.
 - `ionization_energies`, a Dict containing the first three ionization energies of each element, 
    defaults to `Korg.ionization_energies`.
@@ -27,9 +28,9 @@ Uses solar abundances scaled by `metallicity` and for those not provided.
 """
 
 function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, abundances=Dict(), 
-                    line_window::Real=10.0, cntm_step::Real=1.0, 
+                    line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     ionization_energies=ionization_energies, partition_funcs=partition_funcs,
-                    equilibrium_constants=equilibrium_constants, verbose=true)
+                    equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
@@ -41,14 +42,8 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
         throw(ArgumentError("λs must be sorted"))
     end
 
-    #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
-    #because that will hopefully be set dynamically soon
     nlines = length(linelist)
-    linelist = filter(l-> λs[1] - line_window*1e-8 <= l.wl <= λs[end] + line_window*1e-8, linelist)
-    if verbose && length(linelist) != nlines
-        println("omitting $(nlines - length(linelist))" * 
-                " lines which fall outside the wavelength range")
-    end
+    linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
 
     #impotent = setdiff(Set(keys(abundances)), elements)
     #if length(impotent) > 0
