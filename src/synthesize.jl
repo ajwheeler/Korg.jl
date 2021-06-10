@@ -35,7 +35,8 @@ function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, v
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
-    cntmλs = λs[1] - cntm_step : cntm_step : λs[end] + cntm_step
+    line_window *= 1e-8
+    cntmλs = (λs[1] - line_window - cntm_step) : cntm_step : (λs[end] + line_window + cntm_step)
 
     #sort the lines if necessary and check that λs is sorted
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
@@ -46,7 +47,7 @@ function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, v
     #remove lines outside of wavelength range. Note that this is not passed to line_absorption 
     #because that will hopefully be set dynamically soon
     nlines = length(linelist)
-    linelist = filter(l-> λs[1] - line_window*1e-8 <= l.wl <= λs[end] + line_window*1e-8, linelist)
+    linelist = filter(l-> λs[1] - line_window <= l.wl <= λs[end] + line_window, linelist)
     if length(linelist) != nlines
         @info "omitting $(nlines - length(linelist)) lines which fall outside the wavelength range"
     end
@@ -66,11 +67,13 @@ function synthesize(atm, linelist, λs::AbstractVector{F}; metallicity::F=0.0, v
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
                                                  layer.electron_density)
 
+        #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
+        #interpolator that can be used to approximate it over a fine grid.
         α_cntm = LinearInterpolation(cntmλs,
                                     total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
-                                        layer.electron_density, layer.density, number_densities, 
-                                                            partition_funcs) * layer.density,
-                                    extrapolation_bc=Interpolations.Line())
+                                                            layer.electron_density, layer.density, 
+                                                            number_densities, partition_funcs
+                                                           ) * layer.density)
         α[i, :] = α_cntm.(λs)
 
         α[i, :] += line_absorption(linelist, λs, layer.temp, layer.electron_density, 
