@@ -152,7 +152,7 @@ function voigt(α, v)
     if α <= 0.2 
         if (v >= 5)
             invv2 = (1/v)^2
-            (α/sqrt(π) * invv2) * (1 + 1.5invv2 + (15/4)*invv2^2)
+            (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
         else
             H₀, H₁, H₂ = harris_series(v)
             H₀ + H₁*α + H₂*α^2
