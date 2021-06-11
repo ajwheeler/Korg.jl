@@ -148,6 +148,11 @@ function harris_series(v) # assume v < 5
     H₀, H₁, H₂
 end
 
+"""
+    voigt(α, v)
+
+The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions), ``H``.
+"""
 function voigt(α, v)
     if α <= 0.2 
         if (v >= 5)

@@ -6,7 +6,9 @@ makedocs(sitename="Korg",
          modules=[Korg],
          pages=[
                 "Quickstart" => "index.md"
-                "All Functions" => "API.md"
+                "Function Reference" => "API.md"
+                "Developer Documentation" => "devdocs.md"
+                "Install" => "install.md"
                 "References" => "refs.md"
                ],
         authors="Adam Wheeler and Matthew Abruzzo",
