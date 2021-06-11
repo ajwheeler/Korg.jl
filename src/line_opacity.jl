@@ -1,6 +1,8 @@
+using SpecialFunctions: gamma
+
 """
-    line_absorption(linelist, λs, temp, n_densities, atomic_masses, partition_fns, 
-                 ionization_energies; window_size)
+    line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
+                   ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
 
 Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
 `λs`. 
@@ -8,80 +10,129 @@ Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `line
 other arguments:
 - `temp` the temerature in K
 - `n_densities`, a Dict mapping species to absolute number density [cm^-3].
-- `window_size` (optional, default: 20), the maximum distance from the line center at which line 
-opacities should be calculated in included.
-- `ξ` is the microturbulent velocity in cm/s
+- `partition_fns`, a Dict containing the partition function of each species
+- `ξ` is the microturbulent velocity in cm/s (n.b. NOT km/s)
+
+The three keyword arguments specify how the size of the window over which each line is calculated 
+is chosen.  
+- If `α_cntm` is passed as a callable returning the continuum opacity as a function of 
+wavelength, the line window will extend to 4 doppler widths or the wavelength at which the Lorentz
+wings of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.  
+`cutoff_threshold` defaults to 1e-3.  
+- if `α_cntm` is not passed, defaults to `window_size`, which is 2e-7 (in cm, i.e. 20 Å) unless
+otherwise specified
 """
-function line_absorption(linelist, λs, temp, n_densities::Dict, atomic_masses::Dict, 
-                         partition_fns::Dict, ionization_energies::Dict, ξ
-                         ; window_size=20.0*1e-8)
+function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
+                         ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
     α_lines = zeros(length(λs))
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
     lb = 1
     ub = 1
     for line in linelist
-        while λs[lb] < line.wl - window_size
-            lb += 1
-        end
-        while λs[ub+1] < line.wl + window_size && ub+1 < length(λs)
-            ub += 1
-        end
+        mass = get_mass(strip_ionization(line.species))
+        
+        #doppler-broadening parameter
+        Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / mass + ξ^2) / c_cgs
 
-        ϕ = line_profile(temp, get_mass(strip_ionization(line.species)), ξ, line, view(λs,lb:ub))
+        #get all damping params from line list.  There may be better sources for this.
+        Γ = (line.gamma_rad + 
+                nₑ*scaled_stark(line.gamma_stark, temp)  + 
+                (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
+
+        #doing this involves an implicit aproximation that λ(ν) is linear over the line window
+        Δλ_L = Γ * line.wl^2 / c_cgs
 
         #cross section
-        σ = sigma_line(line.wl, line.log_gf)
+        σ = sigma_line(line.wl)
 
-        #stat mech quantities
+        #stat mech quantities 
         #number density of particles in the relevant excitation state
         boltzmann_factor = exp(- line.E_lower / kboltz_eV / temp)
-        n = n_densities[line.species] * boltzmann_factor / partition_fns[line.species](temp)
         #the factor (1 - exp(hν₀ / kT)) to account for stimulated emission
         emission_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
+        levels_factor = boltzmann_factor / partition_fns[line.species](temp) * emission_factor
 
-        @. α_lines[lb:ub] += ϕ * σ * n * emission_factor 
+        line_amplitude = 10.0^line.log_gf * n_densities[line.species] * σ * levels_factor
+
+        if !isnothing(α_cntm)
+            α_crit = α_cntm(line.wl) * cutoff_threshold
+            window_size = max(4Δλ_D, sqrt(line_amplitude * Δλ_L / α_crit))
+        end
+        lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
+        if lb==ub
+            continue
+        end
+
+        ϕ = line_profile(line.wl, Δλ_D, Δλ_L, view(λs, lb:ub))
+
+        @. α_lines[lb:ub] += ϕ * line_amplitude
     end
     α_lines
 end
 
-"""
-    sigma_line(wl, log_gf)
+"the stark broadening gamma scaled acording to its temperature dependence"
+scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)
 
-The cross-section at wavelength `wl` in Ångstroms of a transition for which the product of the
+             
+"""
+the vdW broadening gamma scaled acording to its temperature dependence, using either simple scaling 
+or ABO
+"""
+scaled_vdW(vdW::AbstractFloat, m, T, T₀=10_000) = vdW * (T/T₀)^0.3
+function scaled_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
+    v₀ = 1e6 #σ is given at 10_000 m/s = 10^6 cm/s
+    σ = vdW[1]
+    α = vdW[2]
+
+    invμ = 1/(1.008*amu_cgs) + 1/m #inverse reduced mass
+    vbar = sqrt(8 * kboltz_cgs * T / π * invμ) #relative velocity
+    #n.b. "gamma" is the gamma function, not a broadening parameter
+    2 * (4/π)^(α/2) * gamma((4-α)/2) * v₀ * σ * (vbar/v₀)^(1-α)
+end
+
+
+#walk lb and ub to be window_size away from λ₀. assumes λs is sorted
+function move_bounds(λs, lb, ub, λ₀, window_size)
+    while lb+1 < length(λs) && λs[lb] < λ₀ - window_size
+        lb += 1
+    end
+    while lb > 1 && λs[lb-1] > λ₀ - window_size
+        lb -= 1
+    end
+    while ub < length(λs) && λs[ub+1] < λ₀ + window_size
+        ub += 1
+    end
+    while ub > 1 && λs[ub] > λ₀ + window_size
+        ub -= 1
+    end
+    lb, ub
+end
+
+"""
+    sigma_line(wl)
+
+The cross-section (divided by gf) at wavelength `wl` in Ångstroms of a transition for which the product of the
 degeneracy and oscillator strength is `10^log_gf`.
 """
-function sigma_line(λ, log_gf) where F <: AbstractFloat
+function sigma_line(λ) where F <: AbstractFloat
     #work in cgs
     e  = electron_charge_cgs
     mₑ = electron_mass_cgs
     c  = c_cgs
 
-    (π*e^2/mₑ/c) * (λ^2/c) * 10^log_gf 
+    (π*e^2/mₑ/c) * (λ^2/c)
 end
 
 """
-    line_profile(temp, atomic_mass, ξ, line, λs)
+    line_profile(λ₀, Δλ_D, Δλ_L, λs)
 
-The line profile, ``\\phi``, evaluated at wavelengths `λs` in cm.
-`temp` should be in K, `atomic_mass` should be in g, microturbulent velocity, `ξ`, should be in 
-cm/s, `line` should be one of the entries returned by `read_line_list`.
-Note that this returns values in units of cm^-1, not Å^-1, and that 
-``\\int\\phi\\textrm{d}\\lambda = 1``.
+A normalized voigt profile centered on λ₀ with doppler width Δλ_D and lorentz width Δλ_L evaluated 
+at `λs` (cm).  Note that this returns values in units of cm^-1.
 """
-function line_profile(temp::F, atomic_mass::F, ξ::F, line::Line, λs::AbstractVector{F}
-                     ) where F <:  AbstractFloat
-    #doppler-broadening parameter
-    Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / atomic_mass + ξ^2) / c_cgs
-
-    #get all damping params from line list.  There may be better sources for this.
-    γ = 10^line.log_gamma_rad + 10^line.log_gamma_stark + 10^line.log_gamma_vdW
-
-    #Voigt function parameters
-    v = @. abs(λs-line.wl) / Δλ_D
-    a = @. λs^2/(4π * c_cgs) * γ / Δλ_D
-
-    @. voigt(a, v) / sqrt(π) / Δλ_D 
+function line_profile(λ₀, Δλ_D::F, Δλ_L::F, λs::AbstractVector{F}) where F <:  AbstractFloat
+    invΔλ_D = 1/Δλ_D
+    @. voigt(Δλ_L * invΔλ_D / 4π, abs(λs-λ₀) * invΔλ_D) / sqrt(π) * invΔλ_D 
 end
 
 function harris_series(v) # assume v < 5
@@ -105,7 +156,8 @@ The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions
 function voigt(α, v)
     if α <= 0.2 
         if (v >= 5)
-            (α / sqrt(π) / v^2) * (1 + 3/(2v^2) + 15/(4v^4))
+            invv2 = (1/v)^2
+            (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
         else
             H₀, H₁, H₂ = harris_series(v)
             H₀ + H₁*α + H₂*α^2

@@ -14,4 +14,3 @@ const bohr_radius_cgs =  5.29177210903e-9 # cm
 const kboltz_eV = 8.617333262145e-5 #eV/K
 const hplanck_eV = 4.135667696e-15 #eV*s
 const RydbergH_eV = 13.595 #eV - this could be updated
-

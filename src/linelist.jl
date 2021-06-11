@@ -68,25 +68,81 @@ function get_atoms(molecule)
     el1, el2        
 end
 
-#This type represents an individual line.
-struct Line{F}
-    wl::F              #given in nm, convert to cm
-    log_gf::F          #unitless
-    species::String    
-    E_lower::F         #eV
-    log_gamma_rad::F   #s^-1
-    log_gamma_stark::F #s^-1
-    log_gamma_vdW::F   #s^-1 (van der Waals)
-end
 
+
+#This type represents an individual line.
+struct Line{F} 
+    wl::F                     #given in nm, convert to cm
+    log_gf::F                 #unitless
+    species::String           
+    E_lower::F                #eV
+    gamma_rad::F              #s^-1
+    gamma_stark::F            #s^-1
+    vdW::Union{F, Tuple{F,F}} #either log(Γ_vdW) per electron or (σ, α) from ABO theory
+
+    """
+    Construct a `Line` with a possibly packed vdW parameter (sigma.alpha) format.  If vdW < 0,
+    interpret it as log10(Γ) per particle.  Otherwise, interpret it as packed ABO parameters.
+    """
+    function Line(wl::F, log_gf::F, species::String, E_lower::F, gamma_rad::F, gamma_stark::F,
+                  vdW::F) where F <: AbstractFloat
+        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
+               if vdW > 0
+                   floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
+               else 
+                   10^vdW
+               end
+              )
+    end
+end
 """
 Construct a `Line` without explicit broadening parameters.
 """
-function Line(wl::F, log_gf::F, species::String, E_lower::F) where F
+function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: AbstractFloat
     e = electron_charge_cgs
     m = electron_mass_cgs
     c = c_cgs
-    Line(wl, log_gf, species, E_lower, log10(8π^2 * e^2 / m / c / wl^2) + log_gf, -Inf, -Inf)
+    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf,
+         approximate_gammas(wl, species, E_lower)...)
+end
+
+
+"""
+A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
+10,000 K.  The stark broadening 
+Returns log10(γ_vdW).
+
+In the calculation of n*², uses the approximation that
+\\overbar{r}^2 = 5/2 {n^*}^4 / Z^2
+which neglects the dependence on the angular momentum quantum number, l, in the the form given by
+Warner 1967.
+
+Used for atomic lines with no vdW and stark broadening info in the line list.
+"""
+function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
+    ionization = split(species, '_')[2]
+    Z = if ionization == "I"
+        1
+    elseif ionization == "II"
+        2
+    elseif ionization == "III"
+        3
+    end
+    χ = ionization_energies[strip_ionization(species)][Z]
+    c = c_cgs
+    h = hplanck_eV
+    k = kboltz_cgs
+    E_upper = E_lower + (h * c / wl)
+
+    nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
+    #From Cowley 1971
+    γstark = 0.77e-18 * nstar4_upper * wl^2
+
+    Δrbar2 = (5/2) * RydbergH_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
+    #From R J Rutten's course notes, an equivalent form is also in Gray 2005
+    γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+
+    γstark, γvdW
 end
 
 #pretty-print lines in REPL and jupyter notebooks
@@ -103,13 +159,13 @@ Pass `format="kurucz"` for a [Kurucz line list](http://kurucz.harvard.edu/lineli
 
 Note that dissociation energies in a MOOG line list will be ignored.
 """
-function read_line_list(fname::String; format="kurucz", skiplines=2) :: Vector{Line}
+function read_line_list(fname::String; format="vald") :: Vector{Line}
     format = lowercase(format)
     linelist = open(fname) do f
         if format == "kurucz"
             parse_kurucz_linelist(f)
         elseif format == "vald"
-            parse_vald_linelist(f, skiplines)
+            parse_vald_linelist(f)
         elseif format == "moog"
             parse_moog_linelist(f)
         else
@@ -134,6 +190,9 @@ function read_line_list(fname::String; format="kurucz", skiplines=2) :: Vector{L
     end
 end
 
+#used in to parse vald and kurucz lineslists
+expOrZero(x) = x == 0.0 ? 0.0 : 10.0^x
+
 function parse_kurucz_linelist(f)
     map(eachline(f)) do line
         #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
@@ -146,33 +205,63 @@ function parse_kurucz_linelist(f)
              parse(Float64, line[12:18]),
              parse_species_code(strip(line[19:24])),
              min(E_levels...),
-             parse(Float64, line[81:86]),
-             parse(Float64, line[87:92]),
+             expOrZero(parse(Float64, line[81:86])),
+             expOrZero(parse(Float64, line[87:92])),
              parse(Float64, line[93:98]))
     end
 end
 
-function parse_vald_linelist(f, skiplines)
+function _vald_to_korg_species_code(s)
+     symbol, num = split(s[2:end-1], ' ')
+     num = parse(Int, num)
+     symbol * "_" * numerals[num]
+end
+
+function parse_vald_linelist(f)
     lines = collect(eachline(f))
-    #take only every fourth line in the file skipping the header and footer
-    #the other three file lines per spectral line don't contain info we need.
-    lines = lines[skiplines+1:4:findfirst(l->startswith(l, "*"), lines)-1]
+
+    #figure out how big the header is
+    firstline = findfirst(lines) do line
+        line[1] == '\''
+    end
+
+    #vald short or long format?
+    if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
+        Δ = 1 # short format
+        shortformat = true
+    else 
+        Δ = 4 #long format
+        shortformat = false
+    end
+    lines = lines[firstline:Δ:end]
+    lastline = -1 + findfirst(lines) do line
+        !((line[1] == '\'') && isuppercase(line[2]))
+    end
+    lines = lines[1:lastline]
+
     map(lines) do line
         toks = split(line, ',')
-        Line(parse(Float64, toks[2])*1e-8,
-             parse(Float64, toks[3]),
-             begin 
-                 symbol, num = split(toks[1][2:end-1], ' ')
-                 num = parse(Int, num)
-                 symbol * "_" * numerals[num]
-             end,
-             parse(Float64, toks[4]),
-             parse(Float64, toks[end-3]),
-             parse(Float64, toks[end-2]),
-             parse(Float64, toks[end-1]))
+        if shortformat
+            Line(parse(Float64, toks[2])*1e-8,
+                 parse(Float64, toks[5]),
+                 _vald_to_korg_species_code(toks[1]),
+                 parse(Float64, toks[3]),
+                 expOrZero(parse(Float64, toks[6])),
+                 expOrZero(parse(Float64, toks[7])),
+                 parse(Float64, toks[8]))
+        else
+            Line(parse(Float64, toks[2])*1e-8,
+                 parse(Float64, toks[3]),
+                 _vald_to_korg_species_code(toks[1]),
+                 parse(Float64, toks[4]),
+                 expOrZero(parse(Float64, toks[11])),
+                 expOrZero(parse(Float64, toks[12])),
+                 parse(Float64, toks[13]))
+        end
     end
 end
 
+#todo support moog linelists with broadening parameters?
 function parse_moog_linelist(f)
     lines = collect(eachline(f))
     #moog format requires blank first line
@@ -188,4 +277,3 @@ function parse_moog_linelist(f)
     #TODO issue warning, don't autoconvert
     linelist
 end
-
