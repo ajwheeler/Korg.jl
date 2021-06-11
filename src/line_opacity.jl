@@ -2,7 +2,7 @@ using SpecialFunctions: gamma
 
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
-                   ; window_size)
+                   ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
 
 Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
 `λs`. 
@@ -148,11 +148,16 @@ function harris_series(v) # assume v < 5
     H₀, H₁, H₂
 end
 
+"""
+    voigt(α, v)
+
+The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions), ``H``.
+"""
 function voigt(α, v)
     if α <= 0.2 
         if (v >= 5)
             invv2 = (1/v)^2
-            (α/sqrt(π) * invv2) * (1 + 1.5invv2 + (15/4)*invv2^2)
+            (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
         else
             H₀, H₁, H₂ = harris_series(v)
             H₀ + H₁*α + H₂*α^2
