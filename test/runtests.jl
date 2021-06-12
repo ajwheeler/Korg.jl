@@ -213,11 +213,12 @@ end
         Δ = 0.01
         wls = (4955 : Δ : 5045) * 1e-8
         Δ *= 1e-8
+        amplitude = 7.0
         for Δλ_D in [1e-7, 1e-8, 1e-9], Δλ_L in [1e-8, 1e-9]
-            ϕ = Korg.line_profile(5e-5, Δλ_D, Δλ_L, wls)
+            ϕ = Korg.line_profile.(5e-5, 1/Δλ_D, Δλ_L, amplitude, wls)
             @test issorted(ϕ[1 : Int(ceil(end/2))])
             @test issorted(ϕ[Int(ceil(end/2)) : end], rev=true)
-            @test 0.99 < sum(ϕ .* Δ) < 1
+            @test 0.99 < sum(ϕ .* Δ)/amplitude < 1
         end
     end
 end
