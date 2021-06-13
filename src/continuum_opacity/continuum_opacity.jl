@@ -13,6 +13,12 @@ export He_II_bf, He_II_ff, Heminus_ff
 include("opacity_He.jl")
 
 
+# these are only imported for computing bf continuum opacities
+using ..Korg: atomic_symbols, roman_numerals, partition_funcs, Species
+export absorption_coef_bf_TOPBase
+include("opacity_metal.jl")
+
+
 """
     electron_scattering(nₑ, ρ)
 
