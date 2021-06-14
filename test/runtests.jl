@@ -206,6 +206,9 @@ end
             @test Korg.move_bounds(a, lb, ub, 5., 2.) == (3, 6)
             @test Korg.move_bounds(a, lb, ub, 0., 3.) == (1, 2)
             @test Korg.move_bounds(a, lb, ub, 6., 4.) == (2, 9)
+            @test Korg.move_bounds(collect(a), lb, ub, 5., 2.) == (3, 6)
+            @test Korg.move_bounds(collect(a), lb, ub, 0., 3.) == (1, 2)
+            @test Korg.move_bounds(collect(a), lb, ub, 6., 4.) == (2, 9)
         end
     end
 
