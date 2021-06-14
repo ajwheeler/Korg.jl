@@ -65,11 +65,6 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         end
 
         invΔλ_D = 1/Δλ_D
-        #@inbounds view(α_lines, lb:ub) .+= (line_profile.(line.wl, 
-        #                                                  invΔλ_D, 
-        #                                                  Δλ_L*invΔλ_D/(4π), 
-        #                                                  line_amplitude*invΔλ_D/sqrt(π), 
-        #                                                  view(λs, lb:ub)))
         @inbounds view(α_lines, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, line_amplitude,
                                                          view(λs, lb:ub))
     end
