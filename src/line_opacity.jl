@@ -94,8 +94,8 @@ end
 
 function move_bounds(λs::AbstractRange, lb, ub, λ₀, window_size)
     len = length(λs)
-    lb = _dont_oob(Int(fld(λ₀ - window_size - λs[1], step(λs))) + 1, len)
-    ub = _dont_oob(Int(cld(λ₀ + window_size - λs[1], step(λs))) + 1, len)
+    lb = _dont_oob(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), len)
+    ub = _dont_oob(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), len)
     lb,ub
 end
 function _dont_oob(n, l)

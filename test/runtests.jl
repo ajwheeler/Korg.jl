@@ -201,7 +201,7 @@ end
     end
 
     @testset "move_bounds" begin
-        a = collect(0.5 .+ (1:9))
+        a = 0.5 .+ (1:9)
         for lb in [1, 3, 9], ub in [1, 5, 9]
             @test Korg.move_bounds(a, lb, ub, 5., 2.) == (3, 6)
             @test Korg.move_bounds(a, lb, ub, 0., 3.) == (1, 2)
