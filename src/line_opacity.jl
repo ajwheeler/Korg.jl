@@ -153,7 +153,6 @@ function _line_profile(λ₀, invΔλ_D::F, Δλ_L_invΔλ_D_div_4π::F, amplitu
     voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 
-
 function harris_series(v) # assume v < 5
     H₀ = exp(-(v^2))
     H₁ = if (v < 1.3)
@@ -193,11 +192,10 @@ function voigt(α, v)
             ψ = 0.979895023 - 0.962846325α + 0.532770573α^2 - 0.122727278α^3
             ψ * (M₀ + M₁*α + M₂*α^2 + M₃*α^3 + M₄*α^4)
         else #α > 1.4 or (α > 0.2 and α + v > 3.2)
-            α2 = α*α
-            v2 = v*v
-            invu = 1/sqrt(2) / (α2 + v2)
-            invu2 = invu*invu
-            sqrt(2/π) * (α*invu) * (1 + (3v2 - α2 + (15v2*v2 - (15*v2 + α2)*2α2)*invu2)*invu2)
+            r2 = (v*v)/(α*α)
+            α_invu = 1/sqrt(2) / ((r2 + 1) * α)
+            α2_invu2 = α_invu * α_invu
+            sqrt(2/π) * α_invu * (1 + (3*r2 - 1 + ((r2-2)*15*r2+2)*α2_invu2)*α2_invu2)
         end
     end
 end
