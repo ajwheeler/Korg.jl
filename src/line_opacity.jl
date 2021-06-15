@@ -140,18 +140,16 @@ function sigma_line(λ) where F <: AbstractFloat
 end
 
 """
-TODO
-    line_profile(λ₀, invΔλ_D, Δλ_L, λs)
+    line_profile(λ₀, invΔλ_D, Δλ_L, line_amplitude, λ)
 
-A normalized voigt profile centered on λ₀ with doppler width 1/Δλ_D = `invΔλ_D` and lorentz width 
-Δλ_L evaluated at `λs` (cm).  Note that this returns values in units of cm^-1.
+A normalized voigt profile centered on λ₀ with doppler width `invΔλ_D` = 1/Δλ_D and lorentz width 
+`Δλ_L` evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
 """
 function line_profile(λ₀, invΔλ_D::F, Δλ_L, line_amplitude::F, λ::F) where F <: AbstractFloat
     _line_profile(λ₀, invΔλ_D, Δλ_L*invΔλ_D/(4π), line_amplitude*invΔλ_D/sqrt(π), λ)
 end
 function _line_profile(λ₀, invΔλ_D::F, Δλ_L_invΔλ_D_div_4π::F, amplitude_invΔλ_D_div_sqrt_π::F, λ::F
                       ) where F <:  AbstractFloat
-    #voigt(Δλ_L * invΔλ_D / 4π, abs(λ-λ₀) * invΔλ_D) * invΔλ_D / sqrt(π)
     voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 
@@ -161,7 +159,7 @@ function harris_series(v) # assume v < 5
     H₁ = if (v < 1.3)
         -1.12470432 - 0.15516677v + 3.28867591v^2 - 2.34357915v^3 + 0.42139162v^4
     elseif v < 2.4
-        -4.48480194 + 9.39456063v - 6.61487486v^2 + 1.98919585v^3 - 0.22041650v^4
+        -4.48480194 + 9.39456063v - 6.61487486v^2 + 1.98919585v^3 - 0.22041650v^4 
     else #v < 5
         (0.554153432 + 0.278711796v - 0.188325687v^2 + 0.042991293v^3 - 0.003278278v^4) / (v^2 - 3/2)
     end
