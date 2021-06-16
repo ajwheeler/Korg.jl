@@ -94,18 +94,9 @@ end
 
 function move_bounds(λs::AbstractRange, lb, ub, λ₀, window_size)
     len = length(λs)
-    lb = _dont_oob(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), len)
-    ub = _dont_oob(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), len)
+    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
+    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 1, len)
     lb,ub
-end
-function _dont_oob(n, l)
-    if n < 1
-        1
-    elseif n > l
-        l
-    else
-        n
-    end
 end
 #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
 function move_bounds(λs, lb, ub, λ₀, window_size)
