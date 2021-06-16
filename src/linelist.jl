@@ -68,8 +68,6 @@ function get_atoms(molecule)
     el1, el2        
 end
 
-
-
 #This type represents an individual line.
 struct Line{F} 
     wl::F                     #given in nm, convert to cm

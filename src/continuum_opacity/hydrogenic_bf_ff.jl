@@ -1,4 +1,5 @@
 using Interpolations: LinearInterpolation, Throw
+using StaticArrays: SA
 
 # define the hydrogenic continuum opacities
 
@@ -35,6 +36,14 @@ _HztoeV(freq) = freq*hplanck_eV
 # In the following equation, e is the elementary charge in units of statcoulombs
 const _bf_σ_const = 2.815e29 # = 64*π⁴e^10 mₑ / (c h⁶ 3√3)
 
+const _bf_σ_coef = SA[(0.9916,  2.719e13, -2.268e30),
+                      (1.105,  -2.375e14,  4.077e28),
+                      (1.101,  -9.863e13,  1.035e28),
+                      (1.101,  -5.765e13,  4.593e27),
+                      (1.102,  -3.909e13,  2.371e27),
+                      (1.0986, -2.704e13,  1.229e27),
+                      (1.0,     0.0,       0.0     )]
+ 
 # this is helper function is the most likely part of the calculation to change.
 # This uses double precision to be safe about the polynomial coefficients.
 function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Float64, ion_freq::Float64)
@@ -46,15 +55,7 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Float64, ion_f
     #   ground state configuration of the current ion (in Hz). This can be estimated as
     #   _eVtoHz(Z²*RydbergH_eV).
 
-    _bf_σ_coef = [(0.9916,  2.719e13, -2.268e30),
-                  (1.105,  -2.375e14,  4.077e28),
-                  (1.101,  -9.863e13,  1.035e28),
-                  (1.101,  -5.765e13,  4.593e27),
-                  (1.102,  -3.909e13,  2.371e27),
-                  (1.0986, -2.704e13,  1.229e27),
-                  (1.0,     0.0,       0.0     )]
-
-    if (n < 1)
+   if (n < 1)
         throw(DomainError(n,"n must be a positive integer"))
     end
 

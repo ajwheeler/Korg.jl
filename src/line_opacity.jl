@@ -64,9 +64,9 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
             continue
         end
 
-        ϕ = line_profile(line.wl, Δλ_D, Δλ_L, view(λs, lb:ub))
-
-        @. α_lines[lb:ub] += ϕ * line_amplitude
+        invΔλ_D = 1/Δλ_D
+        @inbounds view(α_lines, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, line_amplitude,
+                                                         view(λs, lb:ub))
     end
     α_lines
 end
@@ -92,6 +92,12 @@ function scaled_vdW(vdW::Tuple{F, F}, m, T) where F <: AbstractFloat
 end
 
 
+function move_bounds(λs::AbstractRange, lb, ub, λ₀, window_size)
+    len = length(λs)
+    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
+    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 1, len)
+    lb,ub
+end
 #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
 function move_bounds(λs, lb, ub, λ₀, window_size)
     while lb+1 < length(λs) && λs[lb] < λ₀ - window_size
@@ -125,14 +131,17 @@ function sigma_line(λ) where F <: AbstractFloat
 end
 
 """
-    line_profile(λ₀, Δλ_D, Δλ_L, λs)
+    line_profile(λ₀, invΔλ_D, Δλ_L, line_amplitude, λ)
 
-A normalized voigt profile centered on λ₀ with doppler width Δλ_D and lorentz width Δλ_L evaluated 
-at `λs` (cm).  Note that this returns values in units of cm^-1.
+A normalized voigt profile centered on λ₀ with doppler width `invΔλ_D` = 1/Δλ_D and lorentz width 
+`Δλ_L` evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
 """
-function line_profile(λ₀, Δλ_D::F, Δλ_L::F, λs::AbstractVector{F}) where F <:  AbstractFloat
-    invΔλ_D = 1/Δλ_D
-    @. voigt(Δλ_L * invΔλ_D / 4π, abs(λs-λ₀) * invΔλ_D) / sqrt(π) * invΔλ_D 
+function line_profile(λ₀, invΔλ_D::F, Δλ_L, line_amplitude::F, λ::F) where F <: AbstractFloat
+    _line_profile(λ₀, invΔλ_D, Δλ_L*invΔλ_D/(4π), line_amplitude*invΔλ_D/sqrt(π), λ)
+end
+function _line_profile(λ₀, invΔλ_D::F, Δλ_L_invΔλ_D_div_4π::F, amplitude_invΔλ_D_div_sqrt_π::F, λ::F
+                      ) where F <:  AbstractFloat
+    voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 
 function harris_series(v) # assume v < 5
@@ -140,7 +149,7 @@ function harris_series(v) # assume v < 5
     H₁ = if (v < 1.3)
         -1.12470432 - 0.15516677v + 3.28867591v^2 - 2.34357915v^3 + 0.42139162v^4
     elseif v < 2.4
-        -4.48480194 + 9.39456063v - 6.61487486v^2 + 1.98919585v^3 - 0.22041650v^4
+        -4.48480194 + 9.39456063v - 6.61487486v^2 + 1.98919585v^3 - 0.22041650v^4 
     else #v < 5
         (0.554153432 + 0.278711796v - 0.188325687v^2 + 0.042991293v^3 - 0.003278278v^4) / (v^2 - 3/2)
     end
@@ -162,7 +171,7 @@ function voigt(α, v)
             H₀, H₁, H₂ = harris_series(v)
             H₀ + H₁*α + H₂*α^2
         end
-    else  #unusual: α > 0.2
+    else
         if (α <= 1.4) && (α + v < 3.2)
             #modified harris series: M_i is H'_i in the source text
             H₀, H₁, H₂ = harris_series(v)
@@ -174,8 +183,10 @@ function voigt(α, v)
             ψ = 0.979895023 - 0.962846325α + 0.532770573α^2 - 0.122727278α^3
             ψ * (M₀ + M₁*α + M₂*α^2 + M₃*α^3 + M₄*α^4)
         else #α > 1.4 or (α > 0.2 and α + v > 3.2)
-            u = sqrt(2) * (α^2 + v^2)
-            sqrt(2/π) * (α/u) * (1 + (3v^2 - α^2)/u^2 + (15v^4 - 30α^2*v^2 + 2α^4)/u^4)
+            r2 = (v*v)/(α*α)
+            α_invu = 1/sqrt(2) / ((r2 + 1) * α)
+            α2_invu2 = α_invu * α_invu
+            sqrt(2/π) * α_invu * (1 + (3*r2 - 1 + ((r2-2)*15*r2+2)*α2_invu2)*α2_invu2)
         end
     end
 end
