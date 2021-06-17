@@ -131,6 +131,10 @@ Warner 1967.
 Used for atomic lines with no vdW and stark broadening info in the line list.
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
+    if ismolecule(species)
+        return 0.0,0.0
+    end
+
     ionization = split(species, '_')[2]
     Z = if ionization == "I"
         1
@@ -150,8 +154,14 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     γstark = 0.77e-18 * nstar4_upper * wl^2
 
     Δrbar2 = (5/2) * RydbergH_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
-    #From R J Rutten's course notes, an equivalent form is also in Gray 2005
-    γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+    if χ < E_upper
+        println("Warning: for the $(species) line at $(Int(floor(wl*1e8))), the upper energy level"*
+                " exceeds the ionization energy (E_upper) > $(χ)). Using null broadening params.")
+        γvdW = 0.0
+    else
+        #From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
+        γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+    end
 
     γstark, γvdW
 end
@@ -263,6 +273,11 @@ function parse_vald_linelist(f)
         !((line[1] == '\'') && isuppercase(line[2]))
     end
     lines = lines[1:lastline]
+
+    #filter out ions beyond III
+    filter!(lines) do line
+        findfirst(split(_vald_to_korg_species_code(split(line, ',')[1]), '_')[2] .== numerals) <= 3
+    end
 
     map(lines) do line
         toks = split(line, ',')

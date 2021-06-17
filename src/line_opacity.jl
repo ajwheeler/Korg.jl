@@ -36,9 +36,11 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / mass + ξ^2) / c_cgs
 
         #get all damping params from line list.  There may be better sources for this.
-        Γ = (line.gamma_rad + 
-                nₑ*scaled_stark(line.gamma_stark, temp)  + 
-                (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
+        Γ = line.gamma_rad 
+        if !ismolecule(line.species) 
+            Γ += (nₑ*scaled_stark(line.gamma_stark, temp) + 
+                  (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
+        end
 
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = Γ * line.wl^2 / c_cgs
