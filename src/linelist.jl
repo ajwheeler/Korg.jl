@@ -97,13 +97,26 @@ end
 Construct a `Line` without explicit broadening parameters.
 """
 function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: AbstractFloat
-    e = electron_charge_cgs
-    m = electron_mass_cgs
-    c = c_cgs
-    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf,
+    Line(wl, log_gf, species, E_lower, approximate_radiative_gamma(wl, log_gf),
          approximate_gammas(wl, species, E_lower)...)
 end
 
+#pretty-print lines in REPL and jupyter notebooks
+function Base.show(io::IO, m::MIME"text/plain", line::Line)
+    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å")
+end
+
+"""
+    approximate_radiative_gamma(wl, log_gf)
+
+Approximate radiate broadening parameter.
+"""
+function approximate_radiative_gamma(wl, log_gf) 
+    e = electron_charge_cgs
+    m = electron_mass_cgs
+    c = c_cgs
+    8π^2 * e^2 / (m * c * wl^2) * 10^log_gf
+end
 
 """
 A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
@@ -143,9 +156,22 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     γstark, γvdW
 end
 
-#pretty-print lines in REPL and jupyter notebooks
-function Base.show(io::IO, m::MIME"text/plain", line::Line)
-    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å")
+"""
+    new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+
+Construct a new line treating broadening params equal to 0 as missing (how VALD represents missing
+values).
+"""
+function new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+    if gamma_rad == 0
+        gamma_rad = approximate_radiative_gamma(wl, log_gf)
+    end
+    if (gamma_stark == 0) || (vdW == 0)
+        approx_stark, approx_vdW = approximate_gammas(wl, species, E_lower)
+        gamma_stark += (gamma_stark == 0)*approx_stark
+        vdW += (vdW == 0)*approx_vdW
+    end
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
 end
 
 """
@@ -199,13 +225,14 @@ function parse_kurucz_linelist(f)
             #abs because Kurucz multiplies predicted values by -1
             abs(parse(Float64,s)) * c_cgs * hplanck_eV
         end
-        Line(parse(Float64, line[1:11])*1e-7,
-             parse(Float64, line[12:18]),
-             parse_species_code(strip(line[19:24])),
-             min(E_levels...),
-             expOrZero(parse(Float64, line[81:86])),
-             expOrZero(parse(Float64, line[87:92])),
-             parse(Float64, line[93:98]))
+        new_line_imputing_zeros(
+            parse(Float64, line[1:11])*1e-7,
+            parse(Float64, line[12:18]),
+            parse_species_code(strip(line[19:24])),
+            min(E_levels...),
+            expOrZero(parse(Float64, line[81:86])),
+            expOrZero(parse(Float64, line[87:92])),
+            parse(Float64, line[93:98]))
     end
 end
 
@@ -240,21 +267,23 @@ function parse_vald_linelist(f)
     map(lines) do line
         toks = split(line, ',')
         if shortformat
-            Line(parse(Float64, toks[2])*1e-8,
-                 parse(Float64, toks[5]),
-                 _vald_to_korg_species_code(toks[1]),
-                 parse(Float64, toks[3]),
-                 expOrZero(parse(Float64, toks[6])),
-                 expOrZero(parse(Float64, toks[7])),
-                 parse(Float64, toks[8]))
+            new_line_imputing_zeros(
+                parse(Float64, toks[2])*1e-8,
+                parse(Float64, toks[5]),
+                _vald_to_korg_species_code(toks[1]),
+                parse(Float64, toks[3]),
+                expOrZero(parse(Float64, toks[6])),
+                expOrZero(parse(Float64, toks[7])),
+                parse(Float64, toks[8]))
         else
-            Line(parse(Float64, toks[2])*1e-8,
-                 parse(Float64, toks[3]),
-                 _vald_to_korg_species_code(toks[1]),
-                 parse(Float64, toks[4]),
-                 expOrZero(parse(Float64, toks[11])),
-                 expOrZero(parse(Float64, toks[12])),
-                 parse(Float64, toks[13]))
+            new_line_imputing_zeros(
+                parse(Float64, toks[2])*1e-8,
+                parse(Float64, toks[3]),
+                _vald_to_korg_species_code(toks[1]),
+                parse(Float64, toks[4]),
+                expOrZero(parse(Float64, toks[11])),
+                expOrZero(parse(Float64, toks[12])),
+                parse(Float64, toks[13]))
         end
     end
 end
