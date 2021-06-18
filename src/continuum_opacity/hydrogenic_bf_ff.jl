@@ -87,12 +87,12 @@ where α(n=n') is the absorption coefficient for the bound-free atomic absorptio
 # Arguments
 - `Z::Integer`: Z is the atomic number of the ion (1 for HI)
 - `nmin::Integer`: The lowest energy level (principle quantum number) included in the calculation
-- `nsdens_div_partition::Real` is the number density of the current species divided by the
+- `nsdens_div_partition` is the number density of the current species divided by the
    partition function.
 - `ν`: frequency in Hz
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
-- `ion_energy::Real`: the ionization energy from the ground state (in eV).
+- `ion_energy`: the ionization energy from the ground state (in eV).
 
 # Notes
 This implements equation (5.6) from Kurucz (1970). I think ρ was simply omitted from that equation.
@@ -151,7 +151,7 @@ integral.
 - `ν`: frequency in Hz
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
-- `ion_energy::Real`: the ionization energy from the ground state (in eV). This can be 
+- `ion_energy`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
 - `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
    the explicit sum. The contributions from higher levels are included in the integral.
