@@ -92,7 +92,7 @@ where α(n=n') is the absorption coefficient for the bound-free atomic absorptio
 - `ν`: frequency in Hz
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
-- `ion_energy::Real`: the ionization energy from the ground state (in eV).
+- `ion_energy`: the ionization energy from the ground state (in eV).
 
 # Notes
 This implements equation (5.6) from Kurucz (1970). I think ρ was simply omitted from that equation.
