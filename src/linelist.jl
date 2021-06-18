@@ -87,6 +87,8 @@ struct Line{F}
         new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
                if vdW > 0
                    floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
+               elseif vdW == 0
+                   0.0
                else 
                    10^vdW
                end
