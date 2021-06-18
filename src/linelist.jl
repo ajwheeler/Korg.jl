@@ -348,8 +348,6 @@ function parse_moog_linelist(f)
     #moog format requires blank first line
     linelist = map(lines[2:end]) do line
         toks = split(line)
-        wl =
-        parse(Float64, toks[4])
         Line(parse(Float64, toks[1]) * 1e-8, #convert Å to cm
              parse(Float64, toks[4]),
              parse_species_code(toks[2]),

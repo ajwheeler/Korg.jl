@@ -42,7 +42,6 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
         throw(ArgumentError("λs must be sorted"))
     end
 
-    nlines = length(linelist)
     linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
 
     #impotent = setdiff(Set(keys(abundances)), elements)
