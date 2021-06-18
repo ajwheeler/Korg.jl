@@ -151,7 +151,7 @@ integral.
 - `ν`: frequency in Hz
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
-- `ion_energy::Real`: the ionization energy from the ground state (in eV). This can be 
+- `ion_energy`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
 - `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
    the explicit sum. The contributions from higher levels are included in the integral.
