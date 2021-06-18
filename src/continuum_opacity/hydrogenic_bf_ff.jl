@@ -87,7 +87,7 @@ where α(n=n') is the absorption coefficient for the bound-free atomic absorptio
 # Arguments
 - `Z::Integer`: Z is the atomic number of the ion (1 for HI)
 - `nmin::Integer`: The lowest energy level (principle quantum number) included in the calculation
-- `nsdens_div_partition::Real` is the number density of the current species divided by the
+- `nsdens_div_partition` is the number density of the current species divided by the
    partition function.
 - `ν`: frequency in Hz
 - `ρ`: mass density in g/cm³
