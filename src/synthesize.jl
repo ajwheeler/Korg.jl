@@ -33,8 +33,8 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
-    line_window *= 1e-8
-    cntmλs = (λs[1] - line_window - cntm_step) : cntm_step : (λs[end] + line_window + cntm_step)
+    line_buffer *= 1e-8
+    cntmλs = (λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step)
 
     #sort the lines if necessary and check that λs is sorted
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)

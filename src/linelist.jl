@@ -305,7 +305,7 @@ function parse_vald_linelist(f)
         if shortformat
             #extract all
             if firstline == 3
-                new_lines_imputing_zeros(
+                new_line_imputing_zeros(
                      wl_transform(parse(Float64, toks[2])*1e-8),
                      parse(Float64, toks[4]),
                      _vald_to_korg_species_code(toks[1]),
