@@ -107,7 +107,7 @@ end
 end
 
 @testset "lines" begin
-    @testset "line lists" begin 
+    @testset "linelists" begin 
         @testset "species codes" begin
             @test Korg.parse_species_code("01.00") == "H_I"
             @test Korg.parse_species_code("01.0000") == "H_I"
@@ -176,16 +176,33 @@ end
             @test vald_linelist[2].vdW[2] ≈ 0.227
         end
 
-        vald_shortformat_linelist = Korg.read_line_list("data/short.vald")
         @testset "vald short format linelist parsing" begin
-            @test length(vald_linelist) == 2
-            @test vald_shortformat_linelist[1].wl ≈ 3000.0414 * 1e-8
-            @test vald_shortformat_linelist[1].log_gf == -2.957
-            @test vald_shortformat_linelist[1].species == "Fe_I"
-            @test vald_shortformat_linelist[1].E_lower ≈ 3.3014
-            @test vald_shortformat_linelist[1].gamma_rad ≈ 1.905460717963248e7
-            @test vald_shortformat_linelist[1].gamma_stark ≈ 0.0001230268770812381
-            @test vald_shortformat_linelist[1].vdW ≈ 4.6773514128719815e-8
+            linelist = Korg.read_line_list("data/short.vald")
+            @test length(linelist) == 5
+            @test linelist[1].wl ≈ 3000.0414 * 1e-8
+            @test linelist[1].log_gf == -2.957
+            @test linelist[1].species == "Fe_I"
+            @test linelist[1].E_lower ≈ 3.3014
+            @test linelist[1].gamma_rad ≈ 1.905460717963248e7
+            @test linelist[1].gamma_stark ≈ 0.0001230268770812381
+            @test linelist[1].vdW ≈ 4.6773514128719815e-8
+
+            #test imputation of missing broadening parameters
+            @test linelist[2].gamma_rad ≈ 818252.5391161365
+            @test linelist[2].gamma_stark == linelist[1].gamma_stark
+            @test linelist[2].vdW == linelist[1].vdW
+
+            @test linelist[3].gamma_rad == linelist[2].gamma_rad
+            @test linelist[3].gamma_stark == 5.839313870663207e-25
+            @test linelist[3].vdW == linelist[1].vdW
+
+            @test linelist[4].gamma_rad == linelist[1].gamma_rad
+            @test linelist[4].gamma_stark == linelist[3].gamma_stark
+            @test linelist[4].vdW == 9.947102106019509e-8
+
+            @test linelist[5].gamma_rad == linelist[1].gamma_rad
+            @test linelist[5].gamma_stark == linelist[1].gamma_stark
+            @test linelist[5].vdW == linelist[4].vdW
         end
 
         moog_linelist = Korg.read_line_list("data/s5eqw_short.moog"; format="moog")
@@ -201,11 +218,14 @@ end
     end
 
     @testset "move_bounds" begin
-        a = collect(0.5 .+ (1:9))
+        a = 0.5 .+ (1:9)
         for lb in [1, 3, 9], ub in [1, 5, 9]
             @test Korg.move_bounds(a, lb, ub, 5., 2.) == (3, 6)
             @test Korg.move_bounds(a, lb, ub, 0., 3.) == (1, 2)
             @test Korg.move_bounds(a, lb, ub, 6., 4.) == (2, 9)
+            @test Korg.move_bounds(collect(a), lb, ub, 5., 2.) == (3, 6)
+            @test Korg.move_bounds(collect(a), lb, ub, 0., 3.) == (1, 2)
+            @test Korg.move_bounds(collect(a), lb, ub, 6., 4.) == (2, 9)
         end
     end
 
@@ -213,11 +233,12 @@ end
         Δ = 0.01
         wls = (4955 : Δ : 5045) * 1e-8
         Δ *= 1e-8
+        amplitude = 7.0
         for Δλ_D in [1e-7, 1e-8, 1e-9], Δλ_L in [1e-8, 1e-9]
-            ϕ = Korg.line_profile(5e-5, Δλ_D, Δλ_L, wls)
+            ϕ = Korg.line_profile.(5e-5, 1/Δλ_D, Δλ_L, amplitude, wls)
             @test issorted(ϕ[1 : Int(ceil(end/2))])
             @test issorted(ϕ[Int(ceil(end/2)) : end], rev=true)
-            @test 0.99 < sum(ϕ .* Δ) < 1
+            @test 0.99 < sum(ϕ .* Δ)/amplitude < 1
         end
     end
 end

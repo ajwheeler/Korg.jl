@@ -215,6 +215,9 @@ This uses polynomial fits from Gray (2005) that were derived from data tabulated
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
 
+While the formal type signature requires that these be `Real`, `Float32`s (or `Float32`-derived 
+types) may introduce numerical instability.
+
 # Notes
 This follows equation 8.15 of Gray (2005), which involves 2 polynomials that were fit to data
 provided in [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).

@@ -76,9 +76,7 @@ function get_atoms(molecule)
     el1, el2        
 end
 
-"""
-This type represents an individual line.
-"""
+#This type represents an individual line.
 struct Line{F} 
     wl::F                     #cm
     log_gf::F                 #unitless
@@ -99,6 +97,8 @@ struct Line{F}
         new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
                if vdW > 0
                    floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
+               elseif vdW == 0
+                   0.0
                else 
                    10^vdW
                end
@@ -111,11 +111,25 @@ end
 Construct a `Line` without explicit broadening parameters.  They will be set automatically.
 """
 function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Real
+    Line(wl, log_gf, species, E_lower, approximate_radiative_gamma(wl, log_gf),
+         approximate_gammas(wl, species, E_lower)...)
+end
+
+#pretty-print lines in REPL and jupyter notebooks
+function Base.show(io::IO, m::MIME"text/plain", line::Line)
+    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å")
+end
+
+"""
+    approximate_radiative_gamma(wl, log_gf)
+
+Approximate radiate broadening parameter.
+"""
+function approximate_radiative_gamma(wl, log_gf) 
     e = electron_charge_cgs
     m = electron_mass_cgs
     c = c_cgs
-    Line(wl, log_gf, species, E_lower, 8π^2 * e^2 / (m * c * wl^2) * 10^log_gf,
-         approximate_gammas(wl, species, E_lower)...)
+    8π^2 * e^2 / (m * c * wl^2) * 10^log_gf
 end
 
 """
@@ -131,6 +145,10 @@ Warner 1967.
 Used for atomic lines with no vdW and stark broadening info in the line list.
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
+    if ismolecule(species)
+        return 0.0,0.0
+    end
+
     ionization = split(species, '_')[2]
     Z = if ionization == "I"
         1
@@ -150,16 +168,34 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     γstark = 0.77e-18 * nstar4_upper * wl^2
 
     Δrbar2 = (5/2) * RydbergH_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
-    #From R J Rutten's course notes, en equivalent form is also in Gray 2005
-    γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+    if χ < E_upper
+        println("Warning: for the $(species) line at $(Int(floor(wl*1e8))), the upper energy level"*
+                " exceeds the ionization energy (E_upper) > $(χ)). Using null broadening params.")
+        γvdW = 0.0
+    else
+        #(log) γ_vdW From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
+        γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+    end
 
     γstark, γvdW
 end
 
-#pretty-print lines in REPL and jupyter notebooks
-function Base.show(io::IO, m::MIME"text/plain", line::Line)
-    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å [log(gf) = ", 
-          round(line.log_gf, digits=3), "]")
+"""
+    new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+
+Construct a new line treating broadening params equal to 0 as missing (how VALD represents missing
+values).
+"""
+function new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+    if gamma_rad == 0
+        gamma_rad = approximate_radiative_gamma(wl, log_gf)
+    end
+    if (gamma_stark == 0) || (vdW == 0)
+        approx_stark, approx_vdW = approximate_gammas(wl, species, E_lower)
+        gamma_stark += (gamma_stark == 0)*approx_stark
+        vdW += (vdW == 0)*approx_vdW
+    end
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
 end
 
 """
@@ -213,13 +249,14 @@ function parse_kurucz_linelist(f)
             #abs because Kurucz multiplies predicted values by -1
             abs(parse(Float64,s)) * c_cgs * hplanck_eV
         end
-        Line(parse(Float64, line[1:11])*1e-7,
-             parse(Float64, line[12:18]),
-             parse_species_code(strip(line[19:24])),
-             min(E_levels...),
-             expOrZero(parse(Float64, line[81:86])),
-             expOrZero(parse(Float64, line[87:92])),
-             parse(Float64, line[93:98]))
+        new_line_imputing_zeros(
+            parse(Float64, line[1:11])*1e-7,
+            parse(Float64, line[12:18]),
+            parse_species_code(strip(line[19:24])),
+            min(E_levels...),
+            expOrZero(parse(Float64, line[81:86])),
+            expOrZero(parse(Float64, line[87:92])),
+            parse(Float64, line[93:98]))
     end
 end
 
@@ -252,6 +289,11 @@ function parse_vald_linelist(f)
     end
     lines = lines[1:lastline]
 
+    #filter out ions beyond III
+    filter!(lines) do line
+        findfirst(split(_vald_to_korg_species_code(split(line, ',')[1]), '_')[2] .== numerals) <= 3
+    end
+
     #air or vacuum wls?
     if contains(header[3], "air")
         wl_transform = air_to_vacuum
@@ -277,7 +319,8 @@ function parse_vald_linelist(f)
         if shortformat
             #extract all
             if firstline == 3
-                Line(wl_transform(parse(Float64, toks[2])*1e-8),
+                new_line_imputing_zeros(
+                     wl_transform(parse(Float64, toks[2])*1e-8),
                      parse(Float64, toks[4]),
                      _vald_to_korg_species_code(toks[1]),
                      E_transform(parse(Float64, toks[3])),
@@ -286,7 +329,8 @@ function parse_vald_linelist(f)
                      parse(Float64, toks[7]))
             #extract stellar
             elseif firstline == 4
-                Line(wl_transform(parse(Float64, toks[2])*1e-8),
+                new_line_imputing_zeros(
+                     wl_transform(parse(Float64, toks[2])*1e-8),
                      parse(Float64, toks[5]),
                      _vald_to_korg_species_code(toks[1]),
                      E_transform(parse(Float64, toks[3])),
@@ -298,13 +342,14 @@ function parse_vald_linelist(f)
                                     "stellar\" format linelist"))
             end
         else
-            Line(wl_transform(parse(Float64, toks[2])*1e-8),
-                 parse(Float64, toks[3]),
-                 _vald_to_korg_species_code(toks[1]),
-                 E_transform(parse(Float64, toks[4])),
-                 expOrZero(parse(Float64, toks[11])),
-                 expOrZero(parse(Float64, toks[12])),
-                 parse(Float64, toks[13]))
+            new_line_imputing_zeros(
+                parse(Float64, toks[2])*1e-8,
+                parse(Float64, toks[3]),
+                _vald_to_korg_species_code(toks[1]),
+                parse(Float64, toks[4]),
+                expOrZero(parse(Float64, toks[11])),
+                expOrZero(parse(Float64, toks[12])),
+                parse(Float64, toks[13]))
         end
     end
 end
@@ -315,8 +360,6 @@ function parse_moog_linelist(f)
     #moog format requires blank first line
     linelist = map(lines[2:end]) do line
         toks = split(line)
-        wl =
-        parse(Float64, toks[4])
         Line(parse(Float64, toks[1]) * 1e-8, #convert Å to cm
              parse(Float64, toks[4]),
              parse_species_code(toks[2]),
@@ -325,4 +368,3 @@ function parse_moog_linelist(f)
     #TODO issue warning, don't autoconvert
     linelist
 end
-

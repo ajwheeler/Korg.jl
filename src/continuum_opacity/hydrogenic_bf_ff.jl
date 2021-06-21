@@ -1,4 +1,5 @@
 using Interpolations: LinearInterpolation, Throw
+using StaticArrays: SA
 
 # define the hydrogenic continuum opacities
 
@@ -34,6 +35,14 @@ _HztoeV(freq) = freq*hplanck_eV
 # In the following equation, e is the elementary charge in units of statcoulombs
 const _bf_σ_const = 2.815e29 # = 64*π⁴e^10 mₑ / (c h⁶ 3√3)
 
+const _bf_σ_coef = SA[(0.9916,  2.719e13, -2.268e30),
+                      (1.105,  -2.375e14,  4.077e28),
+                      (1.101,  -9.863e13,  1.035e28),
+                      (1.101,  -5.765e13,  4.593e27),
+                      (1.102,  -3.909e13,  2.371e27),
+                      (1.0986, -2.704e13,  1.229e27),
+                      (1.0,     0.0,       0.0     )]
+ 
 # this is helper function is the most likely part of the calculation to change.
 # This uses double precision to be safe about the polynomial coefficients.
 function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Real, ion_freq::Real)
@@ -45,15 +54,7 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Real, ion_freq
     #   ground state configuration of the current ion (in Hz). This can be estimated as
     #   _eVtoHz(Z²*RydbergH_eV).
 
-    _bf_σ_coef = [(0.9916,  2.719e13, -2.268e30),
-                  (1.105,  -2.375e14,  4.077e28),
-                  (1.101,  -9.863e13,  1.035e28),
-                  (1.101,  -5.765e13,  4.593e27),
-                  (1.102,  -3.909e13,  2.371e27),
-                  (1.0986, -2.704e13,  1.229e27),
-                  (1.0,     0.0,       0.0     )]
-
-    if (n < 1)
+   if (n < 1)
         throw(DomainError(n,"n must be a positive integer"))
     end
 
@@ -86,12 +87,12 @@ where α(n=n') is the absorption coefficient for the bound-free atomic absorptio
 # Arguments
 - `Z::Integer`: Z is the atomic number of the ion (1 for HI)
 - `nmin::Integer`: The lowest energy level (principle quantum number) included in the calculation
-- `nsdens_div_partition::Real` is the number density of the current species divided by the
+- `nsdens_div_partition` is the number density of the current species divided by the
    partition function.
 - `ν`: frequency in Hz
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
-- `ion_energy::Real`: the ionization energy from the ground state (in eV).
+- `ion_energy`: the ionization energy from the ground state (in eV).
 
 # Notes
 This implements equation (5.6) from Kurucz (1970). I think ρ was simply omitted from that equation.
@@ -150,7 +151,7 @@ integral.
 - `ν`: frequency in Hz
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
-- `ion_energy::Real`: the ionization energy from the ground state (in eV). This can be 
+- `ion_energy`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
 - `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
    the explicit sum. The contributions from higher levels are included in the integral.

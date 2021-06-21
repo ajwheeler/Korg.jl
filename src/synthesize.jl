@@ -26,7 +26,6 @@ optional arguments:
 
 Uses solar abundances scaled by `metallicity` and for those not provided.
 """
-
 function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, abundances=Dict(), 
                     line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     ionization_energies=ionization_energies, partition_funcs=partition_funcs,
@@ -34,7 +33,8 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
-    cntmλs = λs[1] - cntm_step : cntm_step : λs[end] + cntm_step
+    line_buffer *= 1e-8
+    cntmλs = (λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step)
 
     #sort the lines if necessary and check that λs is sorted
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
@@ -42,7 +42,6 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
         throw(ArgumentError("λs must be sorted"))
     end
 
-    nlines = length(linelist)
     linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
 
     #impotent = setdiff(Set(keys(abundances)), elements)
@@ -62,11 +61,13 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
                                                  layer.electron_density)
 
+        #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
+        #interpolator that can be used to approximate it over a fine grid.
         α_cntm = LinearInterpolation(cntmλs,
                                     total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
-                                        layer.electron_density, layer.density, number_densities, 
-                                                            partition_funcs) * layer.density,
-                                    extrapolation_bc=Interpolations.Line())
+                                                            layer.electron_density, layer.density, 
+                                                            number_densities, partition_funcs
+                                                           ) * layer.density)
         α[i, :] = α_cntm.(λs)
 
         α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_density, 
@@ -155,7 +156,7 @@ function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_de
     nH_I_div_U = nH_I / partition_funcs["H_I"](T)
     κ += ContinuumOpacity.H_I_bf.(nH_I_div_U, νs, ρ, T) 
     κ += ContinuumOpacity.H_I_ff.(number_densities["H_II"], nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.Hminus_bf.(nH_I_div_U, nₑ, νs, ρ, T)
+    #κ += ContinuumOpacity.Hminus_bf.(nH_I_div_U, nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_ff.(nH_I_div_U, nₑ, νs, ρ, T)
     #κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities["H_II"], νs, ρ, T)
     
