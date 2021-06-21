@@ -132,7 +132,7 @@ end
 The cross-section (divided by gf) at wavelength `wl` in Ångstroms of a transition for which the product of the
 degeneracy and oscillator strength is `10^log_gf`.
 """
-function sigma_line(λ) where F <: Real
+function sigma_line(λ::Real)
     #work in cgs
     e  = electron_charge_cgs
     mₑ = electron_mass_cgs
