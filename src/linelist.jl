@@ -161,7 +161,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
                 " exceeds the ionization energy (E_upper) > $(χ)). Using null broadening params.")
         γvdW = 0.0
     else
-        #From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
+        #(log) γ_vdW From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
         γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
     end
 

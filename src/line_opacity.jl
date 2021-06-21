@@ -47,7 +47,7 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         #get all damping params from line list.  There may be better sources for this.
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
-            Γ += (nₑ*scaled_stark(line.gamma_stark, temp) + 
+            Γ += (nₑ*scaled_stark(line.gamma_stark, temp) +
                   (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
         end
 
@@ -85,7 +85,6 @@ end
 
 "the stark broadening gamma scaled acording to its temperature dependence"
 scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)
-
              
 """
 the vdW broadening gamma scaled acording to its temperature dependence, using either simple scaling 
