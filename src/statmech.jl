@@ -1,7 +1,7 @@
 using NLsolve
 
 """
-   setup_ionization_energies([filename])
+    setup_ionization_energies([filename])
 
 Parses the table of ionization energies and returns it as a dictionary mapping elements to
 their ionization energies, `[χ₁, χ₂, χ₃]` in eV.
@@ -22,6 +22,8 @@ function setup_ionization_energies(fname=joinpath(_data_dir,
 end
 
 """
+    saha_ion_weights(T, nₑ, atom, ionization_energies, partition_functions)
+
 Returns `(wII, wIII)`, where `wII` is the ratio of singly ionized to neutral atoms of a given 
 element, and `wIII` is the ration of doubly ionized to neutral atoms.
 
@@ -49,6 +51,7 @@ function saha_ion_weights(T, nₑ, atom::String, ionization_energies::Dict, part
     end
     wII, wIII
 end
+
 "convieience method for easier testing"
 function saha_ion_weights(T, nₑ, χs::Vector{<:Real}, Us::Vector{Function})
     ionization_energies = Dict(["X" => χs])
@@ -57,6 +60,8 @@ function saha_ion_weights(T, nₑ, χs::Vector{<:Real}, Us::Vector{Function})
 end
 
 """
+    translational_U(m, T)
+
 The contribution to the partition function from the free movement of a particle.
 Used in the Saha equation.
 
@@ -71,14 +76,15 @@ function translational_U(m, T)
 end
 
 """
+    molecular_equilibrium_equations(absolute_abundances, ironization_energies, partiation_fns, equilibrium_constants)
+
 Returns a NamedTuple representing the system of equations specifying molecular equilibrium.
 
 arguments:
 - A Dict of `absolute_abundances`, N_X/N_total
-- a Dict of ionization energies, `ionization_energies`.  The keys of `ionization_energies` act as a 
-  list of all atoms.
+- a Dict of ionization energies, `ionization_energies`.  The keys of act as a list of all atoms.
 - a Dict of partition functions, `partition_fns`
-- a Dict of log moleculare equilibrium constants, `equilibrium_constants`, in partial pressure form. 
+- a Dict of log molecular equilibrium constants, `equilibrium_constants`, in partial pressure form. 
   The keys of `equilibrium_constants` act as a list of all molecules.
 
 The system of equations is specified with the number densities of the neutral atoms as free 
@@ -139,8 +145,8 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
         end
     end
 
-    #passing atoms and molecules might seem a little weird architecturally, but it's partly in 
-    #anticipation if automatically culling the list of species considered by what's in the linelist
+    #passing atoms and molecules might seem a little weird architecturally, but it's partly in
+    #anticipation of automatically culling the list of species considered by what's in the linelist
     #in the future
     (atoms=atoms, molecules=molecules, equations=system, absolute_abundances,
      ionization_energies=ionization_energies, partition_fns=partition_fns, 
@@ -148,6 +154,8 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
 end
 
 """
+    molecular_equilibrium(MEQS, T, nₜ, nₑ; x0)
+
 Iteratively solve for the number density of each species. Returns a Dict mapping species to number 
 densities.
 
@@ -157,10 +165,7 @@ arguments:
 - the temperature `T`, 
 - the number density of non-electron particles `nₜ`
 - the electron number density `nₑ`
-- a Dict of N_X/N_total, `absolute_abundances`
-- a Dict of ionization energies, `ionization_energies`
-- a Dict of partition functions, `partition_fns`
-- a Dict of log molecular equilibrium constants, `equilibrium_constants`, in partial pressure form.
+- optionally, `x0`, a starting point for the solver
 """
 function molecular_equilibrium(MEQs, T, nₜ, nₑ;
                                x0=[nₜ*MEQs.absolute_abundances[a]* 0.8 for a in MEQs.atoms]) :: Dict

@@ -20,7 +20,7 @@ optional arguments:
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a Dict mapping species to partition functions. Defaults to data from 
    Barklem & Collet 2016, `Korg.partition_funcs`.
-- `equilibrium_constants`, a Dict mapping diatomic molecules to theirmolecular equilbrium constants
+- `equilibrium_constants`, a Dict mapping diatomic molecules to their molecular equilbrium constants
   in partial pressure form.  Defaults to data from Barklem and Collet 2016, 
   `Korg.equilibrium_constants`.
 
@@ -98,7 +98,9 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 end
 
 """
-Calculate N_X/N_total for each X in `elements` given some `specified_abundances`, A(X).  Use the 
+    get_absolute_abundances(elements, metallicity, A_X)
+
+Calculate N_X/N_total for each X in `elements` given some specified abundances, A(X).  Use the 
 metallicity [X/H] to calculate those remaining from the solar values (except He).
 """
 function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
@@ -132,6 +134,8 @@ function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
 end
 
 """
+    total_continuum_opacity(νs, T, nₑ, ρ, number_densities, partition_funcs)
+
 The total continuum opacity, κ, at many frequencies, ν.
 
 - `νs` are frequencies in Hz
@@ -199,6 +203,8 @@ function trapezoid_rule(xs, fs)
 end
 
 """
+    exponential_integral_2(x)
+
 Approximate second order exponential integral, E_2(x).  This stiches together several series 
 expansions to get an approximation which is accurate within 1% for all `x`.
 """

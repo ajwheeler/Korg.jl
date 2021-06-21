@@ -1,6 +1,8 @@
 using Interpolations: LinearInterpolation, Throw
 
 """
+    setup_partition_funcs()
+
 Returns a Dict holding the default (Barklem & Collet 2016) partition functions.
 """
 function setup_partition_funcs(atoms=joinpath(_data_dir, "BarklemCollet2016-atomic_partition.dat"),
@@ -17,11 +19,13 @@ function setup_partition_funcs(atoms=joinpath(_data_dir, "BarklemCollet2016-atom
 end
 
 """
+    setup_equilibrium_constants()
+
 Returns a Dict holding the default (Barklem & Collet 2016) log equilibrium constants.
 
-There are two confusing things about equation 7 in this paper.  The first is that it defines K as 
-the reciprocal of what is actually supplied in the data table.  The second is that in order for it 
-to be correct, m must be interpreted as a reduced mass, m₁m₂/(m₁ + m₂).  This can be verified by 
+There are two things of note about about equation 7 in this paper.  The first is that it defines K 
+as the reciprocal of what is actually supplied in the data table.  The second is that in order for 
+it to be correct, m must be interpreted as a reduced mass, m₁m₂/(m₁ + m₂).  This can be verified by 
 re-deriving the equilibrium constants from the partition functions and dissolution constants 
 provided by the paper.
 """
