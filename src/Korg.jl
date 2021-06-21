@@ -1,12 +1,12 @@
 module Korg
-    export synthesize, constant_R_LSF, rectify, air_to_vacuum, vacuum_to_air, read_line_list, 
+    export synthesize, constant_R_LSF, rectify, air_to_vacuum, vacuum_to_air, read_linelist, 
             read_model_atmosphere
 
     _data_dir = joinpath(@__DIR__, "../data") 
 
     include("constants.jl")      #physical constants
     include("atomic_data.jl")    #symbols and atomic weights
-    include("linelist.jl")       #parse line lists, define Line type
+    include("linelist.jl")       #parse linelists, define Line type
     include("line_opacity.jl")   #opacity, line profile, voigt function
     include("partition_func.jl") #approximate partition functions
     include("statmech.jl")       #statistical mechanics, molecular equilibrium

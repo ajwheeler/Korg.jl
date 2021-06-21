@@ -3,7 +3,7 @@ const numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 """
     parse_species_code(code)
 
-Parse the "species code" as it is often specified in line lists and return a the "astronomy" 
+Parse the "species code" as it is often specified in linelists and return a the "astronomy" 
 notation. 01.00 → "H_I", 02.01 → "He_II", 02.1000 → "He_II", 0608 → "CO_I", etc.  
 """
 function parse_species_code(code::AbstractString)
@@ -142,7 +142,7 @@ In the calculation of n*², uses the approximation that
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
 Warner 1967.
 
-Used for atomic lines with no vdW and stark broadening info in the line list.
+Used for atomic lines with no vdW and stark broadening info in the linelist.
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
     if ismolecule(species)
@@ -199,15 +199,15 @@ function new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_
 end
 
 """
-    read_line_list(fname; format="kurucz")
+    read_linelist(fname; format="kurucz")
 
-Parse the provided line list. in "Kurucz" format.
-Pass `format="kurucz"` for a [Kurucz line list](http://kurucz.harvard.edu/linelists.html),
-`format="vald"` for a Vald line list, and `format="moog"` for a MOOG line list.
+Parse the provided linelist. in "Kurucz" format.
+Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html),
+`format="vald"` for a Vald linelist, and `format="moog"` for a MOOG linelist.
 
-Note that dissociation energies in a MOOG line list will be ignored.
+Note that dissociation energies in a MOOG linelist will be ignored.
 """
-function read_line_list(fname::String; format="vald") :: Vector{Line}
+function read_linelist(fname::String; format="vald") :: Vector{Line}
     format = lowercase(format)
     linelist = open(fname) do f
         if format == "kurucz"
@@ -217,7 +217,7 @@ function read_line_list(fname::String; format="vald") :: Vector{Line}
         elseif format == "moog"
             parse_moog_linelist(f)
         else
-            throw(ArgumentError("$(format) is not a supported line list format"))
+            throw(ArgumentError("$(format) is not a supported linelist format"))
         end
     end
 
@@ -301,7 +301,7 @@ function parse_vald_linelist(f)
         wl_transform = identity
     else
         throw(ArgumentError(
-            "Can't parse line list.  I don't understand this wavelength column name: " * header[3]))
+            "Can't parse linelist.  I don't understand this wavelength column name: " * header[3]))
     end
     #Energy in cm^-1 or eV?
     E_col = header[shortformat ? 4 : 6]
@@ -311,7 +311,7 @@ function parse_vald_linelist(f)
         E_transform(x) = x * c_cgs * hplanck_eV
     else
         throw(ArgumentError(
-            "Can't parse line list.  I don't understand this energy column name: " * E_col))
+            "Can't parse linelist.  I don't understand this energy column name: " * E_col))
     end
 
     map(lines) do line

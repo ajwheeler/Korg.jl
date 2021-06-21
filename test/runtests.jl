@@ -144,10 +144,10 @@ end
             @test_throws ArgumentError Korg.get_atoms("hello world")
         end
 
-        @test_throws ArgumentError Korg.read_line_list("data/gfallvac08oct17.stub.dat";
+        @test_throws ArgumentError Korg.read_linelist("data/gfallvac08oct17.stub.dat";
                                                           format="abc")
 
-        kurucz_linelist = Korg.read_line_list("data/gfallvac08oct17.stub.dat", format="kurucz")
+        kurucz_linelist = Korg.read_linelist("data/gfallvac08oct17.stub.dat", format="kurucz")
         @testset "kurucz linelist parsing" begin
             @test issorted(kurucz_linelist, by=l->l.wl)
             @test length(kurucz_linelist) == 988
@@ -160,7 +160,7 @@ end
             @test kurucz_linelist[1].vdW ≈ 1.2302687708123812e-7
         end
 
-        vald_linelist = Korg.read_line_list("data/twolines.vald")
+        vald_linelist = Korg.read_linelist("data/twolines.vald")
         @testset "vald long format linelist parsing" begin
             @test length(vald_linelist) == 2
             @test vald_linelist[1].wl ≈ 3002.20106 * 1e-8
@@ -177,7 +177,7 @@ end
         end
 
         @testset "vald short format linelist parsing" begin
-            linelist = Korg.read_line_list("data/short.vald")
+            linelist = Korg.read_linelist("data/short.vald")
             @test length(linelist) == 5
             @test linelist[1].wl ≈ 3000.0414 * 1e-8
             @test linelist[1].log_gf == -2.957
@@ -205,7 +205,7 @@ end
             @test linelist[5].vdW == linelist[4].vdW
         end
 
-        moog_linelist = Korg.read_line_list("data/s5eqw_short.moog"; format="moog")
+        moog_linelist = Korg.read_linelist("data/s5eqw_short.moog"; format="moog")
         @testset "moog linelist parsing" begin
             @test issorted(moog_linelist, by=l->l.wl)
             @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
