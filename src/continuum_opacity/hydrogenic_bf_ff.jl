@@ -10,11 +10,11 @@ Calculates the LTE number density (in cm^-3) of a hydrogenic species at a given 
 
 # Arguments
 - `n::Integer`: The quantum number of the state
-- `nsdens_div_partition::Flt`: The total (including all states) number density of the current 
+- `nsdens_div_partition`: The total (including all states) number density of the current 
 ionization species (in cm^-3) divided by the species's partition function.
-- `ion_energy::Flt`: The minimum energy (in eV) required to ionize the species (from the ground 
+- `ion_energy`: The minimum energy (in eV) required to ionize the species (from the ground 
 state). This can be estimated as Z²*ion_energy of hydrogen or Z²*Rydberg_H.
-- `T::Flt`: Temperature
+- `T`: Temperature
 
 # Note
 This assumes that all hydrogenic species have a statistical weight of gₙ = 2*n².
@@ -22,8 +22,7 @@ This assumes that all hydrogenic species have a statistical weight of gₙ = 2*n
 This was taken from equation (5.4) of Kurucz (1970) (although this comes directly from the 
 boltzmann equation).
 """
-function ndens_state_hydrogenic(n::Integer, nsdens_div_partition::Flt, T::Flt,
-                                ion_energy::Flt) where {Flt<:AbstractFloat}
+function ndens_state_hydrogenic(n::Integer, nsdens_div_partition::Real, T::Real, ion_energy::Real)
     n2 = n*n
     g_n = 2.0*n2
     energy_level = ion_energy - ion_energy/n2
@@ -46,7 +45,7 @@ const _bf_σ_coef = SA[(0.9916,  2.719e13, -2.268e30),
  
 # this is helper function is the most likely part of the calculation to change.
 # This uses double precision to be safe about the polynomial coefficients.
-function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Float64, ion_freq::Float64)
+function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Real, ion_freq::Real)
     # this implements equation 5.5 from Kurucz (1970)
     # - Z is the atomic number
     # - n is the energy level (remember, they start from n=1)
@@ -88,20 +87,18 @@ where α(n=n') is the absorption coefficient for the bound-free atomic absorptio
 # Arguments
 - `Z::Integer`: Z is the atomic number of the ion (1 for HI)
 - `nmin::Integer`: The lowest energy level (principle quantum number) included in the calculation
-- `nsdens_div_partition::AbstractFloat` is the number density of the current species divided by the
+- `nsdens_div_partition` is the number density of the current species divided by the
    partition function.
-- `ν::Flt`: frequency in Hz
-- `ρ::Flt`: mass density in g/cm³
-- `T::Flt`: temperature in K
-- `ion_energy::AbstractFloat`: the ionization energy from the ground state (in eV).
+- `ν`: frequency in Hz
+- `ρ`: mass density in g/cm³
+- `T`: temperature in K
+- `ion_energy`: the ionization energy from the ground state (in eV).
 
 # Notes
 This implements equation (5.6) from Kurucz (1970). I think ρ was simply omitted from that equation.
 """
-function _hydrogenic_bf_high_n_opacity(Z::Integer, nmin::Integer,
-                                       nsdens_div_partition::AbstractFloat,
-                                       ν::AbstractFloat, ρ::AbstractFloat, T::AbstractFloat,
-                                       ion_energy::AbstractFloat)
+function _hydrogenic_bf_high_n_opacity(Z::Integer, nmin::Integer, nsdens_div_partition::Real, 
+                                       ν::Real, ρ::Real, T::Real, ion_energy::Real)
 
     # this function corresponds to the evaluation of a integral. We subdivide the solution into two
     # parts: (i) consts and (ii) integral. The solution is the product of both parts
@@ -149,12 +146,12 @@ integral.
 
 # Arguments
 - `Z::Integer`: Z is the atomic number of the species (e.g. 1 for H I or 2 for He II)
-- `nsdens_div_partition::Flt` is the total number density of the species divided by the species's
+- `nsdens_div_partition` is the total number density of the species divided by the species's
    partition function.
-- `ν::Flt`: frequency in Hz
-- `ρ::Flt`: mass density in g/cm³
-- `T::Flt`: temperature in K
-- `ion_energy::AbstractFloat`: the ionization energy from the ground state (in eV). This can be 
+- `ν`: frequency in Hz
+- `ρ`: mass density in g/cm³
+- `T`: temperature in K
+- `ion_energy`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
 - `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
    the explicit sum. The contributions from higher levels are included in the integral.
@@ -164,9 +161,9 @@ integral.
 # Notes
 This follows the approach described in section 5.1 of Kurucz (1970).
 """
-function hydrogenic_bf_opacity(Z::Integer, nsdens_div_partition::Flt, ν::Flt, ρ::Flt, T::Flt,
-                               ion_energy::Flt, nmax_explicit_sum::Integer,
-                               integrate_high_n::Bool = true) where {Flt<:AbstractFloat}
+function hydrogenic_bf_opacity(Z::Integer, nsdens_div_partition::Real, ν::Real, ρ::Real, T::Real, 
+                               ion_energy::Real, nmax_explicit_sum::Integer, 
+                               integrate_high_n::Bool=true)
     ionization_freq = _eVtoHz(ion_energy)
 
     # first, directly sum individual the opacity contributions from H I atoms at each of the lowest
@@ -221,8 +218,8 @@ computes the thermally averaged free-free gaunt factor by interpolating the tabl
 section 5.1 of Kurucz (1970). The table was derived from a figure in Karsas and Latter (1961).
 
 # Arguments
-- `log_u::F`: Equal to log₁₀(u) = log₁₀(h*ν/(k*T))
-- `log_γ2::F`: Equal to log₁₀(γ²) = log₁₀(RydbergH*Z²/(k*T))
+- `log_u`: Equal to log₁₀(u) = log₁₀(h*ν/(k*T))
+- `log_γ2`: Equal to log₁₀(γ²) = log₁₀(RydbergH*Z²/(k*T))
 
 # Note
 There is some ambiguity over whether we should replace RydbergH*Z² in the definition of γ² with the
@@ -250,11 +247,11 @@ means that `ni` should refer to:
 
 # Arguments
 - `Z::Integer`: the charge of the ion. For example, this is 1 for ionized H.
-- `ni::Flt`: the number density of the ion species in cm⁻³.
-- `ne::Flt`: the number density of free electrons.
-- `ν::Flt`: frequency in Hz
-- `ρ::Flt`: mass density in g/cm³
-- `T::Flt`: temperature in K
+- `ni`: the number density of the ion species in cm⁻³.
+- `ne`: the number density of free electrons.
+- `ν`: frequency in Hz
+- `ρ`: mass density in g/cm³
+- `T`: temperature in K
 
 # Note
 This approach was adopted from equation 5.8 from section 5.1 of Kurucz (1970). Comparison against
@@ -269,10 +266,9 @@ With this in mind, equation 5.8 of Kurucz (1970) should actually read
     ne * n(H II) * F_ν(T) * (1 - exp(-hplanck*ν/(kboltz*T))) / ρ
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
 """
-function hydrogenic_ff_opacity(Z::Integer, ni::Flt, ne::Flt, ν::Flt, ρ::Flt,
-                               T::Flt) where {Flt<:AbstractFloat}
+function hydrogenic_ff_opacity(Z::Integer, ni::Real, ne::Real, ν::Real, ρ::Real, T::Real)
     β = 1.0/(kboltz_eV * T)
-    Z2 = convert(Flt, Z*Z)
+    Z2 = Z*Z
 
     hν_div_kT = hplanck_eV * ν * β
     log_u = log10(hν_div_kT)

@@ -83,10 +83,12 @@ struct Line{F}
     interpret it as log10(Γ) per particle.  Otherwise, interpret it as packed ABO parameters.
     """
     function Line(wl::F, log_gf::F, species::String, E_lower::F, gamma_rad::F, gamma_stark::F,
-                  vdW::F) where F <: AbstractFloat
+                  vdW::F) where F <: Real
         new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
                if vdW > 0
                    floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
+               elseif vdW == 0
+                   0.0
                else 
                    10^vdW
                end
@@ -96,7 +98,7 @@ end
 """
 Construct a `Line` without explicit broadening parameters.
 """
-function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: AbstractFloat
+function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Real
     Line(wl, log_gf, species, E_lower, approximate_radiative_gamma(wl, log_gf),
          approximate_gammas(wl, species, E_lower)...)
 end
@@ -124,7 +126,7 @@ A simplified form of the Unsoeld (1995) approximation for van der Waals and Star
 Returns log10(γ_vdW).
 
 In the calculation of n*², uses the approximation that
-\\overbar{r}^2 = 5/2 {n^*}^4 / Z^2
+\\overbar{r^2} = 5/2 {n^*}^4 / Z^2
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
 Warner 1967.
 
@@ -159,7 +161,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
                 " exceeds the ionization energy (E_upper) > $(χ)). Using null broadening params.")
         γvdW = 0.0
     else
-        #From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
+        #(log) γ_vdW From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
         γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
     end
 
@@ -259,6 +261,7 @@ function parse_vald_linelist(f)
     firstline = findfirst(lines) do line
         line[1] == '\''
     end
+    header = split(lines[firstline-1])
 
     #vald short or long format?
     if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
@@ -279,17 +282,53 @@ function parse_vald_linelist(f)
         findfirst(split(_vald_to_korg_species_code(split(line, ',')[1]), '_')[2] .== numerals) <= 3
     end
 
+    #air or vacuum wls?
+    if contains(header[3], "air")
+        wl_transform = air_to_vacuum
+    elseif contains(header[3], "vac")
+        wl_transform = identity
+    else
+        throw(ArgumentError(
+            "Can't parse line list.  I don't understand this wavelength column name: " * header[3]))
+    end
+    #Energy in cm^-1 or eV?
+    E_col = header[shortformat ? 4 : 6]
+    if contains(E_col, "eV")
+        E_transform = identity
+    elseif contains(E_col, "cm")
+        E_transform(x) = x * c_cgs * hplanck_eV
+    else
+        throw(ArgumentError(
+            "Can't parse line list.  I don't understand this energy column name: " * E_col))
+    end
+
     map(lines) do line
         toks = split(line, ',')
         if shortformat
-            new_line_imputing_zeros(
-                parse(Float64, toks[2])*1e-8,
-                parse(Float64, toks[5]),
-                _vald_to_korg_species_code(toks[1]),
-                parse(Float64, toks[3]),
-                expOrZero(parse(Float64, toks[6])),
-                expOrZero(parse(Float64, toks[7])),
-                parse(Float64, toks[8]))
+            #extract all
+            if firstline == 3
+                new_line_imputing_zeros(
+                     wl_transform(parse(Float64, toks[2])*1e-8),
+                     parse(Float64, toks[4]),
+                     _vald_to_korg_species_code(toks[1]),
+                     E_transform(parse(Float64, toks[3])),
+                     expOrZero(parse(Float64, toks[5])),
+                     expOrZero(parse(Float64, toks[6])),
+                     parse(Float64, toks[7]))
+            #extract stellar
+            elseif firstline == 4
+                new_line_imputing_zeros(
+                     wl_transform(parse(Float64, toks[2])*1e-8),
+                     parse(Float64, toks[5]),
+                     _vald_to_korg_species_code(toks[1]),
+                     E_transform(parse(Float64, toks[3])),
+                     expOrZero(parse(Float64, toks[6])),
+                     expOrZero(parse(Float64, toks[7])),
+                     parse(Float64, toks[8]))
+            else
+                throw(ArgumentError("Can't determine if this is an \"extract all\" or \"extract " *
+                                    "stellar\" format linelist"))
+            end
         else
             new_line_imputing_zeros(
                 parse(Float64, toks[2])*1e-8,
@@ -309,8 +348,6 @@ function parse_moog_linelist(f)
     #moog format requires blank first line
     linelist = map(lines[2:end]) do line
         toks = split(line)
-        wl =
-        parse(Float64, toks[4])
         Line(parse(Float64, toks[1]) * 1e-8, #convert Å to cm
              parse(Float64, toks[4]),
              parse_species_code(toks[2]),
