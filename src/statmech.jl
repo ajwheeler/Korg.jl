@@ -140,7 +140,7 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
     end
 
     #passing atoms and molecules might seem a little weird architecturally, but it's partly in 
-    #anticipation if automatically culling the list of species considered by what's in the line list
+    #anticipation if automatically culling the list of species considered by what's in the linelist
     #in the future
     (atoms=atoms, molecules=molecules, equations=system, absolute_abundances,
      ionization_energies=ionization_energies, partition_fns=partition_fns, 
