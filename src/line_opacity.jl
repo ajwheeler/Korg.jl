@@ -24,14 +24,15 @@ otherwise specified
 """
 function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
                          ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
+    if length(linelist) == 0
+        return zeros(length(λs))
+    end
+
     #type shenanigans to allow autodiff to do its thing
     α_type = typeof(promote(linelist[1].wl, λs[1], temp, nₑ, n_densities["H_I"], ξ, cutoff_threshold
                            )[1])
     α_lines = zeros(α_type, length(λs))
 
-    if length(linelist) == 0
-        return α_lines
-    end
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
