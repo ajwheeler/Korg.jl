@@ -24,6 +24,8 @@ const atomic_masses = Dict(atomic_symbols .=> [
                            .* amu_cgs)
 
 """
+    get_mass(atom_or_molecule)
+
 Returns the mass of `atom_or_molecule` in g.
 """
 function get_mass(atom_or_molecule)

@@ -103,9 +103,11 @@ been replaced with the expanded form of the saha equation, in which n₀ = n(H�
 
 Combining 8.18, and 8.19 of Gray (2005), indicate that the version opacity contribution of H⁻
 bound-free absorption (with stimulated emission correction) is given by:
-                     n(H⁻)                                  n(H I)          n(H I) + n(H II)
-   κ_ν = α_bf(H⁻) * ------  * (1 - exp(-h*ν/(k*T))) * ------------------ * -----------------
-                    n(H I)                             n(H I) + n(H II)            ρ
+
+                      n(H⁻)                                  n(H I)          n(H I) + n(H II)
+    κ_ν = α_bf(H⁻) * ------  * (1 - exp(-h*ν/(k*T))) * ------------------ * -----------------
+                     n(H I)                             n(H I) + n(H II)            ρ
+
 This can be rewritten as: κ_ν = α_bf(H⁻) * n(H⁻) * (1 - exp(-h*ν/(k*T))) / ρ
 
 This function uses the polynomial provided in equation 8.11 of Gray (2005), that fits the tabulated

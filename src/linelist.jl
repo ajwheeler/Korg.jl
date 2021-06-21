@@ -30,10 +30,16 @@ function parse_species_code(code::AbstractString)
     atom_or_molecule * ionization
 end
 
-"get the chemical symbol for the element of the species"
+"""
+    strip_ionization(code)
+
+get the chemical symbol for the element of the species
+"""
 strip_ionization(code::AbstractString)::String = split(code, '_')[1]
 
 """
+    ismolecule(species)
+
 true if the string passed represents a molecule (with or without its ionization state)
 """
 function ismolecule(species)
@@ -49,6 +55,8 @@ function ismolecule(species)
 end
 
 """
+    get_atoms(molecule)
+
 Get the atoms that make up a diatomic molecule
 """
 function get_atoms(molecule)
@@ -70,7 +78,7 @@ end
 
 #This type represents an individual line.
 struct Line{F} 
-    wl::F                     #given in nm, convert to cm
+    wl::F                     #cm
     log_gf::F                 #unitless
     species::String           
     E_lower::F                #eV
@@ -79,6 +87,8 @@ struct Line{F}
     vdW::Union{F, Tuple{F,F}} #either log(Γ_vdW) per electron or (σ, α) from ABO theory
 
     """
+        Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+
     Construct a `Line` with a possibly packed vdW parameter (sigma.alpha) format.  If vdW < 0,
     interpret it as log10(Γ) per particle.  Otherwise, interpret it as packed ABO parameters.
     """
@@ -96,7 +106,9 @@ struct Line{F}
     end
 end
 """
-Construct a `Line` without explicit broadening parameters.
+    Line(wl, log_gf, species, E_lower)
+
+Construct a `Line` without explicit broadening parameters.  They will be set automatically.
 """
 function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Real
     Line(wl, log_gf, species, E_lower, approximate_radiative_gamma(wl, log_gf),

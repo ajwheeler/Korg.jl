@@ -33,7 +33,6 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
                            )[1])
     α_lines = zeros(α_type, length(λs))
 
-
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
     lb = 1
