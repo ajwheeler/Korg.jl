@@ -70,8 +70,8 @@ Parse fixed-width files, returning a vector of `NamedTuples`.
 `source` can be either an `AbstractVector` of `Strings` or a filename.
 `rowspec` should be a vector of tuples each containing, in order
 - a range object corresponding to the column postion
-- the type.  Strings will pull pulled directly other types will be parsed with `parse`.
-- the column name, a `Symbol`
+- the type.  Strings will be pulled directly & other types will be parsed with `parse`.
+- the column name, a `Symbol`.
 - optionally, a function to apply to the parsed value.
 """
 function parse_fwf(filename::String, rowspec; datarow=1, lastrow=0)
