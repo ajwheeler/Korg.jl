@@ -306,3 +306,16 @@ end
     #preserves line center?
     @test argmax(convF) == 500
 end
+
+@testset "autodiff" begin
+    using ForwardDiff
+
+    atm = read_model_atmosphere("data/sun.krz")
+    linelist = read_linelist("data/5000-5005.vald")
+    wls = 5000:0.01:5005
+    flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
+                         vmic=p[3]).flux
+
+    #make sure this works.
+    ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+end

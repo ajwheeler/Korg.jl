@@ -146,11 +146,11 @@ end
 A normalized voigt profile centered on λ₀ with doppler width `invΔλ_D` = 1/Δλ_D and lorentz width 
 `Δλ_L` evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
 """
-function line_profile(λ₀, invΔλ_D::F, Δλ_L, line_amplitude::F, λ::F) where F <: Real
+function line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L::Real, line_amplitude::Real, λ::Real)
     _line_profile(λ₀, invΔλ_D, Δλ_L*invΔλ_D/(4π), line_amplitude*invΔλ_D/sqrt(π), λ)
 end
-function _line_profile(λ₀, invΔλ_D::F, Δλ_L_invΔλ_D_div_4π::F, amplitude_invΔλ_D_div_sqrt_π::F, λ::F
-                      ) where F <: Real
+function _line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L_invΔλ_D_div_4π::Real, 
+                       amplitude_invΔλ_D_div_sqrt_π::Real, λ::Real)
     voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 
