@@ -89,7 +89,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     #You can verify it by substituting the variable of integration in the exponential integal, t,
     #with mu=1/t.
     flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
-        trapezoid_rule(τ_λ, S_λ .* exponential_integral_2.(τ_λ))
+        2.0*trapezoid_rule(τ_λ, S_λ .* exponential_integral_2.(τ_λ))
     end
 
     #return the solution, along with other quantities across wavelength and atmospheric layer.
