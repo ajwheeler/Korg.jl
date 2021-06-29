@@ -142,7 +142,7 @@ Wishart (1979) expects the tabulated data to have better than 1% percent accurac
 suggests that this data has better than 3% accuracy.
 """
 function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real, 
-                   ion_energy_H⁻::Real = 0.7552)
+                   ion_energy_H⁻::Real = _H⁻_ion_energy)
     λ = c_cgs*1e8/ν # in ångstroms
     tmp = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
     # convert from megabarn to cm² and include contributions from stimulated emission  1e-18

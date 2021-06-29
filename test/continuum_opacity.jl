@@ -170,6 +170,49 @@ end
         @test all(calculated .≥ 0.0)
         @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
     end
+    @testset "Extreme wavelengths" begin
+        # this tests the opacity function at wavelengths outside of the Wishart (1979) table
+
+        # choose arbitrary physical values:
+        nH_I = 3.0e16
+        nH_I_div_partition = nH_I / 2.0
+        ne = nH_I / 100.0
+        ρ = nH_I * 1.67e-24/0.76
+        T = 7800.0
+
+        # determine the minimum and maximum λs in the table:
+        _table_length = size(Korg.ContinuumOpacity._Hminus_bf_table, 1)
+        min_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[1,1]
+        max_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[_table_length, 1]
+        # determine the ionization λ for H⁻:
+        ion_energy = Korg.ContinuumOpacity._H⁻_ion_energy
+        Å_per_eV = 1e8 * (Korg.hplanck_eV * Korg.c_cgs)
+        max_λ_ionize = Å_per_eV/ion_energy
+
+        # now we are ready for the tests:
+
+        # first, check that a bounds error is thrown below min_tabulated_λ
+        @test_throws DomainError Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*0.5*min_tabulated_λ), ρ, T, ion_energy
+        )
+
+        # next, check that the opacity between max_tabulated_λ and max_λ_ionize is between the
+        # opacity at max_tabulated_λ and 0
+        κ_max_tabulated_λ = Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*max_tabulated_λ), ρ, T, ion_energy
+        )
+
+        κ_test = Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*0.5*(max_tabulated_λ+max_λ_ionize)), ρ, T,
+            ion_energy
+        )
+        @test (κ_max_tabulated_λ > κ_test) && (κ_test > 0.0)
+
+        # finally, check that the opacity at λ > max_λ_ionize is zero
+        @test 0.0 == Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*2*max_λ_ionize), ρ, T, ion_energy
+        )
+    end
 end
 
 
