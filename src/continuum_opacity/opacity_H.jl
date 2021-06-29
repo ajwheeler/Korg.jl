@@ -1,5 +1,8 @@
 # we are missing Rayleigh Scattering
 
+using Interpolations: LinearInterpolation, Throw
+using StaticArrays: SA
+
 using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 
 const _H_I_ion_energy = ionization_energies["H"][1] # not sure if this is a good idea
@@ -13,9 +16,6 @@ H_I_bf(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy,
 # H I free-free actually refers to the reaction: photon + e⁻ + H II -> e⁻ + H II.
 H_I_ff(nH_II, ne, ν, ρ, T) = hydrogenic_ff_opacity(1, nH_II, ne, ν, ρ, T)
 
-# compute the number density of H⁻ (implements eqn 5.10 of Kurucz 1970). This formula comes from
-# inverting the saha equation, where n(H⁻) is n₀ and n(H I) is n₁. Note that U₀ = 1 at all
-# temperatures.
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
 
@@ -44,29 +44,56 @@ function _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
 end
 
 
-"""
-    _Hminus_bf_cross_section(ν)
+const _Hminus_bf_table = SA[1250.0 5.431;   1500.0 6.512;   1750.0 7.918;   2000.0 9.453;
+                            2250.0 11.08;   2500.0 12.75;   2750.0 14.46;   3000.0 16.19;
+                            3250.0 17.92;   3500.0 19.65;   3750.0 21.35;   4000.0 23.02;
+                            4250.0 24.65;   4500.0 26.24;   4750.0 27.77;   5000.0 29.23;
+                            5250.0 30.62;   5500.0 31.94;   5750.0 33.17;   6000.0 34.32;
+                            6250.0 35.37;   6500.0 36.32;   6750.0 37.17;   7000.0 37.91;
+                            7250.0 38.54;   7500.0 39.07;   7750.0 39.48;   8000.0 39.77;
+                            8250.0 39.95;   8500.0 40.01;   8750.0 39.95;   9000.0 39.77;
+                            9250.0 39.48;   9500.0 39.06;   9750.0 38.53;   10000.0 37.89;
+                            10250.0 37.13;  10500.0 36.25;  10750.0 35.28;  11000.0 34.19;
+                            11250.0 33.01;  11500.0 31.72;  11750.0 30.34;  12000.0 28.87;
+                            12250.0 27.33;  12500.0 25.71;  12750.0 24.02;  13000.0 22.26;
+                            13250.0 20.46;  13500.0 18.62;  13750.0 16.74;  14000.0 14.85;
+                            14250.0 12.95;  14500.0 11.07;  14750.0 9.211;  15000.0 7.407;
+                            15250.0 5.677;  15500.0 4.052;  15750.0 2.575;  16000.0 1.302;
+                            16100.0 0.8697; 16200.0 0.4974; 16300.0 0.1989]
 
-Compute the H⁻ bound-free cross-section, which has units of cm^2 per H⁻ particle.
+const _Hminus_bf_cross_section_interp = LinearInterpolation(view(_Hminus_bf_table, :, 1),
+                                                            view(_Hminus_bf_table, :, 2),
+                                                            extrapolation_bc=Throw())
 
-The cross-section does not include a correction for stimulated emission.
 """
-function _Hminus_bf_cross_section(ν::Real)
-    λ = c_cgs*1e8/ν # in Angstroms
-    # we need to somehow factor out this bounds checking
-    if !(2250 <= λ <= 15000.0)
-        throw(DomainError(λ, "The wavelength must lie in the interval [2250 Å, 15000 Å]"))
+    _Hminus_bf_cross_section(λ, ion_energy_H⁻)
+
+Compute the H⁻ bound-free cross-section at a given wavelength (specified in Å). The cross-section 
+has units of megabarns per H⁻ particle and does NOT include a correction for stimulated emission.
+
+This function linearly interpolates the table provided in Wishart (1979).
+"""
+function _Hminus_bf_cross_section(λ, ion_energy_H⁻)
+    Å_per_eV = 1e8 * (hplanck_eV * c_cgs)
+    max_λ_ionize = Å_per_eV/ion_energy_H⁻
+
+    last_table_λ = _Hminus_bf_table[end, 1]
+    last_table_cross_section = _Hminus_bf_table[end, 2]
+
+    @assert max_λ_ionize > last_table_λ
+
+    if λ < _Hminus_bf_table[1,1]
+        throw(DomainError(λ, "λ must be ≥ $(_Hminus_bf_table[1,1]) Å"))
+    elseif λ <= last_table_λ
+        _Hminus_bf_cross_section_interp(λ)
+    elseif λ <= max_λ_ionize
+        # linearly interpolate b/t (last_table_λ, last_table_cross_section) and (max_λ_ionize, 0.0)
+        m = last_table_cross_section/(last_table_λ - max_λ_ionize)
+        m*(λ - max_λ_ionize)
+    else
+        0.0
     end
 
-    λ2 = λ*λ
-    λ3 = λ*λ2
-    λ4 = λ*λ3
-    λ5 = λ*λ4
-    λ6 = λ*λ5
-
-    αbf_H⁻ = (1.99654 - 1.18267e-5 * λ + 2.64243e-6 * λ2 - 4.40524e-10 * λ3 + 3.23992e-14 * λ4
-              - 1.39568e-18 * λ5 + 2.78701e-23 * λ6)
-    αbf_H⁻ * 1e-18
 end
 
 
@@ -90,9 +117,12 @@ pre-computed (instead it's computed internally by this function).
 
 This function is adapted from equation 8.12 from Grey (2005). This equation gives the absorption
 coefficient per H I atom (uncorrected by stimulated emission) is given by:
-    αff_H⁻ * 8.316e-10 * Pₑ * θ^2.5 * 10^(ion_energy_H⁻ * θ) * (U(H⁻,T)/ U(H I,T))
+
+    ``8.316e-10 \\alpha_{bf}(H^-) P_e \\theta^{2.5} * 10^{{\rm ion_energy_H}^- \\theta} U(H⁻,T)/ U(H I,T)``
+
 where:
-- αff_H⁻ is the photo dissociation cross-section. This can estimated with equation 8.11.
+- ``\\alpha_{bf}(H^-)`` is the photo dissociation cross-section. We estimate this by linearly
+  interpolating data from Wishart (1979).
 - θ = log10(e)/(k*T) or θ = 5040/T in units of eV⁻¹
 - U(H⁻,T) is the partition function of H⁻ at temperature T. This is always 1
 - U(H I,T) is the partition function of H I at temperature T. This is 2 at low to intermediate T.
@@ -101,26 +131,23 @@ Eqn 8.12 of Grey (2005) implicitly assumes that (U(H⁻,T)/ U(H I,T)) is always 
 This expression is simplicitly a rewritten form of: αff_H⁻ * n(H⁻)/n(H I) where n(H⁻)/n(H I) has
 been replaced with the expanded form of the saha equation, in which n₀ = n(H⁻) and n₁ = n(H I).
 
-Combining 8.18, and 8.19 of Gray (2005), indicate that the version opacity contribution of H⁻
-bound-free absorption (with stimulated emission correction) is given by:
+Combining 8.18, and 8.19 of Gray (2005), indicate that the opacity contribution of H⁻ bound-free
+absorption (with stimulated emission correction) is given by:
 
-                      n(H⁻)                                  n(H I)          n(H I) + n(H II)
-    κ_ν = α_bf(H⁻) * ------  * (1 - exp(-h*ν/(k*T))) * ------------------ * -----------------
-                     n(H I)                             n(H I) + n(H II)            ρ
+``\\kappa_\\nu = \\alpha_{bf}(H^-) \\frac{n(H^-)}{n(H I)} (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right) \\frac{n(H I)}{n(H I) + n(H II)} \\frac{n(H I) + n(H II)}{\\rho}``
 
-This can be rewritten as: κ_ν = α_bf(H⁻) * n(H⁻) * (1 - exp(-h*ν/(k*T))) / ρ
+This can be rewritten as: ``\\kappa_\\nu = \\alpha_{bf}(H^-) n(H⁻) (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right)  / \\rho``
 
-This function uses the polynomial provided in equation 8.11 of Gray (2005), that fits the tabulated
-data from Wishart (1979). While Gray (2005) claims that the polynomial fits the data with 0.2%
-precision for 2250 Å ≤ λ ≤ 15000 Å, in practice we find that it fits the data to better than 0.25%
-precision. Wishart (1979) expects the tabulated data to have better than 1% percent accuracy.
+Wishart (1979) expects the tabulated data to have better than 1% percent accuracy. Mathisen (1984)
+suggests that this data has better than 3% accuracy.
 """
 function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real, 
-                   ion_energy_H⁻::Real = 0.7552)
-    αbf_H⁻ = _Hminus_bf_cross_section(ν) # does not include contributions from stimulated emission
-    stimulated_emission_correction = (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T)))
-    n_H⁻ = _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy)
-    αbf_H⁻ * n_H⁻ * stimulated_emission_correction / ρ
+                   ion_energy_H⁻::Real = _H⁻_ion_energy)
+    λ = c_cgs*1e8/ν # in ångstroms
+    cross_section = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
+    # convert from megabarn to cm² and include contributions from stimulated emission  1e-18
+    cross_section *= (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))) * 1e-18
+    _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * cross_section / ρ
 end
 
 

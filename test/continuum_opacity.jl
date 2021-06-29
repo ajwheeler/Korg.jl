@@ -105,27 +105,47 @@ end
     end
 end
 
+"""
+    _Hminus_bf_cross_section_Gray(λ)
+
+Compute the H⁻ bound-free cross-section at a given wavelength (specified in Å). The cross-section 
+has units of megabarns per H⁻ particle and does NOT include a correction for stimulated emission.
+
+This function uses the polynomial provided in equation 8.11 of Gray (2005), that fits the tabulated
+data from Wishart (1979). While Gray (2005) claims that the polynomial fits the data with 0.2%
+precision for 2250 Å ≤ λ ≤ 15000 Å, in practice we find that it fits the data to better than 0.25%
+precision.
+"""
+function _Hminus_bf_cross_section_Gray(λ::Real)
+    # we need to somehow factor out this bounds checking
+    if !(2250 <= λ <= 15000.0)
+        throw(DomainError(λ, "The wavelength must lie in the interval [2250 Å, 15000 Å]"))
+    end
+
+    λ2 = λ*λ
+    λ3 = λ*λ2
+    λ4 = λ*λ3
+    λ5 = λ*λ4
+    λ6 = λ*λ5
+
+    αbf_H⁻ = (1.99654 - 1.18267e-5 * λ + 2.64243e-6 * λ2 - 4.40524e-10 * λ3 + 3.23992e-14 * λ4
+              - 1.39568e-18 * λ5 + 2.78701e-23 * λ6)
+    αbf_H⁻
+end
+
 function check_Hminus_bf_values(target_precision = 0.002, verbose = true)
-    # this is the tabulated data from Wishart (1979)
-    _bf_table = [16300 0.1989; 16200 0.4974; 16100 0.8697; 16000 1.302; 15750 2.575; 15500 4.052;
-                 15250 5.677;  15000 7.407;  14750 9.211;  14500 11.07; 14250 12.95; 14000 14.85;
-                 13750 16.74;  13500 18.62;  13250 20.46;  13000 22.26; 12750 24.02; 12500 25.71;
-                 12250 27.33;  12000 28.87;  11750 30.34;  11500 31.72; 11250 33.01; 11000 34.19;
-                 10750 35.28;  10500 36.25;  10250 37.13;  10000 37.89; 9750 38.53;  9500 39.06;
-                 9250 39.48;   9000 39.77;   8750 39.95;   8500 40.01;  8250 39.95;  8000 39.77;
-                 7750 39.48;   7500 39.07;   7250 38.54;   7000 37.91;  6750 37.17;  6500 36.32;
-                 6250 35.37;   6000 34.32;   5750 33.17;   5500 31.94;  5250 30.62;  5000 29.23;
-                 4750 27.77;   4500 26.24;   4250 24.65;   4000 23.02;  3750 21.35;  3500 19.65;
-                 3250 17.92;   3000 16.19;   2750 14.46;   2500 12.75;  2250 11.08;  2000 9.453;
-                 1750 7.918;   1500 6.512;   1250 5.431]
+    # compare the tabulated data from Wishart (1979) against the polynomial fits from Gray (2005)
+    
+    _bf_table = Korg.ContinuumOpacity._Hminus_bf_table
+    _bf_λ_vals = view(_bf_table, :, 1)
+    _bf_α_vals = view(_bf_table, :, 2)
 
-    _bf_λ_vals = view(_bf_table, :, 1) # in Ångstroms
-    _bf_α_vals = view(_bf_table, :, 2) .* 1e-18 # in cm² per H⁻ particle.
-    comp_λ_vals = view(_bf_λ_vals, 8:59)
-    comp_α_vals = view(_bf_α_vals, 8:59)
-    ν_vals = (Korg.c_cgs*1e8)./comp_λ_vals
+    comp_λ_vals = view(_bf_λ_vals, 5:56)
+    comp_α_vals = view(_bf_α_vals, 5:56)
+    @assert comp_λ_vals[1] == 2250.0
+    @assert comp_λ_vals[end] == 15000.0
 
-    coefs = Korg.ContinuumOpacity._Hminus_bf_cross_section.(ν_vals)
+    coefs = _Hminus_bf_cross_section_Gray.(comp_λ_vals)
     precision = abs.(coefs .- comp_α_vals)./comp_α_vals
     max_err, max_err_ind = findmax(precision)
 
@@ -149,6 +169,48 @@ end
         calculated, ref = Gray05_comparison_vals(panel,"Hminus_bf")
         @test all(calculated .≥ 0.0)
         @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+    end
+    @testset "Extreme wavelengths" begin
+        # this tests the opacity function at wavelengths outside of the Wishart (1979) table
+
+        # choose arbitrary physical values:
+        nH_I = 3.0e16
+        nH_I_div_partition = nH_I / 2.0
+        ne = nH_I / 100.0
+        ρ = nH_I * 1.67e-24/0.76
+        T = 7800.0
+
+        # determine the minimum and maximum λs in the table:
+        min_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[1,1]
+        max_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[end, 1]
+        # determine the ionization λ for H⁻:
+        ion_energy = Korg.ContinuumOpacity._H⁻_ion_energy
+        Å_per_eV = 1e8 * (Korg.hplanck_eV * Korg.c_cgs)
+        max_λ_ionize = Å_per_eV/ion_energy
+
+        # now we are ready for the tests:
+
+        # first, check that a bounds error is thrown below min_tabulated_λ
+        @test_throws DomainError Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*0.5*min_tabulated_λ), ρ, T, ion_energy
+        )
+
+        # next, check that the opacity between max_tabulated_λ and max_λ_ionize is between the
+        # opacity at max_tabulated_λ and 0
+        κ_max_tabulated_λ = Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*max_tabulated_λ), ρ, T, ion_energy
+        )
+
+        κ_test = Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*0.5*(max_tabulated_λ+max_λ_ionize)), ρ, T,
+            ion_energy
+        )
+        @test (κ_max_tabulated_λ > κ_test) && (κ_test > 0.0)
+
+        # finally, check that the opacity at λ > max_λ_ionize is zero
+        @test 0.0 == Korg.ContinuumOpacity.Hminus_bf(
+            nH_I_div_partition, ne, Korg.c_cgs/(1e-8*2*max_λ_ionize), ρ, T, ion_energy
+        )
     end
 end
 
