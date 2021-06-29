@@ -42,24 +42,40 @@ function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95) where F <: 
 end
 
 """
-    air_to_vacuum(λ)
+    air_to_vacuum(λ; cgs=λ<1)
 
-convert λ from an air wavelength to a vacuum wavelength
+convert λ from an air wavelength to a vacuum wavelength.  
+λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.
+Formula from Birch and Downs (1994) via the VALD website.
 """
-function air_to_vacuum(λ)
+function air_to_vacuum(λ; cgs=λ<1)
+    if cgs
+        λ *= 1e8
+    end
     s = 1e4/λ
     n = 1 + 0.00008336624212083 + 0.02408926869968 / (130.1065924522 - s^2) + 0.0001599740894897 / (38.92568793293 - s^2)
+    if cgs
+        λ *= 1e-8
+    end
     λ * n
 end
 
 """
-    vacuum_to_air(λ)
+    vacuum_to_air(λ; cgs=λ<1)
 
 convert λ from a vacuum wavelength to an air wavelength
+λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.
+Formula from Birch and Downs (1994) via the VALD website.
 """
-function vacuum_to_air(λ)
+function vacuum_to_air(λ; cgs=λ<1)
+    if cgs
+        λ *= 1e8
+    end
     s = 1e4/λ
     n = 1 + 0.0000834254 + 0.02406147 / (130 - s^2) + 0.00015998 / (38.9 - s^2)
+    if cgs
+        λ *= 1e-8
+    end
     λ / n
 end
 
