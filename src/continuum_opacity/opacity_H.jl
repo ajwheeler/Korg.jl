@@ -77,8 +77,8 @@ function _Hminus_bf_cross_section(λ, ion_energy_H⁻)
     Å_per_eV = 1e8 * (hplanck_eV * c_cgs)
     max_λ_ionize = Å_per_eV/ion_energy_H⁻
 
-    last_table_λ = _Hminus_bf_table[size(_Hminus_bf_table, 1), 1]
-    last_table_cross_section = _Hminus_bf_table[size(_Hminus_bf_table, 1), 2]
+    last_table_λ = _Hminus_bf_table[end, 1]
+    last_table_cross_section = _Hminus_bf_table[end, 2]
 
     @assert max_λ_ionize > last_table_λ
 
@@ -115,7 +115,7 @@ Compute the H⁻ bound-free opacity κ
 This function assumes that n(H⁻) ≪ n(H I) + n(H II). The number density of n(H⁻) should not be
 pre-computed (instead it's computed internally by this function).
 
-This function is adapted from equation 8.12 from Grey (2005) This equation gives the absorption
+This function is adapted from equation 8.12 from Grey (2005). This equation gives the absorption
 coefficient per H I atom (uncorrected by stimulated emission) is given by:
 
     ``8.316e-10 \\alpha_{bf}(H^-) P_e \\theta^{2.5} * 10^{{\rm ion_energy_H}^- \\theta} U(H⁻,T)/ U(H I,T)``
@@ -144,10 +144,10 @@ suggests that this data has better than 3% accuracy.
 function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real, 
                    ion_energy_H⁻::Real = _H⁻_ion_energy)
     λ = c_cgs*1e8/ν # in ångstroms
-    tmp = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
+    cross_section = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
     # convert from megabarn to cm² and include contributions from stimulated emission  1e-18
-    αbf_H⁻ = (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))) * tmp * 1e-18
-    _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * αbf_H⁻ / ρ
+    cross_section *= (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))) * 1e-18
+    _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * cross_section / ρ
 end
 
 
