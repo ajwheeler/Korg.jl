@@ -143,7 +143,7 @@ function check_Hminus_bf_values(target_precision = 0.002, verbose = true)
     comp_λ_vals = view(_bf_λ_vals, 5:56)
     comp_α_vals = view(_bf_α_vals, 5:56)
     @assert comp_λ_vals[1] == 2250.0
-    @assert comp_λ_vals[length(comp_λ_vals)] == 15000.0
+    @assert comp_λ_vals[end] == 15000.0
 
     coefs = _Hminus_bf_cross_section_Gray.(comp_λ_vals)
     precision = abs.(coefs .- comp_α_vals)./comp_α_vals
@@ -181,9 +181,8 @@ end
         T = 7800.0
 
         # determine the minimum and maximum λs in the table:
-        _table_length = size(Korg.ContinuumOpacity._Hminus_bf_table, 1)
         min_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[1,1]
-        max_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[_table_length, 1]
+        max_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[end, 1]
         # determine the ionization λ for H⁻:
         ion_energy = Korg.ContinuumOpacity._H⁻_ion_energy
         Å_per_eV = 1e8 * (Korg.hplanck_eV * Korg.c_cgs)
