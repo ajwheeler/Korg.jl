@@ -83,7 +83,7 @@ function _Hminus_bf_cross_section(λ, ion_energy_H⁻)
     @assert max_λ_ionize > last_table_λ
 
     if λ < _Hminus_bf_table[1,1]
-        throw(DomainError(λ, "wavelength must be greater or equal to $(_Hminus_bf_table[1,1]) Å."))
+        throw(DomainError(λ, "λ must be ≥ $(_Hminus_bf_table[1,1]) Å"))
     elseif λ <= last_table_λ
         _Hminus_bf_cross_section_interp(λ)
     elseif λ <= max_λ_ionize
