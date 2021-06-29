@@ -61,17 +61,40 @@ const _Hminus_bf_table = SA[1250.0 5.431;   1500.0 6.512;   1750.0 7.918;   2000
                             15250.0 5.677;  15500.0 4.052;  15750.0 2.575;  16000.0 1.302;
                             16100.0 0.8697; 16200.0 0.4974; 16300.0 0.1989]
 
+const _Hminus_bf_cross_section_interp = LinearInterpolation(view(_Hminus_bf_table, :, 1),
+                                                            view(_Hminus_bf_table, :, 2),
+                                                            extrapolation_bc=Throw())
+
 """
-    _Hminus_bf_cross_section(λ)
+    _Hminus_bf_cross_section(λ, ion_energy_H⁻)
 
 Compute the H⁻ bound-free cross-section at a given wavelength (specified in Å). The cross-section 
 has units of megabarns per H⁻ particle and does NOT include a correction for stimulated emission.
 
 This function linearly interpolates the table provided in Wishart (1979).
 """
-const _Hminus_bf_cross_section = LinearInterpolation(view(_Hminus_bf_table, :, 1),
-                                                     view(_Hminus_bf_table, :, 2),
-                                                     extrapolation_bc=Throw())
+function _Hminus_bf_cross_section(λ, ion_energy_H⁻)
+    Å_per_eV = 1e8 * (hplanck_eV * c_cgs)
+    max_λ_ionize = Å_per_eV/ion_energy_H⁻
+
+    last_table_λ = _Hminus_bf_table[size(_Hminus_bf_table, 1), 1]
+    last_table_cross_section = _Hminus_bf_table[size(_Hminus_bf_table, 1), 2]
+
+    @assert max_λ_ionize > last_table_λ
+
+    if λ < _Hminus_bf_table[1,1]
+        throw(DomainError(λ, "$(_Hminus_bf_table[1,1]) Å must not exceed the wavelength"))
+    elseif λ <= last_table_λ
+        _Hminus_bf_cross_section_interp(λ)
+    elseif λ <= max_λ_ionize
+        # linearly interpolate b/t (last_table_λ, last_table_cross_section) and (max_λ_ionize, 0.0)
+        m = last_table_cross_section/(last_table_λ - max_λ_ionize)
+        m*(λ - max_λ_ionize)
+    else
+        0.0
+    end
+
+end
 
 
 """
@@ -121,7 +144,7 @@ suggests that this data has better than 3% accuracy.
 function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real, 
                    ion_energy_H⁻::Real = 0.7552)
     λ = c_cgs*1e8/ν # in ångstroms
-    tmp = _Hminus_bf_cross_section(λ) # in units of megabarn
+    tmp = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
     # convert from megabarn to cm² and include contributions from stimulated emission  1e-18
     αbf_H⁻ = (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))) * tmp * 1e-18
     _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * αbf_H⁻ / ρ
