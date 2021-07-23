@@ -73,6 +73,10 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
         α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_density, 
                                     number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
 
+        α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
+                                             number_densities["H_I"], partition_funcs["H_I"],
+                                             hline_stark_profiles)
+
     end
 
     #the thickness of each atmospheric layer 

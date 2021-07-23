@@ -1,4 +1,7 @@
+using Interpolations: LinearInterpolation, Flat
 using SpecialFunctions: gamma
+using StaticArrays: @SVector
+using HDF5
 
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
@@ -81,6 +84,83 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     end
     α_lines
 end
+
+"""
+    load_hydrogen_stark_profiles()
+
+Load the (doppler-convolved) Stark-broadening profiles from disk.
+"""
+function setup_hydrogen_stark_profiles(fname=joinpath(_data_dir, 
+                                                      "Stehle-Hutchson-hydrogen-profiles.h5"))
+    hline_stark_profiles = h5open(fname, "r") do fid
+        map(keys(fid)) do transition
+            temps = read(fid[transition], "temps")
+            nes = read(fid[transition], "electron_number_densities")
+            delta_nu_over_F0 = read(fid[transition], "delta_nu_over_F0")
+            
+            siz = length(delta_nu_over_F0)
+            nans = @SVector fill(NaN, siz)
+            P = read(fid[transition], "profile")
+            
+            (temps=temps, 
+             electron_number_densities=nes,
+             #flat BCs to allow wls very close to the line center
+             profile=LinearInterpolation((temps, nes, [floatmin() ; log.(delta_nu_over_F0[2:end])]), 
+                                         log.(P); extrapolation_bc=Flat()),
+             lower = HDF5.read_attribute(fid[transition], "lower"),
+             upper = HDF5.read_attribute(fid[transition], "upper"),
+             Kalpha = HDF5.read_attribute(fid[transition], "Kalpha"),
+             log_gf = HDF5.read_attribute(fid[transition], "log_gf"),
+             λ0 = LinearInterpolation((temps, nes), read(fid[transition], "lambda0") * 1e-8) 
+            )
+        end
+    end
+end
+
+
+#used in hydrogen_line_absorption
+_zero2epsilon(x) = x == 0 ? floatmin() : x
+
+"""
+    hydrogen_line_absorption(λs, T, nₑ)
+
+TODO
+
+"""
+function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles; 
+                                  window_size=10.0 * 1e-8)
+    νs = Korg.c_cgs ./ λs
+    dνdλ = Korg.c_cgs ./ λs.^2
+    F0 = 1.25e-9 * nₑ^(2/3)
+    
+    αs = zeros(length(λs))
+    
+    for line in hline_stark_profiles
+        if !all(Interpolations.lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< Interpolations.ubounds(line.λ0.itp)[1:2])
+            continue
+        end
+        λ₀ = line.λ0(T, nₑ)
+        lb, ub = Korg.move_bounds(λs, 0, 0, λ₀, window_size)
+        if lb == ub == 1 || lb == ub == length(λs)
+            continue
+        end
+            
+        #Kν = (2π)^(5/2) * (2π * Korg.c_cgs / λ₀)^3 * line.Kalpha
+
+        Elo = RydbergH_eV * (1 - 1/line.lower^2)
+        Eup = RydbergH_eV * (1 - 1/line.upper^2)
+        β = 1/(kboltz_eV * T)
+        levels_factor = (exp(-β*Elo) - exp(-β*Eup)) / UH_I(T)
+        amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
+        
+        ν₀ = Korg.c_cgs / (λ₀)
+        scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
+        dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
+        view(αs,lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
+    end
+    αs
+end
+
 
 "the stark broadening gamma scaled acording to its temperature dependence"
 scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)

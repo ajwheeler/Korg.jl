@@ -13,9 +13,10 @@ module Korg
     include("atmosphere.jl")     #parse model atmospheres
 
     #load data when the package is imported. 
-    ionization_energies = setup_ionization_energies()
-    partition_funcs = setup_partition_funcs()
-    equilibrium_constants = setup_equilibrium_constants()
+    const ionization_energies = setup_ionization_energies()
+    const partition_funcs = setup_partition_funcs()
+    const equilibrium_constants = setup_equilibrium_constants()
+    const hline_stark_profiles = setup_hydrogen_stark_profiles()
 
     include("continuum_opacity/continuum_opacity.jl") #Define continuum opacity functions.
     include("synthesize.jl")                          #solve radiative transfer equation
