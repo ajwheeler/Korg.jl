@@ -193,12 +193,12 @@ end
             @test linelist[2].vdW == linelist[1].vdW
 
             @test linelist[3].gamma_rad == linelist[2].gamma_rad
-            @test linelist[3].gamma_stark == 5.839313870663207e-25
+            @test linelist[3].gamma_stark == 5.848503287015111e-25
             @test linelist[3].vdW == linelist[1].vdW
 
             @test linelist[4].gamma_rad == linelist[1].gamma_rad
             @test linelist[4].gamma_stark == linelist[3].gamma_stark
-            @test linelist[4].vdW == 9.947102106019509e-8
+            @test linelist[4].vdW == 9.953360714197118e-8
 
             @test linelist[5].gamma_rad == linelist[1].gamma_rad
             @test linelist[5].gamma_stark == linelist[1].gamma_stark

@@ -163,11 +163,11 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     k = kboltz_cgs
     E_upper = E_lower + (h * c / wl)
 
-    nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
+    nstar4_upper = (Z^2 * Rydberg_eV / (χ - E_upper))^2
     #From Cowley 1971
     γstark = 0.77e-18 * nstar4_upper * wl^2
 
-    Δrbar2 = (5/2) * RydbergH_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
+    Δrbar2 = (5/2) * Rydberg_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
     if χ < E_upper
         println("Warning: for the $(species) line at $(Int(floor(wl*1e8))), the upper energy level"*
                 " exceeds the ionization energy (E_upper) > $(χ)). Using null broadening params.")
