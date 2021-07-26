@@ -44,11 +44,6 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
     linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
 
-    #impotent = setdiff(Set(keys(abundances)), elements)
-    #if length(impotent) > 0
-    #    @warn "Abundanc(es) for $(impotent) is specified but not in line list."
-    #end
-
     abundances = get_absolute_abundances(atomic_symbols, metallicity, abundances)
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
@@ -75,7 +70,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
         α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
                                              number_densities["H_I"], partition_funcs["H_I"],
-                                             hline_stark_profiles)
+                                             hline_stark_profiles, vmic*1e5)
 
     end
 
