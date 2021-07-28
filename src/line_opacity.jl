@@ -113,7 +113,7 @@ end
 
 
 #used in hydrogen_line_absorption
-_zero2epsilon(x) = x == 0 ? floatmin() : x
+_zero2epsilon(x) = x + (x == 0) * floatmin()
 
 """
     hydrogen_line_absorption(λs, T, nₑ)
