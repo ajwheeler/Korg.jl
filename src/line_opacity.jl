@@ -156,7 +156,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
             #λ₀ may not be the most appropriate choice here?
             Δλ_D = doppler_width(λ₀, T, Hmass, ξ)
 
-           Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
+            Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
             Δλ_L = Γ * λ₀^2 / c_cgs
 
             lb, ub = move_bounds(λs, 0, 0, λ₀, self_window_size)
