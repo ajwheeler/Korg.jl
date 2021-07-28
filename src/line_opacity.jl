@@ -94,7 +94,6 @@ function setup_hydrogen_stark_profiles(fname=joinpath(_data_dir,
             delta_nu_over_F0 = read(fid[transition], "delta_nu_over_F0")
             
             siz = length(delta_nu_over_F0)
-            nans = @SVector fill(NaN, siz)
             P = read(fid[transition], "profile")
             
             (temps=temps, 
@@ -114,7 +113,7 @@ end
 
 
 #used in hydrogen_line_absorption
-_zero2epsilon(x) = x == 0 ? floatmin() : x
+_zero2epsilon(x) = x + (x == 0) * floatmin()
 
 """
     hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
@@ -173,7 +172,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
             #λ₀ may not be the most appropriate choice here?
             Δλ_D = doppler_width(λ₀, T, Hmass, ξ)
 
-           Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
+            Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
             Δλ_L = Γ * λ₀^2 / c_cgs
 
             lb, ub = move_bounds(λs, 0, 0, λ₀, self_window_size)
