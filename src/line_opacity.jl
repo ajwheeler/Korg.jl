@@ -117,15 +117,31 @@ end
 _zero2epsilon(x) = x == 0 ? floatmin() : x
 
 """
-    hydrogen_line_absorption(λs, T, nₑ)
+    hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
+                                  stark_window_size=3e-7, self_window_size=1e-6)
 
-TODO
+Calculate contribution to the the absorption coefficient, α, from hydrogen lines in units of cm^-1,
+at wavelengths `λs`.
 
+Arguments:
+- `T`: temperature [K]
+- `nₑ`: electron number density [cm^-3]
+- `nH_I`: neutral hydrogen number density [cm^-3]
+- `hline_stark_profiles`: (returned by `setup_hline_stark_profiles`)
+- `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
+   are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
+   doppler profile.
+- `stark_window_size`: the max distance from each line center [cm] at which to calculate the line 
+   absorption for lines besides Hα-Hγ (those dominated by stark broadening).
+- `self_window_size`: the max distance from each line center [cm] at which to calculate the line 
+   absorption for Hα-Hγ (those dominated by self-broadening).
 """
 function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
                                   stark_window_size=3e-7, self_window_size=1e-6)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
+    #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
+    #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2/3)
     α_hlines = zeros(length(λs))
     for line in hline_stark_profiles
