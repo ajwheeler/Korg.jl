@@ -94,7 +94,6 @@ function setup_hydrogen_stark_profiles(fname=joinpath(_data_dir,
             delta_nu_over_F0 = read(fid[transition], "delta_nu_over_F0")
             
             siz = length(delta_nu_over_F0)
-            nans = @SVector fill(NaN, siz)
             P = read(fid[transition], "profile")
             
             (temps=temps, 
