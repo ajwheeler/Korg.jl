@@ -242,6 +242,9 @@ end
     end
 
     @testset "hydrogen stark profiles" begin
+        # This test data was generated with Korg.hydrogen_line_absorption shortly
+        # after writing the function. This data is consistent with the results
+        # produced by the Fortran code distributed with Stehle & Hutcheon 1999
         fname = "data/lyman_absorption.h5"
         αs_ref = h5read(fname,  "profile")
 
