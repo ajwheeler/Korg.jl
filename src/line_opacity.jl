@@ -1,4 +1,7 @@
+using Interpolations: LinearInterpolation, Flat
 using SpecialFunctions: gamma
+using StaticArrays: @SVector
+using HDF5
 
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
@@ -38,10 +41,13 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     lb = 1
     ub = 1
     for line in linelist
+        line.species == "H_I" && continue
+
         mass = get_mass(strip_ionization(line.species))
         
         #doppler-broadening parameter
         Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / mass + ξ^2) / c_cgs
+        Δλ_D = doppler_width(line.wl, temp, mass, ξ)
 
         #get all damping params from linelist.  There may be better sources for this.
         Γ = line.gamma_rad 
@@ -49,25 +55,19 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
             Γ += (nₑ*scaled_stark(line.gamma_stark, temp) +
                   (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
         end
-
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = Γ * line.wl^2 / c_cgs
 
-        #cross section
-        σ = sigma_line(line.wl)
+        β = 1/(kboltz_eV * temp)
+        E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
+        levels_factor = (exp(-β*line.E_lower) - exp(-β*E_upper)) / partition_fns[line.species](temp)
 
-        #stat mech quantities 
-        #number density of particles in the relevant excitation state
-        boltzmann_factor = exp(- line.E_lower / kboltz_eV / temp)
-        #the factor (1 - exp(hν₀ / kT)) to account for stimulated emission
-        emission_factor = 1 - exp(-c_cgs * hplanck_cgs / line.wl / kboltz_cgs / temp)
-        levels_factor = boltzmann_factor / partition_fns[line.species](temp) * emission_factor
-
-        line_amplitude = 10.0^line.log_gf * n_densities[line.species] * σ * levels_factor
+        #total wl-integrated absorption coefficient
+        amplitude = 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
 
         if !isnothing(α_cntm)
             α_crit = α_cntm(line.wl) * cutoff_threshold
-            Δλ_crit = sqrt(line_amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
+            Δλ_crit = sqrt(amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
             window_size = max(4Δλ_D, Δλ_crit)
         end
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
@@ -76,11 +76,130 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         end
 
         invΔλ_D = 1/Δλ_D
-        @inbounds view(α_lines, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, line_amplitude,
+        @inbounds view(α_lines, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, amplitude,
                                                          view(λs, lb:ub))
     end
     α_lines
 end
+
+"""
+    load_hydrogen_stark_profiles()
+
+Load the (doppler-convolved) Stark-broadening profiles from disk.
+"""
+function setup_hydrogen_stark_profiles(fname=joinpath(_data_dir, 
+                                                      "Stehle-Hutchson-hydrogen-profiles.h5"))
+    hline_stark_profiles = h5open(fname, "r") do fid
+        map(keys(fid)) do transition
+            temps = read(fid[transition], "temps")
+            nes = read(fid[transition], "electron_number_densities")
+            delta_nu_over_F0 = read(fid[transition], "delta_nu_over_F0")
+            
+            siz = length(delta_nu_over_F0)
+            P = read(fid[transition], "profile")
+            
+            (temps=temps, 
+             electron_number_densities=nes,
+             #flat BCs to allow wls very close to the line center
+             profile=LinearInterpolation((temps, nes, [floatmin() ; log.(delta_nu_over_F0[2:end])]), 
+                                         log.(P); extrapolation_bc=Flat()),
+             lower = HDF5.read_attribute(fid[transition], "lower"),
+             upper = HDF5.read_attribute(fid[transition], "upper"),
+             Kalpha = HDF5.read_attribute(fid[transition], "Kalpha"),
+             log_gf = HDF5.read_attribute(fid[transition], "log_gf"),
+             λ0 = LinearInterpolation((temps, nes), read(fid[transition], "lambda0") * 1e-8) 
+            )
+        end
+    end
+end
+
+
+#used in hydrogen_line_absorption
+_zero2epsilon(x) = x + (x == 0) * floatmin()
+
+"""
+    hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
+                                  stark_window_size=3e-7, self_window_size=1e-6)
+
+Calculate contribution to the the absorption coefficient, α, from hydrogen lines in units of cm^-1,
+at wavelengths `λs`.
+
+Arguments:
+- `T`: temperature [K]
+- `nₑ`: electron number density [cm^-3]
+- `nH_I`: neutral hydrogen number density [cm^-3]
+- `hline_stark_profiles`: (returned by `setup_hline_stark_profiles`)
+- `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
+   are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
+   doppler profile.
+- `stark_window_size`: the max distance from each line center [cm] at which to calculate the line 
+   absorption for lines besides Hα-Hγ (those dominated by stark broadening).
+- `self_window_size`: the max distance from each line center [cm] at which to calculate the line 
+   absorption for Hα-Hγ (those dominated by self-broadening).
+"""
+function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
+                                  stark_window_size=3e-7, self_window_size=1e-6)
+    νs = c_cgs ./ λs
+    dνdλ = c_cgs ./ λs.^2
+    #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
+    #interpolated stark profiles
+    F0 = 1.25e-9 * nₑ^(2/3)
+    α_hlines = zeros(length(λs))
+    for line in hline_stark_profiles
+        if !all(Interpolations.lbounds(line.λ0.itp)[1:2] 
+                .< (T, nₑ) .< Interpolations.ubounds(line.λ0.itp)[1:2])
+            continue #transitions to high levels are omitted for high nₑ and T
+        end
+        λ₀ = line.λ0(T, nₑ)
+
+        Elo = RydbergH_eV * (1 - 1/line.lower^2)
+        Eup = RydbergH_eV * (1 - 1/line.upper^2)
+        β = 1/(kboltz_eV * T)
+        levels_factor = (exp(-β*Elo) - exp(-β*Eup)) / UH_I(T)
+        amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
+
+        #compute profile with either self or stark broadening
+        Hmass = get_mass("H")
+        if line.lower == 2 && line.upper in [3, 4, 5]
+            #ABO params and line center
+            λ₀, σ, α = if line.upper == 3
+                6.56460998e-5, 1180.0, 0.677
+            elseif line.upper == 4
+                4.8626810200000004e-5, 2320.0, 0.455
+            elseif line.upper == 5
+                4.34168232e-5, 4208.0, 0.380
+            end
+
+            #use Barklem+ 2000 p-d approximation for resonant broadening of first 3 balmer lines
+            #λ₀ may not be the most appropriate choice here?
+            Δλ_D = doppler_width(λ₀, T, Hmass, ξ)
+
+            Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
+            Δλ_L = Γ * λ₀^2 / c_cgs
+
+            lb, ub = move_bounds(λs, 0, 0, λ₀, self_window_size)
+            if lb == ub
+                continue
+            end
+            @inbounds view(α_hlines, lb:ub) .+= line_profile.(λ₀, 1.0/Δλ_D, Δλ_L, amplitude, 
+                                                             view(λs, lb:ub))
+        else #use Stehle+ 1999 Stark-broadened profiles
+            lb, ub = move_bounds(λs, 0, 0, λ₀, stark_window_size)
+            if lb == ub
+                continue
+            end
+                
+            ν₀ = c_cgs / (λ₀)
+            scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
+            dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
+            @inbounds view(α_hlines,lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
+        end
+    end
+    α_hlines
+end
+
+"the width of the doppler-broadening profile"
+doppler_width(λ₀, T, mass, ξ) = λ₀ * sqrt(2kboltz_cgs*T / mass + ξ^2) / c_cgs
 
 "the stark broadening gamma scaled acording to its temperature dependence"
 scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)

@@ -1,5 +1,4 @@
-using Korg
-using Test
+using Korg, Test, HDF5
 
 include("continuum_opacity.jl")
 
@@ -193,12 +192,12 @@ end
             @test linelist[2].vdW == linelist[1].vdW
 
             @test linelist[3].gamma_rad == linelist[2].gamma_rad
-            @test linelist[3].gamma_stark == 5.839313870663207e-25
+            @test linelist[3].gamma_stark == 5.848503287015111e-25
             @test linelist[3].vdW == linelist[1].vdW
 
             @test linelist[4].gamma_rad == linelist[1].gamma_rad
             @test linelist[4].gamma_stark == linelist[3].gamma_stark
-            @test linelist[4].vdW == 9.947102106019509e-8
+            @test linelist[4].vdW == 9.953360714197118e-8
 
             @test linelist[5].gamma_rad == linelist[1].gamma_rad
             @test linelist[5].gamma_stark == linelist[1].gamma_stark
@@ -240,6 +239,27 @@ end
             @test issorted(ϕ[Int(ceil(end/2)) : end], rev=true)
             @test 0.99 < sum(ϕ .* Δ)/amplitude < 1
         end
+    end
+
+    @testset "hydrogen stark profiles" begin
+        # This test data was generated with Korg.hydrogen_line_absorption shortly
+        # after writing the function. This data is consistent with the results
+        # produced by the Fortran code distributed with Stehle & Hutcheon 1999
+        fname = "data/lyman_absorption.h5"
+        αs_ref = h5read(fname,  "profile")
+
+        fid = h5open("data/lyman_absorption.h5") 
+        T = HDF5.read_attribute(fid["profile"], "T")
+        ne = HDF5.read_attribute(fid["profile"], "ne")
+        nH_I = HDF5.read_attribute(fid["profile"], "nH_I")
+        wls = (HDF5.read_attribute(fid["profile"], "start_wl") :
+               HDF5.read_attribute(fid["profile"], "wl_step") : 
+               HDF5.read_attribute(fid["profile"], "stop_wl") )
+        close(fid)
+
+        αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, Korg.partition_funcs["H_I"], 
+                                           Korg.hline_stark_profiles, 0.0)
+        @test αs_ref ≈ αs rtol=1e-5
     end
 end
 
