@@ -134,15 +134,15 @@ end
 
 """
 A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
-10,000 K.  The stark broadening 
-Returns log10(γ_vdW).
+10,000 K. Used for atomic lines with no vdW and stark broadening info in the linelist.
+Returns log10(γ_stark), log10(γ_vdW)
 
 In the calculation of n*², uses the approximation that
 \\overbar{r^2} = 5/2 {n^*}^4 / Z^2
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
 Warner 1967.
 
-Used for atomic lines with no vdW and stark broadening info in the linelist.
+For autoionizing lines (those for which E_upper > χ), returns 0.0 for γ_vdW.
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
     if ismolecule(species)
@@ -169,8 +169,6 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 
     Δrbar2 = (5/2) * Rydberg_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
     if χ < E_upper
-        println("Warning: for the $(species) line at $(Int(floor(wl*1e8))), the upper energy level"*
-                " exceeds the ionization energy (E_upper) > $(χ)). Using null broadening params.")
         γvdW = 0.0
     else
         #(log) γ_vdW From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
