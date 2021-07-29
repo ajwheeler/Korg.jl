@@ -1,5 +1,4 @@
-using Korg
-using Test
+using Korg, Test, HDF5
 
 include("continuum_opacity.jl")
 
@@ -240,6 +239,24 @@ end
             @test issorted(ϕ[Int(ceil(end/2)) : end], rev=true)
             @test 0.99 < sum(ϕ .* Δ)/amplitude < 1
         end
+    end
+
+    @testset "hydrogen stark profiles" begin
+        fname = "data/lyman_absorption.h5"
+        αs_ref = h5read(fname,  "profile")
+
+        fid = h5open("data/lyman_absorption.h5") 
+        T = HDF5.read_attribute(fid["profile"], "T")
+        ne = HDF5.read_attribute(fid["profile"], "ne")
+        nH_I = HDF5.read_attribute(fid["profile"], "nH_I")
+        wls = (HDF5.read_attribute(fid["profile"], "start_wl") :
+               HDF5.read_attribute(fid["profile"], "wl_step") : 
+               HDF5.read_attribute(fid["profile"], "stop_wl") )
+        close(fid)
+
+        αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, Korg.partition_funcs["H_I"], 
+                                           Korg.hline_stark_profiles, 0.0)
+        @test αs_ref ≈ αs rtol=1e-5
     end
 end
 
