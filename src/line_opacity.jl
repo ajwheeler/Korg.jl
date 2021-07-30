@@ -247,8 +247,8 @@ end
 """
     sigma_line(wl)
 
-The cross-section (divided by gf) at wavelength `wl` in Ångstroms of a transition for which the product of the
-degeneracy and oscillator strength is `10^log_gf`.
+The cross-section (divided by gf) at wavelength `wl` in Ångstroms of a transition for which the 
+product of the degeneracy and oscillator strength is `10^log_gf`.
 """
 function sigma_line(λ::Real)
     #work in cgs
@@ -256,14 +256,15 @@ function sigma_line(λ::Real)
     mₑ = electron_mass_cgs
     c  = c_cgs
 
+    #the factor of |dλ/dν| = λ²/c is because we are working in wavelength rather than frequency
     (π*e^2/mₑ/c) * (λ^2/c)
 end
 
 """
     line_profile(λ₀, invΔλ_D, Δλ_L, line_amplitude, λ)
 
-A normalized voigt profile centered on λ₀ with doppler width `invΔλ_D` = 1/Δλ_D and lorentz width 
-`Δλ_L` evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
+A voigt profile centered on λ₀ with doppler width `invΔλ_D` = 1/Δλ_D and lorentz width `Δλ_L` 
+evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
 """
 function line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L::Real, line_amplitude::Real, λ::Real)
     _line_profile(λ₀, invΔλ_D, Δλ_L*invΔλ_D/(4π), line_amplitude*invΔλ_D/sqrt(π), λ)
