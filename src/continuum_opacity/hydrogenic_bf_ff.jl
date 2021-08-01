@@ -69,7 +69,12 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Real, ion_freq
         A, B, C = _bf_σ_coef[min(n,length(_bf_σ_coef))]
 
         poly = A + (B + C*Z2*inv_ν)*Z2*inv_ν
-        _bf_σ_const*Z2*(inv_n2*inv_n2*inv_n)*(inv_ν^3)*poly
+        # equation 5.5 of Kurucz had a typo in it. In the numerator of the fraction that is
+        # multiplied by the entire polynomial, Z² should be Z⁴. This was discovered during
+        # comparisons with data from the Opacity Project, and can be confirmed by:
+        # - looking at eqn 5.6 of Kurucz (it uses Z⁴ instead of Z²)
+        # - comparison against equation 10.54 of Rybicki & Lightman
+        _bf_σ_const*Z2*Z2*(inv_n2*inv_n2*inv_n)*(inv_ν^3)*poly
     end
 end
 
