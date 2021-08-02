@@ -291,6 +291,7 @@ end
     voigt(α, v)
 
 The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions), ``H``.
+Approximation from Hunger 1965.
 """
 function voigt(α, v)
     if α <= 0.2 
