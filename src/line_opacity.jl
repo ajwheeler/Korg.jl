@@ -46,7 +46,6 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         mass = get_mass(strip_ionization(line.species))
         
         #doppler-broadening parameter
-        Δλ_D = line.wl * sqrt(2kboltz_cgs*temp / mass + ξ^2) / c_cgs
         Δλ_D = doppler_width(line.wl, temp, mass, ξ)
 
         #get all damping params from linelist.  There may be better sources for this.
