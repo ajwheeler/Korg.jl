@@ -48,6 +48,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
 
+    ns = []
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α_type = typeof(promote(atm[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
                             metallicity, vmic, abundances["H"])[1])
@@ -55,6 +56,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     for (i, layer) in enumerate(atm)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
                                                  layer.electron_density)
+        push!(ns, number_densities)
 
         #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
         #interpolator that can be used to approximate it over a fine grid.
@@ -93,7 +95,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
     #return the solution, along with other quantities across wavelength and atmospheric layer.
     #idk whether we should return this extra stuff long-term, but it's useful for debugging
-    (flux=flux, alpha=α, tau=τ, source_fn=source_fn)
+    (flux=flux, alpha=α, tau=τ, source_fn=source_fn, number_densities=ns)
 end
 
 """

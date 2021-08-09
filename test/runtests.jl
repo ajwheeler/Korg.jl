@@ -109,10 +109,13 @@ end
     @testset "linelists" begin 
         @testset "species codes" begin
             @test Korg.parse_species_code("01.00") == "H_I"
+            @test Korg.parse_species_code("101.0") == "H2_I"
             @test Korg.parse_species_code("01.0000") == "H_I"
             @test Korg.parse_species_code("02.01") == "He_II"
             @test Korg.parse_species_code("02.1000") == "He_II"
             @test Korg.parse_species_code("0608") == "CO_I"
+            @test Korg.parse_species_code("0606") == "C2_I"
+            @test Korg.parse_species_code("606") == "C2_I"
             @test Korg.parse_species_code("0608.00") == "CO_I"
             @test_throws ArgumentError Korg.parse_species_code("06.05.04")
             @test_throws Exception Korg.parse_species_code("99.01")
