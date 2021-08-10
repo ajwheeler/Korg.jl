@@ -4,13 +4,13 @@ module Korg
 
     _data_dir = joinpath(@__DIR__, "../data") 
 
-    include("constants.jl")      #physical constants
-    include("atomic_data.jl")    #symbols and atomic weights
-    include("linelist.jl")       #parse linelists, define Line type
-    include("line_opacity.jl")   #opacity, line profile, voigt function
-    include("partition_func.jl") #approximate partition functions
-    include("statmech.jl")       #statistical mechanics, molecular equilibrium
-    include("atmosphere.jl")     #parse model atmospheres
+    include("constants.jl")                #physical constants
+    include("atomic_data.jl")              #symbols and atomic weights
+    include("linelist.jl")                 #parse linelists, define Line type
+    include("line_opacity.jl")             #opacity, line profile, voigt function
+    include("read_statmech_quantities.jl") #approximate Us, Ks, chis
+    include("statmech.jl")                 #statistical mechanics, molecular equilibrium
+    include("atmosphere.jl")               #parse model atmospheres
 
     #load data when the package is imported. 
     const ionization_energies = setup_ionization_energies()

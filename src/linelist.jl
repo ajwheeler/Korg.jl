@@ -21,10 +21,19 @@ function parse_species_code(code::AbstractString)
         throw(ArgumentError("invalid species code"))
     end
 
-    atom_or_molecule = if length(toks[1]) < 3
+    atom_or_molecule = if length(toks[1]) <= 2
         atomic_symbols[parse(Int, toks[1])]
-    elseif length(toks[1]) == 4
-        atomic_symbols[parse(Int, toks[1][1:2])] * atomic_symbols[parse(Int, toks[1][3:4])]
+    elseif length(toks[1]) <= 4
+        tok = toks[1]
+        if length(tok) == 3  
+            tok = "0"*tok
+        end
+        a1 = atomic_symbols[parse(Int, tok[1:2])] 
+        a2 = atomic_symbols[parse(Int, tok[3:4])]
+        if a1 == a2
+            a2 = "2"
+        end
+        a1 * a2
     end
 
     atom_or_molecule * ionization

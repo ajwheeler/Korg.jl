@@ -1,27 +1,6 @@
 using NLsolve
 
 """
-    setup_ionization_energies([filename])
-
-Parses the table of ionization energies and returns it as a dictionary mapping elements to
-their ionization energies, `[χ₁, χ₂, χ₃]` in eV.
-"""
-function setup_ionization_energies(fname=joinpath(_data_dir, 
-                                                  "BarklemCollet2016-ionization_energies.dat"))
-    open(fname, "r") do f
-        d = Dict{String, Vector{Float64}}()
-        for line in eachline(f)
-            if line[1] != '#'        
-                toks = split(strip(line))
-                #the first token is the atomic number, which we ignore
-                d[toks[2]] = parse.(Float64, toks[3:end])
-            end
-        end
-        d
-    end
-end
-
-"""
     saha_ion_weights(T, nₑ, atom, ionization_energies, partition_functions)
 
 Returns `(wII, wIII)`, where `wII` is the ratio of singly ionized to neutral atoms of a given 
@@ -62,7 +41,7 @@ end
 """
     translational_U(m, T)
 
-The contribution to the partition function from the free movement of a particle.
+The (inverse) contribution to the partition function from the free movement of a particle.
 Used in the Saha equation.
 
 arguments
@@ -102,9 +81,9 @@ number density (supplied later)
   over a range of temperatures. 
 
 K is defined in terms of partial pressures, so e.g.
-K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) + n(H)) / n(OH) kT
-Alternatively, this could be computed via a Saha equation involving the molecular partition function
-and dissolution energy.
+K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH) kT
+This could also be computed via a Saha equation involving the molecular partition function and 
+dissolution energy.
 """
 function molecular_equilibrium_equations(absolute_abundances, ionization_energies, partition_fns, 
                                          equilibrium_constants)
@@ -167,11 +146,18 @@ arguments:
 - the electron number density `nₑ`
 - optionally, `x0`, a starting point for the solver
 """
-function molecular_equilibrium(MEQs, T, nₜ, nₑ;
-                               x0=[nₜ*MEQs.absolute_abundances[a]* 0.8 for a in MEQs.atoms]) :: Dict
-    #numerically solve for equlibrium.  This uses finite difference rather that autodiff bacause 
-    #it's fast enough this way and requires fewer deps, but enabling autodiff is trivial
-    sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=20, store_trace=true, ftol=nₜ * 1e-12, 
+function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing) :: Dict
+    if x0 == nothing
+        #compute good first guess by neglecting molecules
+        x0 = map(MEQs.atoms) do atom
+            wII, wIII =  saha_ion_weights(T, nₑ, atom, MEQs.ionization_energies, 
+                                                  MEQs.partition_fns)
+            nₜ*MEQs.absolute_abundances[atom] / (1 + wII + wIII)
+        end
+    end
+
+    #numerically solve for equlibrium.
+    sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=200, store_trace=true, ftol=nₜ*1e-12,
                   autodiff=:forward)
     if !sol.f_converged
         error("Molecular equlibrium unconverged", sol, "\n", sol.trace)
@@ -190,8 +176,9 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ;
         el1, el2 = get_atoms(m)
         n₁ = number_densities[el1*"_I"]
         n₂ = number_densities[el2*"_I"]
-        K = MEQs.equilibrium_constants[m]
-        number_densities[m*"_I"] = n₁ * n₂ * kboltz_cgs * T / 10^K(T)
+        logK = MEQs.equilibrium_constants[m]
+        #add 1 to logK to conver to to cgs from mks
+        number_densities[m*"_I"] = n₁ * n₂ * kboltz_cgs * T / 10^logK(T)
     end
 
     number_densities
