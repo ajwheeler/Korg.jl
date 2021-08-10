@@ -1,6 +1,5 @@
 using Interpolations: LinearInterpolation, Flat
 using SpecialFunctions: gamma
-using StaticArrays: @SVector
 using HDF5
 
 """
