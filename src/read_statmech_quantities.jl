@@ -68,7 +68,8 @@ setup_equilibrium_constants() = read_partition_funcs(
 Constructs a Dict holding tables containing partition function or equilibrium constant values across
 temperature.
 
-The optionsl argument, `transform` is applied to each value. It is used to do unit conversions, etc.
+The optional argument, `transform` is applied to each value. It is used to perform unit conversions,
+when loading equilibrium constants
 
 """
 function read_partition_funcs(fname; transform=identity)
