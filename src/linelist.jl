@@ -90,7 +90,7 @@ struct Line{F}
     wl::F                     #cm
     log_gf::F                 #unitless
     species::String           
-    E_lower::F                #eV
+    E_lower::F                #eV (also called the excitation potential)
     gamma_rad::F              #s^-1
     gamma_stark::F            #s^-1
     vdW::Union{F, Tuple{F,F}} #either log(Γ_vdW) per electron or (σ, α) from ABO theory
