@@ -11,7 +11,8 @@ wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelengt
 optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
-- `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H), where n_X is the number density of X.
+- `abundances` are A(X) format, i.e. A(x) = log_10(n_X/n_H) + 12, where n_X is the number density of 
+   X.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provide wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
