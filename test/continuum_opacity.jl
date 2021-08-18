@@ -381,7 +381,7 @@ end
         # bound-free absorption. It's also much more constraining when H I ff opacity is subdominant
         χs = Dict(["H"=>[Korg.RydbergH_eV, -1.0, -1.0]])
         # implicitly assumed by the Gray implementation
-        Us = Dict(["H_I"=>(T -> 2.0), "H_II"=>(T -> 1.0)])
+        Us = Dict([Korg.Species("H_I")=>(T -> 2.0), Korg.Species("H_II")=>(T -> 1.0)])
 
         λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
         ν_vals = Korg.c_cgs*1e8./λ_vals

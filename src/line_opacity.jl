@@ -31,8 +31,8 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     end
 
     #type shenanigans to allow autodiff to do its thing
-    α_type = typeof(promote(linelist[1].wl, λs[1], temp, nₑ, n_densities["H_I"], ξ, cutoff_threshold
-                           )[1])
+    α_type = typeof(promote(linelist[1].wl, λs[1], temp, nₑ, n_densities[Species("H_I")], ξ, 
+                            cutoff_threshold)[1])
     α_lines = zeros(α_type, length(λs))
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
@@ -42,16 +42,17 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     for line in linelist
         line.species == "H_I" && continue
 
-        mass = get_mass(strip_ionization(line.species))
+        m = mass(line.species)
         
         #doppler-broadening parameter
-        Δλ_D = doppler_width(line.wl, temp, mass, ξ)
+        Δλ_D = doppler_width(line.wl, temp, m, ξ)
 
         #get all damping params from linelist.  There may be better sources for this.
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
             Γ += (nₑ*scaled_stark(line.gamma_stark, temp) +
-                  (n_densities["H_I"] + 0.42n_densities["He_I"])*scaled_vdW(line.vdW, mass, temp))
+                  (n_densities[Species("H_I")] + 0.42n_densities[Species("He_I")]) * 
+                   scaled_vdW(line.vdW, m, temp))
         end
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = Γ * line.wl^2 / c_cgs
@@ -157,7 +158,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
         #compute profile with either self or stark broadening
-        Hmass = get_mass("H")
+        Hmass = mass(Baryon("H"))
         if line.lower == 2 && line.upper in [3, 4, 5]
             #ABO params and line center
             λ₀, σ, α = if line.upper == 3
@@ -197,7 +198,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
 end
 
 "the width of the doppler-broadening profile"
-doppler_width(λ₀, T, mass, ξ) = λ₀ * sqrt(2kboltz_cgs*T / mass + ξ^2) / c_cgs
+doppler_width(λ₀, T, m, ξ) = λ₀ * sqrt(2kboltz_cgs*T / m + ξ^2) / c_cgs
 
 "the stark broadening gamma scaled acording to its temperature dependence"
 scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)

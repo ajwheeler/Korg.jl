@@ -5,8 +5,8 @@ include("continuum_opacity.jl")
 @testset "atomic data" begin 
     @test (Set(Korg.atomic_symbols) == Set(keys(Korg.atomic_masses))
              == Set(keys(Korg.solar_abundances)))
-    @test Korg.get_mass("CO") ≈ Korg.get_mass("C") + Korg.get_mass("O")
-    @test Korg.get_mass("C2") ≈ 2Korg.get_mass("C")
+    @test Korg.mass(Korg.Baryon("CO")) ≈ Korg.mass(Korg.Baryon("C")) + Korg.mass(Korg.Baryon("O"))
+    @test Korg.mass(Korg.Baryon("C2")) ≈ 2Korg.mass(Korg.Baryon("C"))
 end
 
 @testset "ionization energies" begin
@@ -41,10 +41,10 @@ end
 
 @testset "O I-III and CN partition functions are monotonic in T" begin
     Ts = 1:100:10000
-    @test issorted(Korg.partition_funcs["O_I"].(Ts))
-    @test issorted(Korg.partition_funcs["O_II"].(Ts))
-    @test issorted(Korg.partition_funcs["O_III"].(Ts))
-    @test issorted(Korg.partition_funcs["CN_I"].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.Species("O_I")].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.Species("O_II")].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.Species("O_III")].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.Species("CN_I")].(Ts))
 end
 
 @testset "stat mech" begin
@@ -52,7 +52,7 @@ end
         nH_tot = 1e15
         # specify χs and Us to decouple this testset from other parts of the code
         χs = Dict("H"=>[Korg.RydbergH_eV, -1.0, -1.0])
-        Us = Dict(["H_I"=>(T -> 2.0), "H_II"=>(T -> 1.0)])
+        Us = Dict([Korg.Species("H_I")=>(T -> 2.0), Korg.Species("H_II")=>(T -> 1.0)])
         # iterate from less than 1% ionized to more than 99% ionized
         for T in [3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3, 1e4, 1.1e4, 1.2e4, 1.3e4, 1.4e4, 1.5e5]
             nₑ = electron_ndens_Hplasma(nH_tot, T, 2.0)
@@ -75,7 +75,7 @@ end
 
     @testset "molecular equilibrium" begin
         #solar abundances
-        abundances = Korg.get_absolute_abundances(Korg.atomic_symbols, 0.0, Dict())
+        abundances = Korg.get_absolute_abundances(0.0, Dict())
         nₜ = 1e15 
         nₑ = 1e-3 * nₜ #arbitrary
 
@@ -88,14 +88,15 @@ end
 
         n = Korg.molecular_equilibrium(MEQs, 5700.0, nₜ, nₑ)
         #make sure number densities are sensible
-        @test n["C_III"] < n["C_II"] < n["C_I"] < n["H_II"] < n["H_I"]
+        @test (n[Korg.Species("C_III")] < n[Korg.Species("C_II")] < n[Korg.Species("C_I")] < 
+               n[Korg.Species("H_II")] < n[Korg.Species("H_I")])
 
         #total number of carbons is correct
         total_C = map(collect(keys(n))) do species
-            if Korg.strip_ionization(species) == "C2"
+            if species == Korg.Species("C2")
                 n[species] * 2
-            elseif ((Korg.strip_ionization(species) == "C") || 
-                    (Korg.ismolecule(species) && ("C" in Korg.get_atoms(species))))
+            elseif (species.baryon == Korg.Baryon("C") || 
+                    (Korg.ismolecule(species) && ("C" in species.baryon.atoms)))
                 n[species]
             else
                 0.0
@@ -108,42 +109,32 @@ end
 @testset "lines" begin
     @testset "linelists" begin 
         @testset "species codes" begin
-            @test Korg.parse_species_code("01.00") == "H_I"
-            @test Korg.parse_species_code("101.0") == "H2_I"
-            @test Korg.parse_species_code("01.0000") == "H_I"
-            @test Korg.parse_species_code("02.01") == "He_II"
-            @test Korg.parse_species_code("02.1000") == "He_II"
-            @test Korg.parse_species_code("0608") == "CO_I"
-            @test Korg.parse_species_code("0606") == "C2_I"
-            @test Korg.parse_species_code("606") == "C2_I"
-            @test Korg.parse_species_code("0608.00") == "CO_I"
-            @test_throws ArgumentError Korg.parse_species_code("06.05.04")
-            @test_throws Exception Korg.parse_species_code("99.01")
-        end
+            @test Korg.Species("01.00")   == Korg.Species("H I")
+            @test Korg.Species("101.0")   == Korg.Species("H2 I")
+            @test Korg.Species("01.0000") == Korg.Species("H I")
+            @test Korg.Species("02.01")   == Korg.Species("He II")
+            @test Korg.Species("02.1000") == Korg.Species("He II")
+            @test Korg.Species("0608")    == Korg.Species("CO I")
+            @test Korg.Species("0606")    == Korg.Species("C2 I")
+            @test Korg.Species("606")     == Korg.Species("C2 I")
+            @test Korg.Species("0608.00") == Korg.Species("CO I")
 
-        @testset "strip ionization info" begin
-            @test Korg.strip_ionization("H_I") == "H"
-            @test Korg.strip_ionization("H_II") == "H"
-            @test Korg.strip_ionization("CO") == "CO"
+            @test_throws ArgumentError Korg.Species("06.05.04")
+            @test_throws Exception Korg.Species("99.01")
         end
 
         @testset "distinguish atoms from molecules" begin
-            @test !Korg.ismolecule(Korg.strip_ionization("H_I"))
-            @test !Korg.ismolecule(Korg.strip_ionization("H_II"))
-            @test Korg.ismolecule(Korg.strip_ionization("CO"))
-
-            @test !Korg.ismolecule("H_I")
-            @test !Korg.ismolecule("H_II")
-            @test Korg.ismolecule("CO")
+            @test Korg.ismolecule(Korg.Baryon("H2"))
+            @test Korg.ismolecule(Korg.Baryon("CO"))
+            @test !Korg.ismolecule(Korg.Baryon("H"))
+            @test !Korg.ismolecule(Korg.Baryon("Li"))
         end
 
         @testset "break molecules into atoms" begin
-            @test Korg.get_atoms("CO") == ("C", "O")
-            @test Korg.get_atoms("C2") == ("C", "C")
-            @test Korg.get_atoms("MgO") == ("Mg", "O")
-            #nonsensical but it doesn't matter
-            @test Korg.get_atoms("OMg") == ("O", "Mg")
-            @test_throws ArgumentError Korg.get_atoms("hello world")
+
+            @test Korg.Baryon("CO").atoms == ["C", "O"]
+            @test Korg.Baryon("C2").atoms == ["C", "C"]
+            @test Korg.Baryon("MgO").atoms == ["O", "Mg"]
         end
 
         @test_throws ArgumentError Korg.read_linelist("data/gfallvac08oct17.stub.dat";
@@ -155,7 +146,7 @@ end
             @test length(kurucz_linelist) == 988
             @test kurucz_linelist[1].wl ≈ 72320.699 * 1e-8
             @test kurucz_linelist[1].log_gf == -0.826
-            @test kurucz_linelist[1].species == "Be_II"
+            @test kurucz_linelist[1].species == Korg.Species("Be_II")
             @test kurucz_linelist[1].E_lower ≈ 17.360339371573698
             @test kurucz_linelist[1].gamma_rad ≈ 8.511380382023759e7
             @test kurucz_linelist[1].gamma_stark ≈ 0.003890451449942805
@@ -167,7 +158,7 @@ end
             @test length(vald_linelist) == 2
             @test vald_linelist[1].wl ≈ 3002.20106 * 1e-8
             @test vald_linelist[1].log_gf == -1.132
-            @test vald_linelist[1].species == "Y_II"
+            @test vald_linelist[1].species == Korg.Species("Y_II")
             @test vald_linelist[1].E_lower ≈ 3.3757
             @test vald_linelist[1].gamma_rad ≈ 4.1686938347033465e8
             @test vald_linelist[1].gamma_stark ≈ 2.6302679918953817e-6
@@ -183,7 +174,7 @@ end
             @test length(linelist) == 5
             @test linelist[1].wl ≈ 3000.0414 * 1e-8
             @test linelist[1].log_gf == -2.957
-            @test linelist[1].species == "Fe_I"
+            @test linelist[1].species == Korg.Species("Fe_I")
             @test linelist[1].E_lower ≈ 3.3014
             @test linelist[1].gamma_rad ≈ 1.905460717963248e7
             @test linelist[1].gamma_stark ≈ 0.0001230268770812381
@@ -212,7 +203,7 @@ end
             @test issorted(moog_linelist, by=l->l.wl)
             @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
             @test moog_linelist[1].log_gf ≈ -0.280
-            @test moog_linelist[1].species == "Ti_I"
+            @test moog_linelist[1].species == Korg.Species("Ti_I")
             @test moog_linelist[2].E_lower ≈ 3.265
         end
 
@@ -260,7 +251,8 @@ end
                HDF5.read_attribute(fid["profile"], "stop_wl") )
         close(fid)
 
-        αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, Korg.partition_funcs["H_I"], 
+        αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, 
+                                           Korg.partition_funcs[Korg.Species("H_I")], 
                                            Korg.hline_stark_profiles, 0.0)
         @test αs_ref ≈ αs rtol=1e-5
     end
@@ -281,30 +273,21 @@ end
 @testset "synthesis" begin
 
     @testset "calculate absolute abundances" begin
-        @test_throws ArgumentError Korg.get_absolute_abundances(["H"], 0.0, Dict("H"=>13))
+        @test_throws ArgumentError Korg.get_absolute_abundances(0.0, Dict("H"=>13))
 
         @testset for metallicity in [0.0, 1.0], A_X in [Dict(), Dict("C"=>9)]
-            for elements in [Korg.atomic_symbols, ["H", "He", "C", "Ba"]]
-                nxnt = Korg.get_absolute_abundances(elements, metallicity, A_X)
+            nxnt = Korg.get_absolute_abundances(metallicity, A_X)
 
-                #abundances for the right set of elementns
-                @test Set(elements) == Set(keys(nxnt))
-
-                #correct absolute abundances?
-                if "C" in keys(A_X)
-                    @test log10(nxnt["C"]/nxnt["H"]) + 12 ≈ 9
-                end
-                @test log10(nxnt["He"]/nxnt["H"]) + 12 ≈ Korg.solar_abundances["He"]
-                @test log10(nxnt["Ba"]/nxnt["H"]) + 12 ≈ 
-                    Korg.solar_abundances["Ba"] + metallicity
-
-                #normalized?
-                if elements == Korg.atomic_symbols
-                    @test sum(values(nxnt)) ≈ 1
-                else
-                    @test sum(values(nxnt)) < 1
-                end
+            #correct absolute abundances?
+            if "C" in keys(A_X)
+                @test log10(nxnt["C"]/nxnt["H"]) + 12 ≈ 9
             end
+            @test log10(nxnt["He"]/nxnt["H"]) + 12 ≈ Korg.solar_abundances["He"]
+            @test log10(nxnt["Ba"]/nxnt["H"]) + 12 ≈ 
+                Korg.solar_abundances["Ba"] + metallicity
+
+            #normalized?
+            @test sum(values(nxnt)) ≈ 1
         end
     end
 

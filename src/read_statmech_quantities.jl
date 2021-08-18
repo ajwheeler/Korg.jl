@@ -37,15 +37,7 @@ revisited in the future.
 """
 function setup_partition_funcs(atoms=joinpath(_data_dir, "BarklemCollet2016-atomic_partition.dat"),
                               mols=joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat"))
-    atomUs, molUs = read_partition_funcs.([atoms, mols])
-    new_molUs = typeof(molUs)()
-    #use only neutral molecules, add "I"
-    for (m, f) in molUs
-        if !('+' in m) && !('-' in m)
-            new_molUs[m*"_I"] = f
-        end
-    end
-    merge(atomUs, new_molUs)
+    merge(read_partition_funcs.([atoms, mols])...)
 end
 
 """
@@ -74,7 +66,7 @@ when loading equilibrium constants
 """
 function read_partition_funcs(fname; transform=identity)
     temperatures = Vector{Float64}()
-    data_pairs = Vector{Tuple{AbstractString,Vector{Float64}}}()
+    data_pairs = Vector{Tuple{Species,Vector{Float64}}}()
     open(fname, "r") do f
         for line in eachline(f)
             if (length(line)>=9) && contains(line, "T [K]")
@@ -83,9 +75,10 @@ function read_partition_funcs(fname; transform=identity)
                 continue
             else # add entries to the dictionary
                 row_entries = split(strip(line))
-                species = popfirst!(row_entries)
-                if species[end] != '+' #ignore ionized molecules
-                    push!(data_pairs, (species, transform.(parse.(Float64, row_entries))))
+                species_code = popfirst!(row_entries)
+                if species_code[end] != '+' && species_code[end] != '-' #ignore ionized molecules
+                    push!(data_pairs, (Species(species_code), 
+                                       transform.(parse.(Float64, row_entries))))
                 end
             end
         end

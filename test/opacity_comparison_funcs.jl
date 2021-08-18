@@ -75,7 +75,7 @@ function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = Korg.solar_a
     out = 0.0
     for element in Korg.atomic_symbols
         wII, wIII = Korg.saha_ion_weights(T, nₑ, element, Korg.ionization_energies, 
-                                             Korg.partition_funcs)
+                                          Korg.partition_funcs)
 
         nₑ_per_ndens_species = wII/(1 + wII + wIII) + 2wIII/(1 + wII + wIII)
         abundance = 10.0^(abundances[element]-12.0)
@@ -118,14 +118,14 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     end
 
     ff_coef = begin
-        χs = [H_I_ion_energy, NaN, NaN]
-        # assumption in the approach described by Gray (2005)
-        Us = [T -> 2.0, T -> 1.0, T -> NaN]
-
         nH_total = nₑ * 100.0 # this is totally arbitrary
         ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
+        
+        #Assume U_I(T) = 2.0 and U_II(T) = 1.0, as in Gray (2005)
+        Us = Dict([Korg.Species("H_I")=>(T -> 2.0), Korg.Species("H_II")=>(T -> 1.0)])
+        χs = Dict(["H"=>[Korg.RydbergH_eV, -1.0, -1.0]])
+        wII, wIII = Korg.saha_ion_weights(T, nₑ, "H", χs, Us)
 
-        wII, wIII = Korg.saha_ion_weights(T, nₑ, χs, Us)
         nH_I = nH_total / (1 + wII)
         nH_II = nH_total * wII/(1 + wII)
         ff_opac = Korg.ContinuumOpacity.H_I_ff(nH_II, nₑ, ν, ρ, T)
@@ -216,27 +216,17 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     # comparisons against plots from Gray (2005), we should employ the abundances from
     # their book. They record that there is 8.51e-2 He particles per H particle in table 16.3
     nHe = nH*8.51e-2
-    # we need to figure out the abundance of neutral Helium. We will use the ionization potentials
-    # tabulated in table D.1
-    χs = [24.587, NaN, NaN]
-    # technically, this should be χs = [24.587, 54.418] to account for both single and double
-    # ionization, but equation 8.16 in Gray (2005) only accounts for single ionization.
-
+    # Gray accounts for only neutral and singly ionized helium in his calculation.
+    # We use the ionization energy tabulated in table D.1 (χ(He I) = 24.587). 
     # Table D.2 of Gray (2005) records the partion function of He II to be
     # as 10^0.301, the closest value at the table's precision to 2.0
-    Us = [T -> 1.0,      # Table D.2 of Gray (2005) records the partion function of He II to be
-          T -> 10^0.301, # as 10^0.301, the closest value at the table's precision to 2.0
-          T -> NaN]
+    # Because this neglects He II, we don't use Korg.saha_ion_weights.
+    wII = (2.0/ne * (10^-0.301) * Korg.translational_U(Korg.electron_mass_cgs, T) 
+           * exp(-24.587/(Korg.kboltz_eV*T)))
+    nHe_I = nHe * 1/(1+wII)
                          
-    wII, wIII = Korg.saha_ion_weights(T, ne, χs, Us)
-    nHe_I = nHe / (1 + wII) #Gray ignores He III
-
-    # may want to include the temperature dependence of the partition function
-    partition_func = 2.0
     ν = (Korg.c_cgs*1e8)/λ
-
-
-    opacity = Korg.ContinuumOpacity.Heminus_ff(nHe_I/Us[1](T), ne, ν, ρ, T)
+    opacity = Korg.ContinuumOpacity.Heminus_ff(nHe_I, ne, ν, ρ, T)
     opacity * ρ / (Pₑ * nH_I)
 end
 

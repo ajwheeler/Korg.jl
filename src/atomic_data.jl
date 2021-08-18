@@ -9,6 +9,8 @@ const atomic_symbols = ["H","He","Li","Be","B","C","N","O","F","Ne",
         "Tl","Pb","Bi","Po","At","Rn","Fr","Ra","Ac","Th",
         "Pa","U"] #,"Np","Pu","Am"] # we don't have partition funcs for these last three
 
+const atomic_numbers = Dict(atomic_symbols .=> 1:length(atomic_symbols))
+
 #in grams
 const atomic_masses = Dict(atomic_symbols .=> [
      1.008,4.003,6.941,9.012,10.81,12.01,14.01,16.00,19.00,20.18, 
@@ -22,20 +24,6 @@ const atomic_masses = Dict(atomic_symbols .=> [
      204.4,207.2,209.0,210.0,210.0,222.0,223.0,226.0,227.0,232.0,     
      231.0,238.0]#,237.0,244.0,243.0] 
                            .* amu_cgs)
-
-"""
-    get_mass(atom_or_molecule)
-
-Returns the mass of `atom_or_molecule` in g.
-"""
-function get_mass(atom_or_molecule)
-    if ismolecule(atom_or_molecule)
-        el1, el2 = get_atoms(atom_or_molecule)
-        atomic_masses[el1] + atomic_masses[el2]
-    else
-        atomic_masses[atom_or_molecule]
-    end
-end
 
 
 #solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
