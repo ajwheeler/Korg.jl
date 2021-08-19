@@ -1,4 +1,5 @@
 import Base: (==), hash
+using CSV
 
 """
 Represents an atom or molecule, irespective of its charge.
@@ -82,6 +83,11 @@ struct Baryon
     end
 end
 
+#pretty-print lines in REPL and jupyter notebooks
+function Base.show(io::IO, m::MIME"text/plain", b::Baryon)
+    print(io, *(b.atoms...))
+end
+
 function (==)(b1::Baryon, b2::Baryon)
     b1.atoms == b2.atoms
 end
@@ -143,6 +149,12 @@ function Species(code::AbstractString)
     Species(baryon, charge)
 end
 
+#pretty-print lines in REPL and jupyter notebooks
+function Base.show(io::IO, m::MIME"text/plain", s::Species)
+    show(io, m, s.baryon)
+    print(io, " ", roman_numerals[s.charge+1])
+end
+
 function (==)(s1::Species, s2::Species)
     s1.baryon == s2.baryon && s1.charge == s2.charge
 end
@@ -195,7 +207,8 @@ end
 
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", line::Line)
-    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å")
+    show(io, m, line.species)
+    print(io, " ", round(line.wl*1e8, digits=6), " Å")
 end
 
 """
@@ -223,11 +236,10 @@ Warner 1967.
 For autoionizing lines (those for which E_upper > χ), returns 0.0 for γ_vdW.
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
-    if ismolecule(species)
+    Z = species.charge + 1 #Z is ionization stage, not atomic number
+    if ismolecule(species) || Z > 3
         return 0.0,0.0
     end
-
-    Z = species.charge + 1 #Z is ionization stage, not atomic number
     χ = ionization_energies[species.baryon.atoms[1]][Z]
     c = c_cgs
     h = hplanck_eV
@@ -327,84 +339,49 @@ end
 function parse_vald_linelist(f)
     lines = collect(eachline(f))
 
-    #figure out how big the header is
-    firstline = findfirst(lines) do line
-        line[1] == '\''
-    end
-    header = split(lines[firstline-1])
+    # is this an "extract all" or an "extract stellar" linelist?
+    extractall = !occursin(r"^\s+\d", lines[1])
+    firstline = extractall ? 3 : 4
+    header = lines[firstline - 1]
 
     #vald short or long format?
-    if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
-        Δ = 1 # short format
-        shortformat = true
-    else 
-        Δ = 4 #long format
-        shortformat = false
-    end
-    lines = lines[firstline:Δ:end]
-    lastline = -1 + findfirst(lines) do line
-        !((line[1] == '\'') && isuppercase(line[2]))
-    end
-    lines = lines[1:lastline]
+    shortformat = isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
 
-    #air or vacuum wls?
-    if contains(header[3], "air")
-        wl_transform = air_to_vacuum
-    elseif contains(header[3], "vac")
-        wl_transform = identity
+    body = lines[firstline : (shortformat ? 1 : 4) : end]
+    body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
+
+    CSVheader = if shortformat || extractall
+        ["species","wl","E_low","loggf","gamma_rad","gamma_stark","gamma_vdW","lande"]
+    elseif shortformat
+        ["species","wl", "E_low","loggf","gamma_rad","gamma_stark","gamma_vdW","lande"]
+    elseif extractall
+        ["species","wl","loggf","E_low","E_up","lande","gamma_rad","gamma_stark","gamma_vdW"]
     else
-        throw(ArgumentError(
-            "Can't parse linelist.  I don't understand this wavelength column name: " * header[3]))
+        ["species","wl","loggf","E_low","J_lo","E_up","J_up","lower_lande","upper_lande",
+         "mean_lande","gamma_rad","gamma_stark","gamma_vdW","depth"]
     end
-    #Energy in cm^-1 or eV?
-    E_col = header[shortformat ? 4 : 6]
-    if contains(E_col, "eV")
-        E_transform = identity
-    elseif contains(E_col, "cm")
-        E_transform(x) = x * c_cgs * hplanck_eV
+    body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, silencewarnings=true)
+
+    species = (s->s[2:end-1]).(body.species) #strip quotes
+
+    E_low = if contains(header, "cm") #convert E_low to eV if necessary
+        body.E_low * c_cgs * hplanck_eV
+    elseif contains(header, "eV")
+        body.E_low
     else
-        throw(ArgumentError(
-            "Can't parse linelist.  I don't understand this energy column name: " * E_col))
+        throw(ArgumentError( "Can't parse linelist.  Can't determine energy units: " * E_col))
     end
 
-    map(lines) do line
-        toks = split(line, ',')
-        if shortformat
-            #extract all
-            if firstline == 3
-                new_line_imputing_zeros(
-                     wl_transform(parse(Float64, toks[2])*1e-8),
-                     parse(Float64, toks[4]),
-                     Species(strip(toks[1], ['\''])),
-                     E_transform(parse(Float64, toks[3])),
-                     expOrZero(parse(Float64, toks[5])),
-                     expOrZero(parse(Float64, toks[6])),
-                     parse(Float64, toks[7]))
-            #extract stellar
-            elseif firstline == 4
-                new_line_imputing_zeros(
-                     wl_transform(parse(Float64, toks[2])*1e-8),
-                     parse(Float64, toks[5]),
-                     Species(strip(toks[1], ['\''])),
-                     E_transform(parse(Float64, toks[3])),
-                     expOrZero(parse(Float64, toks[6])),
-                     expOrZero(parse(Float64, toks[7])),
-                     parse(Float64, toks[8]))
-            else
-                throw(ArgumentError("Can't determine if this is an \"extract all\" or \"extract " *
-                                    "stellar\" format linelist"))
-            end
-        else
-            new_line_imputing_zeros(
-                parse(Float64, toks[2])*1e-8,
-                parse(Float64, toks[3]),
-                Species(strip(toks[1], ['\''])),
-                parse(Float64, toks[4]),
-                expOrZero(parse(Float64, toks[11])),
-                expOrZero(parse(Float64, toks[12])),
-                parse(Float64, toks[13]))
-        end
+    wl = if contains(header, "air") #convert wls to vacuum if necessary
+        air_to_vacuum.(body.wl)
+    elseif contains(header, "vac")
+        body.wl
+    else
+        throw(ArgumentError( "Can't parse linelist.  Can't determine vac/air wls: " * header))
     end
+
+    return new_line_imputing_zeros.(wl * 1e-8, body.loggf, Species.(species), E_low, body.gamma_rad, 
+                                    body.gamma_stark, body.gamma_vdW)
 end
 
 #todo support moog linelists with broadening parameters?
