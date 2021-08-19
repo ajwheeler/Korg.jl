@@ -75,7 +75,6 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
                                              number_densities[Species("H_I")], 
                                              partition_funcs[Species("H_I")], 
                                              hline_stark_profiles, vmic*1e5)
-
     end
 
     #the thickness of each atmospheric layer 
