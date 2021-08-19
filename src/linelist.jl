@@ -349,16 +349,17 @@ function parse_vald_linelist(f)
 
     body = lines[firstline : (shortformat ? 1 : 4) : end]
     body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
+    
 
-    CSVheader = if shortformat || extractall
-        ["species","wl","E_low","loggf","gamma_rad","gamma_stark","gamma_vdW","lande"]
-    elseif shortformat
-        ["species","wl", "E_low","loggf","gamma_rad","gamma_stark","gamma_vdW","lande"]
-    elseif extractall
+    CSVheader = if shortformat && extractall
+        ["species","wl","E_low","loggf","gamma_rad","gamma_stark","gamma_vdW"]
+    elseif shortformat #extract stellar
+        ["species","wl", "E_low","Vmic","loggf","gamma_rad","gamma_stark","gamma_vdW"]
+    elseif extractall #long format
         ["species","wl","loggf","E_low","E_up","lande","gamma_rad","gamma_stark","gamma_vdW"]
-    else
+    else #long format extract stellar
         ["species","wl","loggf","E_low","J_lo","E_up","J_up","lower_lande","upper_lande",
-         "mean_lande","gamma_rad","gamma_stark","gamma_vdW","depth"]
+         "mean_lande","gamma_rad","gamma_stark","gamma_vdW"]
     end
     body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, silencewarnings=true)
 
@@ -380,8 +381,9 @@ function parse_vald_linelist(f)
         throw(ArgumentError( "Can't parse linelist.  Can't determine vac/air wls: " * header))
     end
 
-    return new_line_imputing_zeros.(wl * 1e-8, body.loggf, Species.(species), E_low, body.gamma_rad, 
-                                    body.gamma_stark, body.gamma_vdW)
+    new_line_imputing_zeros.(wl * 1e-8, body.loggf, Species.(species), E_low, 
+                             expOrZero.(body.gamma_rad), expOrZero.(body.gamma_stark), 
+                             body.gamma_vdW)
 end
 
 #todo support moog linelists with broadening parameters?
