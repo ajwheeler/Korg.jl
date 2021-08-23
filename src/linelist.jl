@@ -63,20 +63,10 @@ struct Baryon
         new(sort(collect(String.(symbols)), by=s->atomic_numbers[s]))
     end
 
-    """
-        Baryon(Z::Int...)
-
-    Create a Baryon by providing the atomic numbers of its components as arguments
-    """
     function Baryon(Z::Int...)
         new([atomic_symbols[z] for z in sort(collect(Z))])
     end
 
-    """
-        Baryon(symbols::Vector{AbstractString})
-
-    A baryon composed of the atoms in `symbols`, which must be sorted by atomic number.
-    """
     function Baryon(symbols::Vector{AbstractString})
         @assert issorted(symbols, by=s->atomic_numbers[s])
         new(String.(symbols))
@@ -174,35 +164,43 @@ struct Line{F}
     E_lower::F                #eV (also called the excitation potential)
     gamma_rad::F              #s^-1
     gamma_stark::F            #s^-1
-    vdW::Union{F, Tuple{F,F}} #either log(Γ_vdW) per electron or (σ, α) from ABO theory
+    vdW::Union{F, Tuple{F,F}} #either Γ_vdW [s^-1] per electron or (σ, α) from ABO theory
 
     """
-        Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+        Line(wl::F, log_gf::F, species::Species, E_lower::F, 
+             gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
+             vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
 
-    Construct a `Line` with a possibly packed vdW parameter (sigma.alpha) format.  If vdW < 0,
-    interpret it as log10(Γ) per particle.  Otherwise, interpret it as packed ABO parameters.
+    Construct a `Line`.  If any of `gamma_rad`, `gamma_stark`, or `vdW` are `missing`, guess them.
+    `vdW` may be log(Γ_vdW) (assumed if negative), Γ_vdW (assumed if 0 < `vdW` < 1), or packed ABO 
+    parameters (assumed if `vdW` > 1).  It may also be passed as a Tuple, `(σ, α)`.
     """
-    function Line(wl::F, log_gf::F, species::Species, E_lower::F, gamma_rad::F, gamma_stark::F,
-                  vdW::F) where F <: Real
-        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
-               if vdW > 0
-                   floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
-               elseif vdW == 0
-                   0.0
-               else 
-                   10^vdW
-               end
-              )
+    function Line(wl::F, log_gf::F, species::Species, E_lower::F, 
+                  gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
+                  vdW::Union{F, Tuple{F, F}, Missing}=missing) where F <: Real
+        if ismissing(gamma_stark) || ismissing(vdW)
+            gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
+            if ismissing(gamma_stark)
+                gamma_stark = gamma_stark_approx
+            end
+            if ismissing(vdW)
+                vdW = vdW_approx
+            end
+        end
+        if ismissing(gamma_rad)
+            gamma_rad = approximate_radiative_gamma(wl, log_gf)
+        end
+        
+        if vdW isa F
+            if vdW < 0 #if vdW is negative, assume it's log(Γ_vdW) 
+                vdW = 10^vdW
+            elseif vdW > 1 #if it's > 1 assume it's packed ABO params
+                vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
+            end
+        end 
+
+        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
     end
-end
-"""
-    Line(wl, log_gf, species, E_lower)
-
-Construct a `Line` without explicit broadening parameters.  They will be set automatically.
-"""
-function Line(wl::F, log_gf::F, species::Species, E_lower::F) where F <: Real
-    Line(wl, log_gf, species, E_lower, approximate_radiative_gamma(wl, log_gf),
-         approximate_gammas(wl, species, E_lower)...)
 end
 
 #pretty-print lines in REPL and jupyter notebooks
@@ -262,24 +260,6 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
-
-Construct a new line treating broadening params equal to 0 as missing (how VALD represents missing
-values).
-"""
-function new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
-    if gamma_rad == 0
-        gamma_rad = approximate_radiative_gamma(wl, log_gf)
-    end
-    if (gamma_stark == 0) || (vdW == 0)
-        approx_stark, approx_vdW = approximate_gammas(wl, species, E_lower)
-        gamma_stark += (gamma_stark == 0)*approx_stark
-        vdW += (vdW == 0)*approx_vdW
-    end
-    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
-end
-
-"""
     read_linelist(fname; format="kurucz")
 
 Parse the provided linelist. in "Kurucz" format.
@@ -314,8 +294,9 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
     linelist
 end
 
-#used in to parse vald and kurucz lineslists
-expOrZero(x) = x == 0.0 ? 0.0 : 10.0^x
+#used to handle missing gammas in vald and kurucz lineslist parsers
+expOrMissing(x) = x == 0.0 ? missing : 10.0^x
+idOrMissing(x) = x == 0.0 ? missing : x
 
 function parse_kurucz_linelist(f)
     map(eachline(f)) do line
@@ -325,14 +306,13 @@ function parse_kurucz_linelist(f)
             #abs because Kurucz multiplies predicted values by -1
             abs(parse(Float64,s)) * c_cgs * hplanck_eV
         end
-        new_line_imputing_zeros(
-            parse(Float64, line[1:11])*1e-7,
-            parse(Float64, line[12:18]),
-            Species(line[19:24]),
-            min(E_levels...),
-            expOrZero(parse(Float64, line[81:86])),
-            expOrZero(parse(Float64, line[87:92])),
-            parse(Float64, line[93:98]))
+        Line(parse(Float64, line[1:11])*1e-7,
+             parse(Float64, line[12:18]),
+             Species(line[19:24]),
+             min(E_levels...),
+             expOrMissing(parse(Float64, line[81:86])),
+             expOrMissing(parse(Float64, line[87:92])),
+             idOrMissing(parse(Float64, line[93:98])))
     end
 end
 
@@ -350,7 +330,6 @@ function parse_vald_linelist(f)
     body = lines[firstline : (shortformat ? 1 : 4) : end]
     body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
     
-
     CSVheader = if shortformat && extractall
         ["species","wl","E_low","loggf","gamma_rad","gamma_stark","gamma_vdW"]
     elseif shortformat #extract stellar
@@ -381,9 +360,8 @@ function parse_vald_linelist(f)
         throw(ArgumentError( "Can't parse linelist.  Can't determine vac/air wls: " * header))
     end
 
-    new_line_imputing_zeros.(wl * 1e-8, body.loggf, Species.(species), E_low, 
-                             expOrZero.(body.gamma_rad), expOrZero.(body.gamma_stark), 
-                             body.gamma_vdW)
+    Line.(wl * 1e-8, body.loggf, Species.(species), E_low, expOrMissing.(body.gamma_rad), 
+          expOrMissing.(body.gamma_stark), idOrMissing.(body.gamma_vdW))
 end
 
 #todo support moog linelists with broadening parameters?
