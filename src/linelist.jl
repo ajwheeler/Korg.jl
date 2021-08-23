@@ -294,9 +294,6 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
     end
 
     filter!(linelist) do line #filter triply+ ionized and hydrogen lines
-        if line.species.baryon.atoms == ["H"]
-            println(line)
-        end
         (0 <= line.species.charge <= 2) && (line.species.baryon.atoms != ["H"])
     end
 
@@ -337,6 +334,15 @@ function parse_vald_linelist(f)
     extractall = !occursin(r"^\s+\d", lines[1])
     firstline = extractall ? 3 : 4
     header = lines[firstline - 1]
+
+    isotope_scaled = if "* oscillator strengths were scaled by the solar isotopic ratios." in lines
+        true
+    elseif "* oscillator strengths were NOT scaled by the solar isotopic ratios." in lines
+        throw("Isotopic scaling not yet implemented.")
+    else
+        throw(ArgumentError("Can't parse linelist.  Can't detect whether log(gf)s are scaled by "*
+                            ":isotopic abundance."))
+    end
 
     #vald short or long format?
     shortformat = isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
@@ -389,6 +395,5 @@ function parse_moog_linelist(f)
              Species(toks[2]),
              parse(Float64, toks[3]))
     end
-    #TODO issue warning, don't autoconvert
     linelist
 end
