@@ -40,8 +40,6 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     lb = 1
     ub = 1
     for line in linelist
-        line.species == "H_I" && continue
-
         m = mass(line.species)
         
         #doppler-broadening parameter

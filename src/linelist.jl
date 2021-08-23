@@ -282,8 +282,8 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
         end
     end
 
-    filter!(linelist) do line
-        0 <= line.species.charge <= 2
+    filter!(linelist) do line #filter triply+ ionized and hydrogen lines
+        (0 <= line.species.charge <= 2) && (line.species.baryon.atoms != ["H"])
     end
 
     #ensure linelist is sorted
