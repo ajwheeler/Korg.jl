@@ -144,7 +144,7 @@ end
         kurucz_linelist = Korg.read_linelist("data/gfallvac08oct17.stub.dat", format="kurucz")
         @testset "kurucz linelist parsing" begin
             @test issorted(kurucz_linelist, by=l->l.wl)
-            @test length(kurucz_linelist) == 988
+            @test length(kurucz_linelist) == 987
             @test kurucz_linelist[1].wl ≈ 72320.699 * 1e-8
             @test kurucz_linelist[1].log_gf == -0.826
             @test kurucz_linelist[1].species == Korg.Species("Be_II")

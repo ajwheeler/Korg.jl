@@ -31,8 +31,7 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     end
 
     #type shenanigans to allow autodiff to do its thing
-    α_type = typeof(promote(linelist[1].wl, λs[1], temp, nₑ, n_densities[Species("H_I")], ξ, 
-                            cutoff_threshold)[1])
+    α_type = typeof(promote(linelist[1].wl,λs[1],temp,nₑ,n_densities[H_I],ξ,cutoff_threshold)[1])
     α_lines = zeros(α_type, length(λs))
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
@@ -49,8 +48,7 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
             Γ += (nₑ*scaled_stark(line.gamma_stark, temp) +
-                  (n_densities[Species("H_I")] + 0.42n_densities[Species("He_I")]) * 
-                   scaled_vdW(line.vdW, m, temp))
+                  (n_densities[H_I] + 0.42n_densities[He_I]) * scaled_vdW(line.vdW, m, temp))
         end
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = Γ * line.wl^2 / c_cgs

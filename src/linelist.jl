@@ -14,6 +14,10 @@ struct Baryon
         "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
     function Baryon(code::AbstractString)
+        if code in atomic_symbols
+            return new([code]) #quick-parse single elements
+        end
+
         #handle numeric codes, e.g. 0801 -> OH
         if all(isdigit(c) for c in code)
             if length(code) <= 2
@@ -138,6 +142,13 @@ function Species(code::AbstractString)
     end
     Species(baryon, charge)
 end
+
+#useful constants
+const H_I = Species("H_I")
+const H_II = Species("H_II")
+const He_I = Species("He_I")
+const He_II = Species("He_II")
+const He_III = Species("He_III")
 
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", s::Species)
@@ -283,6 +294,9 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
     end
 
     filter!(linelist) do line #filter triply+ ionized and hydrogen lines
+        if line.species.baryon.atoms == ["H"]
+            println(line)
+        end
         (0 <= line.species.charge <= 2) && (line.species.baryon.atoms != ["H"])
     end
 

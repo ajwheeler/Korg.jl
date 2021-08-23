@@ -72,8 +72,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
                                     number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
 
         α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
-                                             number_densities[Species("H_I")], 
-                                             partition_funcs[Species("H_I")], 
+                                             number_densities[H_I], partition_funcs[H_I], 
                                              hline_stark_profiles, vmic*1e5)
     end
 
@@ -153,21 +152,20 @@ function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_de
     #TODO check all arguments
 
     #Hydrogen continuum opacities
-    nH_I = number_densities[Species("H_I")]
-    nH_I_div_U = nH_I / partition_funcs[Species("H_I")](T)
+    nH_I = number_densities[H_I]
+    nH_I_div_U = nH_I / partition_funcs[H_I](T)
     κ += ContinuumOpacity.H_I_bf.(nH_I_div_U, νs, ρ, T) 
-    κ += ContinuumOpacity.H_I_ff.(number_densities[Species("H_II")], nₑ, νs, ρ, T)
+    κ += ContinuumOpacity.H_I_ff.(number_densities[H_II], nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_bf.(nH_I_div_U, nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_ff.(nH_I_div_U, nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities[Species("H_II")], νs, ρ, T)
+    κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities[H_II], νs, ρ, T)
     
     #He continuum opacities
-    κ += ContinuumOpacity.He_II_bf.(number_densities[Species("He_II")] / 
-                                    partition_funcs[Species("He_II")](T), νs, ρ, T)
-    #κ += ContinuumOpacity.He_II_ff.(number_densities[Species("He_III")], nₑ, νs, ρ, T)
+    κ += ContinuumOpacity.He_II_bf.(number_densities[H_II] / partition_funcs[H_II](T), νs, ρ, T)
+    #κ += ContinuumOpacity.He_II_ff.(number_densities[He_III], nₑ, νs, ρ, T)
     # ContinuumOpacity.Heminus_ff is only valid for λ ≥ 5063 Å
-    #κ += ContinuumOpacity.Heminus_ff.(number_densities[Species("He_I")] / 
-    #                                  partition_funcs[Species("He_I")](T), nₑ, νs, ρ, T)
+    #κ += ContinuumOpacity.Heminus_ff.(number_densities[He_I] / 
+    #        partition_funcs[He_I](T), nₑ, νs, ρ, T)
     
     #electron scattering
     κ .+= ContinuumOpacity.electron_scattering(nₑ, ρ)
