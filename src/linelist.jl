@@ -220,6 +220,12 @@ function Base.show(io::IO, m::MIME"text/plain", line::Line)
     print(io, " ", round(line.wl*1e8, digits=6), " Å")
 end
 
+function (==)(l1::Line{F}, l2::Line{F}) where F
+    (l1.wl == l2.wl && l1.log_gf == l2.log_gf && l1.species == l2.species && 
+     l1.E_lower == l2.E_lower && l1.gamma_rad == l2.gamma_rad && l1.gamma_stark == l2.gamma_stark &&
+     l1.vdW == l2.vdW)
+end
+
 """
     approximate_radiative_gamma(wl, log_gf)
 
@@ -271,13 +277,14 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    read_linelist(fname; format="kurucz")
+    read_linelist(fname; format="vald")
 
-Parse the provided linelist. in "Kurucz" format.
+Parse a linelist file.
+
 Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html),
-`format="vald"` for a Vald linelist, and `format="moog"` for a MOOG linelist.
-
-Note that dissociation energies in a MOOG linelist will be ignored.
+`format="vald"` for a Vald linelist, and `format="moog"` for a MOOG linelist (doesn't yet support 
+broadening parameters or dissociation energies).  VALD linelists can be either "short" or "long" 
+format, "extract all" or "extract stellar".
 """
 function read_linelist(fname::String; format="vald") :: Vector{Line}
     format = lowercase(format)
@@ -328,37 +335,33 @@ function parse_kurucz_linelist(f)
 end
 
 function parse_vald_linelist(f)
-    lines = collect(eachline(f))
+    lines = filter!(collect(eachline(f))) do line
+        length(line) > 0 && line[1] != '#' #remove comments and empty lines
+    end
 
     # is this an "extract all" or an "extract stellar" linelist?
     extractall = !occursin(r"^\s+\d", lines[1])
     firstline = extractall ? 3 : 4
     header = lines[firstline - 1]
 
-    isotope_scaled = if "* oscillator strengths were scaled by the solar isotopic ratios." in lines
-        true
-    elseif "* oscillator strengths were NOT scaled by the solar isotopic ratios." in lines
-        throw("Isotopic scaling not yet implemented.")
-    else
+    if any(startswith.(lines,"* oscillator strengths were NOT scaled by the solar isotopic ratios."))
+        throw(ArgumentError("Isotopic scaling not yet implemented."))
+    elseif !any(startswith.(lines,"* oscillator strengths were scaled by the solar isotopic ratios."))
         throw(ArgumentError("Can't parse linelist.  Can't detect whether log(gf)s are scaled by "*
                             ":isotopic abundance."))
     end
 
-    #vald short or long format?
-    shortformat = isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
-
+    shortformat = !(occursin(r"^\' ", lines[firstline + 1])) #vald short or long format
     body = lines[firstline : (shortformat ? 1 : 4) : end]
     body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
     
     CSVheader = if shortformat && extractall
-        ["species","wl","E_low","loggf","gamma_rad","gamma_stark","gamma_vdW"]
+        ["species", "wl", "E_low", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW"]
     elseif shortformat #extract stellar
-        ["species","wl", "E_low","Vmic","loggf","gamma_rad","gamma_stark","gamma_vdW"]
-    elseif extractall #long format
-        ["species","wl","loggf","E_low","E_up","lande","gamma_rad","gamma_stark","gamma_vdW"]
-    else #long format extract stellar
-        ["species","wl","loggf","E_low","J_lo","E_up","J_up","lower_lande","upper_lande",
-         "mean_lande","gamma_rad","gamma_stark","gamma_vdW"]
+        ["species", "wl", "E_low", "Vmic", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW"]
+    else #long format (extract all or extract stellar)
+        ["species", "wl", "loggf", "E_low", "J_lo", "E_up", "J_up", "lower_lande", "upper_lande",
+         "mean_lande", "gamma_rad", "gamma_stark", "gamma_vdW"]
     end
     body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, silencewarnings=true)
 

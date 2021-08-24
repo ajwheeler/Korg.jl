@@ -16,3 +16,4 @@ Spec Ion       WL_vac(A)  Excit(eV) Vmic log gf* Rad.   Stark   Waals   factor  
 'Fe 1',        5003.9784,  4.1864, 1.0, -1.136, 7.840,-5.010,  -7.560,  0.700, 0.564, '   1 wl:K14   1 K14   1 gf:K14   1 K14   1 K14   1 K14   1 K14 Fe            '
 'Fe 1',        5004.1875,  3.3965, 1.0, -1.580, 7.900,-5.270, 848.232,  1.450, 0.650, '   1 wl:K14   1 K14   6 gf:FMW   1 K14   1 K14   1 K14   5 BPM Fe            '
 'castelli_ap00k2_T05750G40.krz',
+* oscillator strengths were scaled by the solar isotopic ratios.

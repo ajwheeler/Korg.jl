@@ -1,0 +1,32 @@
+ 5000.00000, 5001.00000, 5, 6413, 1.0 Wavelength region, lines selected, lines processed, Vmicro
+                                                  Damping parameters    Lande  Central
+Spec Ion       WL_vac(A)  Excit(eV) Vmic log gf* Rad.   Stark   Waals   factor  depth  Reference
+'Ti 1',        5000.1235,  3.1124, 1.0, -0.760, 7.970,-5.260,  -7.540,  0.780, 0.018, '   1 wl:K16   1 K16   1 gf:K16   1 K16   1 K16   1 K16   1 K16 Ti            '
+'castelli_ap00k2_T05750G40.krz',
+'H :  0.92','He: -1.11',
+'Li:-10.94','Be:-10.64','B : -9.49','C : -3.52','N : -4.12','O : -3.21',
+'F : -7.48','Ne: -3.96','Na: -5.71','Mg: -4.46','Al: -5.57','Si: -4.49',
+'P : -6.59','S : -4.71','Cl: -6.54','Ar: -5.64','K : -6.92','Ca: -5.68',
+'Sc: -8.87','Ti: -7.02','V : -8.04','Cr: -6.37','Mn: -6.65','Fe: -4.54',
+'Co: -7.12','Ni: -5.79','Cu: -7.83','Zn: -7.44','Ga: -9.16','Ge: -8.63',
+'As: -9.67','Se: -8.63','Br: -9.41','Kr: -8.73','Rb: -9.44','Sr: -9.07',
+'Y : -9.80','Zr: -9.44','Nb:-10.62','Mo:-10.12','Tc:-20.00','Ru:-10.20',
+'Rh:-10.92','Pd:-10.35','Ag:-11.10','Cd:-10.27','In:-10.38','Sn:-10.04',
+'Sb:-11.04','Te: -9.80','I :-10.53','Xe: -9.87','Cs:-10.91','Ba: -9.91',
+'La:-10.87','Ce:-10.46','Pr:-11.33','Nd:-10.54','Pm:-20.00','Sm:-11.03',
+'Eu:-11.53','Gd:-10.92','Tb:-11.69','Dy:-10.90','Ho:-11.78','Er:-11.11',
+'Tm:-12.04','Yb:-10.96','Lu:-11.98','Hf:-11.16','Ta:-12.17','W :-10.93',
+'Re:-11.76','Os:-10.59','Ir:-10.69','Pt:-10.24','Au:-11.03','Hg:-10.91',
+'Tl:-11.14','Pb:-10.09','Bi:-11.33','Po:-20.00','At:-20.00','Rn:-20.00',
+'Fr:-20.00','Ra:-20.00','Ac:-20.00','Th:-11.95','Pa:-20.00','U :-12.54',
+'Np:-20.00','Pu:-20.00','Am:-20.00','Cm:-20.00','Bk:-20.00','Cf:-20.00',
+'Es:-20.00','END'
+* oscillator strengths were scaled by the solar isotopic ratios.
+ References:
+  1. Kurucz obs. energy level: Ti 1
+  2. Kurucz obs. energy level: Fe 1
+  3. Fe 1: exp. data
+  4. Wisconsin exp. data with IS
+  5. Ti1-Cr1-Mn1-Mn2-Ni2 Wisconsin exp. data
+  6. Van der Waals data
+

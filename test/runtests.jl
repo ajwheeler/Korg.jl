@@ -132,47 +132,31 @@ end
         end
 
         @testset "break molecules into atoms" begin
-
             @test Korg.Baryon("CO").atoms == ["C", "O"]
             @test Korg.Baryon("C2").atoms == ["C", "C"]
             @test Korg.Baryon("MgO").atoms == ["O", "Mg"]
         end
 
-        @test_throws ArgumentError Korg.read_linelist("data/gfallvac08oct17.stub.dat";
+        @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
                                                           format="abc")
+        @test_throws ArgumentError read_linelist("data/linelists/no-isotopic-scaling.vald")
 
-        kurucz_linelist = Korg.read_linelist("data/gfallvac08oct17.stub.dat", format="kurucz")
+        kurucz_ll = read_linelist("data/linelists/gfallvac08oct17.stub.dat", format="kurucz")
         @testset "kurucz linelist parsing" begin
-            @test issorted(kurucz_linelist, by=l->l.wl)
-            @test length(kurucz_linelist) == 987
-            @test kurucz_linelist[1].wl ≈ 72320.699 * 1e-8
-            @test kurucz_linelist[1].log_gf == -0.826
-            @test kurucz_linelist[1].species == Korg.Species("Be_II")
-            @test kurucz_linelist[1].E_lower ≈ 17.360339371573698
-            @test kurucz_linelist[1].gamma_rad ≈ 8.511380382023759e7
-            @test kurucz_linelist[1].gamma_stark ≈ 0.003890451449942805
-            @test kurucz_linelist[1].vdW ≈ 1.2302687708123812e-7
+            @test issorted(kurucz_ll, by=l->l.wl)
+            @test length(kurucz_ll) == 987
+            @test kurucz_ll[1].wl ≈ 72320.699 * 1e-8
+            @test kurucz_ll[1].log_gf == -0.826
+            @test kurucz_ll[1].species == Korg.Species("Be_II")
+            @test kurucz_ll[1].E_lower ≈ 17.360339371573698
+            @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
+            @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
+            @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
         end
 
-        #vald_linelist = Korg.read_linelist("data/twolines.vald")
-        #@testset "vald long format linelist parsing" begin
-        #    @test_broken length(vald_linelist) == 2
-        #    @test_broken vald_linelist[1].wl ≈ 3002.20106 * 1e-8
-        #    @test_broken vald_linelist[1].log_gf == -1.132
-        #    @test_broken vald_linelist[1].species == Korg.Species("Y_II")
-        #    @test_broken vald_linelist[1].E_lower ≈ 3.3757
-        #    @test_broken vald_linelist[1].gamma_rad ≈ 4.1686938347033465e8
-        #    @test_broken vald_linelist[1].gamma_stark ≈ 2.6302679918953817e-6
-        #    @test_broken vald_linelist[1].vdW ≈ 1.9498445997580454e-8
-
-        #    #test ABO parameters
-        #    @test_broken vald_linelist[2].vdW[1] ≈ 1.3917417470792187e-14
-        #    @test_broken vald_linelist[2].vdW[2] ≈ 0.227
-        #end
-
-        @testset "vald short format linelist parsing" begin
-            linelist = Korg.read_linelist("data/short.vald")
-            @test length(linelist) == 5
+        @testset "vald short format, ABO, missing params" begin
+            linelist = read_linelist("data/linelists/linelist.vald")
+            @test length(linelist) == 6
             @test linelist[1].wl ≈ 3000.0414 * 1e-8
             @test linelist[1].log_gf == -2.957
             @test linelist[1].species == Korg.Species("Fe_I")
@@ -197,9 +181,33 @@ end
             @test linelist[5].gamma_rad == linelist[1].gamma_rad
             @test linelist[5].gamma_stark == linelist[1].gamma_stark
             @test linelist[5].vdW == linelist[4].vdW
+
+            #ABO params
+            @test linelist[6].vdW[1] ≈ 1.3917417470792187e-14
+            @test linelist[6].vdW[2] ≈ 0.227
         end
 
-        moog_linelist = Korg.read_linelist("data/s5eqw_short.moog"; format="moog")
+        @testset "vald various formats" begin
+            short_all = read_linelist("data/linelists/short-extract-all.vald")
+            long_all_cm_air = read_linelist("data/linelists/long-extract-all-air-wavenumber.vald")
+            short_stellar = read_linelist("data/linelists/short-extract-stellar.vald")
+            long_stellar = read_linelist("data/linelists/long-extract-stellar.vald")
+
+            @test (length(short_all) == length(short_stellar) == length(long_all_cm_air) == 
+                   length(long_stellar) == 1)
+
+            @test short_all[1] == short_stellar[1] == long_stellar[1]
+
+            @test short_all[1].wl ≈ long_all_cm_air[1].wl
+            @test short_all[1].log_gf == long_all_cm_air[1].log_gf
+            @test short_all[1].species == long_all_cm_air[1].species
+            @test short_all[1].E_lower ≈ long_all_cm_air[1].E_lower     atol=1e-3
+            @test short_all[1].gamma_rad == long_all_cm_air[1].gamma_rad
+            @test short_all[1].gamma_stark == long_all_cm_air[1].gamma_stark
+            @test short_all[1].vdW == long_all_cm_air[1].vdW
+        end
+
+        moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
         @testset "moog linelist parsing" begin
             @test issorted(moog_linelist, by=l->l.wl)
             @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
@@ -333,7 +341,7 @@ end
     using ForwardDiff
 
     atm = read_model_atmosphere("data/sun.krz")
-    linelist = read_linelist("data/5000-5005.vald")
+    linelist = read_linelist("data/linelists/5000-5005.vald")
     wls = 5000:0.01:5005
     flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
                          vmic=p[3]).flux
