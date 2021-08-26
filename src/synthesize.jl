@@ -79,7 +79,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
     #the thickness of each atmospheric layer 
     Δcolmass = diff((l->l.colmass).(atm))
-    Δs = 0.5([0 ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm)
+    Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm)
 
     τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
 
