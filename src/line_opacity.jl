@@ -48,7 +48,7 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
             Γ += (nₑ*scaled_stark(line.gamma_stark, temp) +
-                  n_densities[H_1]*scaled_vdW(line.vdW, m, temp))
+                  n_densities[H_I]*scaled_vdW(line.vdW, m, temp))
         end
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
         Δλ_L = Γ * line.wl^2 / c_cgs
