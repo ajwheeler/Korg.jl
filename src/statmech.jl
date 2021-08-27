@@ -15,7 +15,7 @@ arguments:
 """
 function saha_ion_weights(T, nₑ, atom::String, ionization_energies::Dict, partition_funcs::Dict)
     χI, χII, χIII = ionization_energies[atom]
-    atom = Baryon(atom)
+    atom = Formula(atom)
     UI = partition_funcs[Species(atom, 0)](T)
     UII = partition_funcs[Species(atom, 1)](T)
 
@@ -23,7 +23,7 @@ function saha_ion_weights(T, nₑ, atom::String, ionization_energies::Dict, part
     transU = translational_U(electron_mass_cgs, T)
     
     wII =  2.0/nₑ * (UII/UI) * transU * exp(-χI/(k*T))
-    wIII = if atom == Baryon("H")
+    wIII = if atom == Formula("H")
         0.0
     else
         UIII = partition_funcs[Species(atom, 2)](T)
@@ -105,7 +105,7 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
                 F[i] -= (1 + wII + wIII) * x[i]
             end
             for m in molecules
-                el1, el2 = m.baryon.atoms
+                el1, el2 = m.formula.atoms
                 i1 = var_indices[el1]
                 i2 = var_indices[el2]
                 nₘ = x[i1] * x[i2] * kboltz_cgs * T / 10^equilibrium_constants[m](T)
@@ -155,18 +155,18 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing) :: Dict
     end
 
     #start with the neutral atomic species
-    number_densities = Dict(Species.(Baryon.(MEQs.atoms), 0) .=> sol.zero)
+    number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> sol.zero)
     #now the ionized atomic species
     for a in MEQs.atoms
         wII, wIII = saha_ion_weights(T, nₑ, a, MEQs.ionization_energies, MEQs.partition_fns)
-        number_densities[Species(Baryon(a), 1)] = wII  * number_densities[Species(Baryon(a), 0)]
-        number_densities[Species(Baryon(a), 2)] = wIII * number_densities[Species(Baryon(a), 0)]
+        number_densities[Species(Formula(a), 1)] = wII  * number_densities[Species(Formula(a), 0)]
+        number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
     #now the molecules
     for m in MEQs.molecules 
-        el1, el2 = m.baryon.atoms
-        n₁ = number_densities[Species(Baryon(el1), 0)]
-        n₂ = number_densities[Species(Baryon(el2), 0)]
+        el1, el2 = m.formula.atoms
+        n₁ = number_densities[Species(Formula(el1), 0)]
+        n₂ = number_densities[Species(Formula(el2), 0)]
         logK = MEQs.equilibrium_constants[m]
         #add 1 to logK to conver to to cgs from mks
         number_densities[m] = n₁ * n₂ * kboltz_cgs * T / 10^logK(T)

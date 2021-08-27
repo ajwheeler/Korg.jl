@@ -5,8 +5,8 @@ include("continuum_opacity.jl")
 @testset "atomic data" begin 
     @test (Set(Korg.atomic_symbols) == Set(keys(Korg.atomic_masses))
              == Set(keys(Korg.solar_abundances)))
-    @test Korg.mass(Korg.Baryon("CO")) ≈ Korg.mass(Korg.Baryon("C")) + Korg.mass(Korg.Baryon("O"))
-    @test Korg.mass(Korg.Baryon("C2")) ≈ 2Korg.mass(Korg.Baryon("C"))
+    @test Korg.mass(Korg.Formula("CO")) ≈ Korg.mass(Korg.Formula("C")) + Korg.mass(Korg.Formula("O"))
+    @test Korg.mass(Korg.Formula("C2")) ≈ 2Korg.mass(Korg.Formula("C"))
 end
 
 @testset "ionization energies" begin
@@ -95,8 +95,8 @@ end
         total_C = map(collect(keys(n))) do species
             if species == Korg.Species("C2")
                 n[species] * 2
-            elseif (species.baryon == Korg.Baryon("C") || 
-                    (Korg.ismolecule(species) && ("C" in species.baryon.atoms)))
+            elseif (species.formula == Korg.Formula("C") || 
+                    (Korg.ismolecule(species) && ("C" in species.formula.atoms)))
                 n[species]
             else
                 0.0
@@ -125,16 +125,16 @@ end
         end
 
         @testset "distinguish atoms from molecules" begin
-            @test Korg.ismolecule(Korg.Baryon("H2"))
-            @test Korg.ismolecule(Korg.Baryon("CO"))
-            @test !Korg.ismolecule(Korg.Baryon("H"))
-            @test !Korg.ismolecule(Korg.Baryon("Li"))
+            @test Korg.ismolecule(Korg.Formula("H2"))
+            @test Korg.ismolecule(Korg.Formula("CO"))
+            @test !Korg.ismolecule(Korg.Formula("H"))
+            @test !Korg.ismolecule(Korg.Formula("Li"))
         end
 
         @testset "break molecules into atoms" begin
-            @test Korg.Baryon("CO").atoms == ["C", "O"]
-            @test Korg.Baryon("C2").atoms == ["C", "C"]
-            @test Korg.Baryon("MgO").atoms == ["O", "Mg"]
+            @test Korg.Formula("CO").atoms == ["C", "O"]
+            @test Korg.Formula("C2").atoms == ["C", "C"]
+            @test Korg.Formula("MgO").atoms == ["O", "Mg"]
         end
 
         @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";

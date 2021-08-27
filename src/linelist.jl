@@ -4,16 +4,16 @@ using CSV
 """
 Represents an atom or molecule, irespective of its charge.
 """
-struct Baryon
+struct Formula
     atoms::Vector{String}
 
     """
-        Baryon(code::String)
+        Formula(code::String)
 
-        Construct a Baryon from an encoded string form.  This can be a MOOG-style numeric code, i.e.
+        Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, i.e.
         "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
-    function Baryon(code::AbstractString)
+    function Formula(code::AbstractString)
         if code in atomic_symbols
             return new([code]) #quick-parse single elements
         end
@@ -21,12 +21,12 @@ struct Baryon
         #handle numeric codes, e.g. 0801 -> OH
         if all(isdigit(c) for c in code)
             if length(code) <= 2
-                return Baryon(parse(Int,code))
+                return Formula(parse(Int,code))
             elseif length(code) <= 4
                 if length(code) == 3  
                     code = "0"*code
                 end
-                return Baryon(parse(Int, code[1:2]), parse(Int, code[3:4]))
+                return Formula(parse(Int, code[1:2]), parse(Int, code[3:4]))
             else
                 throw(ArgumentError("numeric codes for molecules with more than 4 chars are not "*
                                     "supported"))
@@ -59,60 +59,60 @@ struct Baryon
     end
 
     """
-        Baryon(symbols::Int...)
+        Formula(symbols::Int...)
 
-    Create a Baryon by providing the atomic symbols of its components as arguments
+    Create a Formula by providing the atomic symbols of its components as arguments
     """
-    function Baryon(symbols::AbstractString...)
+    function Formula(symbols::AbstractString...)
         new(sort(collect(String.(symbols)), by=s->atomic_numbers[s]))
     end
 
-    function Baryon(Z::Int...)
+    function Formula(Z::Int...)
         new([atomic_symbols[z] for z in sort(collect(Z))])
     end
 
-    function Baryon(symbols::Vector{AbstractString})
+    function Formula(symbols::Vector{AbstractString})
         @assert issorted(symbols, by=s->atomic_numbers[s])
         new(String.(symbols))
     end
 end
 
 #pretty-print lines in REPL and jupyter notebooks
-function Base.show(io::IO, m::MIME"text/plain", b::Baryon)
+function Base.show(io::IO, m::MIME"text/plain", b::Formula)
     print(io, *(b.atoms...))
 end
 
-function (==)(b1::Baryon, b2::Baryon)
+function (==)(b1::Formula, b2::Formula)
     b1.atoms == b2.atoms
 end
 
-function hash(b::Baryon, h::UInt)
+function hash(b::Formula, h::UInt)
     hash(b.atoms, h)
 end
 
 """
-    ismolecule(b::Baryon)
+    ismolecule(b::Formula)
 
 `true` when `b` is composed of more than one atom
 """
-ismolecule(b::Baryon) = length(b.atoms) > 1
+ismolecule(b::Formula) = length(b.atoms) > 1
 
 """
-    mass(b::Baryon)
+    mass(b::Formula)
 
 Returns the mass [g] of `b`.
 """
-function mass(b::Baryon)
+function mass(b::Formula)
     sum(atomic_masses[a] for a in b.atoms)
 end
 
 const roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 """
-Represents an atom or molecule (a `Baryon`) with a particular number of electrons (regardless of 
+Represents an atom or molecule (a `Formula`) with a particular number of electrons (regardless of 
 their configuration).
 """
 struct Species
-    baryon::Baryon
+    formula::Formula
     charge::Int
 end
 
@@ -128,7 +128,7 @@ function Species(code::AbstractString)
     if length(toks) > 2
         throw(ArgumentError(code * " isn't a valid species code"))
     end
-    baryon = Baryon(toks[1])
+    formula = Formula(toks[1])
     charge = if length(toks) == 1 || length(toks[2]) == 0
         0 #no charge specified -> assume neutral
     else
@@ -140,7 +140,7 @@ function Species(code::AbstractString)
         end
         charge
     end
-    Species(baryon, charge)
+    Species(formula, charge)
 end
 
 #useful constants
@@ -152,20 +152,20 @@ const He_III = Species("He_III")
 
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", s::Species)
-    show(io, m, s.baryon)
+    show(io, m, s.formula)
     print(io, " ", roman_numerals[s.charge+1])
 end
 
 function (==)(s1::Species, s2::Species)
-    s1.baryon == s2.baryon && s1.charge == s2.charge
+    s1.formula == s2.formula && s1.charge == s2.charge
 end
 
 function hash(s::Species, h::UInt)
-    hash((s.baryon, s.charge), h)
+    hash((s.formula, s.charge), h)
 end
 
-ismolecule(s::Species) = ismolecule(s.baryon)
-mass(s::Species) = mass(s.baryon)
+ismolecule(s::Species) = ismolecule(s.formula)
+mass(s::Species) = mass(s.formula)
 
 #This type represents an individual line.
 struct Line{F} 
@@ -255,7 +255,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     if ismolecule(species) || Z > 3
         return 0.0,0.0
     end
-    χ = ionization_energies[species.baryon.atoms[1]][Z]
+    χ = ionization_energies[species.formula.atoms[1]][Z]
     c = c_cgs
     h = hplanck_eV
     k = kboltz_cgs
@@ -301,7 +301,7 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
     end
 
     filter!(linelist) do line #filter triply+ ionized and hydrogen lines
-        (0 <= line.species.charge <= 2) && (line.species.baryon.atoms != ["H"])
+        (0 <= line.species.charge <= 2) && (line.species.formula.atoms != ["H"])
     end
 
     #ensure linelist is sorted
