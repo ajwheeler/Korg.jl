@@ -69,19 +69,21 @@ arguments:
 The system of equations is specified with the number densities of the neutral atoms as free 
 parameters.  Each equation specifies the conservation of a particular species, e.g. (simplified)
 
-n(O) = n(CO) + n(OH) + n(O I) + n(O II) + n(O III).
+    n(O) = n(CO) + n(OH) + n(O I) + n(O II) + n(O III).
 
 In this equation:
-- n(O), the number density of oxygen atoms in any form comes `absolute_abundances` and the total
+- `n(O)`, the number density of oxygen atoms in any form comes `absolute_abundances` and the total
 number density (supplied later)
-- n(O I) is a free parameter.  The numerical solver is varying this to satisfy the system of 
+- `n(O I)` is a free parameter.  The numerical solver is varying this to satisfy the system of 
   equations.
-- n(O II), and n(O III) come from the Saha (ionization) equation given n(O I)
-- n(CO) and n(OH) come from the molecular equilibrium constants K, which are precomputed 
+- `n(O II)`, and `n(O III)` come from the Saha (ionization) equation given `n(O I)`
+- `n(CO)` and `n(OH)` come from the molecular equilibrium constants K, which are precomputed 
   over a range of temperatures. 
 
-K is defined in terms of partial pressures, so e.g.
-K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH) kT
+Equilibrium constants are defined in terms of partial pressures, so e.g.
+
+    K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH)) kT
+ 
 This could also be computed via a Saha equation involving the molecular partition function and 
 dissolution energy.
 """
@@ -135,7 +137,7 @@ end
 """
     molecular_equilibrium(MEQS, T, nₜ, nₑ; x0)
 
-Iteratively solve for the number density of each species. Returns a Dict mapping species to number 
+Iteratively solve for the number density of each species. Returns a `Dict` mapping species to number 
 densities.
 
 arguments:
@@ -146,7 +148,7 @@ arguments:
 - the electron number density `nₑ`
 - optionally, `x0`, a starting point for the solver
 """
-function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing) :: Dict
+function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
     if x0 == nothing
         #compute good first guess by neglecting molecules
         x0 = map(MEQs.atoms) do atom
