@@ -2,17 +2,22 @@ This page docuements the Korg API for users of the package. Low-level functions 
 digging into the guts of Korg will be interested in can be found on the 
 [developer documentation](../devdocs).
 
-## top-level functions
+# top-level functions
 If you are synthesize a spectrum Korg, these are the functions you will call.  
 These functions are exported, so if you do `using Korg`, you can call them unquallified (i.e.
 `synthesize` instead of `Korg.synthesize`).  
 
 ```@docs
 synthesize
-constant_R_LSF
 read_line_list
 read_model_atmosphere
+constant_R_LSF
+rectify
 ```
+
+# Secondary functions.
+You don't need use these to synthesize spectra, but they might be relevant depending on what you are 
+doing.
 
 ## line absorption 
 These functions can be used to directly compute line opacities. 
@@ -55,4 +60,3 @@ Korg.molecular_equilibrium
 Korg.blackbody
 Korg.get_absolute_abundances
 ```
-
