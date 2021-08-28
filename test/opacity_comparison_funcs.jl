@@ -1,4 +1,4 @@
-# This file defines some functions that are used to compare of our some opacity calculations
+# This file defines some functions that are used to compare some of our opacity calculations
 # against the values shown in several panels of Figure 8.5 from Gray's 2005 edition of "The
 # Observation and Analysis of Stellar Photospheres".
 #
@@ -263,7 +263,7 @@ const Gray05_opacity_form_funcs =
 #    - H⁻ free-free
 #    - He⁻ free-free
 # There is a much larger discrepancy between the summed H I bf and ff opacity at large λ. But
-# unlike for H₂⁺, this could simply be a consequence of the different approximaitons that are used
+# unlike for H₂⁺, this could simply be a consequence of the different approximations that are used
 const Gray05_atols = Dict("a" => 0.05, "b" => 0.02, "c" => 0.04)
 
 # this function is defined to make tests easier
