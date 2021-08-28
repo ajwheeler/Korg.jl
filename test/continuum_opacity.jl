@@ -1,5 +1,135 @@
 include("opacity_comparison_funcs.jl")
 
+"""
+assert_allclose(actual, reference; [rtol], [atol], [err_msg], [error_location_fmt])
+
+Raises an assertion exception when all entries in `actual` and `reference` are not equal up to the
+desired tolerance. In other words, all entries of `actual` and `reference` must satisfy:
+`abs(actual - reference) <= rtol * abs(reference) + atol`
+
+This is inspired by numpy's assert_allclose function. However, we've changed some default values.
+Additionally, in cases where actual and reference don't have equal values but do have the same 
+shape, the locations of the max errors are also printed.
+
+# Keywords
+- `rtol`: The desired relative tolerance
+- `atol`: The desired absolute tolerance
+- `err_msg`: An optional error message that can be printed when the arrays are not close
+- `error_location_fmt`: An optional keyword used to specify a function that creates a string 
+  describing the location in the arrays where values are unequal, given a `CartesianIndex` object.
+  This should not be specified in cases where actual and reference have different shapes.
+"""
+function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = nothing,
+                         error_location_fmt = nothing)
+    # make the initial check fast!
+    if !any( abs.(actual .- reference) .> (rtol .* abs.(reference) .+ atol))
+        return true
+    end
+
+    common_layout = (size(actual) == size(reference)) && (ndims(actual) == ndims(reference))
+    if isnothing(error_location_fmt)
+        error_location_fmt = (arg) -> string(arg.I)
+    elseif !common_layout
+        throw("error_location_fmt must be nothing b/c actual and reference have different shapes")
+    end
+
+    # now let's provide a detailed error message (this can take longer):
+
+    # first, let's determine what the max error is (and possibly where it happended)
+    max_rel_error_magnitude = -1.0
+    max_rel_error_magnitude_loc = nothing
+    max_abs_diff = 0.0
+    max_abs_diff_loc = nothing
+    function func(actual_val, ref_val; index = nothing)
+        cur_abs_diff = abs(actual_val - ref_val)
+        if max_abs_diff < cur_abs_diff
+            max_abs_diff = cur_abs_diff
+            max_abs_diff_loc = index
+        end
+
+        if ref_val != 0.0
+            cur_rel_error_mag = cur_abs_diff / abs(ref_val)
+            if max_rel_error_magnitude < cur_rel_error_mag
+                max_rel_error_magnitude = cur_rel_error_mag
+                max_rel_error_magnitude_loc = index
+            end
+        end
+    end
+
+    if common_layout
+        for index in CartesianIndices(size(actual))
+            func(actual[index], reference[index]; index = index)
+        end
+    else
+        func.(actual, reference)
+    end
+
+    lines = isnothing(err_msg) ? [] : [err_msg]
+    push!(lines, string("The arrays aren't consistent to within atol = ", atol,
+                        " rtol = ", rtol))
+
+    if (max_rel_error_magnitude == -1.0) && ((rtol != 0.0) || (atol == 0.0))
+        push!(lines, "Max Rel Diff Magnitude: ∞")
+    elseif ((rtol != 0.0) || (atol == 0.0)) && isnothing(max_rel_error_magnitude_loc)
+        push!(lines, string("Max Rel Diff Magnitude: ", max_rel_error_magnitude))
+    elseif ((rtol != 0.0) || (atol == 0.0))
+        push!(lines, string("Max Rel Diff Magnitude: ", max_rel_error_magnitude, " at ",
+                            error_location_fmt(max_rel_error_magnitude_loc)))
+    end
+
+    if ((atol != 0.0) || (rtol == 0.0)) && isnothing(max_abs_diff_loc)
+        push!(lines, string("Max Abs Diff Magnitude: ", max_abs_diff))
+    elseif ((atol != 0.0) || (rtol == 0.0))
+        push!(lines, string("Max Abs Diff Magnitude: ", max_abs_diff, " at ",
+                            error_location_fmt( max_abs_diff_loc)))
+    end
+
+    throw(ErrorException(join(lines, "\n")))
+    false
+end
+
+"""
+assert_allclose_grid(actual, reference, independent_vars; [rtol], [atol], [err_msg])
+
+This function is a convenience wrapper around assert_allclose that provides slightly nicer error 
+messages when actual and reference have the same shape. 
+
+`independent_vars` should be a `ndims(actual)` element array. The ith element of `independent_vars` 
+should be 2-tuple or 3-tuple:
+- `independent_vars[i][1]` should specify the name of the independent variable along the ith axis
+- `independent_vars[i][2]` should specify the values of the independent variable along the ith axis
+- `independent_vars[i][3]`, if present, should specify the units of the independent variable.
+"""
+function assert_allclose_grid(actual, reference, independent_vars; kwargs...)
+    @assert length(independent_vars) == ndims(actual)
+
+    function error_location_fmt(index)
+        tmp = []
+        for ax in 1:ndims(actual)
+            name, vals, units = if length(independent_vars[ax]) == 2
+                _name, _vals = independent_vars[ax]
+                _name, _vals, nothing
+            elseif length(independent_vars[ax]) == 3
+                independent_vars[ax]
+            else
+                throw(string("independent_vars[",ax,"] should only have 2 or 3 elements"))
+            end
+            if length(vals) != size(actual)[ax]
+                throw(string("length(independent_vars[",ax,"][2]) should be ", length(vals)))
+            end
+
+            if isnothing(units)
+                push!(tmp, string(name, " = ", vals[index[ax]]))
+            else
+                push!(tmp, string(name, " = ", vals[index[ax]], " ", units))
+            end
+        end
+        join(tmp, ", ")
+    end
+    assert_allclose(actual, reference; error_location_fmt = error_location_fmt, kwargs...)
+end
+
+
 function _calc_Hminus_ff_absorption_coef(ν, T)
     # We invert the H⁻ opacity to solve for the absorption coefficient:
     # α_ff(H⁻) = κ_ν * ρ / (n(H I) * Pₑ)
@@ -99,9 +229,9 @@ end
     @test check_Hminus_ff_values(0.0225)
     # we only have measurements for b and c
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
-        calculated, ref = Gray05_comparison_vals(panel,"Hminus_ff")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -166,9 +296,9 @@ end
 @testset "H⁻ bound-free opacity" begin
     @test check_Hminus_bf_values(0.0025)
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["a", "b", "c"]
-        calculated, ref = Gray05_comparison_vals(panel,"Hminus_bf")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_bf")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
     @testset "Extreme wavelengths" begin
         # this tests the opacity function at wavelengths outside of the Wishart (1979) table
@@ -266,9 +396,9 @@ end
     # this really only amounts to a sanity check because the absolute tolerance is of the same
     # magnitude as the actual values
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
-        calculated, ref = Gray05_comparison_vals(panel,"Heminus_ff")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Heminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -316,9 +446,9 @@ end
 @testset "combined H₂⁺ ff and bf opacity" begin
     @test check_H2plus_ff_and_bf_opacity(0.015)
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b"]
-        calculated, ref = Gray05_comparison_vals(panel,"H2plus")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H2plus")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -538,8 +668,56 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
                                                                           ("c",0.125),
                                                                           ("d",35)]
-        calculated, ref = Gray05_comparison_vals(panel,"H")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
         @test all(calculated .≥ 0.0)
         @test all(abs.(calculated - ref) .≤ atol)
+    end
+end
+
+
+function _contained_in_inclusive_intervals(val::AbstractFloat, intervals::AbstractMatrix)
+    for i in 1:size(intervals)[1]
+        if (intervals[i,1] <= val) && (intervals[i,2] >= val)
+            return true;
+        end
+    end
+    false
+end
+
+function _contained_in_inclusive_intervals(val::AbstractArray, intervals::AbstractMatrix)
+    @assert length(size(val)) == 1
+    map(1:length(val)) do i
+        _contained_in_inclusive_intervals(val[i], intervals)
+    end
+end
+
+
+@testset "TOPbase bound-free opacities" begin
+    T = 7800.0 #K, this is fairly arbitrary
+    ndens_species = 3.0e16 #cm⁻³, this is fairly arbitrary
+
+    @testset "$species_name comparison" for species_name in ["H_I", "He_II"]
+        λ_vals = OP_compare._dflt_λ_vals(species_name)
+
+        # compute the absorption coefficients using the TOPbase data
+        hydrogenic_α_OP = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
+                                                                        species_name;
+                                                                        use_OP_data = true)
+        # compute the absorption coefficients using our function for hydrogenic atoms
+        hydrogenic_α_dflt = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
+                                                                          species_name;
+                                                                          use_OP_data = false)
+
+        λ_comp_intervals = OP_compare._λ_comp_intervals(species_name)
+        comp_ind = _contained_in_inclusive_intervals(λ_vals, λ_comp_intervals)
+        @test assert_allclose_grid(hydrogenic_α_OP[comp_ind], hydrogenic_α_dflt[comp_ind],
+                                   [("λ", λ_vals[comp_ind], "Å"),];
+                                   rtol = OP_compare._hydrogenic_rtol(species_name), atol = 0.0,
+                                   err_msg = string(species_name,
+                                                    "bf absorption coefficients computed using ",
+                                                    "data from the opacity\nproject are ",
+                                                    "inconsistent with the results computed\nfor ",
+                                                    "a hydrogenic atom"))
+
     end
 end

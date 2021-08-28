@@ -346,7 +346,21 @@ function _interpolator_from_subtable(table_photon_energy_ryd::Vector{Float32},
                         extrapolation_bc=extrapolation_bc)
 end
 
-function _get_tabulated_data(species_name, elec_conf_table = nothing,
+function _try_env_prefix_path(prefix_env_var, fname)
+    prefix = get(ENV, prefix_env_var, nothing)
+    if isnothing(prefix)
+        e = ErrorException(string("The \"", prefix_env_var, "\" environment variable was not set"))
+        throw(e);
+    end
+    path = joinpath(prefix, fname)
+    if !isfile(path) # this properly handles the case where path is a symlink to a file
+        throw(ErrorException(string("There is no file at ", path)));
+    end
+    path 
+end
+
+
+function _get_tabulated_data(species_name, elec_conf_file::Union{AbstractString,Nothing} = nothing,
                              cross_sec_file::Union{AbstractString,Nothing} = nothing)
 
     # Split appart the species_name (and check that its sensible)
@@ -357,17 +371,15 @@ function _get_tabulated_data(species_name, elec_conf_table = nothing,
     @assert ion_state in roman_numerals
 
     # find electron configuration dict:
-    my_elec_config_file = if isnothing(elec_conf_table)
-        # look at environment variable KORG_OP_ELECTRON_CONFIG_DIR
-        println("Searching for electron_config_file in KORG_OP_ELECTRON_CONFIG_DIR")
-        joinpath(_data_dir,
-                 string("TOPbase/electron_config/", element_name, ".txt"))
+    my_elec_conf_file = if isnothing(elec_conf_file)
+        println("elec_conf_file isn't specified. Searching for file in the directory specified ", 
+                "by the KORG_OP_ELECTRON_CONFIG_DIR environment variable.")
+        _try_env_prefix_path("KORG_OP_ELECTRON_CONFIG_DIR", string(element_name, ".txt"))
     else
-        elec_conf_table
+        elec_conf_file
     end
-    println(my_elec_config_file)
 
-    result = read_electron_configurations(my_elec_config_file)
+    result = read_electron_configurations(my_elec_conf_file)
     rslt_index = 0
     for i = 1:length(result)
         if result[i][1] == species_name
@@ -379,8 +391,9 @@ function _get_tabulated_data(species_name, elec_conf_table = nothing,
 
     # get the photo-ionization subtable iterator:
     my_cross_sec_file = if isnothing(cross_sec_file)
-        joinpath(_data_dir,
-                 string("TOPbase/cross_sections/", species_name, ".txt"))
+        println("cross_sec_file isn't specified. Searching for file in the directory specified ",
+                "by the KORG_OP_CROSS_SECTION_DIR environment variable.")
+        _try_env_prefix_path("KORG_OP_CROSS_SECTION_DIR", string(species_name, ".txt"))
     else
         cross_sec_file
     end
@@ -390,7 +403,8 @@ end
 
 
 @doc raw"""
-    weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name; convert_to_cm2 = false,
+    weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name; elec_conf_file = nothing,
+                                      cross_sec_file = nothing, convert_to_cm2 = false,
                                       partition_func = nothing, extrapolation_bc = 0.0)
 
 Calculate the combined bound-free cross section of an ion species using data from the Opacity
@@ -400,9 +414,17 @@ Boltzmann distribution, and includes the LTE correction for for stimulated emiss
 # Arguments
 - `λ_vals`: an iterable collection of wavelengths (in Å) to compute the cross sections at
 - `T_vals`: an iterable collection of temperatures (in K) to compute the cross sections at
-- `species_name`: name of the ion species
+- `species_name`: name of the atomic ion species. This a string given by the atomic symbol, 
+  followed by an underscore, followed by roman numerals specifying the ionization state.
 
 # Keyword Arguments
+- `elec_conf_file`: Optional keyword that specifies the path to the text file that holds the
+  electron configuration table. When `nothing` (the default), this function tries to load the file
+  from "$KORG_OP_ELECTRON_CONFIG_DIR/<atomic_symbol>.txt",  where <atomic_symbol> is replaced with 
+  `split(species_name, "_")[1]`.
+- `elec_conf_file`: Optional keyword that specifies the path to the text file that holds the
+  electron configuration table. When `nothing` (the default), this function tries to load the file
+  from "$KORG_OP_ELECTRON_CONFIG_DIR/<species_name>.txt".
 - `convert_to_cm2`: When True, returns the weighted cross section in units of cm². Otherwise, the
   results have units of megabarnes. Default is False.
 - `partition_func`: Specifies the partition function for the current species. This should be a
@@ -428,10 +450,11 @@ Under the assumption of LTE, the linear aborption coefficient for bound-free abs
 ``\alpha_{\lambda,{\rm bf},s} = n_{s,{\rm tot}} \overline{\sigma_{{\rm bf},s}}(\lambda,T)``.
 
 # Notes
-In the future, it needs to be possible to pass an argument that adjusts .
+In the future, it needs to be possible to pass an argument that adjusts the energy levels of
+different electron configurations.
 """
-function weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name;
-                                           elec_conf_table = nothing,
+function weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name::AbstractString;
+                                           elec_conf_file::Union{AbstractString,Nothing} = nothing,
                                            cross_sec_file::Union{AbstractString,Nothing} = nothing,
                                            convert_to_cm2::Bool = false, partition_func = nothing,
                                            extrapolation_bc=0.0)
@@ -461,7 +484,7 @@ function weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name;
     weighted_average = zeros(eltype(photon_energies), (length(photon_energies),length(T_vals)))
 
     # prepare the last few items before entering the loop
-    state_prop_dict,itr = _get_tabulated_data(species_name)
+    state_prop_dict,itr = _get_tabulated_data(species_name, elec_conf_file, cross_sec_file)
 
     i = 0
     for (species, state_id, table_photon_energy_ryd, table_cross_section_MBarn) in itr
