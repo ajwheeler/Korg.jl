@@ -1,6 +1,3 @@
-If you are having trouble getting Korg to work, please get in touch by 
-[opening a GitHub issue](https://github.com/ajwheeler/Korg.jl/issues) (preferred), or
-[sending Adam an email](mailto:a.wheeler@columbia.edu).
 
 ## 1. Install Julia
 Install Julia by downloading a binary from [the website](https://julialang.org/downloads/).  
