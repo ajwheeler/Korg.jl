@@ -1,11 +1,5 @@
-# the only reason that we NEED to load in the electron_configurations data is that it's not
-# completely clear to me exactly how I would compute certain quantities (i.e. the statistical
-# weight and the ground state energy)
-
 using Base
 using Interpolations
-# import Korg.partition_funcs, Korg.atomic_symbols, Korg.numerals, and constants
-
 
 # While the StateID struct and its helper functions may seem a little over-engineered, they
 # primarily exist to document the iSLP and iLV quantities used by TOPBase
@@ -128,13 +122,13 @@ Under the output options, the following output data options should be checked:
 - "Energy (Ryd) wrt ground state"
 - "Statistical weight"
 
-A lot of the data read in by this function is technically unnecessary:
-- The "Electron Configuration" data is only used for debugging purposes.
-- It should be possible to construct the "Statistical Weight" data (and "Statistical Weight" data)
-  given the species names and a `StateID`. However, the procedure for doing so is not obvious.
+This function is largely unnecessary:
+- the statistical weight should just be given by 
+  `(2*get_S_quantum_num(state_id) + 1) * (2*get_L_quantum_num(state_id) + 1)`
 - Given "Energy (Ryd) wrt ionization potential" for all states of a given species, we should be
   able to compute "Energy (Ryd) wrt ground state". However, it's not completely obvious how to
   identify the ground state.
+- The "Electron Configuration" data is only used for debugging purposes.
 """
 function read_electron_configurations(fname)
 
