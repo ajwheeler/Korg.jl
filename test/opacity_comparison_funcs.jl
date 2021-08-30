@@ -220,8 +220,9 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     # We use the ionization energy tabulated in table D.1 (χ(He I) = 24.587). 
     # Table D.2 of Gray (2005) records the partion function of He II to be
     # as 10^0.301, the closest value at the table's precision to 2.0
+    UI, UII = (1.0, 10^-0.301)
     # Because this neglects He II, we don't use Korg.saha_ion_weights.
-    wII = (2.0/ne * (10^-0.301) * Korg.translational_U(Korg.electron_mass_cgs, T) 
+    wII = (2.0/ne * (UII/UI) * Korg.translational_U(Korg.electron_mass_cgs, T) 
            * exp(-24.587/(Korg.kboltz_eV*T)))
     nHe_I = nHe * 1/(1+wII)
                          
