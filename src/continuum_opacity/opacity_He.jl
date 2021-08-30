@@ -13,9 +13,14 @@ He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_II_ion_energy,
          nmax_explicit_sum = 9, integrate_high_n = true) =
              hydrogenic_bf_opacity(2, nHe_II_div_partition, ν, ρ, T, ion_energy, nmax_explicit_sum,
                                    integrate_high_n)
+abs_He_II_bf(nHe_II_div_partition, ν, T, ion_energy = _He_II_ion_energy,
+             nmax_explicit_sum = 9, integrate_high_n = true) =
+                 He_II_bf(nHe_II_div_partition, ν, 1.0, T, ion_energy,
+                          nmax_explicit_sum, integrate_high_n) * 1.0
+
 # He II free-free actually refers to the reaction: photon + e⁻ + He III -> e⁻ + He III.
 He_II_ff(nHe_III, ne, ν, ρ, T) = hydrogenic_ff_opacity(2, nHe_III, ne, ν, ρ, T)
-
+abs_He_II_ff(nHe_III, ne, ν, T) = He_II_ff(nHe_III, ne, ν, 1.0, T) * 1.0
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
@@ -116,4 +121,8 @@ function Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::
     nHe_I_gs = ndens_state_He_I(1, nHe_I_div_partition, T)
 
     α * nHe_I_gs * Pe / ρ
+end
+
+function abs_Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, T::Real)
+    Heminus_ff(nHe_I_div_partition, ne, ν, 1.0, T) * 1.0
 end

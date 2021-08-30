@@ -13,8 +13,14 @@ H_I_bf(nH_I_div_partition, ν, ρ, T, ion_energy = _H_I_ion_energy,
        nmax_explicit_sum = 8, integrate_high_n = true) =
            hydrogenic_bf_opacity(1, nH_I_div_partition, ν, ρ, T, ion_energy, nmax_explicit_sum,
                                  integrate_high_n)
+abs_H_I_bf(nH_I_div_partition, ν, T, ion_energy = _H_I_ion_energy,
+           nmax_explicit_sum = 8, integrate_high_n = true) =
+           hydrogenic_bf_opacity(1, nH_I_div_partition, ν, 1.0, T, ion_energy, nmax_explicit_sum,
+                                 integrate_high_n) * 1.0
+
 # H I free-free actually refers to the reaction: photon + e⁻ + H II -> e⁻ + H II.
 H_I_ff(nH_II, ne, ν, ρ, T) = hydrogenic_ff_opacity(1, nH_II, ne, ν, ρ, T)
+abs_H_I_ff(nH_II, ne, ν, T) = hydrogenic_ff_opacity(1, nH_II, ne, ν, 1.0, T) * 1.0
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
@@ -151,6 +157,10 @@ function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Re
     _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * cross_section / ρ
 end
 
+function abs_Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real, 
+                       ion_energy_H⁻::Real = _H⁻_ion_energy)
+    Hminus_bf(nH_I_div_partition, ne, ν, 1.0, T, ion_energy_H⁻) * 1.0
+end
 
 """
     Hminus_ff(nH_I_div_partition, ne, ν, ρ, T)
@@ -229,7 +239,10 @@ function Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Re
 
     return αff_H⁻ * Pₑ * nHI_gs / ρ
 end
-    
+
+function abs_Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real)
+    Hminus_ff(nH_I_div_partition, ne, ν, 1.0, T) * 1.0
+end
 
 """
     H2plus_bf_and_ff(nH_I_div_partition, n_HII, ν, ρ, T)
@@ -319,4 +332,8 @@ function H2plus_bf_and_ff(nH_I_div_partition::Real, nH_II::Real, ν::Real, ρ::R
 
     # Gray (2005) notes that they remove the stimulated emission factor. We need to put it back:
     uncorrected_opacity * stimulated_emission_correction
+end
+
+function abs_H2plus_bf_and_ff(nH_I_div_partition::Real, nH_II::Real, ν::Real, T::Real)
+    H2plus_bf_and_ff(nH_I_div_partition, nH_II, ν, 1.0, T) * 1.0
 end
