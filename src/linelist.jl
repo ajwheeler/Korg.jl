@@ -28,8 +28,8 @@ struct Formula
                 end
                 return Formula(parse(Int, code[1:2]), parse(Int, code[3:4]))
             else
-                throw(ArgumentError("numeric codes for molecules with more than 4 chars are not "*
-                                    "supported"))
+                throw(ArgumentError("numeric codes for molecules with more than 4 chars like " * 
+                                    "$(code) are not supported"))
             end
         end
         #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
