@@ -3,7 +3,7 @@ include("opacity_comparison_funcs.jl")
 """
 assert_allclose(actual, reference; [rtol], [atol], [err_msg], [error_location_fmt])
 
-Raises an assertion exception when all entries in `actual` and `reference` are not equal up to the
+Raises an assertion exception when any entries in `actual` and `reference` are not equal up to the
 desired tolerance. In other words, all entries of `actual` and `reference` must satisfy:
 `abs(actual - reference) <= rtol * abs(reference) + atol`
 

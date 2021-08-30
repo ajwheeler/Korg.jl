@@ -422,7 +422,7 @@ Boltzmann distribution, and includes the LTE correction for for stimulated emiss
 - `convert_to_cm2`: When True, returns the weighted cross section in units of cm². Otherwise, the
   results have units of megabarnes. Default is False.
 - `partition_func`: Specifies the partition function for the current species. This should be a
-  callable that accepts Temperature as an argument. When this is `nothing`, it falls back to the
+  callable that accepts temperature as an argument. When this is `nothing`, it falls back to the
   default partition functions.
 - `extrapolation_bc`: Specifies handling of extrapolation during linear interpolation (this is
   passed to Interpolation.LinearInterpolation.
@@ -430,11 +430,11 @@ Boltzmann distribution, and includes the LTE correction for for stimulated emiss
 # Explanation
 In more mathematical rigor, this function basically evaluates the following equation:
 
-``\overline{\sigma_{{\rm bf},s}}(\lambda,T) = \sum_{{\bf n}\in{\rm states}} \frac{ g_{s,{\bf n}}}{Z_s(T)} e^{-E_{s,{\bf n}}/(k_B T)}\left(1 - e^{-h c/(\lambda k_B T)}\right) \sigma_{{\rm bf}, s,{\bf n}}(\lambda)``
+``\overline{\sigma_{{\rm bf},s}}(\lambda,T) = \sum_{{\bf n}\in{\rm states}} \frac{ g_{s,{\bf n}}}{U_s(T)} e^{-E_{s,{\bf n}}/(k_B T)}\left(1 - e^{-h c/(\lambda k_B T)}\right) \sigma_{{\rm bf}, s,{\bf n}}(\lambda)``
 
 where the ``s`` subscript corresponds to a given species. In this equation:
 - ``g_{s,{\bf n}}`` is the statistical weight of state ``{\bf n}`` for species ``s``.
-- ``Z_s`` is the partition function for species ``s``.
+- ``U_s`` is the partition function for species ``s``.
 - ``E_{s,{\bf n}}`` is the excitation potential of state ``{\bf n}`` for species ``s``. In other
   words, its the energy difference between state ``{\bf n}`` and the ground state.
 - ``\sigma_{\lambda,{\rm bf}, s,{\bf n}}`` is the bound free cross-section (a.k.a. photo-ionization

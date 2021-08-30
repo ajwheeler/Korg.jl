@@ -16,10 +16,9 @@ from bound-free absorption by metals using data from the Opacity Project's onlin
 [TOPbase](http://cdsweb.u-strasbg.fr/topbase/topbase.html).
 
 For a given species (e.g. neutral C or singly-ionized C) TOPbase provides many tables of bound-free
-cross-sections (without stimulated emission correction), as functions of wavelength, for various
-ion species. The ``weighted_bf_cross_section_TOPBase`` can be used to compute the effective
-bound-free cross-section (including corrections from stimulated emission), assuming LTE, for the
-given species.
+cross-sections (without stimulated emission correction), as functions of wavelength. The 
+``weighted_bf_cross_section_TOPBase`` can be used to compute the effective bound-free cross-section 
+(including corrections from stimulated emission), assuming LTE, for the given species.
 
 Our tentative plan for the future is to use ``weighted_bf_cross_section_TOPBase`` for each species
 to construct a 2D tables of the effective bound-free cross-section that can be interpolated over
