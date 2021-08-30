@@ -227,7 +227,7 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     nHe_I = nHe * 1/(1+wII)
                          
     ν = (Korg.c_cgs*1e8)/λ
-    opacity = Korg.ContinuumOpacity.Heminus_ff(nHe_I, ne, ν, ρ, T)
+    opacity = Korg.ContinuumOpacity.Heminus_ff(nHe_I/UI, ne, ν, ρ, T)
     opacity * ρ / (Pₑ * nH_I)
 end
 
