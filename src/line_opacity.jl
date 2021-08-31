@@ -269,7 +269,7 @@ function _line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L_invΔλ_D_div_4π::R
     voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 
-function harris_series(v) # assume v < 5
+@inline function harris_series(v) # assume v < 5
     v2 = v*v
     H₀ = exp(-(v2))
     H₁ = if (v < 1.3)
@@ -278,7 +278,7 @@ function harris_series(v) # assume v < 5
         -4.48480194 + (9.39456063 + (-6.61487486 + (1.98919585  - 0.22041650*v)*v)*v)*v
     else #v < 5
         ((0.554153432 + (0.278711796 + (-0.1883256872 + (0.042991293 - 0.003278278*v)*v)*v)*v) / 
-         (v^2 - 3/2))
+         (v2 - 3/2))
     end
     H₂ = (1 - 2v2) * H₀
     H₀, H₁, H₂
@@ -291,13 +291,14 @@ The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions
 Approximation from Hunger 1965.
 """
 function voigt(α, v)
+    v2 = v*v
     if α <= 0.2 
         if (v >= 5)
-            invv2 = (1/v)^2
+            invv2 = (1/v2)
             (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
         else
             H₀, H₁, H₂ = harris_series(v)
-            H₀ + H₁*α + H₂*α^2
+            H₀ + (H₁ + H₂*α)*α
         end
     else
         if (α <= 1.4) && (α + v < 3.2)
@@ -306,12 +307,12 @@ function voigt(α, v)
             M₀ = H₀
             M₁ = H₁ + 2/sqrt(π) * M₀
             M₂ = H₂ - M₀ + 2/sqrt(π) * M₁
-            M₃ = 2/(3sqrt(π))*(1 - H₂) - 2/3 * v^2 * M₁ + 2/sqrt(π) * M₂
-            M₄ = 2/3 * v^4 * M₀ - 2/(3sqrt(π)) * M₁ + 2/sqrt(π) * M₃
+            M₃ = 2/(3sqrt(π))*(1 - H₂) - 2/3 * v2 * M₁ + 2/sqrt(π) * M₂
+            M₄ = 2/3 * v2*v2 * M₀ - 2/(3sqrt(π)) * M₁ + 2/sqrt(π) * M₃
             ψ = 0.979895023 - 0.962846325α + 0.532770573α^2 - 0.122727278α^3
             ψ * (M₀ + M₁*α + M₂*α^2 + M₃*α^3 + M₄*α^4)
         else #α > 1.4 or (α > 0.2 and α + v > 3.2)
-            r2 = (v*v)/(α*α)
+            r2 = (v2)/(α*α)
             α_invu = 1/sqrt(2) / ((r2 + 1) * α)
             α2_invu2 = α_invu * α_invu
             sqrt(2/π) * α_invu * (1 + (3*r2 - 1 + ((r2-2)*15*r2+2)*α2_invu2)*α2_invu2)
