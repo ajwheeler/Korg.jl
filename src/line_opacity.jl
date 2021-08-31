@@ -292,30 +292,26 @@ Approximation from Hunger 1965.
 """
 function voigt(α, v)
     v2 = v*v
-    if α <= 0.2 
-        if (v >= 5)
-            invv2 = (1/v2)
-            (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
-        else
-            H₀, H₁, H₂ = harris_series(v)
-            H₀ + (H₁ + H₂*α)*α
-        end
-    else
-        if (α <= 1.4) && (α + v < 3.2)
-            #modified harris series: M_i is H'_i in the source text
-            H₀, H₁, H₂ = harris_series(v)
-            M₀ = H₀
-            M₁ = H₁ + 2/sqrt(π) * M₀
-            M₂ = H₂ - M₀ + 2/sqrt(π) * M₁
-            M₃ = 2/(3sqrt(π))*(1 - H₂) - 2/3 * v2 * M₁ + 2/sqrt(π) * M₂
-            M₄ = 2/3 * v2*v2 * M₀ - 2/(3sqrt(π)) * M₁ + 2/sqrt(π) * M₃
-            ψ = 0.979895023 - 0.962846325α + 0.532770573α^2 - 0.122727278α^3
-            ψ * (M₀ + M₁*α + M₂*α^2 + M₃*α^3 + M₄*α^4)
-        else #α > 1.4 or (α > 0.2 and α + v > 3.2)
-            r2 = (v2)/(α*α)
-            α_invu = 1/sqrt(2) / ((r2 + 1) * α)
-            α2_invu2 = α_invu * α_invu
-            sqrt(2/π) * α_invu * (1 + (3*r2 - 1 + ((r2-2)*15*r2+2)*α2_invu2)*α2_invu2)
-        end
+    if α <= 0.2 && (v >= 5)
+        invv2 = (1/v2)
+        (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
+    elseif α <= 0.2 #v < 5
+        H₀, H₁, H₂ = harris_series(v)
+        H₀ + (H₁ + H₂*α)*α
+    elseif (α <= 1.4) && (α + v < 3.2)
+        #modified harris series: M_i is H'_i in the source text
+        H₀, H₁, H₂ = harris_series(v)
+        M₀ = H₀
+        M₁ = H₁ + 2/sqrt(π) * M₀
+        M₂ = H₂ - M₀ + 2/sqrt(π) * M₁
+        M₃ = 2/(3sqrt(π))*(1 - H₂) - 2/3 * v2 * M₁ + 2/sqrt(π) * M₂
+        M₄ = 2/3 * v2*v2 * M₀ - 2/(3sqrt(π)) * M₁ + 2/sqrt(π) * M₃
+        ψ = 0.979895023 - 0.962846325α + 0.532770573α^2 - 0.122727278α^3
+        ψ * (M₀ + M₁*α + M₂*α^2 + M₃*α^3 + M₄*α^4)
+    else #α > 1.4 or (α > 0.2 and α + v > 3.2)
+        r2 = (v2)/(α*α)
+        α_invu = 1/sqrt(2) / ((r2 + 1) * α)
+        α2_invu2 = α_invu * α_invu
+        sqrt(2/π) * α_invu * (1 + (3*r2 - 1 + ((r2-2)*15*r2+2)*α2_invu2)*α2_invu2)
     end
 end
