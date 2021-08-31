@@ -87,16 +87,16 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
     #the residuals of the molecular equilibrium equations parametrized by T, electron number density
     #and number densities of each element [cm^-3]
     function system(T, nₜ, nₑ)
+        atom_number_densities = nₜ .* absolute_abundances
+        ion_factors = map(atoms) do elem
+            wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
+            (1 + wII + wIII)
+        end
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            for (i, a) in enumerate(atoms)
-                #LHS: total number of atoms
-                F[i] = nₜ * absolute_abundances[a]
-                wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
-                #RHS: first through third ionization states
-                F[i] -= (1 + wII + wIII) * x[i]
-            end
+            #LHS: total number of atoms, RHS: first through third ionization states
+            F .= atom_number_densities .- ion_factors .* x
             for m in molecules
                 el1, el2 = get_atoms(m.formula)
                 nₘ = x[el1] * x[el2] * kboltz_cgs * T / 10^equilibrium_constants[m](T)
