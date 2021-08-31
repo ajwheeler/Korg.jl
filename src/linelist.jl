@@ -80,12 +80,6 @@ struct Formula
         sort!(atoms)
         Formula(atoms)
     end
-
-    function Formula(symbols::Vector{AbstractString})
-        Zs = [atomic_numbers[s] for s in symbols]
-        @assert issorted(Zs)
-        Formula(Zs)
-    end
 end
 
 function get_atoms(f::Formula) 
@@ -104,16 +98,16 @@ function Base.show(io::IO, m::MIME"text/plain", f::Formula)
 end
 
 """
-    ismolecule(b::Formula)
+    ismolecule(f::Formula)
 
-`true` when `b` is composed of more than one atom
+`true` when `f` is composed of more than one atom
 """
-ismolecule(b::Formula) = b.atoms[2] != 0
+ismolecule(f::Formula) = f.atoms[2] != 0
 
 """
-    get_mass(b::Formula)
+    get_mass(f::Formula)
 
-Returns the mass [g] of `b`.
+Returns the mass [g] of `f`.
 """
 function get_mass(f::Formula)
     sum(atomic_masses[a] for a in get_atoms(f))
@@ -171,6 +165,7 @@ end
 
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
+get_atoms(s::Species) = get_atoms(s.formula)
 
 #This type represents an individual line.
 struct Line{F} 
@@ -224,12 +219,6 @@ function Base.show(io::IO, m::MIME"text/plain", line::Line)
     show(io, m, line.species)
     print(io, " ", round(line.wl*1e8, digits=6), " Å")
 end
-
-#function (==)(l1::Line{F}, l2::Line{F}) where F
-#    (l1.wl == l2.wl && l1.log_gf == l2.log_gf && l1.species == l2.species && 
-#     l1.E_lower == l2.E_lower && l1.gamma_rad == l2.gamma_rad && l1.gamma_stark == l2.gamma_stark &&
-#     l1.vdW == l2.vdW)
-#end
 
 """
     approximate_radiative_gamma(wl, log_gf)
