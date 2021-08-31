@@ -98,11 +98,11 @@ end
 ismolecule(b::Formula) = length(b.atoms) > 1
 
 """
-    mass(b::Formula)
+    get_mass(b::Formula)
 
 Returns the mass [g] of `b`.
 """
-function mass(b::Formula)
+function get_mass(b::Formula)
     sum(atomic_masses[a] for a in b.atoms)
 end
 
@@ -165,7 +165,7 @@ function hash(s::Species, h::UInt)
 end
 
 ismolecule(s::Species) = ismolecule(s.formula)
-mass(s::Species) = mass(s.formula)
+get_mass(s::Species) = get_mass(s.formula)
 
 #This type represents an individual line.
 struct Line{F} 

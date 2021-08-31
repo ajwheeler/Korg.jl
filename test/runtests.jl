@@ -5,8 +5,9 @@ include("continuum_opacity.jl")
 @testset "atomic data" begin 
     @test (Set(Korg.atomic_symbols) == Set(keys(Korg.atomic_masses))
              == Set(keys(Korg.solar_abundances)))
-    @test Korg.mass(Korg.Formula("CO")) ≈ Korg.mass(Korg.Formula("C")) + Korg.mass(Korg.Formula("O"))
-    @test Korg.mass(Korg.Formula("C2")) ≈ 2Korg.mass(Korg.Formula("C"))
+    @test (Korg.get_mass(Korg.Formula("CO")) ≈ 
+           Korg.get_mass(Korg.Formula("C")) + Korg.get_mass(Korg.Formula("O")))
+    @test Korg.get_mass(Korg.Formula("C2")) ≈ 2Korg.get_mass(Korg.Formula("C"))
 end
 
 @testset "ionization energies" begin

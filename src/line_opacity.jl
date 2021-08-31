@@ -39,7 +39,7 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
     lb = 1
     ub = 1
     for line in linelist
-        m = mass(line.species)
+        m = get_mass(line.species)
         
         #doppler-broadening parameter
         Δλ_D = doppler_width(line.wl, temp, m, ξ)
@@ -154,7 +154,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
         #compute profile with either self or stark broadening
-        Hmass = mass(Formula("H"))
+        Hmass = get_mass(Formula("H"))
         if line.lower == 2 && line.upper in [3, 4, 5]
             #ABO params and line center
             λ₀, σ, α = if line.upper == 3
