@@ -3,8 +3,7 @@ using Korg, Test, HDF5
 include("continuum_opacity.jl")
 
 @testset "atomic data" begin 
-    @test (Set(Korg.atomic_symbols) == Set(keys(Korg.atomic_masses))
-             == Set(keys(Korg.solar_abundances)))
+    @test Korg.Natoms == length(Korg.atomic_masses) == length(Korg.solar_abundances)
     @test (Korg.get_mass(Korg.Formula("CO")) ≈ 
            Korg.get_mass(Korg.Formula("C")) + Korg.get_mass(Korg.Formula("O")))
     @test Korg.get_mass(Korg.Formula("C2")) ≈ 2Korg.get_mass(Korg.Formula("C"))
@@ -12,9 +11,9 @@ end
 
 @testset "ionization energies" begin
     @test length(Korg.ionization_energies) == 92
-    @test Korg.ionization_energies["H"] == [13.5984, -1.000, -1.000]
-    @test Korg.ionization_energies["Ru"] == [7.3605, 16.760, 28.470]
-    @test Korg.ionization_energies["U"] == [6.1940, 11.590, 19.800]
+    @test Korg.ionization_energies[Korg.atomic_numbers["H"]] == [13.5984, -1.000, -1.000]
+    @test Korg.ionization_energies[Korg.atomic_numbers["Ru"]] == [7.3605, 16.760, 28.470]
+    @test Korg.ionization_energies[Korg.atomic_numbers["U"]] == [6.1940, 11.590, 19.800]
 end
 
 
@@ -52,12 +51,12 @@ end
     @testset "pure Hydrogen atmosphere" begin
         nH_tot = 1e15
         # specify χs and Us to decouple this testset from other parts of the code
-        χs = Dict("H"=>[Korg.RydbergH_eV, -1.0, -1.0])
+        χs = Dict(1=>[Korg.RydbergH_eV, -1.0, -1.0])
         Us = Dict([Korg.Species("H_I")=>(T -> 2.0), Korg.Species("H_II")=>(T -> 1.0)])
         # iterate from less than 1% ionized to more than 99% ionized
         for T in [3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3, 1e4, 1.1e4, 1.2e4, 1.3e4, 1.4e4, 1.5e5]
             nₑ = electron_ndens_Hplasma(nH_tot, T, 2.0)
-            wII, wIII = Korg.saha_ion_weights(T, nₑ, "H", χs, Us)
+            wII, wIII = Korg.saha_ion_weights(T, nₑ, 1, χs, Us)
             @test wIII ≈ 0.0 rtol = 1e-15
             rtol = (T == 1.5e5) ? 1e-9 : 1e-14
             @test wII/(1 + wII + wIII) ≈ (nₑ/nH_tot) rtol= rtol
@@ -65,7 +64,7 @@ end
     end
 
     @testset "monotonic N ions Temperature dependence" begin
-        weights = [Korg.saha_ion_weights(T, 1.0, "N", Korg.ionization_energies, 
+        weights = [Korg.saha_ion_weights(T, 1.0, 7, Korg.ionization_energies, 
                                             Korg.partition_funcs) for T in 1:100:10000]
         #N II + NIII grows with T === N I shrinks with T
         @test issorted(first.(weights) + last.(weights))
@@ -83,9 +82,7 @@ end
         MEQs = Korg.molecular_equilibrium_equations(abundances, Korg.ionization_energies, 
                                                        Korg.partition_funcs, 
                                                        Korg.equilibrium_constants)
-
-        #this should hold for the default atomic/molecular data
-        @test Set(MEQs.atoms) == Set(Korg.atomic_symbols)
+        @test MEQs.atoms == 0x01:Korg.Natoms
 
         n = Korg.molecular_equilibrium(MEQs, 5700.0, nₜ, nₑ)
         #make sure number densities are sensible
@@ -96,14 +93,13 @@ end
         total_C = map(collect(keys(n))) do species
             if species == Korg.Species("C2")
                 n[species] * 2
-            elseif (species.formula == Korg.Formula("C") || 
-                    (Korg.ismolecule(species) && ("C" in species.formula.atoms)))
+            elseif 0x06 in Korg.get_atoms(species.formula)
                 n[species]
             else
                 0.0
             end
         end |> sum
-        @test total_C ≈ abundances["C"] * nₜ
+        @test total_C ≈ abundances[Korg.atomic_numbers["C"]] * nₜ
     end
 end
 
@@ -133,9 +129,9 @@ end
         end
 
         @testset "break molecules into atoms" begin
-            @test Korg.Formula("CO").atoms == ["C", "O"]
-            @test Korg.Formula("C2").atoms == ["C", "C"]
-            @test Korg.Formula("MgO").atoms == ["O", "Mg"]
+            @test Korg.get_atoms(Korg.Formula("CO")) == [0x06, 0x08]
+            @test Korg.get_atoms(Korg.Formula("C2")) == [0x06, 0x06]
+            @test Korg.get_atoms(Korg.Formula("MgO")) == [0x08, 0x0c]
         end
 
         @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
@@ -288,14 +284,14 @@ end
 
             #correct absolute abundances?
             if "C" in keys(A_X)
-                @test log10(nxnt["C"]/nxnt["H"]) + 12 ≈ 9
+                @test log10(nxnt[6]/nxnt[1]) + 12 ≈ 9
             end
-            @test log10(nxnt["He"]/nxnt["H"]) + 12 ≈ Korg.solar_abundances["He"]
-            @test log10(nxnt["Ba"]/nxnt["H"]) + 12 ≈ 
-                Korg.solar_abundances["Ba"] + metallicity
+            @test log10(nxnt[2]/nxnt[1]) + 12 ≈ Korg.solar_abundances[2]
+            @test log10(nxnt[Korg.atomic_numbers["Ba"]]/nxnt[1]) + 12 ≈ 
+                Korg.solar_abundances[Korg.atomic_numbers["Ba"]] + metallicity
 
             #normalized?
-            @test sum(values(nxnt)) ≈ 1
+            @test sum(nxnt) ≈ 1
         end
     end
 

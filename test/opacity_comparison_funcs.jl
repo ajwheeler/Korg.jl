@@ -73,7 +73,7 @@ function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = Korg.solar_a
                                               ionization_energies = Korg.ionization_energies,
                                               partition_funcs = Korg.partition_funcs)
     out = 0.0
-    for element in Korg.atomic_symbols
+    for element in 1:Korg.Natoms
         wII, wIII = Korg.saha_ion_weights(T, nₑ, element, Korg.ionization_energies, 
                                           Korg.partition_funcs)
 
@@ -181,7 +181,7 @@ function H2plus_coefficient(λ, T, Pₑ)
         free_electrons_per_Hydrogen_particle(ne, T)
     nH = ne/ne_div_nH
 
-    wII, wIII = Korg.saha_ion_weights(T, ne, "H", Korg.ionization_energies, 
+    wII, wIII = Korg.saha_ion_weights(T, ne, 0x01, Korg.ionization_energies, 
                                          Korg.partition_funcs)
     nH_I = nH / (1 + wII)
     nH_II = nH * wII / (1 + wII)

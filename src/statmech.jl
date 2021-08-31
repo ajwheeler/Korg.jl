@@ -13,7 +13,7 @@ arguments:
 - `ionization_energies` is a Dict mapping elements to their first three ionization energies
 - `partition_funcs` is a Dict mapping species to their partition functions
 """
-function saha_ion_weights(T, nₑ, atom::String, ionization_energies::Dict, partition_funcs::Dict)
+function saha_ion_weights(T, nₑ, atom, ionization_energies::Dict, partition_funcs::Dict)
     χI, χII, χIII = ionization_energies[atom]
     atom = Formula(atom)
     UI = partition_funcs[Species(atom, 0)](T)
@@ -23,7 +23,7 @@ function saha_ion_weights(T, nₑ, atom::String, ionization_energies::Dict, part
     transU = translational_U(electron_mass_cgs, T)
     
     wII =  2.0/nₑ * (UII/UI) * transU * exp(-χI/(k*T))
-    wIII = if atom == Formula("H")
+    wIII = if atom == Formula(1)
         0.0
     else
         UIII = partition_funcs[Species(atom, 2)](T)
@@ -81,15 +81,8 @@ dissolution energy.
 """
 function molecular_equilibrium_equations(absolute_abundances, ionization_energies, partition_fns, 
                                          equilibrium_constants)
-    atoms = atomic_symbols
+    atoms = 0x01:Natoms
     molecules = keys(equilibrium_constants)
-
-    #construct a mapping from each atom to an integer these will be the indeces of each number 
-    #density in the system equations, the xᵢs in the vector for of the residual equation, F(x) = 0.
-    var_indices = Dict{String, Int}()
-    for (i, a) in enumerate(atoms)
-        var_indices[a] = i
-    end
 
     #the residuals of the molecular equilibrium equations parametrized by T, electron number density
     #and number densities of each element [cm^-3]
@@ -105,20 +98,18 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
                 F[i] -= (1 + wII + wIII) * x[i]
             end
             for m in molecules
-                el1, el2 = m.formula.atoms
-                i1 = var_indices[el1]
-                i2 = var_indices[el2]
-                nₘ = x[i1] * x[i2] * kboltz_cgs * T / 10^equilibrium_constants[m](T)
+                el1, el2 = get_atoms(m.formula)
+                nₘ = x[el1] * x[el2] * kboltz_cgs * T / 10^equilibrium_constants[m](T)
                 #RHS: subtract atoms which are part of mollecules
-                F[i1] -= nₘ
-                F[i2] -= nₘ
+                F[el1] -= nₘ
+                F[el2] -= nₘ
             end
         end
     end
 
     #passing atoms and molecules might seem a little weird architecturally, but it's partly in
     #anticipation of potentially culling the list of species considered 
-    (atoms=atoms, molecules=molecules, equations=system, absolute_abundances,
+    (atoms=atoms, molecules=molecules, equations=system, absolute_abundances=absolute_abundances,
      ionization_energies=ionization_energies, partition_fns=partition_fns, 
      equilibrium_constants=equilibrium_constants)
 end
@@ -164,7 +155,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing) :: Dict
     end
     #now the molecules
     for m in MEQs.molecules 
-        el1, el2 = m.formula.atoms
+        el1, el2 = get_atoms(m.formula)
         n₁ = number_densities[Species(Formula(el1), 0)]
         n₂ = number_densities[Species(Formula(el2), 0)]
         logK = MEQs.equilibrium_constants[m]

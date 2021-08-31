@@ -1,4 +1,6 @@
-const atomic_symbols = ["H","He","Li","Be","B","C","N","O","F","Ne",
+using StaticArrays: SA
+
+const atomic_symbols = SA["H","He","Li","Be","B","C","N","O","F","Ne",
         "Na","Mg","Al","Si","P","S","Cl","Ar","K","Ca",
         "Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn",
         "Ga","Ge","As","Se","Br","Kr","Rb","Sr","Y","Zr",
@@ -9,10 +11,11 @@ const atomic_symbols = ["H","He","Li","Be","B","C","N","O","F","Ne",
         "Tl","Pb","Bi","Po","At","Rn","Fr","Ra","Ac","Th",
         "Pa","U"] #,"Np","Pu","Am"] # we don't have partition funcs for these last three
 
-const atomic_numbers = Dict(atomic_symbols .=> 1:length(atomic_symbols))
+const Natoms = UInt8(length(atomic_symbols))
+const atomic_numbers = Dict(atomic_symbols .=> UInt8.(1:Natoms))
 
 #in grams
-const atomic_masses = Dict(atomic_symbols .=> [
+const atomic_masses = SA[
      1.008,4.003,6.941,9.012,10.81,12.01,14.01,16.00,19.00,20.18, 
      22.99,24.31,26.98,28.08,30.97,32.06,35.45,39.95,39.10,40.08,     
      44.96,47.90,50.94,52.00,54.94,55.85,58.93,58.71,63.55,65.37,     
@@ -22,13 +25,11 @@ const atomic_masses = Dict(atomic_symbols .=> [
      145.0,150.4,152.0,157.3,158.9,162.5,164.9,167.3,168.9,173.0,     
      175.0,178.5,181.0,183.9,186.2,190.2,192.2,195.1,197.0,200.6,     
      204.4,207.2,209.0,210.0,210.0,222.0,223.0,226.0,227.0,232.0,     
-     231.0,238.0]#,237.0,244.0,243.0] 
-                           .* amu_cgs)
+     231.0,238.0].* amu_cgs #,237.0,244.0,243.0] 
 
 
 #solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
-const solar_abundances = begin 
-    ϵs = [
+const solar_abundances = SA[
       12.00,10.93, 1.05, 1.38, 2.70, 8.43, 7.83, 8.69, 4.56, 7.93,
       6.24, 7.60, 6.45, 7.51, 5.41, 7.12, 5.50, 6.40, 5.03, 6.34,
       3.15, 4.95, 3.93, 5.64, 5.43, 7.50, 4.99, 6.22, 4.19, 4.56,
@@ -39,6 +40,3 @@ const solar_abundances = begin
       0.10, 0.85,-0.12, 0.85, 0.26, 1.40, 1.38, 1.62, 0.92, 1.17,
       0.90, 1.75, 0.65,-5.00,-5.00,-5.00,-5.00,-5.00,-5.00, 0.02,
       -5.00,-0.54]#,-5.00,-5.00,-5.00]
-    Dict(atomic_symbols .=> ϵs)
-end
-

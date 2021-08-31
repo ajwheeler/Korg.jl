@@ -5,7 +5,7 @@ using StaticArrays: SA
 
 using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 
-const _H_I_ion_energy = ionization_energies["H"][1] # not sure if this is a good idea
+const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
 const _H⁻_ion_energy = 0.7552 # eV
 
 

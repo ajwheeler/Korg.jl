@@ -1,11 +1,32 @@
-import Base: (==), hash
+using StaticArrays
 using CSV
 
 """
 Represents an atom or molecule, irespective of its charge.
 """
 struct Formula
-    atoms::Vector{String}
+    #supports up to triatomic molecules, can be trivially extended.
+    #Unlike tuples SVectors support sorting
+    atoms::SVector{3, UInt8}
+
+    function Formula(Z::Integer) 
+        @assert 1 <= Z <= Natoms
+        new([0x00, 0x00, Z])
+    end
+    function Formula(Zs::AbstractVector{<:Integer})
+        l = length(Zs)
+        if l == 0
+            throw(ArgumentError("Can't construct an empty Formula"))
+        elseif l == 1
+            Zs = [0 ; 0 ; Zs]
+        elseif l == 2 
+            Zs = [0 ; Zs]
+        elseif l > 3
+            throw(ArgumentError("Can't construct Formula with more than three atoms"))
+        end
+        @assert(issorted(Zs))
+        new(Zs)
+    end
 
     """
         Formula(code::String)
@@ -14,8 +35,8 @@ struct Formula
         "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
     function Formula(code::AbstractString)
-        if code in atomic_symbols
-            return new([code]) #quick-parse single elements
+        if code in atomic_symbols #quick-parse single elements
+            return new([0, 0, atomic_numbers[code]]) 
         end
 
         #handle numeric codes, e.g. 0801 -> OH
@@ -26,7 +47,9 @@ struct Formula
                 if length(code) == 3  
                     code = "0"*code
                 end
-                return Formula(parse(Int, code[1:2]), parse(Int, code[3:4]))
+                el1 = parse(Int, code[1:2])
+                el2 = parse(Int, code[3:4])
+                return new([0x00, min(el1, el2), max(el1, el2)])
             else
                 throw(ArgumentError("numeric codes for molecules with more than 4 chars like " * 
                                     "$(code) are not supported"))
@@ -41,7 +64,7 @@ struct Formula
             code[inds[j]:inds[j+1]-1]
         end
 
-        atoms = String[]
+        atoms = UInt8[]
         for s in subcode
             num = tryparse(Int, s)
             if num isa Int
@@ -50,44 +73,34 @@ struct Formula
                     push!(atoms, previous)
                 end
             else
-                push!(atoms, s)
+                push!(atoms, atomic_numbers[s])
             end
         end
 
-        sort!(atoms, by=s->atomic_numbers[s])
-        new(String.(atoms))
-    end
-
-    """
-        Formula(symbols::Int...)
-
-    Create a Formula by providing the atomic symbols of its components as arguments
-    """
-    function Formula(symbols::AbstractString...)
-        new(sort(collect(String.(symbols)), by=s->atomic_numbers[s]))
-    end
-
-    function Formula(Z::Int...)
-        new([atomic_symbols[z] for z in sort(collect(Z))])
+        sort!(atoms)
+        Formula(atoms)
     end
 
     function Formula(symbols::Vector{AbstractString})
-        @assert issorted(symbols, by=s->atomic_numbers[s])
-        new(String.(symbols))
+        Zs = [atomic_numbers[s] for s in symbols]
+        @assert issorted(Zs)
+        Formula(Zs)
+    end
+end
+
+function get_atoms(f::Formula) 
+    if f.atoms[2] == 0
+        view(f.atoms,3:3)
+    elseif f.atoms[1] == 0
+        view(f.atoms,2:3)
+    else
+        view(f.atoms, 1:3)
     end
 end
 
 #pretty-print lines in REPL and jupyter notebooks
-function Base.show(io::IO, m::MIME"text/plain", b::Formula)
-    print(io, *(b.atoms...))
-end
-
-function (==)(b1::Formula, b2::Formula)
-    b1.atoms == b2.atoms
-end
-
-function hash(b::Formula, h::UInt)
-    hash(b.atoms, h)
+function Base.show(io::IO, m::MIME"text/plain", f::Formula)
+    print(io, *([atomic_symbols[i] for i in f.atoms if i != 0]...))
 end
 
 """
@@ -95,15 +108,15 @@ end
 
 `true` when `b` is composed of more than one atom
 """
-ismolecule(b::Formula) = length(b.atoms) > 1
+ismolecule(b::Formula) = b.atoms[2] != 0
 
 """
     get_mass(b::Formula)
 
 Returns the mass [g] of `b`.
 """
-function get_mass(b::Formula)
-    sum(atomic_masses[a] for a in b.atoms)
+function get_mass(f::Formula)
+    sum(atomic_masses[a] for a in get_atoms(f))
 end
 
 const roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
@@ -154,14 +167,6 @@ const He_III = Species("He_III")
 function Base.show(io::IO, m::MIME"text/plain", s::Species)
     show(io, m, s.formula)
     print(io, " ", roman_numerals[s.charge+1])
-end
-
-function (==)(s1::Species, s2::Species)
-    s1.formula == s2.formula && s1.charge == s2.charge
-end
-
-function hash(s::Species, h::UInt)
-    hash((s.formula, s.charge), h)
 end
 
 ismolecule(s::Species) = ismolecule(s.formula)
@@ -220,11 +225,11 @@ function Base.show(io::IO, m::MIME"text/plain", line::Line)
     print(io, " ", round(line.wl*1e8, digits=6), " Å")
 end
 
-function (==)(l1::Line{F}, l2::Line{F}) where F
-    (l1.wl == l2.wl && l1.log_gf == l2.log_gf && l1.species == l2.species && 
-     l1.E_lower == l2.E_lower && l1.gamma_rad == l2.gamma_rad && l1.gamma_stark == l2.gamma_stark &&
-     l1.vdW == l2.vdW)
-end
+#function (==)(l1::Line{F}, l2::Line{F}) where F
+#    (l1.wl == l2.wl && l1.log_gf == l2.log_gf && l1.species == l2.species && 
+#     l1.E_lower == l2.E_lower && l1.gamma_rad == l2.gamma_rad && l1.gamma_stark == l2.gamma_stark &&
+#     l1.vdW == l2.vdW)
+#end
 
 """
     approximate_radiative_gamma(wl, log_gf)
@@ -255,7 +260,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     if ismolecule(species) || Z > 3
         return 0.0,0.0
     end
-    χ = ionization_energies[species.formula.atoms[1]][Z]
+    χ = ionization_energies[get_atoms(species.formula)[1]][Z]
     c = c_cgs
     h = hplanck_eV
     k = kboltz_cgs
@@ -301,7 +306,7 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
     end
 
     filter!(linelist) do line #filter triply+ ionized and hydrogen lines
-        (0 <= line.species.charge <= 2) && (line.species.formula.atoms != ["H"])
+        (0 <= line.species.charge <= 2) && (line.species != H_I)
     end
 
     #ensure linelist is sorted

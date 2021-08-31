@@ -9,12 +9,13 @@ their ionization energies, `[χ₁, χ₂, χ₃]` in eV.
 function setup_ionization_energies(fname=joinpath(_data_dir, 
                                                   "BarklemCollet2016-ionization_energies.dat"))
     open(fname, "r") do f
-        d = Dict{String, Vector{Float64}}()
+        d = Dict{UInt8, Vector{Float64}}()
         for line in eachline(f)
             if line[1] != '#'        
                 toks = split(strip(line))
-                #the first token is the atomic number, which we ignore
-                d[toks[2]] = parse.(Float64, toks[3:end])
+                Z = parse(UInt8, toks[1])
+                #the second token is the atomic symbol, which we ignore
+                d[Z] = parse.(Float64, toks[3:end])
             end
         end
         d
@@ -76,7 +77,8 @@ function read_partition_funcs(fname; transform=identity)
             else # add entries to the dictionary
                 row_entries = split(strip(line))
                 species_code = popfirst!(row_entries)
-                if species_code[end] != '+' && species_code[end] != '-' #ignore ionized molecules
+                #ignore deuterium and ionized molecules
+                if species_code[1:2] != "D_" && species_code[end] != '+' && species_code[end] != '-' 
                     push!(data_pairs, (Species(species_code), 
                                        transform.(parse.(Float64, row_entries))))
                 end

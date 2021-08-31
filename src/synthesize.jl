@@ -52,7 +52,7 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
     ns = []
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α_type = typeof(promote(atm[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
-                            metallicity, vmic, abundances["H"])[1])
+                            metallicity, vmic, abundances[1])[1])
     α = Matrix{α_type}(undef, length(atm), length(λs))
     for (i, layer) in enumerate(atm)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
@@ -104,32 +104,28 @@ end
 Calculate N_X/N_total for each element X given some specified abundances, A(X).  Use the 
 metallicity [X/H] to calculate those remaining from the solar values (except He).
 """
-function get_absolute_abundances(metallicity, A_X::Dict)::Dict
+function get_absolute_abundances(metallicity, A_X::Dict) :: Vector{Number}
     if "H" in keys(A_X)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
                            * "\"abundances\" to implicitly set the amount of H"))
     end
 
     #populate dictionary of absolute abundaces
-    abundances = Dict()
-    for elem in atomic_symbols
-        if elem == "H"
-            abundances[elem] = 1.0
-        elseif elem in keys(A_X)
-            abundances[elem] = 10^(A_X[elem] - 12.0)
+    abundances = map(0x01:Natoms) do elem
+        if elem == 0x01 #hydrogen
+            1.0
+        elseif atomic_symbols[elem] in keys(A_X)
+            10^(A_X[atomic_symbols[elem]] - 12.0)
         else
             #I'm accessing the module global solar_abundances here, but it doesn't make sense to 
             #make this an optional argument because this behavior can be completely overridden by 
             #specifying all abundances explicitely.
-            Δ = elem == "He" ? 0.0 : metallicity
-            abundances[elem] = 10^(solar_abundances[elem] + Δ - 12.0)
+            Δ = (elem == 0x02 #= helium =#) ? 0.0 : metallicity
+            10^(solar_abundances[elem] + Δ - 12.0)
         end
     end
     #now normalize so that sum(N_x/N_total) = 1
-    total = sum(values(abundances))
-    for elem in keys(abundances)
-        abundances[elem] /= total
-    end
+    abundances ./= sum(abundances)
     abundances
 end
 
