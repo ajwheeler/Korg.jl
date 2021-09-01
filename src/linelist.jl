@@ -150,12 +150,9 @@ function Species(code::AbstractString)
     Species(formula, charge)
 end
 
-#useful constants
-const H_I = Species("H_I")
-const H_II = Species("H_II")
-const He_I = Species("He_I")
-const He_II = Species("He_II")
-const He_III = Species("He_III")
+#these are handy to avoid speding cycles instantiating commonly referenced species
+const literals = (H_I=Species("H_I"), H_II=Species("H_II"), He_I=Species("He_I"), 
+                  He_II=Species("He_II"), He_III=Species("He_III"))
 
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", s::Species)
@@ -295,7 +292,7 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
     end
 
     filter!(linelist) do line #filter triply+ ionized and hydrogen lines
-        (0 <= line.species.charge <= 2) && (line.species != H_I)
+        (0 <= line.species.charge <= 2) && (line.species != literals.H_I)
     end
 
     #ensure linelist is sorted

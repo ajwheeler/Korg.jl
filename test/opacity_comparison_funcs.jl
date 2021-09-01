@@ -122,9 +122,9 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
         ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
         
         #Assume U_I(T) = 2.0 and U_II(T) = 1.0, as in Gray (2005)
-        Us = Dict([Korg.Species("H_I")=>(T -> 2.0), Korg.Species("H_II")=>(T -> 1.0)])
-        χs = Dict(["H"=>[Korg.RydbergH_eV, -1.0, -1.0]])
-        wII, wIII = Korg.saha_ion_weights(T, nₑ, "H", χs, Us)
+        Us = Dict([Korg.literals.H_I=>(T -> 2.0), Korg.literals.H_II=>(T -> 1.0)])
+        χs = [(Korg.RydbergH_eV, -1.0, -1.0)]
+        wII, wIII = Korg.saha_ion_weights(T, nₑ, 1, χs, Us)
 
         nH_I = nH_total / (1 + wII)
         nH_II = nH_total * wII/(1 + wII)

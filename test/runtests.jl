@@ -51,8 +51,8 @@ end
     @testset "pure Hydrogen atmosphere" begin
         nH_tot = 1e15
         # specify χs and Us to decouple this testset from other parts of the code
-        χs = Dict(1=>[Korg.RydbergH_eV, -1.0, -1.0])
-        Us = Dict([Korg.Species("H_I")=>(T -> 2.0), Korg.Species("H_II")=>(T -> 1.0)])
+        χs = [(Korg.RydbergH_eV, -1.0, -1.0)]
+        Us = Dict([Korg.literals.H_I=>(T -> 2.0), Korg.literals.H_II=>(T -> 1.0)])
         # iterate from less than 1% ionized to more than 99% ionized
         for T in [3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3, 1e4, 1.1e4, 1.2e4, 1.3e4, 1.4e4, 1.5e5]
             nₑ = electron_ndens_Hplasma(nH_tot, T, 2.0)
@@ -87,7 +87,7 @@ end
         n = Korg.molecular_equilibrium(MEQs, 5700.0, nₜ, nₑ)
         #make sure number densities are sensible
         @test (n[Korg.Species("C_III")] < n[Korg.Species("C_II")] < n[Korg.Species("C_I")] < 
-               n[Korg.Species("H_II")] < n[Korg.Species("H_I")])
+               n[Korg.literals.H_II] < n[Korg.literals.H_I])
 
         #total number of carbons is correct
         total_C = map(collect(keys(n))) do species
@@ -256,7 +256,7 @@ end
         close(fid)
 
         αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, 
-                                           Korg.partition_funcs[Korg.Species("H_I")], 
+                                           Korg.partition_funcs[Korg.literals.H_I], 
                                            Korg.hline_stark_profiles, 0.0)
         @test αs_ref ≈ αs rtol=1e-5
     end

@@ -379,9 +379,9 @@ end
         # This comparison is much more constraining than directly comparing against the relevant
         # curve extracted from the panel because the relevant curve includes both free-free and
         # bound-free absorption. It's also much more constraining when H I ff opacity is subdominant
-        χs = Dict(["H"=>[Korg.RydbergH_eV, -1.0, -1.0]])
+        χs = [(Korg.RydbergH_eV, -1.0, -1.0)]
         # implicitly assumed by the Gray implementation
-        Us = Dict([Korg.Species("H_I")=>(T -> 2.0), Korg.Species("H_II")=>(T -> 1.0)])
+        Us = Dict([Korg.literals.H_I=>(T -> 2.0), Korg.literals.H_II=>(T -> 1.0)])
 
         λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
         ν_vals = Korg.c_cgs*1e8./λ_vals
@@ -393,7 +393,7 @@ end
             nH_total = nₑ * 100.0 # this is totally arbitrary
             ρ = nH_total * 1.67e-24/0.76 # this is totally arbitrary
 
-            wII, wIII = Korg.saha_ion_weights(T, nₑ, "H", χs, Us)
+            wII, wIII = Korg.saha_ion_weights(T, nₑ, 1, χs, Us)
             nH_I = nH_total / (1 + wII) 
             nH_II = nH_total * wII / (1 + wII)
             # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II

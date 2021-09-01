@@ -13,7 +13,7 @@ arguments:
 - `ionization_energies` is a Dict mapping elements to their first three ionization energies
 - `partition_funcs` is a Dict mapping species to their partition functions
 """
-function saha_ion_weights(T, nₑ, atom, ionization_energies::Dict, partition_funcs::Dict)
+function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::Dict)
     χI, χII, χIII = ionization_energies[atom]
     atom = Formula(atom)
     UI = partition_funcs[Species(atom, 0)](T)
