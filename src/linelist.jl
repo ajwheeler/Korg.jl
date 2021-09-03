@@ -252,7 +252,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     k = kboltz_cgs
     E_upper = E_lower + (h * c / wl)
 
-    nstar4_upper = (Z^2 * Rydberg_eV / (χ - E_upper))^2
+    nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
     #From Cowley 1971
     γstark = 0.77e-18 * nstar4_upper * wl^2
 
