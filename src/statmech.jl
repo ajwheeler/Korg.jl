@@ -10,7 +10,8 @@ arguments:
 - temperature `T` [K]
 - electron number density `nₑ` [cm^-3]
 - atom, the atomic symbol of the element 
-- `ionization_energies` is a Dict mapping elements to their first three ionization energies
+- `ionization_energies` is a Dict or Vector mapping elements' atomic numbers to their first three
+  ionization energies
 - `partition_funcs` is a Dict mapping species to their partition functions
 """
 function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::Dict)
