@@ -24,7 +24,7 @@ function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::D
     transU = translational_U(electron_mass_cgs, T)
     
     wII =  2.0/nₑ * (UII/UI) * transU * exp(-χI/(k*T))
-    wIII = if atom == Formula(1)
+    wIII = if atom == Formula(1) # hydrogen
         0.0
     else
         UIII = partition_funcs[Species(atom, 2)](T)
