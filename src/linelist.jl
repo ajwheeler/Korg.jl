@@ -232,7 +232,7 @@ end
 """
 A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
 10,000 K. Used for atomic lines with no vdW and stark broadening info in the linelist.
-Returns log10(γ_stark), log10(γ_vdW)
+Returns γ_stark, log10(γ_vdW)
 
 In the calculation of n*², uses the approximation that
 \\overbar{r^2} = 5/2 {n^*}^4 / Z^2
