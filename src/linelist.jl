@@ -1,132 +1,220 @@
-const numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+using StaticArrays
+using CSV
 
 """
-    parse_species_code(code)
+Represents an atom or molecule, irespective of its charge.
+"""
+struct Formula
+    #supports up to triatomic molecules, can be trivially extended.
+    #Unlike tuples SVectors support sorting
+    atoms::SVector{3, UInt8}
+
+    function Formula(Z::Integer) 
+        @assert 1 <= Z <= Natoms
+        new([0x00, 0x00, Z])
+    end
+    function Formula(Zs::AbstractVector{<:Integer})
+        l = length(Zs)
+        if l == 0
+            throw(ArgumentError("Can't construct an empty Formula"))
+        elseif l == 1
+            Zs = [0 ; 0 ; Zs]
+        elseif l == 2 
+            Zs = [0 ; Zs]
+        elseif l > 3
+            throw(ArgumentError("Can't construct Formula with more than three atoms"))
+        end
+        @assert(issorted(Zs))
+        new(Zs)
+    end
+
+    """
+        Formula(code::String)
+
+        Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, i.e.
+        "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
+    """
+    function Formula(code::AbstractString)
+        if code in atomic_symbols #quick-parse single elements
+            return new([0, 0, atomic_numbers[code]]) 
+        end
+
+        #handle numeric codes, e.g. 0801 -> OH
+        if all(isdigit(c) for c in code)
+            if length(code) <= 2
+                return Formula(parse(Int,code))
+            elseif length(code) <= 4
+                if length(code) == 3  
+                    code = "0"*code
+                end
+                el1 = parse(Int, code[1:2])
+                el2 = parse(Int, code[3:4])
+                return new([0x00, min(el1, el2), max(el1, el2)])
+            else
+                throw(ArgumentError("numeric codes for molecules with more than 4 chars like " * 
+                                    "$(code) are not supported"))
+            end
+        end
+        #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
+        inds = filter(1:length(code)) do i
+            isdigit(code[i]) || isuppercase(code[i])
+        end
+        push!(inds, length(code)+1)
+        subcode = map(1:(length(inds)-1)) do j
+            code[inds[j]:inds[j+1]-1]
+        end
+
+        atoms = UInt8[]
+        for s in subcode
+            num = tryparse(Int, s)
+            if num isa Int
+                previous = atoms[end]
+                for _ in 1:(num-1)
+                    push!(atoms, previous)
+                end
+            else
+                push!(atoms, atomic_numbers[s])
+            end
+        end
+
+        sort!(atoms)
+        Formula(atoms)
+    end
+end
+
+function get_atoms(f::Formula) 
+    if f.atoms[2] == 0
+        view(f.atoms,3:3)
+    elseif f.atoms[1] == 0
+        view(f.atoms,2:3)
+    else
+        view(f.atoms, 1:3)
+    end
+end
+
+#pretty-print lines in REPL and jupyter notebooks
+function Base.show(io::IO, m::MIME"text/plain", f::Formula)
+    print(io, *([atomic_symbols[i] for i in f.atoms if i != 0]...))
+end
+
+"""
+    ismolecule(f::Formula)
+
+`true` when `f` is composed of more than one atom
+"""
+ismolecule(f::Formula) = f.atoms[2] != 0
+
+"""
+    get_mass(f::Formula)
+
+Returns the mass [g] of `f`.
+"""
+function get_mass(f::Formula)
+    sum(atomic_masses[a] for a in get_atoms(f))
+end
+
+const roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+"""
+Represents an atom or molecule (a `Formula`) with a particular number of electrons (regardless of 
+their configuration).
+"""
+struct Species
+    formula::Formula
+    charge::Int
+end
+
+"""
+    Species(code::AbstractString)
 
 Parse the "species code" as it is often specified in linelists and return a the "astronomy" 
 notation. 01.00 → "H_I", 02.01 → "He_II", 02.1000 → "He_II", 0608 → "CO_I", etc.  
 """
-function parse_species_code(code::AbstractString)
-    toks = split(code, '.')
-
-    ionization = if length(toks) == 2
-        if all(c == '0' for c in toks[2])
-            "_I"
-        else
-            "_" * numerals[parse(Int, replace(toks[2], "0"=>""))+1]
-        end
-    elseif length(toks) == 1
-        "_I"
+function Species(code::AbstractString)
+    code = strip(code, ['0', ' '])
+    toks = split(code, [' ', '.', '_'])
+    if length(toks) > 2
+        throw(ArgumentError(code * " isn't a valid species code"))
+    end
+    formula = Formula(toks[1])
+    charge = if length(toks) == 1 || length(toks[2]) == 0
+        0 #no charge specified -> assume neutral
     else
-        throw(ArgumentError("invalid species code"))
-    end
-
-    atom_or_molecule = if length(toks[1]) <= 2
-        atomic_symbols[parse(Int, toks[1])]
-    elseif length(toks[1]) <= 4
-        tok = toks[1]
-        if length(tok) == 3  
-            tok = "0"*tok
+        charge = findfirst(toks[2] .== roman_numerals)
+        charge = (charge isa Int ? charge : parse(Int, toks[2]))
+        #if this is a MOOG-style numeric code, the charge is correct, otherwise subtract 1
+        if tryparse(Float64, code) == nothing 
+            charge -= 1
         end
-        a1 = atomic_symbols[parse(Int, tok[1:2])] 
-        a2 = atomic_symbols[parse(Int, tok[3:4])]
-        if a1 == a2
-            a2 = "2"
-        end
-        a1 * a2
+        charge
     end
-
-    atom_or_molecule * ionization
+    Species(formula, charge)
 end
 
-"""
-    strip_ionization(code)
+#these are handy to avoid speding cycles instantiating commonly referenced species
+const literals = (H_I=Species("H_I"), H_II=Species("H_II"), He_I=Species("He_I"), 
+                  He_II=Species("He_II"), He_III=Species("He_III"))
 
-get the chemical symbol for the element of the species
-"""
-strip_ionization(code::AbstractString)::String = split(code, '_')[1]
-
-"""
-    ismolecule(species)
-
-true if the string passed represents a molecule (with or without its ionization state)
-"""
-function ismolecule(species)
-    count = 0
-    for c in species
-        if c == '_'
-            break
-        else
-            count += isdigit(c) + isuppercase(c)
-        end
-    end
-    count > 1
+#pretty-print lines in REPL and jupyter notebooks
+function Base.show(io::IO, m::MIME"text/plain", s::Species)
+    show(io, m, s.formula)
+    print(io, " ", roman_numerals[s.charge+1])
 end
 
-"""
-    get_atoms(molecule)
-
-Get the atoms that make up a diatomic molecule
-"""
-function get_atoms(molecule)
-    if '_' in molecule
-        molecule = split(molecule,'_')[1]
-    end
-    if molecule[end] == '2'
-        el1 = molecule[1:end-1]
-        el2 = molecule[1:end-1]
-    elseif isuppercase(molecule[2])
-        el1, el2 = molecule[1:1], molecule[2:end]
-    elseif isuppercase(molecule[3])
-        el1, el2 = molecule[1:2], molecule[3:end]
-    else
-        throw(ArgumentError("This doesn't look like a diatomic molecule: $(molecule)"))
-    end
-    el1, el2        
-end
+ismolecule(s::Species) = ismolecule(s.formula)
+get_mass(s::Species) = get_mass(s.formula)
+get_atoms(s::Species) = get_atoms(s.formula)
 
 #This type represents an individual line.
 struct Line{F} 
     wl::F                     #cm
     log_gf::F                 #unitless
-    species::String           
+    species::Species           
     E_lower::F                #eV (also called the excitation potential)
     gamma_rad::F              #s^-1
     gamma_stark::F            #s^-1
-    vdW::Union{F, Tuple{F,F}} #either log(Γ_vdW) per electron or (σ, α) from ABO theory
+    vdW::Union{F, Tuple{F,F}} #either Γ_vdW [s^-1] per electron or (σ, α) from ABO theory
 
     """
-        Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+        Line(wl::F, log_gf::F, species::Species, E_lower::F, 
+             gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
+             vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
 
-    Construct a `Line` with a possibly packed vdW parameter (sigma.alpha) format.  If vdW < 0,
-    interpret it as log10(Γ) per particle.  Otherwise, interpret it as packed ABO parameters.
+    Construct a `Line`.  If any of `gamma_rad`, `gamma_stark`, or `vdW` are `missing`, guess them.
+    `vdW` may be log(Γ_vdW) (assumed if negative), Γ_vdW (assumed if 0 < `vdW` < 1), or packed ABO 
+    parameters (assumed if `vdW` > 1).  It may also be passed as a Tuple, `(σ, α)`.
     """
-    function Line(wl::F, log_gf::F, species::String, E_lower::F, gamma_rad::F, gamma_stark::F,
-                  vdW::F) where F <: Real
-        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, 
-               if vdW > 0
-                   floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW)
-               elseif vdW == 0
-                   0.0
-               else 
-                   10^vdW
-               end
-              )
+    function Line(wl::F, log_gf::F, species::Species, E_lower::F, 
+                  gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
+                  vdW::Union{F, Tuple{F, F}, Missing}=missing) where F <: Real
+        if ismissing(gamma_stark) || ismissing(vdW)
+            gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
+            if ismissing(gamma_stark)
+                gamma_stark = gamma_stark_approx
+            end
+            if ismissing(vdW)
+                vdW = vdW_approx
+            end
+        end
+        if ismissing(gamma_rad)
+            gamma_rad = approximate_radiative_gamma(wl, log_gf)
+        end
+        
+        if vdW isa F
+            if vdW < 0 #if vdW is negative, assume it's log(Γ_vdW) 
+                vdW = 10^vdW
+            elseif vdW > 1 #if it's > 1 assume it's packed ABO params
+                vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
+            end
+        end 
+
+        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
     end
-end
-"""
-    Line(wl, log_gf, species, E_lower)
-
-Construct a `Line` without explicit broadening parameters.  They will be set automatically.
-"""
-function Line(wl::F, log_gf::F, species::String, E_lower::F) where F <: Real
-    Line(wl, log_gf, species, E_lower, approximate_radiative_gamma(wl, log_gf),
-         approximate_gammas(wl, species, E_lower)...)
 end
 
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", line::Line)
-    print(io, line.species, " ", round(line.wl*1e8, digits=6), " Å")
+    show(io, m, line.species)
+    print(io, " ", round(line.wl*1e8, digits=6), " Å")
 end
 
 """
@@ -144,7 +232,7 @@ end
 """
 A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
 10,000 K. Used for atomic lines with no vdW and stark broadening info in the linelist.
-Returns log10(γ_stark), log10(γ_vdW)
+Returns γ_stark, log10(γ_vdW)
 
 In the calculation of n*², uses the approximation that
 \\overbar{r^2} = 5/2 {n^*}^4 / Z^2
@@ -154,19 +242,11 @@ Warner 1967.
 For autoionizing lines (those for which E_upper > χ), returns 0.0 for γ_vdW.
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
-    if ismolecule(species)
+    Z = species.charge + 1 #Z is ionization stage, not atomic number
+    if ismolecule(species) || Z > 3
         return 0.0,0.0
     end
-
-    ionization = split(species, '_')[2]
-    Z = if ionization == "I"
-        1
-    elseif ionization == "II"
-        2
-    elseif ionization == "III"
-        3
-    end
-    χ = ionization_energies[strip_ionization(species)][Z]
+    χ = ionization_energies[get_atoms(species.formula)[1]][Z]
     c = c_cgs
     h = hplanck_eV
     k = kboltz_cgs
@@ -188,31 +268,14 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+    read_linelist(fname; format="vald")
 
-Construct a new line treating broadening params equal to 0 as missing (how VALD represents missing
-values).
-"""
-function new_line_imputing_zeros(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
-    if gamma_rad == 0
-        gamma_rad = approximate_radiative_gamma(wl, log_gf)
-    end
-    if (gamma_stark == 0) || (vdW == 0)
-        approx_stark, approx_vdW = approximate_gammas(wl, species, E_lower)
-        gamma_stark += (gamma_stark == 0)*approx_stark
-        vdW += (vdW == 0)*approx_vdW
-    end
-    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
-end
+Parse a linelist file.
 
-"""
-    read_linelist(fname; format="kurucz")
-
-Parse the provided linelist. in "Kurucz" format.
 Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html),
-`format="vald"` for a Vald linelist, and `format="moog"` for a MOOG linelist.
-
-Note that dissociation energies in a MOOG linelist will be ignored.
+`format="vald"` for a Vald linelist, and `format="moog"` for a MOOG linelist (doesn't yet support 
+broadening parameters or dissociation energies).  VALD linelists can be either "short" or "long" 
+format, "extract all" or "extract stellar".
 """
 function read_linelist(fname::String; format="vald") :: Vector{Line}
     format = lowercase(format)
@@ -228,25 +291,21 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
         end
     end
 
-    mask = map(linelist) do line
-        split(line.species, "_")[2] in ["I", "II", "III"]
-    end
-    if sum(.! mask) > 0
-        @info "omitting $(sum(.! mask)) lines of high (> III) ionization states"
+    filter!(linelist) do line #filter triply+ ionized and hydrogen lines
+        (0 <= line.species.charge <= 2) && (line.species != literals.H_I)
     end
 
     #ensure linelist is sorted
-    if issorted(linelist[mask], by=l->l.wl)
-        linelist[mask]
-    else
-        linelist = linelist[mask]
+    if !issorted(linelist, by=l->l.wl)
         sort!(linelist, by=l->l.wl)
-        linelist
     end
+
+    linelist
 end
 
-#used in to parse vald and kurucz lineslists
-expOrZero(x) = x == 0.0 ? 0.0 : 10.0^x
+#used to handle missing gammas in vald and kurucz lineslist parsers
+expOrMissing(x) = x == 0.0 ? missing : 10.0^x
+idOrMissing(x) = x == 0.0 ? missing : x
 
 function parse_kurucz_linelist(f)
     map(eachline(f)) do line
@@ -256,109 +315,67 @@ function parse_kurucz_linelist(f)
             #abs because Kurucz multiplies predicted values by -1
             abs(parse(Float64,s)) * c_cgs * hplanck_eV
         end
-        new_line_imputing_zeros(
-            parse(Float64, line[1:11])*1e-7,
-            parse(Float64, line[12:18]),
-            parse_species_code(strip(line[19:24])),
-            min(E_levels...),
-            expOrZero(parse(Float64, line[81:86])),
-            expOrZero(parse(Float64, line[87:92])),
-            parse(Float64, line[93:98]))
+        Line(parse(Float64, line[1:11])*1e-7,
+             parse(Float64, line[12:18]),
+             Species(line[19:24]),
+             min(E_levels...),
+             expOrMissing(parse(Float64, line[81:86])),
+             expOrMissing(parse(Float64, line[87:92])),
+             idOrMissing(parse(Float64, line[93:98])))
     end
-end
-
-function _vald_to_korg_species_code(s)
-     symbol, num = split(s[2:end-1], ' ')
-     num = parse(Int, num)
-     symbol * "_" * numerals[num]
 end
 
 function parse_vald_linelist(f)
-    lines = collect(eachline(f))
-
-    #figure out how big the header is
-    firstline = findfirst(lines) do line
-        line[1] == '\''
-    end
-    header = split(lines[firstline-1])
-
-    #vald short or long format?
-    if isuppercase(lines[firstline][2]) && isuppercase(lines[firstline+1][2])
-        Δ = 1 # short format
-        shortformat = true
-    else 
-        Δ = 4 #long format
-        shortformat = false
-    end
-    lines = lines[firstline:Δ:end]
-    lastline = -1 + findfirst(lines) do line
-        !((line[1] == '\'') && isuppercase(line[2]))
-    end
-    lines = lines[1:lastline]
-
-    #filter out ions beyond III
-    filter!(lines) do line
-        findfirst(split(_vald_to_korg_species_code(split(line, ',')[1]), '_')[2] .== numerals) <= 3
+    lines = filter!(collect(eachline(f))) do line
+        length(line) > 0 && line[1] != '#' #remove comments and empty lines
     end
 
-    #air or vacuum wls?
-    if contains(header[3], "air")
-        wl_transform = air_to_vacuum
-    elseif contains(header[3], "vac")
-        wl_transform = identity
+    # is this an "extract all" or an "extract stellar" linelist?
+    extractall = !occursin(r"^\s+\d", lines[1])
+    firstline = extractall ? 3 : 4
+    header = lines[firstline - 1]
+
+    if any(startswith.(lines,"* oscillator strengths were NOT scaled by the solar isotopic ratios."))
+        throw(ArgumentError("Isotopic scaling not yet implemented."))
+    elseif !any(startswith.(lines,"* oscillator strengths were scaled by the solar isotopic ratios."))
+        throw(ArgumentError("Can't parse linelist.  Can't detect whether log(gf)s are scaled by "*
+                            ":isotopic abundance."))
+    end
+
+    shortformat = !(occursin(r"^\' ", lines[firstline + 1])) #vald short or long format
+    body = lines[firstline : (shortformat ? 1 : 4) : end]
+    body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
+    
+    CSVheader = if shortformat && extractall
+        ["species", "wl", "E_low", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW"]
+    elseif shortformat #extract stellar
+        ["species", "wl", "E_low", "Vmic", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW"]
+    else #long format (extract all or extract stellar)
+        ["species", "wl", "loggf", "E_low", "J_lo", "E_up", "J_up", "lower_lande", "upper_lande",
+         "mean_lande", "gamma_rad", "gamma_stark", "gamma_vdW"]
+    end
+    body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, silencewarnings=true)
+
+    species = (s->s[2:end-1]).(body.species) #strip quotes
+
+    E_low = if contains(header, "cm") #convert E_low to eV if necessary
+        body.E_low * c_cgs * hplanck_eV
+    elseif contains(header, "eV")
+        body.E_low
     else
-        throw(ArgumentError(
-            "Can't parse linelist.  I don't understand this wavelength column name: " * header[3]))
-    end
-    #Energy in cm^-1 or eV?
-    E_col = header[shortformat ? 4 : 6]
-    if contains(E_col, "eV")
-        E_transform = identity
-    elseif contains(E_col, "cm")
-        E_transform(x) = x * c_cgs * hplanck_eV
-    else
-        throw(ArgumentError(
-            "Can't parse linelist.  I don't understand this energy column name: " * E_col))
+        throw(ArgumentError( "Can't parse linelist.  Can't determine energy units: " * E_col))
     end
 
-    map(lines) do line
-        toks = split(line, ',')
-        if shortformat
-            #extract all
-            if firstline == 3
-                new_line_imputing_zeros(
-                     wl_transform(parse(Float64, toks[2])*1e-8),
-                     parse(Float64, toks[4]),
-                     _vald_to_korg_species_code(toks[1]),
-                     E_transform(parse(Float64, toks[3])),
-                     expOrZero(parse(Float64, toks[5])),
-                     expOrZero(parse(Float64, toks[6])),
-                     parse(Float64, toks[7]))
-            #extract stellar
-            elseif firstline == 4
-                new_line_imputing_zeros(
-                     wl_transform(parse(Float64, toks[2])*1e-8),
-                     parse(Float64, toks[5]),
-                     _vald_to_korg_species_code(toks[1]),
-                     E_transform(parse(Float64, toks[3])),
-                     expOrZero(parse(Float64, toks[6])),
-                     expOrZero(parse(Float64, toks[7])),
-                     parse(Float64, toks[8]))
-            else
-                throw(ArgumentError("Can't determine if this is an \"extract all\" or \"extract " *
-                                    "stellar\" format linelist"))
-            end
-        else
-            new_line_imputing_zeros(
-                parse(Float64, toks[2])*1e-8,
-                parse(Float64, toks[3]),
-                _vald_to_korg_species_code(toks[1]),
-                parse(Float64, toks[4]),
-                expOrZero(parse(Float64, toks[11])),
-                expOrZero(parse(Float64, toks[12])),
-                parse(Float64, toks[13]))
-        end
+    wl = if contains(header, "air") #convert wls to vacuum if necessary
+        air_to_vacuum.(body.wl)
+    elseif contains(header, "vac")
+        body.wl
+    else
+        throw(ArgumentError( "Can't parse linelist.  Can't determine vac/air wls: " * header))
     end
+
+    Line.(wl * 1e-8, body.loggf, Species.(species), E_low, expOrMissing.(body.gamma_rad), 
+          expOrMissing.(body.gamma_stark), idOrMissing.(body.gamma_vdW))
 end
 
 #todo support moog linelists with broadening parameters?
@@ -369,9 +386,8 @@ function parse_moog_linelist(f)
         toks = split(line)
         Line(parse(Float64, toks[1]) * 1e-8, #convert Å to cm
              parse(Float64, toks[4]),
-             parse_species_code(toks[2]),
+             Species(toks[2]),
              parse(Float64, toks[3]))
     end
-    #TODO issue warning, don't autoconvert
     linelist
 end

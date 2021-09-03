@@ -1,0 +1,16 @@
+                                                                               Lande factors        Damping parameters
+Elm Ion       WL_air(A)  log gf* E_low(cm^-1)   J lo  E_up(cm^-1)   J up   lower   upper    mean   Rad.  Stark    Waals
+'Ti 1',      4998.72899,  -0.760,  25102.875,    2.0,  45102.381,    3.0,  1.930,  1.360,  0.780, 7.970,-5.260,  -7.540
+'  LS                                                             3d2.(3P).4s.4p.(3P*) z5S*'
+'  LS                                                                     3d2.4s.(2D).5s 3D'
+'_          Kurucz TiI 2016    7 wl:K16   7 gf:K16   7 K16   7 K16   7 K16   7 K16   7 K16   7 K16   7 K16             Ti'
+* oscillator strengths were scaled by the solar isotopic ratios.
+ References:
+  1. Plez 2012 Ti48O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  2. Plez 2012 Ti50O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  3. Plez 2012 Ti46O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  4. Plez 2012 Ti49O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  5. Plez 2012 Ti47O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  6. Kurucz obs. energy level: Ni 2
+  7. Kurucz obs. energy level: Ti 1
+

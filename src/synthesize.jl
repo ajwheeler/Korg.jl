@@ -45,14 +45,14 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
     linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
 
-    abundances = get_absolute_abundances(atomic_symbols, metallicity, abundances)
+    abundances = get_absolute_abundances(metallicity, abundances)
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
 
     ns = []
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α_type = typeof(promote(atm[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
-                            metallicity, vmic, abundances["H"])[1])
+                            metallicity, vmic, abundances[1])[1])
     α = Matrix{α_type}(undef, length(atm), length(λs))
     for (i, layer) in enumerate(atm)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
@@ -72,9 +72,9 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
                                     number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
 
         α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
-                                             number_densities["H_I"], partition_funcs["H_I"],
+                                             number_densities[literals.H_I], 
+                                             partition_funcs[literals.H_I], 
                                              hline_stark_profiles, vmic*1e5)
-
     end
 
     #the thickness of each atmospheric layer 
@@ -100,38 +100,33 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 end
 
 """
-    get_absolute_abundances(elements, metallicity, A_X)
+    get_absolute_abundances(metallicity, A_X)
 
-Calculate N_X/N_total for each X in `elements` given some specified abundances, A(X).  Use the 
+Calculate N_X/N_total for each element X given some specified abundances, A(X).  Use the 
 metallicity [X/H] to calculate those remaining from the solar values (except He).
 """
-function get_absolute_abundances(elements, metallicity, A_X::Dict)::Dict
+function get_absolute_abundances(metallicity, A_X::Dict) :: Vector{Number}
     if "H" in keys(A_X)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
                            * "\"abundances\" to implicitly set the amount of H"))
     end
 
     #populate dictionary of absolute abundaces
-    abundances = Dict()
-    for elem in elements
-        if elem == "H"
-            abundances[elem] = 1.0
-        elseif elem in keys(A_X)
-            abundances[elem] = 10^(A_X[elem] - 12.0)
+    abundances = map(0x01:Natoms) do elem
+        if elem == 0x01 #hydrogen
+            1.0
+        elseif atomic_symbols[elem] in keys(A_X)
+            10^(A_X[atomic_symbols[elem]] - 12.0)
         else
             #I'm accessing the module global solar_abundances here, but it doesn't make sense to 
             #make this an optional argument because this behavior can be completely overridden by 
             #specifying all abundances explicitely.
-            Δ = elem == "He" ? 0.0 : metallicity
-            abundances[elem] = 10^(solar_abundances[elem] + Δ - 12.0)
+            Δ = (elem == 0x02 #= helium =#) ? 0.0 : metallicity
+            10^(solar_abundances[elem] + Δ - 12.0)
         end
     end
     #now normalize so that sum(N_x/N_total) = 1
-    total = sum(values(abundances)) + sum([0; [10^(solar_abundances[elem] + metallicity - 12)
-                                               for elem in atomic_symbols if ! (elem in elements)]])
-    for elem in keys(abundances)
-        abundances[elem] /= total
-    end
+    abundances ./= sum(abundances)
     abundances
 end
 
@@ -154,20 +149,21 @@ function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_de
     #TODO check all arguments
 
     #Hydrogen continuum opacities
-    nH_I = number_densities["H_I"]
-    nH_I_div_U = nH_I / partition_funcs["H_I"](T)
+    nH_I = number_densities[literals.H_I]
+    nH_I_div_U = nH_I / partition_funcs[literals.H_I](T)
     κ += ContinuumOpacity.H_I_bf.(nH_I_div_U, νs, ρ, T) 
-    κ += ContinuumOpacity.H_I_ff.(number_densities["H_II"], nₑ, νs, ρ, T)
+    κ += ContinuumOpacity.H_I_ff.(number_densities[literals.H_II], nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_bf.(nH_I_div_U, nₑ, νs, ρ, T)
     κ += ContinuumOpacity.Hminus_ff.(nH_I_div_U, nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities["H_II"], νs, ρ, T)
+    κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities[literals.H_II], νs, ρ, T)
     
     #He continuum opacities
-    κ += ContinuumOpacity.He_II_bf.(number_densities["He_II"]/partition_funcs["He_II"](T), νs, ρ, T)
-    #κ += ContinuumOpacity.He_II_ff.(number_densities["He_III"], nₑ, νs, ρ, T)
+    κ += ContinuumOpacity.He_II_bf.(number_densities[literals.H_II] / 
+                                    partition_funcs[literals.H_II](T), νs, ρ, T)
+    #κ += ContinuumOpacity.He_II_ff.(number_densities[literals.He_III], nₑ, νs, ρ, T)
     # ContinuumOpacity.Heminus_ff is only valid for λ ≥ 5063 Å
-    #κ += ContinuumOpacity.Heminus_ff.(number_densities["He_I"]/partition_funcs["He_I"](T),
-    #                                  nₑ, νs, ρ, T)
+    #κ += ContinuumOpacity.Heminus_ff.(number_densities[literals.He_I] / 
+    #        partition_funcs[literals.He_I](T), nₑ, νs, ρ, T)
     
     #electron scattering
     κ .+= ContinuumOpacity.electron_scattering(nₑ, ρ)

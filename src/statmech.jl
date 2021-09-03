@@ -9,33 +9,28 @@ element, and `wIII` is the ration of doubly ionized to neutral atoms.
 arguments:
 - temperature `T` [K]
 - electron number density `nₑ` [cm^-3]
-- atom, the atomic symbol of the element 
-- `ionization_energies` is a Dict mapping elements to their first three ionization energies
-- `partition_funcs` is a Dict mapping species to their partition functions
+- atom, the atomic number of the element 
+- `ionization_energies` is a collection indexed by integers (e.g. a `Vector`) mappping elements' 
+   atomic numbers to their first three ionization energies
+- `partition_funcs` is a `Dict` mapping species to their partition functions
 """
-function saha_ion_weights(T, nₑ, atom::String, ionization_energies::Dict, partition_funcs::Dict)
+function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::Dict)
     χI, χII, χIII = ionization_energies[atom]
-    UI = partition_funcs[atom*"_I"](T)
-    UII = partition_funcs[atom*"_II"](T)
+    atom = Formula(atom)
+    UI = partition_funcs[Species(atom, 0)](T)
+    UII = partition_funcs[Species(atom, 1)](T)
 
     k = kboltz_eV
     transU = translational_U(electron_mass_cgs, T)
     
-    wII =  (2.0/nₑ * (UII/UI) * transU * exp(-χI/k/T))
-    wIII = if atom == "H"
+    wII =  2.0/nₑ * (UII/UI) * transU * exp(-χI/(k*T))
+    wIII = if atom == Formula(1) # hydrogen
         0.0
     else
-        UIII = partition_funcs[atom*"_III"](T)
-        (wII*2.0/nₑ * (UIII/UII) * transU * exp(-χII/k/T))
+        UIII = partition_funcs[Species(atom, 2)](T)
+        (wII*2.0/nₑ * (UIII/UII) * transU * exp(-χII/(k*T)))
     end
     wII, wIII
-end
-
-"convieience method for easier testing"
-function saha_ion_weights(T, nₑ, χs::Vector{<:Real}, Us::Vector{Function})
-    ionization_energies = Dict(["X" => χs])
-    partition_funcs = Dict(["X_I" => Us[1], "X_II" => Us[2], "X_III" => Us[3]])
-    saha_ion_weights(T, nₑ, "X", ionization_energies, partition_funcs)
 end
 
 """
@@ -89,47 +84,35 @@ dissolution energy.
 """
 function molecular_equilibrium_equations(absolute_abundances, ionization_energies, partition_fns, 
                                          equilibrium_constants)
-    atoms = collect(keys(ionization_energies))
-    molecules = filter(keys(equilibrium_constants)) do m
-        !('+' in m || '-' in m)
-    end
-
-    #construct a mapping from each atom to an integer these will be the indeces of each number 
-    #density in the system equations, the xᵢs in the vector for of the residual equation, F(x) = 0.
-    var_indices = Dict{String, Int}()
-    for (i, a) in enumerate(atoms)
-        var_indices[a] = i
-    end
+    atoms = 0x01:Natoms
+    molecules = keys(equilibrium_constants)
 
     #the residuals of the molecular equilibrium equations parametrized by T, electron number density
     #and number densities of each element [cm^-3]
     function system(T, nₜ, nₑ)
+        atom_number_densities = nₜ .* absolute_abundances
+        ion_factors = map(atoms) do elem
+            wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
+            (1 + wII + wIII)
+        end
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            for (i, a) in enumerate(atoms)
-                #LHS: total number of atoms
-                F[i] = nₜ * absolute_abundances[a]
-                wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
-                #RHS: first through third ionization states
-                F[i] -= (1 + wII + wIII) * x[i]
-            end
+            #LHS: total number of atoms, RHS: first through third ionization states
+            F .= atom_number_densities .- ion_factors .* x
             for m in molecules
-                el1, el2 = get_atoms(m)
-                i1 = var_indices[el1]
-                i2 = var_indices[el2]
-                nₘ = x[i1] * x[i2] * kboltz_cgs * T / 10^equilibrium_constants[m](T)
+                el1, el2 = get_atoms(m.formula)
+                nₘ = x[el1] * x[el2] * kboltz_cgs * T / 10^equilibrium_constants[m](T)
                 #RHS: subtract atoms which are part of mollecules
-                F[i1] -= nₘ
-                F[i2] -= nₘ
+                F[el1] -= nₘ
+                F[el2] -= nₘ
             end
         end
     end
 
     #passing atoms and molecules might seem a little weird architecturally, but it's partly in
-    #anticipation of automatically culling the list of species considered by what's in the linelist
-    #in the future
-    (atoms=atoms, molecules=molecules, equations=system, absolute_abundances,
+    #anticipation of potentially culling the list of species considered 
+    (atoms=atoms, molecules=molecules, equations=system, absolute_abundances=absolute_abundances,
      ionization_energies=ionization_energies, partition_fns=partition_fns, 
      equilibrium_constants=equilibrium_constants)
 end
@@ -166,21 +149,21 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
     end
 
     #start with the neutral atomic species
-    number_densities = Dict((MEQs.atoms .* "_I") .=> sol.zero)
+    number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> sol.zero)
     #now the ionized atomic species
     for a in MEQs.atoms
         wII, wIII = saha_ion_weights(T, nₑ, a, MEQs.ionization_energies, MEQs.partition_fns)
-        number_densities[a*"_II"] = wII * number_densities[a*"_I"]
-        number_densities[a*"_III"] = wIII * number_densities[a*"_I"]
+        number_densities[Species(Formula(a), 1)] = wII  * number_densities[Species(Formula(a), 0)]
+        number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
     #now the molecules
     for m in MEQs.molecules 
-        el1, el2 = get_atoms(m)
-        n₁ = number_densities[el1*"_I"]
-        n₂ = number_densities[el2*"_I"]
+        el1, el2 = get_atoms(m.formula)
+        n₁ = number_densities[Species(Formula(el1), 0)]
+        n₂ = number_densities[Species(Formula(el2), 0)]
         logK = MEQs.equilibrium_constants[m]
         #add 1 to logK to conver to to cgs from mks
-        number_densities[m*"_I"] = n₁ * n₂ * kboltz_cgs * T / 10^logK(T)
+        number_densities[m] = n₁ * n₂ * kboltz_cgs * T / 10^logK(T)
     end
 
     number_densities
