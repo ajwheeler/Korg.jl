@@ -9,10 +9,10 @@ element, and `wIII` is the ration of doubly ionized to neutral atoms.
 arguments:
 - temperature `T` [K]
 - electron number density `nₑ` [cm^-3]
-- atom, the atomic symbol of the element 
-- `ionization_energies` is a Dict or Vector mapping elements' atomic numbers to their first three
-  ionization energies
-- `partition_funcs` is a Dict mapping species to their partition functions
+- atom, the atomic number of the element 
+- `ionization_energies` is a collection indexed by integers (e.g. a `Vector`) mappping elements' 
+   atomic numbers to their first three ionization energies
+- `partition_funcs` is a `Dict` mapping species to their partition functions
 """
 function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::Dict)
     χI, χII, χIII = ionization_energies[atom]
