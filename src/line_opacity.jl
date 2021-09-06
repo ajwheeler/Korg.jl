@@ -270,16 +270,18 @@ function _line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L_invΔλ_D_div_4π::R
     voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 
-function harris_series(v) # assume v < 5
-    H₀ = exp(-(v^2))
+@inline function harris_series(v) # assume v < 5
+    v2 = v*v
+    H₀ = exp(-(v2))
     H₁ = if (v < 1.3)
-        -1.12470432 - 0.15516677v + 3.28867591v^2 - 2.34357915v^3 + 0.42139162v^4
+        -1.12470432 + (-0.15516677 + (3.288675912 +(-2.34357915 + 0.42139162*v)*v)*v)*v
     elseif v < 2.4
-        -4.48480194 + 9.39456063v - 6.61487486v^2 + 1.98919585v^3 - 0.22041650v^4 
+        -4.48480194 + (9.39456063 + (-6.61487486 + (1.98919585  - 0.22041650*v)*v)*v)*v
     else #v < 5
-        (0.554153432 + 0.278711796v - 0.188325687v^2 + 0.042991293v^3 - 0.003278278v^4) / (v^2 - 3/2)
+        ((0.554153432 + (0.278711796 + (-0.1883256872 + (0.042991293 - 0.003278278*v)*v)*v)*v) / 
+         (v2 - 3/2))
     end
-    H₂ = (1 - 2v^2) * H₀
+    H₂ = (1 - 2v2) * H₀
     H₀, H₁, H₂
 end
 
@@ -290,30 +292,27 @@ The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions
 Approximation from Hunger 1965.
 """
 function voigt(α, v)
-    if α <= 0.2 
-        if (v >= 5)
-            invv2 = (1/v)^2
-            (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
-        else
-            H₀, H₁, H₂ = harris_series(v)
-            H₀ + H₁*α + H₂*α^2
-        end
-    else
-        if (α <= 1.4) && (α + v < 3.2)
-            #modified harris series: M_i is H'_i in the source text
-            H₀, H₁, H₂ = harris_series(v)
-            M₀ = H₀
-            M₁ = H₁ + 2/sqrt(π) * M₀
-            M₂ = H₂ - M₀ + 2/sqrt(π) * M₁
-            M₃ = 2/(3sqrt(π))*(1 - H₂) - 2/3 * v^2 * M₁ + 2/sqrt(π) * M₂
-            M₄ = 2/3 * v^4 * M₀ - 2/(3sqrt(π)) * M₁ + 2/sqrt(π) * M₃
-            ψ = 0.979895023 - 0.962846325α + 0.532770573α^2 - 0.122727278α^3
-            ψ * (M₀ + M₁*α + M₂*α^2 + M₃*α^3 + M₄*α^4)
-        else #α > 1.4 or (α > 0.2 and α + v > 3.2)
-            r2 = (v*v)/(α*α)
-            α_invu = 1/sqrt(2) / ((r2 + 1) * α)
-            α2_invu2 = α_invu * α_invu
-            sqrt(2/π) * α_invu * (1 + (3*r2 - 1 + ((r2-2)*15*r2+2)*α2_invu2)*α2_invu2)
-        end
+    v2 = v*v
+    if α <= 0.2 && (v >= 5)
+        invv2 = (1/v2)
+        (α/sqrt(π) * invv2) * (1 + 1.5invv2 + 3.75*invv2^2)
+    elseif α <= 0.2 #v < 5
+        H₀, H₁, H₂ = harris_series(v)
+        H₀ + (H₁ + H₂*α)*α
+    elseif (α <= 1.4) && (α + v < 3.2)
+        #modified harris series: M_i is H'_i in the source text
+        H₀, H₁, H₂ = harris_series(v)
+        M₀ = H₀
+        M₁ = H₁ + 2/sqrt(π) * M₀
+        M₂ = H₂ - M₀ + 2/sqrt(π) * M₁
+        M₃ = 2/(3sqrt(π))*(1-H₂) - (2/3)*v2*M₁ + (2/sqrt(π))*M₂
+        M₄ = 2/3 * v2*v2 * M₀ - 2/(3sqrt(π)) * M₁ + 2/sqrt(π) * M₃
+        ψ =  0.979895023 + (-0.962846325 + (0.532770573 - 0.122727278*α)*α)*α
+        ψ * (M₀ + (M₁ + (M₂ + (M₃ + M₄*α)*α)*α)*α)
+    else #α > 1.4 or (α > 0.2 and α + v > 3.2)
+        r2 = (v2)/(α*α)
+        α_invu = 1/sqrt(2) / ((r2 + 1) * α)
+        α2_invu2 = α_invu * α_invu
+        sqrt(2/π) * α_invu * (1 + (3*r2 - 1 + ((r2-2)*15*r2+2)*α2_invu2)*α2_invu2)
     end
 end
