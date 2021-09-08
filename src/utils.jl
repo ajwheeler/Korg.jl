@@ -1,4 +1,5 @@
 using Statistics: quantile
+using Interpolations: LinearInterpolation
 
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
@@ -27,18 +28,26 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
 end
 
 """
+    rectify(flux, wls; bandwidth=50, q=0.95, wl_step=1.0)
+
 Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
-`q`-quantile with `bandwidth`.
+`q`-quantile with `bandwidth`.  `wl_step` controls the size of the grid over which the moving
+quantile is calculated and interpolated from.  Setting `wl_step` to 1 results in the exact 
+calculation with no interpolation, but note that this is very slow.  Experimentson real spectra
+show an agreement between the interpolated rectified spectrum and the "exact" one (with default 
+values) at the 3 × 10^-4 level.
 """
-function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95) where F <: Real
+function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
+    inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
     lb = 1
     ub = 1
-    moving_mean = map(wls) do λ
+    moving_quantile = map(wls[inds]) do λ
         #move_bounds is defined in line_opacity.jl
         lb, ub = move_bounds(wls, lb, ub, λ, bandwidth)
         quantile(flux[lb:ub], q)
     end
-    flux ./ moving_mean
+    itp = LinearInterpolation(wls[inds], moving_quantile)
+    flux ./ itp.(wls)
 end
 
 """
