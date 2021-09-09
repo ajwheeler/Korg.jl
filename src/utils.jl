@@ -12,6 +12,9 @@ vector `wls` with constant spectral resolution, R = λ/Δλ.
 This will have weird behavior if your wavelength grid is not locally linearly-spaced.
 It is intended to be run on a fine wavelength grid (``\\Delta\\lambda \\lesssim 0.05 \\AA``), then
 downsampled to the observational (or otherwise desired) grid.
+
+!!! note
+    This is a naive, slow implementation.  Do not use it when performance matters.
 """
 function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
@@ -33,9 +36,10 @@ end
 Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
 `q`-quantile with `bandwidth`.  `wl_step` controls the size of the grid over which the moving
 quantile is calculated and interpolated from.  Setting `wl_step` to 1 results in the exact 
-calculation with no interpolation, but note that this is very slow.  Experimentson real spectra
-show an agreement between the interpolated rectified spectrum and the "exact" one (with default 
-values) at the 3 × 10^-4 level.
+calculation with no interpolation, but note that this is very slow.  
+
+Experiments on real spectra show an agreement between the interpolated rectified spectrum and the 
+"exact" one (with default values) at the 3 × 10^-4 level.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
     inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
