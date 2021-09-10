@@ -319,19 +319,19 @@ end
 
 @testset "air <--> vacuum" begin
     wls = collect(2000.0:π:10000.0)
-    @test vacuum_to_air.(air_to_vacuum.(wls)) ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls)) ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls)) ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)) ≈ wls rtol=1e-3
 
     #try it in cgs
     wls .*= 1e8
-    @test vacuum_to_air.(air_to_vacuum.(wls)) ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls)) ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls)) ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)) ≈ wls rtol=1e-3
 
     #units should be automatically chosen
-    @test vacuum_to_air.(air_to_vacuum.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
-    @test vacuum_to_air.(air_to_vacuum.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
 end
 
 @testset "autodiff" begin
