@@ -7,14 +7,14 @@ normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
     constant_R_LSF(flux, wls, R)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
-vector `wls` with constant spectral resolution, R = λ/Δλ.
+vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda.``
 
-This will have weird behavior if your wavelength grid is not locally linearly-spaced.
-It is intended to be run on a fine wavelength grid (``\\Delta\\lambda \\lesssim 0.05 \\AA``), then
-downsampled to the observational (or otherwise desired) grid.
-
-!!! note
+!!! warning
     This is a naive, slow implementation.  Do not use it when performance matters.
+
+    `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
+    It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
+    otherwise desired) grid.
 """
 function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
@@ -34,8 +34,8 @@ end
     rectify(flux, wls; bandwidth=50, q=0.95, wl_step=1.0)
 
 Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
-`q`-quantile with `bandwidth`.  `wl_step` controls the size of the grid over which the moving
-quantile is calculated and interpolated from.  Setting `wl_step` to 1 results in the exact 
+`q`-quantile with window size `bandwidth`.  `wl_step` controls the size of the grid that the moving 
+quantile is calculated on and interpolated from.  Setting `wl_step` to 0 results in the exact 
 calculation with no interpolation, but note that this is very slow.  
 
 Experiments on real spectra show an agreement between the interpolated rectified spectrum and the 

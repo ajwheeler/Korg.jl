@@ -42,37 +42,41 @@ end
 Compute the He⁻ free-free opacity κ.
 
 The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
-reaction:  photon + e⁻ + He I -> e⁻ + He I.
+reaction:  `photon + e⁻ + He I -> e⁻ + He I.`
 
 # Arguments
-- `nHe_I_div_partition::Flt`: the total number density of H I divided by its partition function.
-- `ne::Flt`: the number density of free electrons.
-- `ν::Flt`: frequency in Hz
-- `ρ::Flt`: mass density in g/cm³
-- `T::Flt`: temperature in K
+- `nHe_I_div_partition`: the total number density of H I divided by its partition function.
+- `ne`: the number density of free electrons.
+- `ν`: frequency in Hz
+- `ρ`: mass density in g/cm³
+- `T`: temperature in K
 
 # Notes
 
 This follows equation 8.16 of Grey (2005) which provides a polynomial fit absorption to data
 tabulated in [John 1994](https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract). According
 to that equation the "continuous absorption coefficient per Hydrogen" is given by:
+```
     α(He⁻_ff)*Pₑ*A(He) / (1 + Φ(He)/Pₑ)
+```
 in which
-- log_10(α(He⁻_ff)) is the polynomial term.
+- `log_10(α(He⁻_ff))` is the polynomial term.
 - A(He) is the number abundance of Helium particles relative to Hydrogen particles. For reference,
+  ```
   A(He) = [n(He I) + n(He II) + n(He III)] / [n(H I) + n(H II)]
-- Pₑ is the partial pressure contributed by electrons. For reference, Pₑ = nₑ*kb * T.
-- 1/(1 + Φ(He)/Pₑ) comes from the Saha equation and expresses n(He I) / [n(He I) + n(He II)].
+  ```
+- Pₑ is the partial pressure contributed by electrons. For reference, `Pₑ = nₑ*kb * T`.
+- `1/(1 + Φ(He)/Pₑ)` comes from the Saha equation and expresses `n(He I) / [n(He I) + n(He II)]`.
 
 In the above expression, α(He⁻_ff)*Pₑ specifies the free-free atomic absorption coefficient per
 ground state He I atom. The expression seems to implicitly assume that
 - approximately all He I is in the ground state
-- n(He I) / [n(He I) + n(He II)] is roughly n(He I) / [n(He I) + n(He II) + n(HeIII)]
+- `n(He I) / [n(He I) + n(He II)]` is roughly `n(He I) / [n(He I) + n(He II) + n(HeIII)]`
 (at least for the range of temperatures where α can be accurately computed).
 
 To convert the expression to opacity, they divided it by the product of the mean molecular weight
 and the Hydrogen mass. With that in mind, we can write an the equation for opacity (removing the
-apparent assumptions) as κ_ν = α(He⁻_ff)*Pₑ*n(He I, n=1)/ρ.
+apparent assumptions) as `κ_ν = α(He⁻_ff)*Pₑ*n(He I, n=1)/ρ.`
 
 For 5063 Å ≤ λ ≤ 151878 Å and 2520 K ≤ T ≤ 10080 K, Gray (2005) claims that the polynomial fit the
 tabulated data at a precision of 1% or better. In practice, we found that it only fits the data to

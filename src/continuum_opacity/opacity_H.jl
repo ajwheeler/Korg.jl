@@ -103,12 +103,12 @@ end
 Compute the H⁻ bound-free opacity κ
 
 # Arguments
-- `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
-- `ne` the electron number density
-- `ν::Flt`: frequency in Hz
-- `ρ::Flt`: mass density in g/cm³
-- `T::Flt`: temperature in K
-- `ion_energy_H⁻::Flt`: Specifies the ionization energy of the single state of H⁻ in eV. This is
+- `nH_I_div_partition`: the total number density of H I divided by its partition function.
+- `ne`: the electron number density
+- `ν`: frequency in Hz
+- `ρ`: mass density in g/cm³
+- `T`: temperature in K
+- `ion_energy_H⁻`: Specifies the ionization energy of the single state of H⁻ in eV. This is
    roughly 0.7552 eV.
 
 # Notes
@@ -118,11 +118,12 @@ pre-computed (instead it's computed internally by this function).
 This function is adapted from equation 8.12 from Grey (2005). This equation gives the absorption
 coefficient per H I atom (uncorrected by stimulated emission) is given by:
 
-    ``8.316e-10 \\alpha_{bf}(H^-) P_e \\theta^{2.5} * 10^{{\rm ion_energy_H}^- \\theta} U(H⁻,T)/ U(H I,T)``
+``8.316 \\times 10^{-10} \\alpha_{bf}(H^-) P_e \\theta^{2.5} 10^{\\chi_{\\mathrm{H}^-} \\theta} U(H⁻,T)/ U(H I,T)``
 
 where:
-- ``\\alpha_{bf}(H^-)`` is the photo dissociation cross-section. We estimate this by linearly
+- ``\\alpha_{bf}(\\mathrm{H}^-)`` is the photo dissociation cross-section. We estimate this by linearly
   interpolating data from Wishart (1979).
+- ``\\chi_{\\mathrm{H}^-}`` is the ionization enrgy of H⁻.
 - θ = log10(e)/(k*T) or θ = 5040/T in units of eV⁻¹
 - U(H⁻,T) is the partition function of H⁻ at temperature T. This is always 1
 - U(H I,T) is the partition function of H I at temperature T. This is 2 at low to intermediate T.
@@ -134,7 +135,7 @@ been replaced with the expanded form of the saha equation, in which n₀ = n(H�
 Combining 8.18, and 8.19 of Gray (2005), indicate that the opacity contribution of H⁻ bound-free
 absorption (with stimulated emission correction) is given by:
 
-``\\kappa_\\nu = \\alpha_{bf}(H^-) \\frac{n(H^-)}{n(H I)} (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right) \\frac{n(H I)}{n(H I) + n(H II)} \\frac{n(H I) + n(H II)}{\\rho}``
+``\\kappa_\\nu = \\alpha_{bf}(H^-) \\frac{n(H^-)}{n(H I)} (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right) \\frac{n(H I)}{n(H I) + n(H II)} \\frac{n(H I) + n(H II)}{\\rho} )``
 
 This can be rewritten as: ``\\kappa_\\nu = \\alpha_{bf}(H^-) n(H⁻) (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right)  / \\rho``
 
@@ -161,30 +162,34 @@ reaction:  photon + e⁻ + H I -> e⁻ + H I.
 
 # Arguments
 - `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
-- `ne::Flt`: the number density of free electrons.
-- `ν::Flt`: frequency in Hz
-- `ρ::Flt`: mass density in g/cm³
-- `T::Flt`: temperature in K
+- `ne`: the number density of free electrons.
+- `ν`: frequency in Hz
+- `ρ`: mass density in g/cm³
+- `T`: temperature in K
 
 # Notes
 This is taken from equation 8.13 of Gray (2005). This uses a polynomial to Bell & Berrington (1987)
-tabulated values for α_ff(H⁻), which implicitly includes the correction for stimulated emission.
-The polynomial fits α_ff(H⁻) in the range 2520 K ≤ T ≤ 10080 K and 2604 Å ≤ λ ≤ 113918 Å. According
-to the book, the polynomial fit to the tabulated data typically has 1% precision. We find that at
-worst, the discrepancy never exceeds 2.25%.
+tabulated values for `α_ff(H⁻)`, which implicitly includes the correction for stimulated emission.
+The polynomial fits `α_ff(H⁻)` in the range 2520 K ≤ T ≤ 10080 K and 2604 Å ≤ λ ≤ 113918 Å. 
+According to the book, the polynomial fit to the tabulated data typically has 1% precision. We find 
+that at worst, the discrepancy never exceeds 2.25%.
 
 From equations 8.13, 8.18, and 8.19 of Gray (2005), the free-free opacity from H⁻ is given by:
+```
                               n(H I)          n(H I) + n(H II)
    κ_ν = α_ff(H⁻) * Pₑ * ------------------ * -----------------
                           n(H I) + n(H II)            ρ
-This can be rewritten as: κ_ν = α_ff(H⁻) * Pₑ * n(H I) / ρ
+```
+This can be rewritten as: `κ_ν = α_ff(H⁻) * Pₑ * n(H I) / ρ`
 
 Based on Section 5.3 from Kurucz (1970), I'm fairly confident that the "more correct" version of
-the opacity equation should actually read  κ_ν = α_ff(H⁻) * Pₑ * n(H I, n = 1) / ρ, and that the
-form provided by Gray (2005) implicitly assumes that n(H I, n = 1) ~ n(H I). This seems to be a 
+the opacity equation should actually read  `κ_ν = α_ff(H⁻) * Pₑ * n(H I, n = 1) / ρ`, and that the
+form provided by Gray (2005) implicitly assumes that n(H I, n = 1) ≈ n(H I). This seems to be a 
 prettygood assumption given the tabulated values of the partition function in Table D.2 of Gray 
 (2005). From the boltzmann equation:
-     n(H I, n = 1) = n(H I)*gₙ₌₁/u(T)*exp(-Eₙ₌₁/(k*T)) = n(H I) * 2/u(T)*exp(0) = n(H I) * 2/u(T).
+```
+ n(H I, n = 1) = n(H I)*gₙ₌₁/u(T)*exp(-Eₙ₌₁/(k*T)) = n(H I) * 2/u(T)*exp(0) = n(H I) * 2/u(T).
+ ```
 According to Table D.2 of Grey, this approximation only introduces a ≤0.5% overestimate in 
 n(H I, n = 1) over the temperature range where the polynomial is valid.
 
@@ -242,7 +247,7 @@ This uses polynomial fits from Gray (2005) that were derived from data tabulated
 - `ρ`: mass density in g/cm³
 - `T`: temperature in K
 
-While the formal type signature requires that these be `Real`, `Float32`s (or `Float32`-derived 
+While the formal type signature requires only that these be `Real`, `Float32`s (or `Float32`-derived 
 types) may introduce numerical instability.
 
 # Notes
@@ -250,7 +255,9 @@ This follows equation 8.15 of Gray (2005), which involves 2 polynomials that wer
 provided in [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
 
 The combined H₂⁺ bound-free and free-free opacity opacity calculation can be cast as:
-    κ = const * σ₁ * exp(-U₁ / (kboltz*T)) * n(H I, n=1) * n(H II) * (1 - exp(-hν/(kboltz*T))) / ρ
+```
+κ = const * σ₁ * exp(-U₁ / (kboltz*T)) * n(H I, n=1) * n(H II) * (1 - exp(-hν/(kboltz*T))) / ρ
+```
 where σ₁ and U₁ are just functions of ν. Note that Bates (1952) and Gray (2005) both use the number
 density of all energy states of H I instead of n(H I, n=1). However, Kurucz (1970) makes a note in
 section 5.2 about how the photodisociation of H₂⁺ produces a ground state H atom and that we should
@@ -270,7 +277,7 @@ Bates (1952) indicate that the function reproduces the full absorption coeffient
 absorption coefficient for 2500 K ≤ T ≤ 12000 K. In the text they have a comment that the proton's
 De Broglie wavelength is large at 2500 K and their semi-classical treatment may start to break
 down. However, as long as use n(H I, n=1), there doesn't seem to be any reason for us to enforce an
-upper Temperature limit.
+upper temperature limit.
 
 Bates (1952) states that his classical treatment of the interaction is probably most accurate at
 higher temperatures and longer wavelengths (note that the longest λ considered in the paper is 8
