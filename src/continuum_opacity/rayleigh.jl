@@ -9,7 +9,7 @@ function rayleigh(λs::AbstractVector{<:Real}, nH_I, nHe_I)
     σth = 6.65246e-25 #Thompson scattering cross section [cm^2]
 
     #(ħω/ 2E_H)^2 in Colgan+ 2016.  The photon energy over 2Ryd
-    E_2Ryd_2 = @. (hplanck_cgs * c_cgs / (2 * Rydberg_eV * λs))^2
+    E_2Ryd_2 = @. (hplanck_eV * c_cgs / (2 * Rydberg_eV * λs))^2
     E_2Ryd_4 = E_2Ryd_2.^2
     E_2Ryd_6 = E_2Ryd_2.*E_2Ryd_4
     E_2Ryd_8 = E_2Ryd_4.^2
