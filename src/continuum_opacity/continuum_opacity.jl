@@ -12,6 +12,7 @@ include("opacity_H.jl")
 export He_II_bf, He_II_ff, Heminus_ff
 include("opacity_He.jl")
 
+include("rayleigh.jl")
 
 """
     electron_scattering(nₑ, ρ)
