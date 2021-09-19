@@ -1,7 +1,7 @@
 using Interpolations: LinearInterpolation, Throw
 using StaticArrays: SA
 
-# define the hydrogenic continuum opacities
+# define the hydrogenic continuum absorption
 
 """
     ndens_state_hydrogenic(n, nsdens_div_partition, ion_energy, T)
@@ -79,10 +79,10 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Real, ion_freq
 end
 
 """
-    _hydrogenic_bf_high_n_opacity(Z, nmin, nsdens_div_partition, ν, T, ion_energy)
+    _hydrogenic_bf_high_n_absorption(Z, nmin, nsdens_div_partition, ν, T, ion_energy)
 
-Approximates the sum of opacity contributions by all bound-free transitions in which the electron
-originates in an energy level of nmin or larger using an integral.
+Approximates the sum of absorption coefficient contributions by all bound-free transitions in which
+the electron originates in an energy level of nmin or larger using an integral.
 
 In full detail, the calculated quantity is described as
     ∑_{n'=nmin}^∞ ndens(n=n') * α_ν(n=n') * (1 - exp(-hν/k/T))/ρ,
@@ -95,15 +95,15 @@ where α(n=n') is the absorption coefficient for the bound-free atomic absorptio
 - `nsdens_div_partition` is the number density of the current species divided by the
    partition function.
 - `ν`: frequency in Hz
-- `ρ`: mass density in g/cm³
 - `T`: temperature in K
 - `ion_energy`: the ionization energy from the ground state (in eV).
 
 # Notes
-This implements equation (5.6) from Kurucz (1970). I think ρ was simply omitted from that equation.
+This is based on equation (5.6) from Kurucz (1970) (which give the formula for opacity). I think ρ
+was simply omitted from that equation.
 """
-function _hydrogenic_bf_high_n_opacity(Z::Integer, nmin::Integer, nsdens_div_partition::Real, 
-                                       ν::Real, ρ::Real, T::Real, ion_energy::Real)
+function _hydrogenic_bf_high_n_absorption(Z::Integer, nmin::Integer, nsdens_div_partition::Real, 
+                                          ν::Real, T::Real, ion_energy::Real)
 
     # this function corresponds to the evaluation of a integral. We subdivide the solution into two
     # parts: (i) consts and (ii) integral. The solution is the product of both parts
@@ -135,15 +135,16 @@ function _hydrogenic_bf_high_n_opacity(Z::Integer, nmin::Integer, nsdens_div_par
         integral = coef * (exp(-(ionE_times_β - hplanck_eV*ν*β)) - exp(-ionE_times_β))
     end
 
-    (integral_consts*integral)/ρ
+    (integral_consts*integral)
 end
 
 
 """
-    hydrogenic_bf_opacity(Z, nmax_explicit_sum, nsdens_div_partition, ν, ρ, T,
-                          ion_energy, [integrate_high_n])
+    hydrogenic_bf_absorption(Z, nmax_explicit_sum, nsdens_div_partition, ν, T,
+                             ion_energy, [integrate_high_n])
 
-Compute the bound-free opacity contributed by all energy states of a Hydrogenic species
+Compute the bound-free linear absorption coefficient contributed by all energy states of a
+Hydrogenic species
 
 The calculation is broken into 2 parts: (i) the contributions of the lowest energy states are 
 explicitly summed and (ii) the contributions of the higher energy states are estimated with an 
@@ -154,24 +155,23 @@ integral.
 - `nsdens_div_partition` is the total number density of the species divided by the species's
    partition function.
 - `ν`: frequency in Hz
-- `ρ`: mass density in g/cm³
 - `T`: temperature in K
 - `ion_energy`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
-- `nmax_explicit_sum::Integer`: The highest energy level whose opacity contribution is included in
-   the explicit sum. The contributions from higher levels are included in the integral.
-- `integrate_high_n::bool`: When this is `false`, bf opacity from higher energy states are not
+- `nmax_explicit_sum::Integer`: The highest energy level whose absorption contribution is included
+   in the explicit sum. The contributions from higher levels are included in the integral.
+- `integrate_high_n::bool`: When this is `false`, bf absorption from higher energy states are not
    estimated at all. Default is `true`.
 
 # Notes
 This follows the approach described in section 5.1 of Kurucz (1970).
 """
-function hydrogenic_bf_opacity(Z::Integer, nsdens_div_partition::Real, ν::Real, ρ::Real, T::Real, 
-                               ion_energy::Real, nmax_explicit_sum::Integer, 
-                               integrate_high_n::Bool=true)
+function hydrogenic_bf_absorption(Z::Integer, nsdens_div_partition::Real, ν::Real, T::Real, 
+                                  ion_energy::Real, nmax_explicit_sum::Integer, 
+                                  integrate_high_n::Bool=true)
     ionization_freq = _eVtoHz(ion_energy)
 
-    # first, directly sum individual the opacity contributions from H I atoms at each of the lowest
+    # first, directly sum individual the absorption contributions from H I atoms at each of the
     # lowest energy levels (i.e. all energy levels where n <= nmax_explicit_sum)
     partial_sum = 0.0
     for n = 1 : nmax_explicit_sum
@@ -180,14 +180,14 @@ function hydrogenic_bf_opacity(Z::Integer, nsdens_div_partition::Real, ν::Real,
         cur_val = ndens_state * hydrogenic_bf_cross_section
         partial_sum += ndens_state * hydrogenic_bf_cross_section
     end
-    κ_low_n = partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))/ρ
+    α_low_n = partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))
 
-    # second, estimate the opacity contributions from H I atoms at higher energy levels using an
+    # second, estimate the absorption contributions from H I atoms at higher energy levels using an
     # integral approximation (assuming integrate_high_n is true)
-    κ_high_n = _hydrogenic_bf_high_n_opacity(Z, nmax_explicit_sum+1, nsdens_div_partition,
-                                             ν, ρ, T, ion_energy)
+    α_high_n = _hydrogenic_bf_high_n_absorption(Z, nmax_explicit_sum+1, nsdens_div_partition, ν, T,
+                                                ion_energy)
 
-    κ_low_n + (κ_high_n * integrate_high_n)
+    α_low_n + (α_high_n * integrate_high_n)
 end
 
 
@@ -238,44 +238,43 @@ gaunt_ff_kurucz(log_u, log_γ2) = _ff_interpolator(log_u, log_γ2)
 
 
 """
-    hydrogenic_ff_opacity(Z, ni, ne, ν, ρ, T)
+    hydrogenic_ff_absorption(Z, ni, ne, ν, T)
 
-computes the free-free opacity for a hydrogenic species
+computes the free-free linear absorption coefficient for a hydrogenic species
 
 The naming convention for free-free absorption is counter-intuitive. A free-free interaction is
 named as though the species interacting with the free electron had one more bound electron (in 
 other words it's named as though the free-electron and ion were bound together). In practice, this
 means that `ni` should refer to:
-- the number density of H II if computing the H I free-free opacity
-- the number density of He III if computing the He II free-free opacity
-- the number density of Li IV if computing the Li III free-free opacity
+- the number density of H II if computing the H I free-free absorption
+- the number density of He III if computing the He II free-free absorption
+- the number density of Li IV if computing the Li III free-free absorption
 
 # Arguments
 - `Z::Integer`: the charge of the ion. For example, this is 1 for ionized H.
 - `ni`: the number density of the ion species in cm⁻³.
 - `ne`: the number density of free electrons.
 - `ν`: frequency in Hz
-- `ρ`: mass density in g/cm³
 - `T`: temperature in K
 
 # Note
 This approach was adopted from equation 5.8 from section 5.1 of Kurucz (1970). Comparison against
 equation 5.18b of Rybicki & Lightman (2004), reveals that the equation in Kurucz (1970) omits the
-dependence on ρ. According to Rybicki & Lightman (2004) the free-free opacity (corrected for
-stimulated emission) is:
+dependence on ρ. According to Rybicki & Lightman (2004) the free-free absorption coefficient
+(corrected for stimulated emission) is:
 ```
-    coef * Z² *ne * ni * (1 - exp(-hplanck*ν/(kboltz*T))) * g_ff / (sqrt(T) * ν³ * ρ)
+    α = coef * Z² *ne * ni * (1 - exp(-hplanck*ν/(kboltz*T))) * g_ff / (sqrt(T) * ν³)
 ```
 Note that the g_ff is the free-free gaunt factor and coef is ∼3.7e8 (a more exact coefficient can
 be computed from eqn 5.18a).
 
 With this in mind, equation 5.8 of Kurucz (1970) should actually read
 ```
-    ne * n(H II) * F_ν(T) * (1 - exp(-hplanck*ν/(kboltz*T))) / ρ
+    κ = ne * n(H II) * F_ν(T) * (1 - exp(-hplanck*ν/(kboltz*T))) / ρ
 ```
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
 """
-function hydrogenic_ff_opacity(Z::Integer, ni::Real, ne::Real, ν::Real, ρ::Real, T::Real)
+function hydrogenic_ff_absorption(Z::Integer, ni::Real, ne::Real, ν::Real, T::Real)
     β = 1.0/(kboltz_eV * T)
     Z2 = Z*Z
 
@@ -286,5 +285,5 @@ function hydrogenic_ff_opacity(Z::Integer, ni::Real, ne::Real, ν::Real, ρ::Rea
 
     F_ν = 3.6919e8*gaunt_ff*Z2/((ν*ν*ν)*sqrt(T))
 
-    ni*ne*F_ν*(1-exp(-hν_div_kT))/ρ
+    ni*ne*F_ν*(1-exp(-hν_div_kT))
 end

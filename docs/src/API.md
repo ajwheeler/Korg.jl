@@ -40,7 +40,7 @@ Korg.voigt
 These function can be used to directly compute continuum opacities.
 
 ```@docs
-Korg.total_continuum_opacity
+Korg.total_continuum_absorption
 Korg.ContinuumAbsorption.H_I_bf
 Korg.ContinuumAbsorption.H_I_ff
 Korg.ContinuumAbsorption.Hminus_bf
@@ -50,6 +50,8 @@ Korg.ContinuumAbsorption.He_II_bf
 Korg.ContinuumAbsorption.He_II_ff
 Korg.ContinuumAbsorption.Heminus_ff
 Korg.ContinuumAbsorption.electron_scattering
+Korg.ContinuumAbsorption.hydrogenic_bf_absorption
+Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```
 
 ## Statistical mechanics

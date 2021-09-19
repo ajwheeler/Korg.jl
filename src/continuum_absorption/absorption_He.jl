@@ -6,16 +6,58 @@ population of that level is too small to be worth considering.
 We are currently missing free-free and bound free contributions from He I.
 """
 
-using ..ContinuumAbsorption: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
+using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
 const _He_II_ion_energy = ionization_energies[2][2] # not sure if this is a good idea
 
-abs_He_II_bf(nHe_II_div_partition, ν, T, ion_energy = _He_II_ion_energy,
-             nmax_explicit_sum = 9, integrate_high_n = true) =
-                 hydrogenic_bf_opacity(2, nHe_II_div_partition, ν, 1.0, T, ion_energy,
-                                       nmax_explicit_sum, integrate_high_n) * 1.0
+"""
+    He_II_bf(nHe_I_div_partition, ν, T, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
 
-# He II free-free actually refers to the reaction: photon + e⁻ + He III -> e⁻ + He III.
-abs_He_II_ff(nHe_III, ne, ν, T) = hydrogenic_ff_opacity(2, nHe_III, ne, ν, 1.0, T) * 1.0
+Compute the bound-free linear absorption coefficient contributed by all energy states of a
+singly-ionized Helium atom.
+
+# Required Arguments
+- `nHe_II_div_partition` is the total number density of singly-ionized Helium divided by the its
+   partition function.
+- `ν`: frequency in Hz
+- `T`: temperature in K
+
+# Optional Arguments
+- `ion_energy`: The ionization energy of Helium. By default, this is set to the values loaded 
+  into the global `ionization_energies` list.
+- `nmax_explicit_sum`: The highest energy level whose absorption contribution is included
+   in the explicit sum. The contributions from higher levels are included in an integral.
+- `integrate_high_n::bool`: When this is `false`, bf absorption from higher energy states are not
+   estimated at all. Default is `true`.
+
+# Notes
+This function simply wraps [`hydrogenic_ff_absorption`](@ref). See that function for additional
+details.
+"""
+He_II_bf(nHe_II_div_partition, ν, T, ion_energy = _He_II_ion_energy, nmax_explicit_sum = 9,
+         integrate_high_n = true) =
+             hydrogenic_bf_absorption(2, nHe_II_div_partition, ν, T, ion_energy, nmax_explicit_sum,
+                                      integrate_high_n)
+
+
+"""
+    He_II_ff(nHe_III, ne, ν, T)
+
+Compute the He II free-free linear absorption coefficient α.
+
+The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
+reaction:  `photon + e⁻ + He III -> e⁻ + He III`.
+
+#Arguments
+- `nH_III`: the number density of doubly-ionized Helium in cm⁻³.
+- `ne`: the number density of free electrons.
+- `ν`: frequency in Hz
+- `T`: temperature in K
+
+# Notes
+This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
+details.
+"""
+He_II_ff(nHe_III, ne, ν, T) = hydrogenic_ff_absorption(2, nHe_III, ne, ν, T)
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
@@ -37,7 +79,7 @@ end
 
 
 """
-    abs_Heminus_ff(nHe_I_div_partition, ne, ν, T)
+    Heminus_ff(nHe_I_div_partition, ne, ν, T)
 
 Compute the He⁻ free-free opacity κ.
 
@@ -87,7 +129,7 @@ approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10
 
 An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
 """
-function abs_Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, T::Real)
+function Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, T::Real)
 
     λ = c_cgs * 1.0e8 / ν # Å
     if !(5063.0 <= λ <= 151878.0)

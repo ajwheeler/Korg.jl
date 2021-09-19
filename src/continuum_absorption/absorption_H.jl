@@ -3,18 +3,61 @@
 using Interpolations: LinearInterpolation, Throw
 using StaticArrays: SA
 
-using ..ContinuumAbsorption: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
+using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
 
 const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
 const _H⁻_ion_energy = 0.7552 # eV
 
-abs_H_I_bf(nH_I_div_partition, ν, T, ion_energy = _H_I_ion_energy,
-           nmax_explicit_sum = 8, integrate_high_n = true) =
-               hydrogenic_bf_opacity(1, nH_I_div_partition, ν, 1.0, T, ion_energy,
-                                     nmax_explicit_sum, integrate_high_n) * 1.0
+"""
+    H_I_bf(nH_I_div_partition, ν, T, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
 
-# H I free-free actually refers to the reaction: photon + e⁻ + H II -> e⁻ + H II.
-abs_H_I_ff(nH_II, ne, ν, T) = hydrogenic_ff_opacity(1, nH_II, ne, ν, 1.0, T) * 1.0
+Compute the bound-free linear absorption coefficient contributed by all energy states of a
+neutral Hydrogen atom.
+
+# Required Arguments
+- `nH_I_div_partition` is the total number density of neutral Hydrogen divided by the its
+   partition function.
+- `ν`: frequency in Hz
+- `T`: temperature in K
+
+# Optional Arguments
+- `ion_energy`: The ionization energy of Hydrogen. By default, this is set to the values loaded 
+  into the global `ionization_energies` list.
+- `nmax_explicit_sum`: The highest energy level whose absorption contribution is included
+   in the explicit sum. The contributions from higher levels are included in an integral.
+- `integrate_high_n::bool`: When this is `false`, bf absorption from higher energy states are not
+   estimated at all. Default is `true`.
+
+# Notes
+This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
+details.
+"""
+H_I_bf(nH_I_div_partition, ν, T, ion_energy = _H_I_ion_energy, nmax_explicit_sum = 8,
+       integrate_high_n = true) =
+           hydrogenic_bf_absorption(1, nH_I_div_partition, ν, T, ion_energy, nmax_explicit_sum,
+                                    integrate_high_n)
+
+
+"""
+    H_I_ff(nH_II, ne, ν, T)
+
+Compute the H I free-free linear absorption coefficient α.
+
+The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
+reaction:  `photon + e⁻ + H II -> e⁻ + H II`.
+
+#Arguments
+- `nH_II`: the number density of ionized Hydrogen in cm⁻³.
+- `ne`: the number density of free electrons.
+- `ν`: frequency in Hz
+- `T`: temperature in K
+
+# Notes
+This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
+details.
+"""
+H_I_ff(nH_II, ne, ν, T) = hydrogenic_ff_absorption(1, nH_II, ne, ν, T)
+
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
@@ -98,7 +141,7 @@ end
 
 
 """
-    abs_Hminus_bf(nH_I_div_partition, ne, ν, ρ, T, [ion_energy_H⁻])
+    Hminus_bf(nH_I_div_partition, ne, ν, ρ, T, [ion_energy_H⁻])
 
 Compute the H⁻ bound-free linear absorption coefficient α
 
@@ -143,8 +186,8 @@ In other words, the linear absorption coefficient is: ``\\alpha_\\nu = \\sigma_{
 Wishart (1979) expects the tabulated data to have better than 1% percent accuracy. Mathisen (1984)
 suggests that this data has better than 3% accuracy.
 """
-function abs_Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real,
-                       ion_energy_H⁻::Real = _H⁻_ion_energy)
+function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real,
+                   ion_energy_H⁻::Real = _H⁻_ion_energy)
     λ = c_cgs*1e8/ν # in ångstroms
     cross_section = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
     # convert from megabarn to cm² and include contributions from stimulated emission  1e-18
@@ -153,7 +196,7 @@ function abs_Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real,
 end
 
 """
-    abs_Hminus_ff(nH_I_div_partition, ne, ν, T)
+    Hminus_ff(nH_I_div_partition, ne, ν, T)
 
 Compute the H⁻ free-free linear absorption coefficient α
 
@@ -192,7 +235,7 @@ polynomial is valid.
 We also considered the polynomial fit in Section 5.3 from Kurucz (1970). Unfortunately, it seems
 to be wrong (it gives lots of negative numbers).
 """
-function abs_Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real)
+function Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real)
     λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
     if !(2604 <= λ <= 113918.0)
@@ -227,7 +270,7 @@ function abs_Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real)
 end
 
 """
-    abs_H2plus_bf_and_ff(nH_I_div_partition, n_HII, ν, T)
+    H2plus_bf_and_ff(nH_I_div_partition, n_HII, ν, T)
 
 Compute the combined H₂⁺ bound-free and free-free linear absorption coefficient α.
 
@@ -279,7 +322,7 @@ times larger than the max λ that the polynomials are fit against). He suggests 
 probably correct "to well within one part in ten even at the lower temperatures and [lower
 wavelengths]."
 """
-function abs_H2plus_bf_and_ff(nH_I_div_partition::Real, nH_II::Real, ν::Real, T::Real)
+function H2plus_bf_and_ff(nH_I_div_partition::Real, nH_II::Real, ν::Real, T::Real)
     λ = c_cgs*1e8/ν # in ångstroms
     if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
         throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))

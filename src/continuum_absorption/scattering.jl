@@ -36,18 +36,17 @@ function rayleigh(νs::AbstractVector{<:Real}, nH_I, nHe_I, nH2)
 end
 
 """
-    electron_scattering(nₑ, ρ)
+    electron_scattering(nₑ)
 
-Compute the opacity from scattering off of free electrons. This has no wavelength dependence. It
-assumes isotropic scattering
+Compute the linear absorption coefficient, α, from scattering off of free electrons. This has no
+wavelength dependence. It assumes isotropic scattering.
 
 # Arguments
 - `nₑ::F`: number density of free electrons (in cgs)
-- `ρ::F`: the mass density
 
 # Notes
 I adopted the formula described in section 5.12 of Kurucz (1970) and the equation in the electron
 scattering subsection of Gray (2005); the actual coefficient value comes from the latter. It turns
 out that the coefficient in Kurucz (1970) has a typo (it's a factor of 10 too large).
 """
-abs_electron_scattering(nₑ::F) where {F<:Real} = 0.6648e-24*nₑ
+electron_scattering(nₑ::F) where {F<:Real} = 0.6648e-24*nₑ
