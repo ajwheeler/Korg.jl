@@ -19,7 +19,7 @@
 
 
 using Plots, Korg
-include("../test/opacity_comparison_funcs.jl")
+include("../test/absorption_comparison_funcs.jl")
            
 function gen_plot(plot_fname, temperature, Pₑ, panel_dict)
     l = @layout [a; c{0.3h}]

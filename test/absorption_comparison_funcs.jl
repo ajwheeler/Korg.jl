@@ -133,11 +133,8 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     bf_coef = begin
         H_I_partition_val = 2.0 # implicitly in the implementation provided by Gray (2005)
         nH_I = nₑ * 100.0 # this is totally arbitrary
-        #ρ = nH_I * 1.67e-24/0.76 # this is totally arbitrary
-        #bf_opac = Korg.ContinuumOpacity.H_I_bf(nH_I/H_I_partition_val, ν, ρ, T, H_I_ion_energy)
-        #bf_opac * ρ / (Pₑ * nH_I)
-        bf_linear_absorption_coef = Korg.ContinuumOpacity.abs_H_I_bf(nH_I/H_I_partition_val, ν, T,
-                                                                     H_I_ion_energy)
+        bf_linear_absorption_coef = Korg.ContinuumAbsorption.abs_H_I_bf(nH_I/H_I_partition_val, ν,
+                                                                        T, H_I_ion_energy)
         bf_linear_absorption_coef / (Pₑ * nH_I)
     end
 
@@ -154,9 +151,7 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
         nH_II = nH_total * wII/(1 + wII)
 
         # compute the linear absorption coefficient  = dτ/ds = opacity*ρ
-        #ff_opac = Korg.ContinuumOpacity.H_I_ff(nH_II, nₑ, ν, ρ, T)
-        #ff_opac * ρ / (Pₑ * nH_I)
-        ff_linear_absorption_coef = Korg.ContinuumOpacity.abs_H_I_ff(nH_II, nₑ, ν, T)
+        ff_linear_absorption_coef = Korg.ContinuumAbsorption.abs_H_I_ff(nH_II, nₑ, ν, T)
         ff_linear_absorption_coef / (Pₑ * nH_I)
     end
 
@@ -175,10 +170,8 @@ function Hminus_bf_coefficient(λ, T, Pₑ, ion_energy_H⁻ = 0.7552)
     partition_func = 2.0 # may want to include the temperature dependence of the partition function
     ν = (Korg.c_cgs*1e8)/λ
 
-    #opacity = Korg.ContinuumOpacity.Hminus_bf(nH_I/partition_func, ne, ν, ρ, T, ion_energy_H⁻)
-    #opacity * ρ / (Pₑ * nH_I)
-    linear_absorb_coef = Korg.ContinuumOpacity.abs_Hminus_bf(nH_I/partition_func, ne, ν, T,
-                                                             ion_energy_H⁻)
+    linear_absorb_coef = Korg.ContinuumAbsorption.abs_Hminus_bf(nH_I/partition_func, ne, ν, T,
+                                                                ion_energy_H⁻)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -194,9 +187,7 @@ function Hminus_ff_coefficient(λ, T, Pₑ)
     partition_func = 2.0 # may want to include the temperature dependence of the partition function
     ν = (Korg.c_cgs*1e8)/λ
 
-    #opacity = Korg.ContinuumOpacity.Hminus_ff(nH_I/partition_func, ne, ν, ρ, T)
-    #opacity * ρ / (Pₑ * nH_I)
-    linear_absorb_coef = Korg.ContinuumOpacity.abs_Hminus_ff(nH_I/partition_func, ne, ν, T)
+    linear_absorb_coef = Korg.ContinuumAbsorption.abs_Hminus_ff(nH_I/partition_func, ne, ν, T)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -226,9 +217,8 @@ function H2plus_coefficient(λ, T, Pₑ)
     ρ = 1.0 # arbitrary value because we divide it out after
 
     ν = (Korg.c_cgs*1e8)/λ
-    #opacity = Korg.ContinuumOpacity.H2plus_bf_and_ff(nH_I_div_partition, nH_II, ν, ρ, T)
-    #opacity * ρ / (Pₑ * nH_I)
-    linear_absorb_coef = Korg.ContinuumOpacity.abs_H2plus_bf_and_ff(nH_I_div_partition, nH_II, ν, T)
+    linear_absorb_coef = Korg.ContinuumAbsorption.abs_H2plus_bf_and_ff(nH_I_div_partition, nH_II,
+                                                                       ν, T)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -262,7 +252,7 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     nHe_I = nHe * 1/(1+wII)
                          
     ν = (Korg.c_cgs*1e8)/λ
-    linear_absorb_coef = Korg.ContinuumOpacity.abs_Heminus_ff(nHe_I/UI, ne, ν, T)
+    linear_absorb_coef = Korg.ContinuumAbsorption.abs_Heminus_ff(nHe_I/UI, ne, ν, T)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -341,19 +331,19 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, species_
         else
             joinpath(@__DIR__, "data/TOPbase_cross_section_He_II.txt")
         end
-        Korg.ContinuumOpacity.absorption_coef_bf_TOPBase(λ_vals.*1e-8, [T], [ndens_species],
-                                                         Korg.Species(species_name);
-                                                         extrapolation_bc = 0.0,
-                                                         cross_sec_file = cross_sec_file)[:, 1]
+        Korg.ContinuumAbsorption.absorption_coef_bf_TOPBase(λ_vals.*1e-8, [T], [ndens_species],
+                                                            Korg.Species(species_name);
+                                                            extrapolation_bc = 0.0,
+                                                            cross_sec_file = cross_sec_file)[:, 1]
     else
         ν_vals = (Korg.c_cgs*1e8)./λ_vals # Hz
         ndens_div_partition = ndens_species/Korg.partition_funcs[Korg.Species(species_name)](T)
         κ_dflt_approach = if species_name == "H_I"
             H_I_ion_energy = 13.598
-            Korg.ContinuumOpacity.abs_H_I_bf.(ndens_div_partition, ν_vals, T, H_I_ion_energy)
+            Korg.ContinuumAbsorption.abs_H_I_bf.(ndens_div_partition, ν_vals, T, H_I_ion_energy)
         else
             He_II_ion_energy = 54.418
-            Korg.ContinuumOpacity.abs_He_II_bf.(ndens_div_partition, ν_vals, T, He_II_ion_energy)
+            Korg.ContinuumAbsorption.abs_He_II_bf.(ndens_div_partition, ν_vals, T, He_II_ion_energy)
         end
     end
 end

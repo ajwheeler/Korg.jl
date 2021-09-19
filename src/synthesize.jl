@@ -1,5 +1,5 @@
 using Interpolations: LinearInterpolation
-import ..ContinuumOpacity
+import ..ContinuumAbsorption
 
 """
     synthesize(atm, linelist, λs; metallicity=0, abundances=Dict(), vmic=0, ... )
@@ -167,22 +167,23 @@ function total_continuum_absorption(νs::Vector{F}, T::F, nₑ::F, number_densit
     #Hydrogen continuum absorption
     nH_I = number_densities[literals.H_I]
     nH_I_div_U = nH_I / partition_funcs[literals.H_I](T)
-    α += ContinuumOpacity.abs_H_I_bf.(nH_I_div_U, νs, T)
-    α += ContinuumOpacity.abs_H_I_ff.(number_densities[literals.H_II], nₑ, νs, T)
-    α += ContinuumOpacity.abs_Hminus_bf.(nH_I_div_U, nₑ, νs, T)
-    α += ContinuumOpacity.abs_Hminus_ff.(nH_I_div_U, nₑ, νs, T)
-    α += ContinuumOpacity.abs_H2plus_bf_and_ff.(nH_I_div_U, number_densities[literals.H_II], νs, T)
+    α += ContinuumAbsorption.abs_H_I_bf.(nH_I_div_U, νs, T)
+    α += ContinuumAbsorption.abs_H_I_ff.(number_densities[literals.H_II], nₑ, νs, T)
+    α += ContinuumAbsorption.abs_Hminus_bf.(nH_I_div_U, nₑ, νs, T)
+    α += ContinuumAbsorption.abs_Hminus_ff.(nH_I_div_U, nₑ, νs, T)
+    α += ContinuumAbsorption.abs_H2plus_bf_and_ff.(nH_I_div_U, number_densities[literals.H_II], νs,
+                                                   T)
 
     #He continuum opacities
-    α += ContinuumOpacity.abs_He_II_bf.(number_densities[literals.H_II] /
-                                        partition_funcs[literals.H_II](T), νs, T)
-    #α += ContinuumOpacity.abs_He_II_ff.(number_densities[literals.He_III], nₑ, νs, T)
-    # ContinuumOpacity.abs_Heminus_ff is only valid for λ ≥ 5063 Å
-    #α += ContinuumOpacity.abs_Heminus_ff.(number_densities[literals.He_I] /
-    #                                      partition_funcs[literals.He_I](T), nₑ, νs, T)
+    α += ContinuumAbsorption.abs_He_II_bf.(number_densities[literals.H_II] /
+                                           partition_funcs[literals.H_II](T), νs, T)
+    #α += ContinuumAbsorption.abs_He_II_ff.(number_densities[literals.He_III], nₑ, νs, T)
+    # ContinuumAbsorption.abs_Heminus_ff is only valid for λ ≥ 5063 Å
+    #α += ContinuumAbsorption.abs_Heminus_ff.(number_densities[literals.He_I] /
+    #                                         partition_funcs[literals.He_I](T), nₑ, νs, T)
 
     #electron scattering
-    α .+= ContinuumOpacity.abs_electron_scattering(nₑ)
+    α .+= ContinuumAbsorption.abs_electron_scattering(nₑ)
 
     α
 end

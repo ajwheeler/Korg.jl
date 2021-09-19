@@ -6,7 +6,7 @@ population of that level is too small to be worth considering.
 We are currently missing free-free and bound free contributions from He I.
 """
 
-using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
+using ..ContinuumAbsorption: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 const _He_II_ion_energy = ionization_energies[2][2] # not sure if this is a good idea
 
 abs_He_II_bf(nHe_II_div_partition, ν, T, ion_energy = _He_II_ion_energy,

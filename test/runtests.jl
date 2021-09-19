@@ -1,6 +1,6 @@
 using Korg, Test, HDF5
 
-include("continuum_opacity.jl")
+include("continuum_absorption.jl")
 
 @testset "atomic data" begin 
     @test Korg.Natoms == length(Korg.atomic_masses) == length(Korg.solar_abundances)

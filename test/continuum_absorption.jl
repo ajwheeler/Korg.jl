@@ -1,4 +1,4 @@
-include("opacity_comparison_funcs.jl")
+include("absorption_comparison_funcs.jl")
 include("utilities.jl")
 
 function _bell_berrington_87_Hminus_ff_absorption_coef(ν, T)
@@ -17,7 +17,7 @@ function _bell_berrington_87_Hminus_ff_absorption_coef(ν, T)
     # n(H I, n = 1) = n(H I).
     nH_I_div_partition = nH_I/2.0
 
-    linear_abs_coef = Korg.ContinuumOpacity.abs_Hminus_ff(nH_I_div_partition, ne, ν, T)
+    linear_abs_coef = Korg.ContinuumAbsorption.abs_Hminus_ff(nH_I_div_partition, ne, ν, T)
     Pₑ = ne * Korg.kboltz_cgs * T
     linear_abs_coef/(nH_I * Pₑ * 1e-26)
 end
@@ -136,7 +136,7 @@ end
 function check_Hminus_bf_values(target_precision = 0.002, verbose = true)
     # compare the tabulated data from Wishart (1979) against the polynomial fits from Gray (2005)
     
-    _bf_table = Korg.ContinuumOpacity._Hminus_bf_table
+    _bf_table = Korg.ContinuumAbsorption._Hminus_bf_table
     _bf_λ_vals = view(_bf_table, :, 1)
     _bf_α_vals = view(_bf_table, :, 2)
 
@@ -180,34 +180,34 @@ end
         T = 7800.0
 
         # determine the minimum and maximum λs in the table:
-        min_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[1,1]
-        max_tabulated_λ = Korg.ContinuumOpacity._Hminus_bf_table[end, 1]
+        min_tabulated_λ = Korg.ContinuumAbsorption._Hminus_bf_table[1,1]
+        max_tabulated_λ = Korg.ContinuumAbsorption._Hminus_bf_table[end, 1]
         # determine the ionization λ for H⁻:
-        ion_energy = Korg.ContinuumOpacity._H⁻_ion_energy
+        ion_energy = Korg.ContinuumAbsorption._H⁻_ion_energy
         Å_per_eV = 1e8 * (Korg.hplanck_eV * Korg.c_cgs)
         max_λ_ionize = Å_per_eV/ion_energy
 
         # now we are ready for the tests:
 
         # first, check that a bounds error is thrown below min_tabulated_λ
-        @test_throws DomainError Korg.ContinuumOpacity.abs_Hminus_bf(
+        @test_throws DomainError Korg.ContinuumAbsorption.abs_Hminus_bf(
             nH_I_div_partition, ne, Korg.c_cgs/(1e-8*0.5*min_tabulated_λ), T, ion_energy
         )
 
         # next, check that the linear absorption coefficient between max_tabulated_λ and
         # max_λ_ionize is between the absorption coefficient at max_tabulated_λ and 0
-        α_max_tabulated_λ = Korg.ContinuumOpacity.abs_Hminus_bf(
+        α_max_tabulated_λ = Korg.ContinuumAbsorption.abs_Hminus_bf(
             nH_I_div_partition, ne, Korg.c_cgs/(1e-8*max_tabulated_λ), T, ion_energy
         )
 
-        α_test = Korg.ContinuumOpacity.abs_Hminus_bf(
+        α_test = Korg.ContinuumAbsorption.abs_Hminus_bf(
             nH_I_div_partition, ne, Korg.c_cgs/(1e-8*0.5*(max_tabulated_λ+max_λ_ionize)), T,
             ion_energy
         )
         @test (α_max_tabulated_λ > α_test) && (α_test > 0.0)
 
         # finally, check that the linear absorption coefficient at λ > max_λ_ionize is zero
-        @test 0.0 == Korg.ContinuumOpacity.abs_Hminus_bf(
+        @test 0.0 == Korg.ContinuumAbsorption.abs_Hminus_bf(
             nH_I_div_partition, ne, Korg.c_cgs/(1e-8*2*max_λ_ionize), T, ion_energy
         )
     end
@@ -254,7 +254,7 @@ function check_Heminus_ff_absorption(target_precision, verbose = true)
     Pₑ = nₑ*Korg.kboltz_cgs.*T_vals
     ref_linear_absorption_vals = _Heminus_table .* nHe_I .* Pₑ
 
-    calc_func(ν,T) = Korg.ContinuumOpacity.abs_Heminus_ff(nHe_I_div_U, nₑ, ν, T)
+    calc_func(ν,T) = Korg.ContinuumAbsorption.abs_Heminus_ff(nHe_I_div_U, nₑ, ν, T)
     _compare_against_table(view(ref_linear_absorption_vals, :, 1:9), _λ_vals_He⁻_ff_john94 ./ 1e4,
                            view(T_vals, 1:9), calc_func, target_precision, verbose)
 end
@@ -305,8 +305,8 @@ function check_H2plus_ff_and_bf_absorption(target_precision, verbose = true)
 
     nH_I_divU = nH_I/partition_val
     const_factor = 1e39 /(nH_I * nH_II)
-    calc_func(ν,T) =  const_factor * Korg.ContinuumOpacity.abs_H2plus_bf_and_ff.(nH_I_divU, nH_II,
-                                                                                 ν, T)
+    calc_func(ν,T) =  const_factor * Korg.ContinuumAbsorption.abs_H2plus_bf_and_ff.(nH_I_divU,
+                                                                                    nH_II, ν, T)
 
     λ_cgs = 1.0 ./_wavenumbers
     _compare_against_table(_table, λ_cgs, _T_vals, calc_func, target_precision, verbose)
@@ -327,7 +327,7 @@ end
 
 Computes the H I free-free linear absorption coefficient per neutral Hydrogen atom by adapting 
 equation 8.10 from Gray (2005). This includes the correction for stimulated emission under LTE.
-In contrast to `Korg.ContinuumOpacity.abs_H_I_ff`, this implementation directly combines the Saha 
+In contrast to `Korg.ContinuumAbsorption.abs_H_I_ff`, this implementation directly combines the Saha 
 equation and uses constants that have been cast into a completely separate format.
 
 # Arguments
@@ -396,7 +396,7 @@ end
             nH_I = nH_total / (1 + wII) 
             nH_II = nH_total * wII / (1 + wII)
             # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II
-            absorption_coef = Korg.ContinuumOpacity.abs_H_I_ff.(nH_II, nₑ, ν_vals, T) / nH_I
+            absorption_coef = Korg.ContinuumAbsorption.abs_H_I_ff.(nH_II, nₑ, ν_vals, T) / nH_I
             @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.0015
             @test all(absorption_coef .≥ 0.0)
         end
@@ -410,7 +410,7 @@ end
 Computes the H I bound-free linear absorption coefficient per neutral Hydrogen atom (with the 
 stimulated emission correction term) by adapting equation 8.8 from Gray (2005). 
 
-In contrast to `Korg.ContinuumOpacity.H_I_bf`, this implementation:
+In contrast to `Korg.ContinuumAbsorption.H_I_bf`, this implementation:
 - uses a completely different approximation for computing the cross-section (this includes
   differences in gaunt factor estimation).
 - uses different logic for approximating the contributions of higher energy levels to the
@@ -490,15 +490,15 @@ end
             nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_I = nₑ * 100.0 # this is totally arbitrary
 
-            absorption_coef = Korg.ContinuumOpacity.abs_H_I_bf.(nH_I/H_I_partition_val, ν_vals, T,
-                                                                H_I_ion_energy) / nH_I
+            absorption_coef = Korg.ContinuumAbsorption.abs_H_I_bf.(nH_I/H_I_partition_val, ν_vals,
+                                                                   T, H_I_ion_energy) / nH_I
             @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.004
             @test all(absorption_coef .≥ 0.0)
         end
     end
 
     @testset "Integral-Summation Equivalence" begin
-        # Korg.ContinuumOpacity.H_I_bf approximates the sum of the absorption contributions from
+        # Korg.ContinuumAbsorption.H_I_bf approximates the sum of the absorption contributions from
         # bound-free transitions originating from high energy levels with an integral. These tests
         # check that the integral does a reasonable job reproducing the direct sum.
 
@@ -516,10 +516,10 @@ end
             nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_I = nₑ * 100.0 # this is totally arbitrary
 
-            α_integral = Korg.ContinuumOpacity.abs_H_I_bf.(nH_I/H_I_partition_val, ν_vals, T,
-                                                           H_I_ion_energy)
-            α_sum = Korg.ContinuumOpacity.abs_H_I_bf.(nH_I/H_I_partition_val, ν_vals, T,
-                                                      H_I_ion_energy, nstop_sum, false)
+            α_integral = Korg.ContinuumAbsorption.abs_H_I_bf.(nH_I/H_I_partition_val, ν_vals, T,
+                                                              H_I_ion_energy)
+            α_sum = Korg.ContinuumAbsorption.abs_H_I_bf.(nH_I/H_I_partition_val, ν_vals, T,
+                                                         H_I_ion_energy, nstop_sum, false)
             #println(maximum(abs.(α_integral - α_sum)/α_sum))
             @test maximum(abs.(α_integral - α_sum)/α_sum) < 0.003
         end

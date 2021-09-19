@@ -5,7 +5,7 @@
 #     Hydrogenic atoms.
 
 using Plots, Korg
-include("../test/opacity_comparison_funcs.jl")
+include("../test/absorption_comparison_funcs.jl")
 
 function _plot_x_intervals!(p, x_intervals)
     y_lim = ylims(p)

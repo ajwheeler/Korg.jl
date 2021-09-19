@@ -41,15 +41,15 @@ These function can be used to directly compute continuum opacities.
 
 ```@docs
 Korg.total_continuum_opacity
-Korg.ContinuumOpacity.H_I_bf
-Korg.ContinuumOpacity.H_I_ff
-Korg.ContinuumOpacity.Hminus_bf
-Korg.ContinuumOpacity.Hminus_ff
-Korg.ContinuumOpacity.H2plus_bf_and_ff
-Korg.ContinuumOpacity.He_II_bf
-Korg.ContinuumOpacity.He_II_ff
-Korg.ContinuumOpacity.Heminus_ff
-Korg.ContinuumOpacity.electron_scattering
+Korg.ContinuumAbsorption.H_I_bf
+Korg.ContinuumAbsorption.H_I_ff
+Korg.ContinuumAbsorption.Hminus_bf
+Korg.ContinuumAbsorption.Hminus_ff
+Korg.ContinuumAbsorption.H2plus_bf_and_ff
+Korg.ContinuumAbsorption.He_II_bf
+Korg.ContinuumAbsorption.He_II_ff
+Korg.ContinuumAbsorption.Heminus_ff
+Korg.ContinuumAbsorption.electron_scattering
 ```
 
 ## Statistical mechanics
