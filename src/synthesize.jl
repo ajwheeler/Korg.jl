@@ -8,6 +8,10 @@ import ..ContinuumOpacity
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
 wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
 
+!!! note
+    For efficiency reasons, `λs` must be an `AbstractRange`, such as `6000:0.01:6500`.  It can't 
+    be an arbitrary list of wavelengths.
+
 Optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `abundances` is a `Dict` mapping atomic symbols to ``A(X)`` format abundances, i.e. 
@@ -19,6 +23,7 @@ Optional arguments:
    this up.
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
   calculated.
+- `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
@@ -27,10 +32,10 @@ Optional arguments:
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
 """
-function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, abundances=Dict(), 
-                    line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    ionization_energies=ionization_energies, partition_funcs=partition_funcs,
-                    equilibrium_constants=equilibrium_constants)
+function synthesize(atm, linelist, λs::AbstractRange; metallicity::Real=0.0, vmic::Real=1.0,
+                    abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
+                    hydrogen_lines=true, ionization_energies=ionization_energies, 
+                    partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
@@ -70,11 +75,13 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
         α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_density, 
                                     number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
-
-        α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
-                                             number_densities[literals.H_I], 
-                                             partition_funcs[literals.H_I], 
-                                             hline_stark_profiles, vmic*1e5)
+    
+        if hydrogen_lines
+            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
+                                                 number_densities[literals.H_I], 
+                                                 partition_funcs[literals.H_I], 
+                                                 hline_stark_profiles, vmic*1e5)
+        end
     end
 
     #the thickness of each atmospheric layer 
