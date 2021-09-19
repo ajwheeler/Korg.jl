@@ -9,18 +9,13 @@ We are currently missing free-free and bound free contributions from He I.
 using ..ContinuumOpacity: hydrogenic_bf_opacity, hydrogenic_ff_opacity, ionization_energies
 const _He_II_ion_energy = ionization_energies[2][2] # not sure if this is a good idea
 
-He_II_bf(nHe_II_div_partition, ν, ρ, T, ion_energy = _He_II_ion_energy,
-         nmax_explicit_sum = 9, integrate_high_n = true) =
-             hydrogenic_bf_opacity(2, nHe_II_div_partition, ν, ρ, T, ion_energy, nmax_explicit_sum,
-                                   integrate_high_n)
 abs_He_II_bf(nHe_II_div_partition, ν, T, ion_energy = _He_II_ion_energy,
              nmax_explicit_sum = 9, integrate_high_n = true) =
-                 He_II_bf(nHe_II_div_partition, ν, 1.0, T, ion_energy,
-                          nmax_explicit_sum, integrate_high_n) * 1.0
+                 hydrogenic_bf_opacity(2, nHe_II_div_partition, ν, 1.0, T, ion_energy,
+                                       nmax_explicit_sum, integrate_high_n) * 1.0
 
 # He II free-free actually refers to the reaction: photon + e⁻ + He III -> e⁻ + He III.
-He_II_ff(nHe_III, ne, ν, ρ, T) = hydrogenic_ff_opacity(2, nHe_III, ne, ν, ρ, T)
-abs_He_II_ff(nHe_III, ne, ν, T) = He_II_ff(nHe_III, ne, ν, 1.0, T) * 1.0
+abs_He_II_ff(nHe_III, ne, ν, T) = hydrogenic_ff_opacity(2, nHe_III, ne, ν, 1.0, T) * 1.0
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
@@ -42,7 +37,7 @@ end
 
 
 """
-    Heminus_ff(nHe_I_div_partition, ne, ν, ρ, T)
+    abs_Heminus_ff(nHe_I_div_partition, ne, ν, T)
 
 Compute the He⁻ free-free opacity κ.
 
@@ -53,19 +48,18 @@ reaction:  `photon + e⁻ + He I -> e⁻ + He I.`
 - `nHe_I_div_partition`: the total number density of H I divided by its partition function.
 - `ne`: the number density of free electrons.
 - `ν`: frequency in Hz
-- `ρ`: mass density in g/cm³
 - `T`: temperature in K
 
 # Notes
 
 This follows equation 8.16 of Grey (2005) which provides a polynomial fit absorption to data
-tabulated in [John 1994](https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract). According
-to that equation the "continuous absorption coefficient per Hydrogen" is given by:
+tabulated in [John (1994)](https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract).
+According to that equation, the "continuous absorption coefficient per Hydrogen" is given by:
 ```
-    α(He⁻_ff)*Pₑ*A(He) / (1 + Φ(He)/Pₑ)
+    f(He⁻_ff)*Pₑ*A(He) / (1 + Φ(He)/Pₑ)
 ```
 in which
-- `log_10(α(He⁻_ff))` is the polynomial term.
+- `log_10(f(He⁻_ff))` is the polynomial term (Grey actually uses the variable α in place of f)
 - A(He) is the number abundance of Helium particles relative to Hydrogen particles. For reference,
   ```
   A(He) = [n(He I) + n(He II) + n(He III)] / [n(H I) + n(H II)]
@@ -73,15 +67,15 @@ in which
 - Pₑ is the partial pressure contributed by electrons. For reference, `Pₑ = nₑ*kb * T`.
 - `1/(1 + Φ(He)/Pₑ)` comes from the Saha equation and expresses `n(He I) / [n(He I) + n(He II)]`.
 
-In the above expression, α(He⁻_ff)*Pₑ specifies the free-free atomic absorption coefficient per
+In the above expression, f(He⁻_ff)*Pₑ specifies the free-free atomic absorption coefficient per
 ground state He I atom. The expression seems to implicitly assume that
 - approximately all He I is in the ground state
 - `n(He I) / [n(He I) + n(He II)]` is roughly `n(He I) / [n(He I) + n(He II) + n(HeIII)]`
-(at least for the range of temperatures where α can be accurately computed).
+(at least for the range of temperatures where f can be accurately computed).
 
-To convert the expression to opacity, they divided it by the product of the mean molecular weight
-and the Hydrogen mass. With that in mind, we can write an the equation for opacity (removing the
-apparent assumptions) as `κ_ν = α(He⁻_ff)*Pₑ*n(He I, n=1)/ρ.`
+To convert the expression to opacity, Grey divided it by the product of the mean molecular weight
+and the Hydrogen mass. With that in mind, we can write the equation for linear absorption
+coefficient, α_ν, (removing the apparent assumptions) as `α_ν = f(He⁻_ff)*Pₑ*n(He I, n=1).`
 
 For 5063 Å ≤ λ ≤ 151878 Å and 2520 K ≤ T ≤ 10080 K, Gray (2005) claims that the polynomial fit the
 tabulated data at a precision of 1% or better. In practice, we found that it only fits the data to
@@ -93,7 +87,7 @@ approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10
 
 An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
 """
-function Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::Real)
+function abs_Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, T::Real)
 
     λ = c_cgs * 1.0e8 / ν # Å
     if !(5063.0 <= λ <= 151878.0)
@@ -114,15 +108,11 @@ function Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, ρ::Real, T::
 
     logλ = log10(λ)
 
-    # α includes contribution from stimulated emission
-    α = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
+    # f includes contribution from stimulated emission
+    f = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
 
     Pe = ne*kboltz_cgs*T # partial pressure contributed by electrons
     nHe_I_gs = ndens_state_He_I(1, nHe_I_div_partition, T)
 
-    α * nHe_I_gs * Pe / ρ
-end
-
-function abs_Heminus_ff(nHe_I_div_partition::Real, ne::Real, ν::Real, T::Real)
-    Heminus_ff(nHe_I_div_partition, ne, ν, 1.0, T) * 1.0
+    f * nHe_I_gs * Pe
 end

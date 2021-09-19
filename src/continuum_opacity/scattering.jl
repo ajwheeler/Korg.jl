@@ -50,5 +50,4 @@ I adopted the formula described in section 5.12 of Kurucz (1970) and the equatio
 scattering subsection of Gray (2005); the actual coefficient value comes from the latter. It turns
 out that the coefficient in Kurucz (1970) has a typo (it's a factor of 10 too large).
 """
-electron_scattering(nₑ::F, ρ::F) where {F<:Real} = 0.6648e-24*nₑ/ρ
 abs_electron_scattering(nₑ::F) where {F<:Real} = 0.6648e-24*nₑ
