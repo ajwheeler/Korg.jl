@@ -258,12 +258,16 @@ This approach was adopted from equation 5.8 from section 5.1 of Kurucz (1970). C
 equation 5.18b of Rybicki & Lightman (2004), reveals that the equation in Kurucz (1970) omits the
 dependence on ρ. According to Rybicki & Lightman (2004) the free-free opacity (corrected for
 stimulated emission) is:
+```
     coef * Z² *ne * ni * (1 - exp(-hplanck*ν/(kboltz*T))) * g_ff / (sqrt(T) * ν³ * ρ)
+```
 Note that the g_ff is the free-free gaunt factor and coef is ∼3.7e8 (a more exact coefficient can
 be computed from eqn 5.18a).
 
 With this in mind, equation 5.8 of Kurucz (1970) should actually read
+```
     ne * n(H II) * F_ν(T) * (1 - exp(-hplanck*ν/(kboltz*T))) / ρ
+```
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
 """
 function hydrogenic_ff_opacity(Z::Integer, ni::Real, ne::Real, ν::Real, ρ::Real, T::Real)

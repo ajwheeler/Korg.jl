@@ -268,14 +268,18 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    read_linelist(fname; format="vald")
+    read_linelist(filename; format="vald")
 
 Parse a linelist file.
 
 Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html),
-`format="vald"` for a Vald linelist, and `format="moog"` for a MOOG linelist (doesn't yet support 
-broadening parameters or dissociation energies).  VALD linelists can be either "short" or "long" 
-format, "extract all" or "extract stellar".
+`format="vald"` for a [VALD](http://vald.astro.uu.se/~vald/php/vald.php) linelist, and 
+`format="moog"` for a MOOG linelist (doesn't yet support broadening parameters or dissociation 
+energies).  
+
+VALD linelists (the default and preferred format) can be either "short" or "long" format, 
+"extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
+wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
 """
 function read_linelist(fname::String; format="vald") :: Vector{Line}
     format = lowercase(format)

@@ -3,7 +3,7 @@ using Interpolations: LinearInterpolation
 import ..ContinuumOpacity
 
 """
-    synthesize(atm, linelist, λs, [metallicity]; abundances=Dict())
+    synthesize(atm, linelist, λs; metallicity=0, abundances=Dict(), vmic=0, ... )
 
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
 wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
@@ -12,25 +12,25 @@ wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelengt
     For efficiency reasons, `λs` must be an `AbstractRange`, such as `6000:0.01:6500`.  It can't 
     be an arbitrary list of wavelengths.
 
-optional arguments:
+Optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
-- `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
-- `abundances` is a `Dict` mapping atomic symbols to A(X) format abundances, i.e. 
-   A(x) = log_10(n_X/n_H) + 12, where n_X is the number density of X. These overrides `metallicity`.
+- `abundances` is a `Dict` mapping atomic symbols to ``A(X)`` format abundances, i.e. 
+  ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``. These override
+  `metallicity`.
+- `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provide wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
-- `cntm_step`: the wavelength resolution with which continuum opacities are calculated.
+- `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
+  calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
-- `ionization_energies`, a Dict containing the first three ionization energies of each element, 
+- `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
-- `partition_funcs`, a Dict mapping species to partition functions. Defaults to data from 
+- `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
    Barklem & Collet 2016, `Korg.partition_funcs`.
-- `equilibrium_constants`, a Dict mapping diatomic molecules to their molecular equilbrium constants
-  in partial pressure form.  Defaults to data from Barklem and Collet 2016, 
-  `Korg.equilibrium_constants`.
-
-Uses solar abundances scaled by `metallicity` and for those not provided.
+- `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
+   molecular equilbrium constants in partial pressure form.  Defaults to data from 
+   Barklem and Collet 2016, `Korg.equilibrium_constants`.
 """
 function synthesize(atm, linelist, λs::AbstractRange; metallicity::Real=0.0, vmic::Real=1.0,
                     abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
@@ -109,8 +109,8 @@ end
 """
     get_absolute_abundances(metallicity, A_X)
 
-Calculate N_X/N_total for each element X given some specified abundances, A(X).  Use the 
-metallicity [X/H] to calculate those remaining from the solar values (except He).
+Calculate ``n_X/n_\\mathrm{total}`` for each element X given some specified abundances, ``A(X)``.  Use the 
+metallicity [``X``/H] to calculate those remaining from the solar values (except He).
 """
 function get_absolute_abundances(metallicity, A_X::Dict) :: Vector{Number}
     if "H" in keys(A_X)
@@ -147,7 +147,8 @@ The total continuum opacity, κ, at many frequencies, ν.
 - `nₑ` is the electron number density in cm^-3
 - `ρ` is the density in g cm^-3 
 - `number_densities` is a `Dict` mapping each species to its number density
-- `partition_funcs` is a `Dict mapping each species to its partition function
+- `partition_funcs` is a `Dict` mapping each species to its partition function (e.g. 
+  `Korg.partition_funcs`)
 """
 function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_densities::Dict, 
                                  partition_funcs::Dict) where F <: Real

@@ -1,6 +1,5 @@
 module Korg
-    export synthesize, constant_R_LSF, rectify, air_to_vacuum, vacuum_to_air, read_linelist, 
-            read_model_atmosphere
+    export synthesize, read_linelist, read_model_atmosphere
 
     _data_dir = joinpath(@__DIR__, "../data") 
 
