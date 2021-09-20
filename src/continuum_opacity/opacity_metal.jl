@@ -40,8 +40,6 @@ struct StateID
 end
 
 Base.:(<)(a::StateID, b::StateID) = (a.iSLP < b.iSLP) || ((a.iSLP == b.iSLP) && (a.iLV < b.iLV))
-Base.:(==)(a::StateID, b::StateID) = (a.iSLP == b.iSLP) && (a.iLV == b.iLV)
-Base.hash(obj::StateID) = Base.hash((UInt32(obj.iSLP) << 16) + obj.iLV)
 Base.show(io::IO, obj::StateID) = print(io, "StateID{iSLP = ", obj.iSLP, ", iLV = ", obj.iLV, "}")
 
 function _quantum_prop_type(state_id::StateID)
@@ -450,7 +448,8 @@ different electron configurations.
 function weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name::AbstractString;
                                            elec_conf_file::Union{AbstractString,Nothing} = nothing,
                                            cross_sec_file::Union{AbstractString,Nothing} = nothing,
-                                           convert_to_cm2::Bool = false, partition_func = nothing,
+                                           convert_to_cm2::Bool = false,
+                                           partition_func = partition_funcs[Species(species_name)],
                                            extrapolation_bc=0.0)
 
     # make it possible to pass in a dict mapping dict names to the various energy levels?
@@ -463,11 +462,7 @@ function weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name::Abstra
     units_factor = convert_to_cm2 ? 1e-18 : 1.0; # 1 megabarn = 1e-18 cm²
 
     # precompute Temperature-dependent constant
-    inv_partition_func_val = if isnothing(partition_func)
-        1.0./partition_funcs[Species(species_name)].(T_vals)
-    else
-        1.0./partition_func.(T_vals)
-    end
+    inv_partition_func_val = 1.0./partition_func.(T_vals)
 
     β_Ryd = RydbergH_eV./(kboltz_eV .* T_vals)
 
@@ -477,24 +472,22 @@ function weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name::Abstra
     # prepare the output array where results will be accumulated
     weighted_average = zeros(eltype(photon_energies), (length(photon_energies),length(T_vals)))
 
-    # prepare the last few items before entering the loop
+    # load the table defining properties of various electron configurations and the iterator of
+    # cross-section subtables
     state_prop_dict,itr = _get_tabulated_data(species_name, elec_conf_file, cross_sec_file)
 
-    i = 0
     for (species, state_id, table_photon_energy_ryd, table_cross_section_MBarn) in itr
-        i+=1
         if length(table_photon_energy_ryd) == 0
             continue
         end
 
-        # construct an interpolator from the subtable
-        func = _interpolator_from_subtable(table_photon_energy_ryd, table_cross_section_MBarn,
-                                           species_name, extrapolation_bc)
+        cross_section_interp = _interpolator_from_subtable(table_photon_energy_ryd,
+                                                           table_cross_section_MBarn,
+                                                           species_name, extrapolation_bc)
 
         # retrieve the excitation energy (energy relative to ground state) and statistical weight
-        state_prop = state_prop_dict[state_id]
-        statistical_weight = state_prop.statistical_weight
-        energy_ryd = abs(state_prop.excitation_potential_ryd)
+        statistical_weight = state_prop_dict[state_id].statistical_weight
+        energy_ryd = abs(state_prop_dict[state_id].excitation_potential_ryd)
 
         # now iterate over Temperatures
         for j in 1:length(T_vals)
@@ -502,7 +495,7 @@ function weighted_bf_cross_section_TOPBase(λ_vals, T_vals, species_name::Abstra
             # now compute the weighting of the current state under LTE
             weight = inv_partition_func_val[j] * statistical_weight * exp(-energy_ryd * β_Ryd[j])
 
-            current_cross_section = (func.(photon_energies) .*
+            current_cross_section = (cross_section_interp.(photon_energies) .*
                                      (1.0 .- exp.(-photon_energies.*β_Ryd[j]))
                                      .* units_factor)
             view(weighted_average, :, j) .+= (current_cross_section .* weight)
