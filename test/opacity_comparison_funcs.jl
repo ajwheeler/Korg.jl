@@ -227,7 +227,7 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     # Table D.2 of Gray (2005) records the partion function of He II to be
     # as 10^0.301, the closest value at the table's precision to 2.0
     UI, UII = (1.0, 10^-0.301)
-    # Because this neglects He II, we don't use Korg.saha_ion_weights.
+    # Because this neglects He III, we don't use Korg.saha_ion_weights.
     wII = (2.0/ne * (UII/UI) * Korg.translational_U(Korg.electron_mass_cgs, T) 
            * exp(-24.587/(Korg.kboltz_eV*T)))
     nHe_I = nHe * 1/(1+wII)
@@ -307,17 +307,15 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, species_
     @assert species_name in ["H_I", "He_II"]
 
     if use_OP_data
-        elec_conf_file, cross_sec_file = if species_name == "H_I"
-            (joinpath(@__DIR__, "data/TOPbase_electron_config_H.txt"),
-             joinpath(@__DIR__, "data/TOPbase_cross_section_H_I.txt"))
+        cross_sec_file = if species_name == "H_I"
+            joinpath(@__DIR__, "data/TOPbase_cross_section_H_I.txt")
         else
-            (joinpath(@__DIR__, "data/TOPbase_electron_config_He.txt"),
-             joinpath(@__DIR__, "data/TOPbase_cross_section_He_II.txt"))
+            joinpath(@__DIR__, "data/TOPbase_cross_section_He_II.txt")
         end
-        Korg.ContinuumOpacity.absorption_coef_bf_TOPBase(λ_vals, T, ndens_species, species_name;
-                                                         extrapolation_bc=0.0,
-                                                         elec_conf_file = elec_conf_file,
-                                                         cross_sec_file = cross_sec_file)
+        Korg.ContinuumOpacity.absorption_coef_bf_TOPBase(λ_vals.*1e-8, [T], [ndens_species],
+                                                         Korg.Species(species_name);
+                                                         extrapolation_bc = 0.0,
+                                                         cross_sec_file = cross_sec_file)[:, 1]
     else
         ν_vals = (Korg.c_cgs*1e8)./λ_vals # Hz
         ndens_div_partition = ndens_species/Korg.partition_funcs[Korg.Species(species_name)](T)

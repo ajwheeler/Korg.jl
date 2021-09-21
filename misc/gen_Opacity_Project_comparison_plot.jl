@@ -7,19 +7,7 @@
 using Plots, Korg
 include("../test/opacity_comparison_funcs.jl")
 
-function _pos_value_extrema(arr)
-    min_val = floatmax(eltype(arr))
-    max_val = 0.0
-
-    for elem in arr
-        if !(elem > 0)
-            continue
-        end
-        min_val = min(min_val, elem)
-        max_val = max(max_val, elem)
-    end
-    (min_val,max_val)
-end
+_pos_value_extrema(arr) = extrema(filter(x->x>0, arr))
 
 function _plot_x_intervals!(p, x_intervals)
     y_lim = ylims(p)
