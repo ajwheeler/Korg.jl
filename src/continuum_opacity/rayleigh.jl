@@ -27,8 +27,8 @@ function rayleigh(λs::AbstractVector{<:Real}, nH_I, nHe_I, nH2)
     invλ4 = invλ2 .^ 2
     invλ6 = invλ2 .* invλ4
     invλ8 = invλ4 .^ 2
-    α_H2 = (8.14e-13*invλ4 + 1.28e-6*invλ6 + 1.61*invλ8) .* nH2
+    αH2 = (8.14e-13*invλ4 + 1.28e-6*invλ6 + 1.61*invλ8) .* nH2
 
-    α_H_HE .+ α_H2
+    αH_HE .+ αH2
 end
 
