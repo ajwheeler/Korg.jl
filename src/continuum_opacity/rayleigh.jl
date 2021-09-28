@@ -19,5 +19,15 @@ function rayleigh(λs::AbstractVector{<:Real}, nH_I, nHe_I)
     #Colgan+ 2016 equation 7
     σHe_σth = @. 1.913E_2Ryd_4 + 4.52E_2Ryd_6 + 7.90E_2Ryd_8
 
-    @.(nH_I*σH_σth + nHe_I*σHe_σth) * σth
+    σH_HE = @. (nH_I*σH_σth + nHe_I*σHe_σth) * σth
+
+    #Dalgarno & Williams 1962 equation 3
+    invλ2 = 1 ./ (λs .^ 2)
+    invλ4 = invλ2 .^ 2
+    invλ6 = invλ2 .* invλ4
+    invλ8 = invλ4 .^ 2
+    σ_H2 = 8.14e-13*invλ4 + 1.28e-6*invλ6 + 1.61*invλ8
+
+    σ_H_HE .+ σ_H2
 end
+
