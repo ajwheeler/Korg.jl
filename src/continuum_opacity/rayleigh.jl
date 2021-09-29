@@ -1,5 +1,5 @@
 """
-    rayleigh(λs, nH_I, nHe_II)
+    rayleigh(λs, nH_I, nHe_II, nH2)
 
 Absorption coefficient from Rayleigh scattering by neutral H and He.  Formulation taken from Colgan+
 2016.  The formulation for H is adapted from Lee 2005, which states that it is applicable redward of 
@@ -22,12 +22,12 @@ function rayleigh(λs::AbstractVector{<:Real}, nH_I, nHe_I, nH2)
 
     αH_HE = @. (nH_I*σH_σth + nHe_I*σHe_σth) * σth
 
-    #Dalgarno & Williams 1962 equation 3
-    invλ2 = 1 ./ (λs .^ 2)
+    #Dalgarno & Williams 1962 equation 3 (which assumes λ in Å)
+    invλ2 = 1 ./ ((1e8*λs) .^ 2)
     invλ4 = invλ2 .^ 2
     invλ6 = invλ2 .* invλ4
     invλ8 = invλ4 .^ 2
-    αH2 = (8.14e-13*invλ4 + 1.28e-6*invλ6 + 1.61*invλ8) .* nH2
+    αH2 = @. (8.14e-13*invλ4 + 1.28e-6*invλ6 + 1.61*invλ8) * nH2
 
     αH_HE .+ αH2
 end
