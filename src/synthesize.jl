@@ -8,15 +8,14 @@ import ..ContinuumOpacity
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
 wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
 
-!!! note
-    For efficiency reasons, `λs` must be an `AbstractRange`, such as `6000:0.01:6500`.  It can't 
-    be an arbitrary list of wavelengths.
+For efficiency reasons, `λs` must be an `AbstractRange`, such as `6000:0.01:6500`.  It can't be an 
+arbitrary list of wavelengths.
 
 Optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
 - `abundances` is a `Dict` mapping atomic symbols to ``A(X)`` format abundances, i.e. 
-  ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``. These override
-  `metallicity`.
+   ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
+   These override `metallicity`.
 - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provide wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
@@ -92,13 +91,8 @@ function synthesize(atm, linelist, λs::AbstractRange; metallicity::Real=0.0, vm
 
     source_fn = blackbody.((l->l.temp).(atm), λs')
 
-    #The exponential integral function, expint, captures the integral over the disk of the star to 
-    #get the emergent astrophysical flux. I was made aware of this form of the solution, by
-    #Edmonds+ 1969 (https://ui.adsabs.harvard.edu/abs/1969JQSRT...9.1427E/abstract).
-    #You can verify it by substituting the variable of integration in the exponential integal, t,
-    #with mu=1/t.
     flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
-        2.0*trapezoid_rule(τ_λ, S_λ .* exponential_integral_2.(τ_λ))
+       2π * transfer_integral(τ_λ, S_λ; plane_parallel=true)
     end
 
     #return the solution, along with other quantities across wavelength and atmospheric layer.
@@ -192,93 +186,3 @@ function blackbody(T, λ)
 
     2*h*c^2/λ^5 * 1/(exp(h*c/λ/k/T) - 1)
 end
-
-"""
-    trapezoid_rule(xs, fs)
-
-Approximate the integral from x₁ to x₂ of f(x) with the trapezoid rule given x-values `xs` and f(x)
-values `fs`.
-
-This should be good enough to numerically solve the transport equation, since model atmospheres
-usually have carefully chosen knots.  We probably want to add higher-order aproximations later.
-"""
-function trapezoid_rule(xs, fs)
-    Δs = diff(xs)
-    weights = [0 ; Δs] + [Δs ; 0]
-    sum(0.5 * weights .* fs)
-end
-
-"""
-    exponential_integral_2(x)
-
-Approximate second order exponential integral, E_2(x).  This stiches together several series 
-expansions to get an approximation which is accurate within 1% for all `x`.
-"""
-function exponential_integral_2(x) 
-    if x < 1.1
-        _expint_small(x)
-    elseif x < 2.5
-        _expint_2(x)
-    elseif x < 3.5
-        _expint_3(x)
-    elseif x < 4.5
-        _expint_4(x)
-    elseif x < 5.5
-        _expint_5(x)
-    elseif x < 6.5
-        _expint_6(x)
-    elseif x < 7.5
-        _expint_7(x)
-    elseif x < 9
-        _expint_8(x)
-    else
-        _expint_large(x)
-    end
-end
-
-function _expint_small(x) 
-    #euler mascheroni constant
-    ℇ = 0.57721566490153286060651209008240243104215933593992
-    1 + ((log(x) + ℇ - 1) + (-0.5 + (0.08333333333333333 + (-0.013888888888888888 + 
-                                                            0.0020833333333333333*x)*x)*x)*x)*x
-end
-function _expint_large(x)
-    invx = 1/x
-    exp(-x) * (1 + (-2 + (6 + (-24 + 120*invx)*invx)*invx)*invx)*invx
-end
-function _expint_2(x)
-    x -= 2
-    0.037534261820486914 + (-0.04890051070806112 + (0.033833820809153176 + (-0.016916910404576574 + 
-                                          (0.007048712668573576 -0.0026785108140579598*x)*x)*x)*x)*x
-end
-function _expint_3(x)
-    x -= 3
-    0.010641925085272673   + (-0.013048381094197039   + (0.008297844727977323   + 
-            (-0.003687930990212144   + (0.0013061422257001345  - 0.0003995258572729822*x)*x)*x)*x)*x
-end
-function _expint_4(x)
-    x -= 4
-    0.0031982292493385146  + (-0.0037793524098489054  + (0.0022894548610917728  + 
-            (-0.0009539395254549051  + (0.00031003034577284415 - 8.466213288412284e-5*x )*x)*x)*x)*x
-end
-function _expint_5(x)
-    x -= 5
-    0.000996469042708825   + (-0.0011482955912753257  + (0.0006737946999085467  +
-            (-0.00026951787996341863 + (8.310134632205409e-5   - 2.1202073223788938e-5*x)*x)*x)*x)*x
-end
-function _expint_6(x)
-    x -= 6
-    0.0003182574636904001  + (-0.0003600824521626587  + (0.00020656268138886323 + 
-            (-8.032993165122457e-5   + (2.390771775334065e-5   - 5.8334831318151185e-6*x)*x)*x)*x)*x
-end
-function _expint_7(x)
-    x -= 7
-    0.00010350984428214624 + (-0.00011548173161033826 + (6.513442611103688e-5   + 
-            (-2.4813114708966427e-5  + (7.200234178941151e-6   - 1.7027366981408086e-6*x)*x)*x)*x)*x
-end
-function _expint_8(x)
-    x -= 8
-    3.413764515111217e-5   + (-3.76656228439249e-5    + (2.096641424390699e-5   + 
-            (-7.862405341465122e-6   + (2.2386015208338193e-6  - 5.173353514609864e-7*x )*x)*x)*x)*x
-end
-
