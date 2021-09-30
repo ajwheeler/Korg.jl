@@ -50,6 +50,21 @@ function spherical_transfer()
 end
 
 """
+    trapezoid_rule(xs, fs)
+
+Approximate the integral from x₁ to x₂ of f(x) with the trapezoid rule given x-values `xs` and f(x)
+values `fs`.
+
+This should be good enough to numerically solve the transport equation, since model atmospheres
+usually have carefully chosen knots.  We probably want to add higher-order aproximations later.
+"""
+function trapezoid_rule(xs, fs)
+    Δs = diff(xs)
+    weights = [0 ; Δs] + [Δs ; 0]
+    sum(0.5 * weights .* fs)
+end
+
+"""
     exponential_integral_2(x)
 
 Approximate second order exponential integral, E_2(x).  This stiches together several series 
