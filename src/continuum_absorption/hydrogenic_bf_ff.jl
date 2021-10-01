@@ -171,7 +171,7 @@ function hydrogenic_bf_absorption(ν::Real, T::Real, Z::Integer, nsdens_div_part
                                   integrate_high_n::Bool=true)
     ionization_freq = _eVtoHz(ion_energy)
 
-    # first, directly sum individual the absorption contributions from H I atoms at each of the
+    # first, directly sum the individual absorption contributions from H I atoms at each of the
     # lowest energy levels (i.e. all energy levels where n <= nmax_explicit_sum)
     partial_sum = 0.0
     for n = 1 : nmax_explicit_sum
@@ -275,15 +275,15 @@ With this in mind, equation 5.8 of Kurucz (1970) should actually read
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
 """
 function hydrogenic_ff_absorption(ν::Real, T::Real, Z::Integer, ni::Real, ne::Real)
-    β = 1.0/(kboltz_eV * T)
+    inv_T = 1.0/T
     Z2 = Z*Z
 
-    hν_div_kT = hplanck_eV * ν * β
+    hν_div_kT = (hplanck_eV/kboltz_eV) * ν * inv_T
     log_u = log10(hν_div_kT)
-    log_γ2 = log10(RydbergH_eV * Z2 * β)
+    log_γ2 = log10((RydbergH_eV/kboltz_eV) * Z2 * inv_T)
     gaunt_ff = gaunt_ff_kurucz(log_u, log_γ2)
 
-    F_ν = 3.6919e8*gaunt_ff*Z2/((ν*ν*ν)*sqrt(T))
+    F_ν = 3.6919e8*gaunt_ff*Z2*sqrt(inv_T)/(ν*ν*ν)
 
     ni*ne*F_ν*(1-exp(-hν_div_kT))
 end

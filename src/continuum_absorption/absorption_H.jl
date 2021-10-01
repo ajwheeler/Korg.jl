@@ -8,6 +8,10 @@ using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption,
 const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
 const _H⁻_ion_energy = 0.7552 # eV
 
+_H_I_bf(ν, T, nH_I_div_partition, ion_energy = _H_I_ion_energy, nmax_explicit_sum = 8,
+        integrate_high_n = true) =
+           hydrogenic_bf_absorption(ν, T, 1, nH_I_div_partition, ion_energy, nmax_explicit_sum,
+                                    integrate_high_n)
 """
     H_I_bf(ν, T, nH_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
 
@@ -32,11 +36,9 @@ neutral Hydrogen atom.
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-H_I_bf(ν, T, nH_I_div_partition, ion_energy = _H_I_ion_energy, nmax_explicit_sum = 8,
-       integrate_high_n = true) =
-           hydrogenic_bf_absorption(ν, T, 1, nH_I_div_partition, ion_energy, nmax_explicit_sum,
-                                    integrate_high_n)
+H_I_bf = bounds_checked_absorption(_H_I_bf, Interval("(0, ∞)"), "ν", Interval("(0, ∞)"))
 
+_H_I_ff(ν, T, nH_II, ne) = hydrogenic_ff_absorption(ν, T, 1, nH_II, ne)
 
 """
     H_I_ff(ν, T, nH_II, ne)
@@ -56,8 +58,11 @@ reaction:  `photon + e⁻ + H II -> e⁻ + H II`.
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-H_I_ff(ν, T, nH_II, ne) = hydrogenic_ff_absorption(ν, T, 1, nH_II, ne)
-
+H_I_ff = bounds_checked_absorption(
+    _H_I_ff, Interval("[$(1e-4/(hplanck_eV/kboltz_eV)), $(10^1.5/(hplanck_eV/kboltz_eV))]"), "ν/T",
+    Interval("[$(RydbergH_eV/kboltz_eV/1e2),$(RydbergH_eV/kboltz_eV/1e-3)]")
+)
+#TODO: adjust the above (and He_II_ff) to initialize the intervals with tuples
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
@@ -139,6 +144,14 @@ function _Hminus_bf_cross_section(λ, ion_energy_H⁻)
 
 end
 
+function _Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real,
+                    ion_energy_H⁻::Real = _H⁻_ion_energy)
+    λ = c_cgs*1e8/ν # in ångstroms
+    cross_section = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
+    # convert from megabarn to cm² and include contributions from stimulated emission  1e-18
+    cross_section *= (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))) * 1e-18
+    _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * cross_section
+end
 
 """
     Hminus_bf(ν, T, nH_I_div_partition, ne, [ion_energy_H⁻])
@@ -186,13 +199,34 @@ In other words, the linear absorption coefficient is: ``\\alpha_\\nu = \\sigma_{
 Wishart (1979) expects the tabulated data to have better than 1% percent accuracy. Mathisen (1984)
 suggests that this data has better than 3% accuracy.
 """
-function Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real,
-                   ion_energy_H⁻::Real = _H⁻_ion_energy)
-    λ = c_cgs*1e8/ν # in ångstroms
-    cross_section = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
-    # convert from megabarn to cm² and include contributions from stimulated emission  1e-18
-    cross_section *= (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))) * 1e-18
-    _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * cross_section
+Hminus_bf = bounds_checked_absorption(_Hminus_bf, Interval("[1.25e-5, ∞)"), "λ", Interval("(0, ∞)"))
+
+function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
+    λ = c_cgs*1e8/ν # in Angstroms
+
+    logλ = log10(λ)
+    log2λ = logλ * logλ
+    log3λ = log2λ * logλ
+    log4λ = log3λ * logλ
+
+    f0 =  -2.2763 -   1.6850 * logλ +  0.76661 * log2λ -  0.053346 * log3λ
+    f1 = +15.2827 -   9.2846 * logλ +  1.99381 * log2λ -  0.142631 * log3λ
+    f2 = -197.789 + 190.266  * logλ - 67.9775  * log2λ + 10.6913   * log3λ - 0.625151 * log4λ
+
+    logθ = log10(5040.0/T)
+    αff_H⁻ = 1e-26 * 10.0^(f0 + f1 * logθ + f2 * (logθ * logθ))
+    # Pₑ * α_ff(H⁻) gives the absorption coefficient in units of cm² per ground state H I atom
+    Pₑ = ne * kboltz_cgs * T
+
+    # Account for the fact that n(H I, n=1) might be slightly smaller than the entire number
+    # density of H I. There is only really a difference at the highest temperatures. For the
+    # temperature range where this approximation is valid, less than 0.23% of all H I atoms are not
+    # in the ground state.
+
+    # this calculation could reduce to nHI_gs = 2.0*nH_I_div_partition
+    nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
+
+    return αff_H⁻ * Pₑ * nHI_gs
 end
 
 """
@@ -208,7 +242,6 @@ reaction:  photon + e⁻ + H I -> e⁻ + H I.
 - `T`: temperature in K
 - `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
 - `ne`: the number density of free electrons.
-
 
 # Notes
 This is taken from equation 8.13 of Gray (2005). The equation uses a polynomial fig against Table 1
@@ -236,38 +269,44 @@ polynomial is valid.
 We also considered the polynomial fit in Section 5.3 from Kurucz (1970). Unfortunately, it seems
 to be wrong (it gives lots of negative numbers).
 """
-function Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
-    λ = c_cgs*1e8/ν # in Angstroms
-    # we need to somehow factor out this bounds checking
-    if !(2604 <= λ <= 113918.0)
-        throw(DomainError(λ, "The wavelength must lie in the interval [2604 Å, 113918 Å]"))
-    elseif !(2520.0 <= T <= 10080.0)
-        throw(DomainError(T, "The temperature must lie in the interval [2520 K, 10080 K]"))
+Hminus_ff = bounds_checked_absorption(_Hminus_ff,
+                                      Interval("[2.604e-5, 1.13918e-3]"), "λ",
+                                      Interval("[2520, 10080]"))
+
+function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
+    λ = c_cgs*1e8/ν # in ångstroms
+    if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
+        throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))
     end
 
+    if T < 2500  # we might be able to drop upper limit
+        throw(DomainError(T, "The temperature must be greater than or equal to 2500 K."))
+    end
+
+    β_eV = 1.0/(kboltz_eV * T)
+
+    # coef should be roughly 2.51e-42
+    coef = 16*π^4*bohr_radius_cgs^5*electron_charge_cgs^2/(3*hplanck_cgs*c_cgs) # cm⁵
+    stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
+
     logλ = log10(λ)
-    log2λ = logλ * logλ
-    log3λ = log2λ * logλ
-    log4λ = log3λ * logλ
+    log2λ = logλ*logλ
+    log3λ = log2λ*logλ
 
-    f0 =  -2.2763 -   1.6850 * logλ +  0.76661 * log2λ -  0.053346 * log3λ
-    f1 = +15.2827 -   9.2846 * logλ +  1.99381 * log2λ -  0.142631 * log3λ
-    f2 = -197.789 + 190.266  * logλ - 67.9775  * log2λ + 10.6913   * log3λ - 0.625151 * log4λ
+    σ1 = -1040.54 + 1345.71 * logλ - 547.628 * log2λ + 71.9684 * log3λ
+    # there was a typo in Gray (2005). In the book they give the following polynomial as the fit
+    # for U₁. In reality, it is the fit for negative U₁
+    neg_U1 = 54.0532 - 32.713 * logλ + 6.6699 * log2λ - 0.4574 * log3λ
+    # note: Gray (2005) used the equivalent expression: σ1*10^(neg_U1 * θ) where θ = 5040/T
+    atomic_cross_section = σ1 * exp(neg_U1 * β_eV)
 
-    logθ = log10(5040.0/T)
-    αff_H⁻ = 1e-26 * 10.0^(f0 + f1 * logθ + f2 * (logθ * logθ))
-    # Pₑ * α_ff(H⁻) gives the absorption coefficient in units of cm² per ground state H I atom
-    Pₑ = ne * kboltz_cgs * T
+    # see the docstring for an explanation of why we explicitly consider the ground state density
+    nH_I_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
 
-    # Account for the fact that n(H I, n=1) might be slightly smaller than the entire number
-    # density of H I. There is only really a difference at the highest temperatures. For the
-    # temperature range where this approximation is valid, less than 0.23% of all H I atoms are not
-    # in the ground state.
+    uncorrected_opacity = coef * atomic_cross_section * nH_I_gs * nH_II
 
-    # this calculation could reduce to nHI_gs = 2.0*nH_I_div_partition
-    nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
-
-    return αff_H⁻ * Pₑ * nHI_gs
+    # Gray (2005) notes that they remove the stimulated emission factor. We need to put it back:
+    uncorrected_opacity * stimulated_emission_correction
 end
 
 """
@@ -323,38 +362,6 @@ times larger than the max λ that the polynomials are fit against). He suggests 
 probably correct "to well within one part in ten even at the lower temperatures and [lower
 wavelengths]."
 """
-function H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
-    λ = c_cgs*1e8/ν # in ångstroms
-    if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
-        throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))
-    end
-
-    if T < 2500  # we might be able to drop upper limit
-        throw(DomainError(T, "The temperature must be greater than or equal to 2500 K."))
-    end
-
-    β_eV = 1.0/(kboltz_eV * T)
-
-    # coef should be roughly 2.51e-42
-    coef = 16*π^4*bohr_radius_cgs^5*electron_charge_cgs^2/(3*hplanck_cgs*c_cgs) # cm⁵
-    stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
-
-    logλ = log10(λ)
-    log2λ = logλ*logλ
-    log3λ = log2λ*logλ
-
-    σ1 = -1040.54 + 1345.71 * logλ - 547.628 * log2λ + 71.9684 * log3λ
-    # there was a typo in Gray (2005). In the book they give the following polynomial as the fit
-    # for U₁. In reality, it is the fit for negative U₁
-    neg_U1 = 54.0532 - 32.713 * logλ + 6.6699 * log2λ - 0.4574 * log3λ
-    # note: Gray (2005) used the equivalent expression: σ1*10^(neg_U1 * θ) where θ = 5040/T
-    atomic_cross_section = σ1 * exp(neg_U1 * β_eV)
-
-    # see the docstring for an explanation of why we explicitly consider the ground state density
-    nH_I_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
-
-    uncorrected_opacity = coef * atomic_cross_section * nH_I_gs * nH_II
-
-    # Gray (2005) notes that they remove the stimulated emission factor. We need to put it back:
-    uncorrected_opacity * stimulated_emission_correction
-end
+H2plus_bf_and_ff = bounds_checked_absorption(_H2plus_bf_and_ff,
+                                             Interval("[3.846153846153846e-5, 2.5e-4]"), "λ",
+                                             Interval("[2500, 12000]"))

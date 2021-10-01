@@ -9,6 +9,10 @@ We are currently missing free-free and bound free contributions from He I.
 using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
 const _He_II_ion_energy = ionization_energies[2][2] # not sure if this is a good idea
 
+_He_II_bf(ν, T, nHe_II_div_partition, ion_energy = _He_II_ion_energy, nmax_explicit_sum = 9,
+          integrate_high_n = true) =
+              hydrogenic_bf_absorption(ν, T, 2, nHe_II_div_partition, ion_energy, nmax_explicit_sum,
+                                       integrate_high_n)
 """
     He_II_bf(ν, T, nHe_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
 
@@ -34,11 +38,9 @@ singly-ionized Helium atom.
 This function simply wraps [`hydrogenic_ff_absorption`](@ref). See that function for additional
 details.
 """
-He_II_bf(ν, T, nHe_II_div_partition, ion_energy = _He_II_ion_energy, nmax_explicit_sum = 9,
-         integrate_high_n = true) =
-             hydrogenic_bf_absorption(ν, T, 2, nHe_II_div_partition, ion_energy, nmax_explicit_sum,
-                                      integrate_high_n)
+He_II_bf = bounds_checked_absorption(_He_II_bf, Interval("(0, ∞)"), "ν", Interval("(0, ∞)"))
 
+_He_II_ff(ν, T, nHe_III, ne) = hydrogenic_ff_absorption(ν, T, 2, nHe_III, ne)
 
 """
     He_II_ff(ν, T, nHe_III, ne)
@@ -59,7 +61,10 @@ reaction:  `photon + e⁻ + He III -> e⁻ + He III`.
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-He_II_ff(ν, T, nHe_III, ne) = hydrogenic_ff_absorption(ν, T, 2, nHe_III, ne)
+He_II_ff = bounds_checked_absorption(
+    _He_II_ff, Interval("[$(1e-4/(hplanck_eV/kboltz_eV)),$(10^1.5/(hplanck_eV/kboltz_eV))]"), "ν/T",
+    Interval("[$(4*RydbergH_eV/kboltz_eV/1e2),$(4*RydbergH_eV/kboltz_eV/1e-3)]")
+)
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
@@ -79,6 +84,35 @@ function ndens_state_He_I(n::Integer, nsdens_div_partition::Real, T::Real)
     nsdens_div_partition * g_n * exp(-energy_level/(kboltz_eV *T))
 end
 
+function _Heminus_ff(ν::Real, T::Real, nHe_I_div_partition::Real, ne::Real)
+
+    λ = c_cgs * 1.0e8 / ν # Å
+    if !(5063.0 <= λ <= 151878.0)
+        throw(DomainError(λ, "The wavelength must lie in the interval [5063 Å, 151878 Å]"))
+    elseif !(2520.0 <= T <= 10080.0)
+        throw(DomainError(T, "The temperature must lie in the interval [2520 K, 10080 K]"))
+    end
+
+    θ = 5040.0 / T
+    θ2 = θ * θ
+    θ3 = θ2 * θ
+    θ4 = θ3 * θ
+
+    c0 =   9.66736 - 71.76242*θ + 105.29576*θ2 - 56.49259*θ3 + 10.69206*θ4
+    c1 = -10.50614 + 48.28802*θ -  70.43363*θ2 + 37.80099*θ3 -  7.15445*θ4
+    c2 =   2.74020 - 10.62144*θ +  15.50518*θ2 -  8.33845*θ3 +  1.57960*θ4
+    c3 =  -0.19923 +  0.77485*θ -   1.13200*θ2 +  0.60994*θ3 -  0.11564*θ4
+
+    logλ = log10(λ)
+
+    # f includes contribution from stimulated emission
+    f = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
+
+    Pe = ne*kboltz_cgs*T # partial pressure contributed by electrons
+    nHe_I_gs = ndens_state_He_I(1, nHe_I_div_partition, T)
+
+    f * nHe_I_gs * Pe
+end
 
 """
     Heminus_ff(ν, T, nHe_I_div_partition, ne)
@@ -131,32 +165,6 @@ approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10
 
 An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
 """
-function Heminus_ff(ν::Real, T::Real, nHe_I_div_partition::Real, ne::Real)
-
-    λ = c_cgs * 1.0e8 / ν # Å
-    if !(5063.0 <= λ <= 151878.0)
-        throw(DomainError(λ, "The wavelength must lie in the interval [5063 Å, 151878 Å]"))
-    elseif !(2520.0 <= T <= 10080.0)
-        throw(DomainError(T, "The temperature must lie in the interval [2520 K, 10080 K]"))
-    end
-
-    θ = 5040.0 / T
-    θ2 = θ * θ
-    θ3 = θ2 * θ
-    θ4 = θ3 * θ
-
-    c0 =   9.66736 - 71.76242*θ + 105.29576*θ2 - 56.49259*θ3 + 10.69206*θ4
-    c1 = -10.50614 + 48.28802*θ -  70.43363*θ2 + 37.80099*θ3 -  7.15445*θ4
-    c2 =   2.74020 - 10.62144*θ +  15.50518*θ2 -  8.33845*θ3 +  1.57960*θ4
-    c3 =  -0.19923 +  0.77485*θ -   1.13200*θ2 +  0.60994*θ3 -  0.11564*θ4
-
-    logλ = log10(λ)
-
-    # f includes contribution from stimulated emission
-    f = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
-
-    Pe = ne*kboltz_cgs*T # partial pressure contributed by electrons
-    nHe_I_gs = ndens_state_He_I(1, nHe_I_div_partition, T)
-
-    f * nHe_I_gs * Pe
-end
+Heminus_ff = bounds_checked_absorption(_Heminus_ff,
+                                       Interval("[5.063e-5, 1.518780e-03]"), "λ",
+                                       Interval("[2520, 10080]"))

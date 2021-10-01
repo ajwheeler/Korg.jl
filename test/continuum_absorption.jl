@@ -254,7 +254,10 @@ function check_Heminus_ff_absorption(target_precision, verbose = true)
     Pₑ = nₑ*Korg.kboltz_cgs.*T_vals
     ref_linear_absorption_vals = _Heminus_table .* nHe_I .* Pₑ
 
-    calc_func(ν,T) = Korg.ContinuumAbsorption.Heminus_ff(ν, T, nHe_I_div_U, nₑ)
+    # the extra handling in ν is necessary due to roundoff errors.
+    calc_func(ν,T) = Korg.ContinuumAbsorption.Heminus_ff(
+        ifelse(ν == 5.921241516887221e14, prevfloat(ν), ν), T, nHe_I_div_U, nₑ
+    )
     _compare_against_table(view(ref_linear_absorption_vals, :, 1:9), _λ_vals_He⁻_ff_john94 ./ 1e4,
                            view(T_vals, 1:9), calc_func, target_precision, verbose)
 end
