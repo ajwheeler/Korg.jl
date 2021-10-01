@@ -79,7 +79,7 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Real, ion_freq
 end
 
 """
-    _hydrogenic_bf_high_n_absorption(Z, nmin, nsdens_div_partition, ν, T, ion_energy)
+    _hydrogenic_bf_high_n_absorption(ν, T, Z, nmin, nsdens_div_partition, ion_energy)
 
 Approximates the sum of absorption coefficient contributions by all bound-free transitions in which
 the electron originates in an energy level of nmin or larger using an integral.
@@ -90,20 +90,20 @@ where α(n=n') is the absorption coefficient for the bound-free atomic absorptio
 (uncorrected for stimulated emission). This function approximates this sum with an integral.
 
 # Arguments
+- `ν`: frequency in Hz
+- `T`: temperature in K
 - `Z::Integer`: Z is the atomic number of the ion (1 for HI)
 - `nmin::Integer`: The lowest energy level (principle quantum number) included in the calculation
 - `nsdens_div_partition` is the number density of the current species divided by the
    partition function.
-- `ν`: frequency in Hz
-- `T`: temperature in K
 - `ion_energy`: the ionization energy from the ground state (in eV).
 
 # Notes
 This is based on equation (5.6) from Kurucz (1970) (which give the formula for opacity). I think ρ
 was simply omitted from that equation.
 """
-function _hydrogenic_bf_high_n_absorption(Z::Integer, nmin::Integer, nsdens_div_partition::Real, 
-                                          ν::Real, T::Real, ion_energy::Real)
+function _hydrogenic_bf_high_n_absorption(ν::Real, T::Real, Z::Integer, nmin::Integer,
+                                          nsdens_div_partition::Real, ion_energy::Real)
 
     # this function corresponds to the evaluation of a integral. We subdivide the solution into two
     # parts: (i) consts and (ii) integral. The solution is the product of both parts
@@ -140,7 +140,7 @@ end
 
 
 """
-    hydrogenic_bf_absorption(Z, nmax_explicit_sum, nsdens_div_partition, ν, T,
+    hydrogenic_bf_absorption(ν, T, Z, nmax_explicit_sum, nsdens_div_partition,
                              ion_energy, [integrate_high_n])
 
 Compute the bound-free linear absorption coefficient contributed by all energy states of a
@@ -151,11 +151,11 @@ explicitly summed and (ii) the contributions of the higher energy states are est
 integral.
 
 # Arguments
+- `ν`: frequency in Hz
+- `T`: temperature in K
 - `Z::Integer`: Z is the atomic number of the species (e.g. 1 for H I or 2 for He II)
 - `nsdens_div_partition` is the total number density of the species divided by the species's
    partition function.
-- `ν`: frequency in Hz
-- `T`: temperature in K
 - `ion_energy`: the ionization energy from the ground state (in eV). This can be 
    estimated as Z²*Rydberg_H (Rydberg_H is the ionization energy of Hydrogen)
 - `nmax_explicit_sum::Integer`: The highest energy level whose absorption contribution is included
@@ -166,7 +166,7 @@ integral.
 # Notes
 This follows the approach described in section 5.1 of Kurucz (1970).
 """
-function hydrogenic_bf_absorption(Z::Integer, nsdens_div_partition::Real, ν::Real, T::Real, 
+function hydrogenic_bf_absorption(ν::Real, T::Real, Z::Integer, nsdens_div_partition::Real,
                                   ion_energy::Real, nmax_explicit_sum::Integer, 
                                   integrate_high_n::Bool=true)
     ionization_freq = _eVtoHz(ion_energy)
@@ -184,7 +184,7 @@ function hydrogenic_bf_absorption(Z::Integer, nsdens_div_partition::Real, ν::Re
 
     # second, estimate the absorption contributions from H I atoms at higher energy levels using an
     # integral approximation (assuming integrate_high_n is true)
-    α_high_n = _hydrogenic_bf_high_n_absorption(Z, nmax_explicit_sum+1, nsdens_div_partition, ν, T,
+    α_high_n = _hydrogenic_bf_high_n_absorption(ν, T, Z, nmax_explicit_sum+1, nsdens_div_partition,
                                                 ion_energy)
 
     α_low_n + (α_high_n * integrate_high_n)
@@ -238,7 +238,7 @@ gaunt_ff_kurucz(log_u, log_γ2) = _ff_interpolator(log_u, log_γ2)
 
 
 """
-    hydrogenic_ff_absorption(Z, ni, ne, ν, T)
+    hydrogenic_ff_absorption(ν, T, Z, ni, ne)
 
 computes the free-free linear absorption coefficient for a hydrogenic species
 
@@ -274,7 +274,7 @@ With this in mind, equation 5.8 of Kurucz (1970) should actually read
 ```
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
 """
-function hydrogenic_ff_absorption(Z::Integer, ni::Real, ne::Real, ν::Real, T::Real)
+function hydrogenic_ff_absorption(ν::Real, T::Real, Z::Integer, ni::Real, ne::Real)
     β = 1.0/(kboltz_eV * T)
     Z2 = Z*Z
 

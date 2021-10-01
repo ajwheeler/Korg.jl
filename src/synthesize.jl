@@ -167,19 +167,20 @@ function total_continuum_absorption(νs::Vector{F}, T::F, nₑ::F, number_densit
     #Hydrogen continuum absorption
     nH_I = number_densities[literals.H_I]
     nH_I_div_U = nH_I / partition_funcs[literals.H_I](T)
-    α += ContinuumAbsorption.H_I_bf.(nH_I_div_U, νs, T)
-    α += ContinuumAbsorption.H_I_ff.(number_densities[literals.H_II], nₑ, νs, T)
-    α += ContinuumAbsorption.Hminus_bf.(nH_I_div_U, nₑ, νs, T)
-    α += ContinuumAbsorption.Hminus_ff.(nH_I_div_U, nₑ, νs, T)
-    α += ContinuumAbsorption.H2plus_bf_and_ff.(nH_I_div_U, number_densities[literals.H_II], νs, T)
+    α += ContinuumAbsorption.H_I_bf.(νs, T, nH_I_div_U)
+    α += ContinuumAbsorption.H_I_ff.(νs, T, number_densities[literals.H_II], nₑ)
+    α += ContinuumAbsorption.Hminus_bf.(νs, T, nH_I_div_U, nₑ)
+    α += ContinuumAbsorption.Hminus_ff.(νs, T, nH_I_div_U, nₑ)
+    α += ContinuumAbsorption.H2plus_bf_and_ff.(νs, T, nH_I_div_U, number_densities[literals.H_II])
 
     #He continuum opacities
-    α += ContinuumAbsorption.He_II_bf.(number_densities[literals.H_II] /
-                                       partition_funcs[literals.H_II](T), νs, T)
-    #α += ContinuumAbsorption.He_II_ff.(number_densities[literals.He_III], nₑ, νs, T)
+    α += ContinuumAbsorption.He_II_bf.(
+        νs, T, number_densities[literals.H_II] / partition_funcs[literals.H_II](T)
+    )
+    #α += ContinuumAbsorption.He_II_ff.(νs, T, number_densities[literals.He_III], nₑ)
     # ContinuumAbsorption.Heminus_ff is only valid for λ ≥ 5063 Å
-    #α += ContinuumAbsorption.Heminus_ff.(number_densities[literals.He_I] /
-    #                                     partition_funcs[literals.He_I](T), nₑ, νs, T)
+    #α += ContinuumAbsorption.Heminus_ff.(νs, T, number_densities[literals.He_I] /
+    #                                     partition_funcs[literals.He_I](T), nₑ)
 
     #electron scattering
     α .+= ContinuumAbsorption.electron_scattering(nₑ)

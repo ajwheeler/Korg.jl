@@ -9,16 +9,16 @@ const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good i
 const _H⁻_ion_energy = 0.7552 # eV
 
 """
-    H_I_bf(nH_I_div_partition, ν, T, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
+    H_I_bf(ν, T, nH_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
 
 Compute the bound-free linear absorption coefficient contributed by all energy states of a
 neutral Hydrogen atom.
 
 # Required Arguments
-- `nH_I_div_partition` is the total number density of neutral Hydrogen divided by the its
-   partition function.
 - `ν`: frequency in Hz
 - `T`: temperature in K
+- `nH_I_div_partition` is the total number density of neutral Hydrogen divided by the its
+   partition function.
 
 # Optional Arguments
 - `ion_energy`: The ionization energy of Hydrogen. By default, this is set to the values loaded 
@@ -32,14 +32,14 @@ neutral Hydrogen atom.
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-H_I_bf(nH_I_div_partition, ν, T, ion_energy = _H_I_ion_energy, nmax_explicit_sum = 8,
+H_I_bf(ν, T, nH_I_div_partition, ion_energy = _H_I_ion_energy, nmax_explicit_sum = 8,
        integrate_high_n = true) =
-           hydrogenic_bf_absorption(1, nH_I_div_partition, ν, T, ion_energy, nmax_explicit_sum,
+           hydrogenic_bf_absorption(ν, T, 1, nH_I_div_partition, ion_energy, nmax_explicit_sum,
                                     integrate_high_n)
 
 
 """
-    H_I_ff(nH_II, ne, ν, T)
+    H_I_ff(ν, T, nH_II, ne)
 
 Compute the H I free-free linear absorption coefficient α.
 
@@ -47,16 +47,16 @@ The naming scheme for free-free absorption is counter-inutitive. This actually r
 reaction:  `photon + e⁻ + H II -> e⁻ + H II`.
 
 #Arguments
-- `nH_II`: the number density of ionized Hydrogen in cm⁻³.
-- `ne`: the number density of free electrons.
 - `ν`: frequency in Hz
 - `T`: temperature in K
+- `nH_II`: the number density of ionized Hydrogen in cm⁻³.
+- `ne`: the number density of free electrons.
 
 # Notes
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-H_I_ff(nH_II, ne, ν, T) = hydrogenic_ff_absorption(1, nH_II, ne, ν, T)
+H_I_ff(ν, T, nH_II, ne) = hydrogenic_ff_absorption(ν, T, 1, nH_II, ne)
 
 
 """
@@ -141,15 +141,15 @@ end
 
 
 """
-    Hminus_bf(nH_I_div_partition, ne, ν, ρ, T, [ion_energy_H⁻])
+    Hminus_bf(ν, T, nH_I_div_partition, ne, [ion_energy_H⁻])
 
 Compute the H⁻ bound-free linear absorption coefficient α
 
 # Arguments
-- `nH_I_div_partition`: the total number density of H I divided by its partition function.
-- `ne`: the electron number density
 - `ν`: frequency in Hz
 - `T`: temperature in K
+- `nH_I_div_partition`: the total number density of H I divided by its partition function.
+- `ne`: the electron number density
 - `ion_energy_H⁻`: Specifies the ionization energy of the single state of H⁻ in eV. This is
    roughly 0.7552 eV.
 
@@ -186,7 +186,7 @@ In other words, the linear absorption coefficient is: ``\\alpha_\\nu = \\sigma_{
 Wishart (1979) expects the tabulated data to have better than 1% percent accuracy. Mathisen (1984)
 suggests that this data has better than 3% accuracy.
 """
-function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real,
+function Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real,
                    ion_energy_H⁻::Real = _H⁻_ion_energy)
     λ = c_cgs*1e8/ν # in ångstroms
     cross_section = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
@@ -196,7 +196,7 @@ function Hminus_bf(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real,
 end
 
 """
-    Hminus_ff(nH_I_div_partition, ne, ν, T)
+    Hminus_ff(ν, T, nH_I_div_partition, ne)
 
 Compute the H⁻ free-free linear absorption coefficient α
 
@@ -204,10 +204,11 @@ The naming scheme for free-free absorption is counter-inutitive. This actually r
 reaction:  photon + e⁻ + H I -> e⁻ + H I.
 
 # Arguments
-- `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
-- `ne`: the number density of free electrons.
 - `ν`: frequency in Hz
 - `T`: temperature in K
+- `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
+- `ne`: the number density of free electrons.
+
 
 # Notes
 This is taken from equation 8.13 of Gray (2005). The equation uses a polynomial fig against Table 1
@@ -235,7 +236,7 @@ polynomial is valid.
 We also considered the polynomial fit in Section 5.3 from Kurucz (1970). Unfortunately, it seems
 to be wrong (it gives lots of negative numbers).
 """
-function Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real)
+function Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
     λ = c_cgs*1e8/ν # in Angstroms
     # we need to somehow factor out this bounds checking
     if !(2604 <= λ <= 113918.0)
@@ -270,7 +271,7 @@ function Hminus_ff(nH_I_div_partition::Real, ne::Real, ν::Real, T::Real)
 end
 
 """
-    H2plus_bf_and_ff(nH_I_div_partition, n_HII, ν, T)
+    H2plus_bf_and_ff(ν, T, nH_I_div_partition, n_HII)
 
 Compute the combined H₂⁺ bound-free and free-free linear absorption coefficient α.
 
@@ -278,11 +279,11 @@ This uses polynomial fits from Gray (2005) that were derived from data tabulated
 [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
 
 # Arguments
+- `ν`: frequency in Hz
+- `T`: temperature in K
 - `nH_I_div_partition`: the total number density of H I divided by its partition 
    function.
 - `nH_II`: the number density of H II (not of H₂⁺).
-- `ν`: frequency in Hz
-- `T`: temperature in K
 
 While the formal type signature requires only that these be `Real`, `Float32`s (or `Float32`-derived 
 types) may introduce numerical instability.
@@ -322,7 +323,7 @@ times larger than the max λ that the polynomials are fit against). He suggests 
 probably correct "to well within one part in ten even at the lower temperatures and [lower
 wavelengths]."
 """
-function H2plus_bf_and_ff(nH_I_div_partition::Real, nH_II::Real, ν::Real, T::Real)
+function H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
     λ = c_cgs*1e8/ν # in ångstroms
     if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
         throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))
