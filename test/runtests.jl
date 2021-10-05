@@ -269,7 +269,7 @@ end
     @test issorted(first.(atmosphere))
     @test atmosphere[1].colmass == 9.747804143e-3
     @test atmosphere[1].temp == 4066.8
-    @test atmosphere[1].electron_density == 3.76980e10
+    @test atmosphere[1].electron_number_density == 3.76980e10
     @test atmosphere[1].number_density == 4.75478e14
     @test atmosphere[1].density == 1.00062e-9
 end

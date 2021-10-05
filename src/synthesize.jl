@@ -1,4 +1,3 @@
-import Interpolations #for Interpolations.line
 using Interpolations: LinearInterpolation
 import ..ContinuumOpacity
 
@@ -31,8 +30,8 @@ Optional arguments:
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
 """
-function synthesize(atm, linelist, λs::AbstractRange; metallicity::Real=0.0, vmic::Real=1.0,
-                    abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
+function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
+                    vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     hydrogen_lines=true, ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
@@ -55,49 +54,57 @@ function synthesize(atm, linelist, λs::AbstractRange; metallicity::Real=0.0, vm
 
     ns = []
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α_type = typeof(promote(atm[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
+    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
                             metallicity, vmic, abundances[1])[1])
-    α = Matrix{α_type}(undef, length(atm), length(λs))
-    for (i, layer) in enumerate(atm)
+    α = Matrix{α_type}(undef, length(atm.layers), length(λs))
+    for (i, layer) in enumerate(atm.layers)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
-                                                 layer.electron_density)
+                                                 layer.electron_number_density)
         push!(ns, number_densities)
 
         #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
         #interpolator that can be used to approximate it over a fine grid.
         α_cntm = LinearInterpolation(cntmλs,
                                     total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
-                                                            layer.electron_density, layer.density, 
-                                                            number_densities, partition_funcs
+                                                            layer.electron_number_density, 
+                                                            layer.density, number_densities, 
+                                                            partition_funcs
                                                            ) * layer.density)
         α[i, :] = α_cntm.(λs)
 
-        α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_density, 
+        α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_number_density, 
                                     number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
     
         if hydrogen_lines
-            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
+            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
                                                  number_densities[literals.H_I], 
                                                  partition_funcs[literals.H_I], 
                                                  hline_stark_profiles, vmic*1e5)
         end
     end
 
-    #the thickness of each atmospheric layer 
-    Δcolmass = diff((l->l.colmass).(atm))
-    Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm)
+    source_fn = blackbody.((l->l.temp).(atm.layers), λs')
 
-    τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
+    if atm isa SphericalAtmosphere
+        rs = (l->r).(atm.layers)
+        R = rs[1] + 0.5(rs[1] - rs[2])
+        Δs = diff((l->l.r).(atm.layers))
+        Δr = 0.5([Δs[0] + Δs] + [Δs + Δs[end]])
+        spherical_transfer(
+    else #atm isa PlanarAtmosphere
+        #the thickness of each atmospheric layer 
+        Δcolmass = diff((l->l.colmass).(atm.layers))
+        Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm.layers)
 
-    source_fn = blackbody.((l->l.temp).(atm), λs')
+        τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
 
-    flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
-       2π * transfer_integral(τ_λ, S_λ; plane_parallel=true)
+        flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
+            2π * transfer_integral(τ_λ, S_λ; plane_parallel=true)
+        end
+
+        #idk whether we should return this extra stuff long-term, but it's useful for debugging
+        (flux=flux, alpha=α, tau=τ, source_fn=source_fn, number_densities=ns)
     end
-
-    #return the solution, along with other quantities across wavelength and atmospheric layer.
-    #idk whether we should return this extra stuff long-term, but it's useful for debugging
-    (flux=flux, alpha=α, tau=τ, source_fn=source_fn, number_densities=ns)
 end
 
 """

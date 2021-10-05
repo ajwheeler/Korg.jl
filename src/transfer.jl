@@ -45,8 +45,43 @@ end
 """
 TODO
 """
-function spherical_transfer()
-    #TODO
+function spherical_transfer(R, radii, α, S, μ_surface_grid)
+    r0 = radii[end] #radii of inner and outer atmosphere layers
+    
+    I_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
+    I = Matrix{I_type}(undef, size(α, 2), length(μ_surface_grid))
+    
+    for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
+        # impact parameter of ray
+        b = R * sqrt(1 - μ_surface^2)
+        
+        #calculate the index of the lowest layer the ray passes through
+        i = argmin(abs.(radii .- b))
+        if radii[i] < b
+            i -= 1
+        end
+        if i == 1 || i == 0
+            I[:, μ_ind] = zeros(size(α, 2))
+            continue
+        end #TODO eliminate for i == 1?
+        
+        #ds is the path length through each layer
+        ds = -diff(@. sqrt([R ; radii[1:i]]^2 - b^2)) 
+        dτ = α[1:i, :] .* ds
+        τ = cumsum(dτ, dims=1)
+        
+        I[:, μ_ind] = [transfer_integral(τ[:, j], S[1:i, j]) for j in 1:size(τ, 2)]
+        I[:, μ_ind] += if b > r0 
+            #if the ray never leaves the model atmosphere, include 
+            #the contribution from the other side of the star
+            τ_prime = τ[end:end, :] .+ [cumsum(reverse(dτ[2:end, :], dims=1), dims=1) 
+                                        ; zeros(size(τ[end:end, :]))]
+            [transfer_integral(τ_prime[:, j], S[1:i, j]) for j in 1:size(τ, 2)]
+        else #otherwise assume I=S at atmosphere lower boundary
+            @. exp(-τ[end, :]) * S[end, :]
+        end
+    end
+    I
 end
 
 """
