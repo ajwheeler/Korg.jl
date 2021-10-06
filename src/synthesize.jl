@@ -22,6 +22,7 @@ Optional arguments:
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
   calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
+- `mu_grid`
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
@@ -32,7 +33,8 @@ Optional arguments:
 """
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
                     vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, ionization_energies=ionization_energies, 
+                    hydrogen_lines=true, mu_grid=0.05:0.05:1,
+                    ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
@@ -85,26 +87,24 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
 
-    if atm isa SphericalAtmosphere
-        rs = (l->r).(atm.layers)
+    flux = if atm isa ShellAtmosphere
+        rs = (l->l.r).(atm.layers)
         R = rs[1] + 0.5(rs[1] - rs[2])
-        Δs = diff((l->l.r).(atm.layers))
-        Δr = 0.5([Δs[0] + Δs] + [Δs + Δs[end]])
-        spherical_transfer(
+        I = spherical_transfer(R, rs, α, source_fn, mu_grid) #μ-resolve intensity
+        2π * [Korg.trapezoid_rule(mu_grid, mu_grid .* I) for I in eachrow(I)]
     else #atm isa PlanarAtmosphere
         #the thickness of each atmospheric layer 
         Δcolmass = diff((l->l.colmass).(atm.layers))
         Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm.layers)
-
         τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
 
-        flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
+        map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
             2π * transfer_integral(τ_λ, S_λ; plane_parallel=true)
         end
-
-        #idk whether we should return this extra stuff long-term, but it's useful for debugging
-        (flux=flux, alpha=α, tau=τ, source_fn=source_fn, number_densities=ns)
     end
+
+    #idk whether we should return this extra stuff long-term, but it's useful for debugging
+    (flux=flux, alpha=α, number_densities=ns)
 end
 
 """

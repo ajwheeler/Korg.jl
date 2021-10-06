@@ -70,13 +70,15 @@ function spherical_transfer(R, radii, α, S, μ_surface_grid)
         dτ = α[1:i, :] .* ds
         τ = cumsum(dτ, dims=1)
         
-        I[:, μ_ind] = [transfer_integral(τ[:, j], S[1:i, j]) for j in 1:size(τ, 2)]
+        I[:, μ_ind] = [transfer_integral(τ[:, j], S[1:i, j]; plane_parallel=false)
+                       for j in 1:size(τ, 2)]
         I[:, μ_ind] += if b > r0 
             #if the ray never leaves the model atmosphere, include 
             #the contribution from the other side of the star
             τ_prime = τ[end:end, :] .+ [cumsum(reverse(dτ[2:end, :], dims=1), dims=1) 
                                         ; zeros(size(τ[end:end, :]))]
-            [transfer_integral(τ_prime[:, j], S[1:i, j]) for j in 1:size(τ, 2)]
+            [transfer_integral(τ_prime[:, j], S[1:i, j]; plane_parallel=false)
+             for j in 1:size(τ, 2)]
         else #otherwise assume I=S at atmosphere lower boundary
             @. exp(-τ[end, :]) * S[end, :]
         end
