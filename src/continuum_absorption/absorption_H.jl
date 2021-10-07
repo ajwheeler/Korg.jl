@@ -19,7 +19,7 @@ Compute the bound-free linear absorption coefficient contributed by all energy s
 neutral Hydrogen atom.
 
 # Required Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_I_div_partition` is the total number density of neutral Hydrogen divided by the its
    partition function.
@@ -50,7 +50,7 @@ The naming scheme for free-free absorption is counter-inutitive. This actually r
 reaction:  `photon + e⁻ + H II -> e⁻ + H II`.
 
 #Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_II`: the number density of ionized Hydrogen in cm⁻³.
 - `ne`: the number density of free electrons.
@@ -160,7 +160,7 @@ end
 Compute the H⁻ bound-free linear absorption coefficient α
 
 # Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_I_div_partition`: the total number density of H I divided by its partition function.
 - `ne`: the electron number density
@@ -243,7 +243,7 @@ The naming scheme for free-free absorption is counter-inutitive. This actually r
 reaction:  photon + e⁻ + H I -> e⁻ + H I.
 
 # Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
 - `ne`: the number density of free electrons.
@@ -316,7 +316,7 @@ This uses polynomial fits from Gray (2005) that were derived from data tabulated
 [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
 
 # Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_I_div_partition`: the total number density of H I divided by its partition 
    function.

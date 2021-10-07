@@ -87,7 +87,7 @@ function _bell_berrington_87_Hminus_ff_absorption_coef(ν, T)
     # n(H I, n = 1) = n(H I).
     nH_I_div_partition = nH_I/2.0
 
-    linear_abs_coef = Korg.ContinuumAbsorption.Hminus_ff(ν, T, nH_I_div_partition, ne)
+    linear_abs_coef = Korg.ContinuumAbsorption.Hminus_ff([ν], T, nH_I_div_partition, ne)[1]
     Pₑ = ne * Korg.kboltz_cgs * T
     linear_abs_coef/(nH_I * Pₑ * 1e-26)
 end
@@ -261,26 +261,26 @@ end
 
         # first, check that a bounds error is thrown below min_tabulated_λ
         @test_throws DomainError Korg.ContinuumAbsorption.Hminus_bf(
-            Korg.c_cgs/(1e-8*0.5*min_tabulated_λ), T, nH_I_div_partition, ne, ion_energy;
+            [Korg.c_cgs/(1e-8*0.5*min_tabulated_λ)], T, nH_I_div_partition, ne, ion_energy;
             extrapolate_bc = nothing
-        )
+        )[1]
 
         # next, check that the linear absorption coefficient between max_tabulated_λ and
         # max_λ_ionize is between the absorption coefficient at max_tabulated_λ and 0
         α_max_tabulated_λ = Korg.ContinuumAbsorption.Hminus_bf(
-            Korg.c_cgs/(1e-8*max_tabulated_λ), T, nH_I_div_partition, ne, ion_energy
-        )
+            [Korg.c_cgs/(1e-8*max_tabulated_λ)], T, nH_I_div_partition, ne, ion_energy
+        )[1]
 
         α_test = Korg.ContinuumAbsorption.Hminus_bf(
-            Korg.c_cgs/(1e-8*0.5*(max_tabulated_λ+max_λ_ionize)), T, nH_I_div_partition, ne,
+            [Korg.c_cgs/(1e-8*0.5*(max_tabulated_λ+max_λ_ionize))], T, nH_I_div_partition, ne,
             ion_energy
-        )
+        )[1]
         @test (α_max_tabulated_λ > α_test) && (α_test > 0.0)
 
         # finally, check that the linear absorption coefficient at λ > max_λ_ionize is zero
         @test 0.0 == Korg.ContinuumAbsorption.Hminus_bf(
-            Korg.c_cgs/(1e-8*2*max_λ_ionize), T, nH_I_div_partition, ne, ion_energy
-        )
+            [Korg.c_cgs/(1e-8*2*max_λ_ionize)], T, nH_I_div_partition, ne, ion_energy
+        )[1]
     end
 end
 
@@ -327,8 +327,8 @@ function check_Heminus_ff_absorption(target_precision, verbose = true)
 
     # the extra handling in ν is necessary due to roundoff errors.
     calc_func(ν,T) = Korg.ContinuumAbsorption.Heminus_ff(
-        ifelse(ν == 5.921241516887221e14, prevfloat(ν), ν), T, nHe_I_div_U, nₑ
-    )
+        [ifelse(ν == 5.921241516887221e14, prevfloat(ν), ν)], T, nHe_I_div_U, nₑ
+    )[1]
     _compare_against_table(view(ref_linear_absorption_vals, :, 1:9), _λ_vals_He⁻_ff_john94 ./ 1e4,
                            view(T_vals, 1:9), calc_func, target_precision, verbose)
 end
@@ -379,8 +379,8 @@ function check_H2plus_ff_and_bf_absorption(target_precision, verbose = true)
 
     nH_I_divU = nH_I/partition_val
     const_factor = 1e39 /(nH_I * nH_II)
-    calc_func(ν,T) =  const_factor * Korg.ContinuumAbsorption.H2plus_bf_and_ff.(ν, T, nH_I_divU,
-                                                                                nH_II)
+    calc_func(ν,T) =  const_factor * Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I_divU,
+                                                                                nH_II)[1]
 
     λ_cgs = 1.0 ./_wavenumbers
     _compare_against_table(_table, λ_cgs, _T_vals, calc_func, target_precision, verbose)
@@ -470,7 +470,7 @@ end
             nH_I = nH_total / (1 + wII) 
             nH_II = nH_total * wII / (1 + wII)
             # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II
-            absorption_coef = Korg.ContinuumAbsorption.H_I_ff.(ν_vals, T, nH_II, nₑ) / nH_I
+            absorption_coef = Korg.ContinuumAbsorption.H_I_ff(ν_vals, T, nH_II, nₑ) / nH_I
             @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.0015
             @test all(absorption_coef .≥ 0.0)
         end
@@ -564,8 +564,8 @@ end
             nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_I = nₑ * 100.0 # this is totally arbitrary
 
-            absorption_coef = Korg.ContinuumAbsorption.H_I_bf.(ν_vals, T, nH_I/H_I_partition_val,
-                                                               H_I_ion_energy) / nH_I
+            absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, nH_I/H_I_partition_val,
+                                                              H_I_ion_energy) / nH_I
             @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.004
             @test all(absorption_coef .≥ 0.0)
         end
@@ -590,10 +590,10 @@ end
             nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_I = nₑ * 100.0 # this is totally arbitrary
 
-            α_integral = Korg.ContinuumAbsorption.H_I_bf.(ν_vals, T, nH_I/H_I_partition_val,
-                                                          H_I_ion_energy)
-            α_sum = Korg.ContinuumAbsorption.H_I_bf.(ν_vals, T, nH_I/H_I_partition_val,
-                                                     H_I_ion_energy, nstop_sum, false)
+            α_integral = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, nH_I/H_I_partition_val,
+                                                         H_I_ion_energy)
+            α_sum = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, nH_I/H_I_partition_val,
+                                                    H_I_ion_energy, nstop_sum, false)
             #println(maximum(abs.(α_integral - α_sum)/α_sum))
             @test maximum(abs.(α_integral - α_sum)/α_sum) < 0.003
         end

@@ -170,11 +170,5 @@ function bounds_checked_absorption(func; ν_bound::Union{Interval,Nothing} = not
         out_α
     end
 
-    # TODO: remove this method
-    function wrapped_func(ν::Real, T::Real, args...; extrapolate_bc = nothing)
-        tmp = zeros(promote_type(typeof(ν), typeof(T)), 1)
-        wrapped_func([ν], T, args...; extrapolate_bc = extrapolate_bc)[1]
-    end
-
     wrapped_func
 end

@@ -20,7 +20,7 @@ Compute the bound-free linear absorption coefficient contributed by all energy s
 singly-ionized Helium atom.
 
 # Required Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nHe_II_div_partition` is the total number density of singly-ionized Helium divided by the its
    partition function.
@@ -51,7 +51,7 @@ The naming scheme for free-free absorption is counter-inutitive. This actually r
 reaction:  `photon + e⁻ + He III -> e⁻ + He III`.
 
 #Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_III`: the number density of doubly-ionized Helium in cm⁻³.
 - `ne`: the number density of free electrons.
@@ -124,7 +124,7 @@ The naming scheme for free-free absorption is counter-inutitive. This actually r
 reaction:  `photon + e⁻ + He I -> e⁻ + He I.`
 
 # Arguments
-- `ν`: frequency in Hz
+- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nHe_I_div_partition`: the total number density of H I divided by its partition function.
 - `ne`: the number density of free electrons.
