@@ -57,7 +57,7 @@ end
 """
     air_to_vacuum(λ; cgs=λ<1)
 
-convert λ from an air wavelength to a vacuum wavelength.  
+Convert λ from an air wavelength to a vacuum wavelength.  
 λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.
 Formula from Birch and Downs (1994) via the VALD website.
 """
