@@ -1,6 +1,76 @@
 include("absorption_comparison_funcs.jl")
 include("utilities.jl")
 
+function _test_contained_slice(vals::AbstractVector, interval::Korg.ContinuumAbsorption.Interval)
+
+    for i in 1:2
+        cur_vals = (i == 1) ? vals : reverse(vals)
+
+        idx = Korg.ContinuumAbsorption.contained_slice(cur_vals, interval)
+        first_ind, last_ind = first(idx), last(idx)
+
+        @assert first_ind >= 1 && last_ind <= length(cur_vals)
+
+        result = Korg.ContinuumAbsorption.contained.(cur_vals, Ref(interval))
+
+        if all(result)
+            @test (first_ind == 1) && (last_ind == length(cur_vals))
+        elseif any(result)
+            @test last_ind >= first_ind
+            @test all(.!result[1:first_ind-1])
+            @test all(result[first_ind:last_ind])
+            @test all(.!result[last_ind+1:length(cur_vals)])
+        else
+            @test first_ind == last_ind+1
+        end
+
+    end
+
+end
+
+@testset "Interval" begin
+
+    # first make sure that the following cases are caught by the constructor:
+    @test_throws AssertionError Korg.ContinuumAbsorption.Interval(5,5)
+    @test_throws AssertionError Korg.ContinuumAbsorption.Interval(3,2)
+    @test_throws AssertionError Korg.ContinuumAbsorption.Interval(Inf,Inf)
+    @test_throws AssertionError Korg.ContinuumAbsorption.Interval(-Inf,-Inf)
+
+    # check contained
+    sample = Korg.ContinuumAbsorption.Interval(3,10)
+    @test !Korg.ContinuumAbsorption.contained(3, sample)
+    @test !Korg.ContinuumAbsorption.contained(10, sample)
+    @test Korg.ContinuumAbsorption.contained(5.0, sample)
+    @test Korg.ContinuumAbsorption.contained(nextfloat(3.0), sample)
+    @test Korg.ContinuumAbsorption.contained(prevfloat(10.0), sample)
+
+    # check contained_slice    
+    @testset "contained_slice" begin
+        # we consider cases where the slice contains just a single element or multiple elements
+
+        # first, try cases where everything is in-bounds
+        _test_contained_slice([6.0], sample) # slice of 1 element
+        _test_contained_slice([4.0, 5.0, 6.0, 7.0, 8.0, 9.0], sample) # slice of multiple elements
+
+        # next, try cases where some values are out-of bounds
+        _test_contained_slice([1.0, 6.0], sample) # slice of 1 element
+        _test_contained_slice([1.0, 6.0, 12.0], sample)
+        _test_contained_slice([6.0, 12.0], sample)
+
+        _test_contained_slice([1.0, 2.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0], sample)
+        _test_contained_slice([4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.5, 12.0], sample)
+        _test_contained_slice([1.0, 2.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.5, 12.0], sample)
+
+        # lastly, consider cases where all values are out of bounds
+        _test_contained_slice([1.0], sample)
+        _test_contained_slice([100.0], sample)
+        
+        _test_contained_slice([1.0, 2.0, 2.5], sample)
+        _test_contained_slice([10.5, 12.5, 100.0], sample)
+    end
+
+end
+
 function _bell_berrington_87_Hminus_ff_absorption_coef(ν, T)
     # Compute the quantity that Bell & Berrington (1987) refer to as the "absorption coefficient"
     # in units of 1e-26 cm⁴ dyn⁻¹ (so that we can compare against their table). Essentially, we are
@@ -191,7 +261,8 @@ end
 
         # first, check that a bounds error is thrown below min_tabulated_λ
         @test_throws DomainError Korg.ContinuumAbsorption.Hminus_bf(
-            Korg.c_cgs/(1e-8*0.5*min_tabulated_λ), T, nH_I_div_partition, ne, ion_energy
+            Korg.c_cgs/(1e-8*0.5*min_tabulated_λ), T, nH_I_div_partition, ne, ion_energy;
+            extrapolate_bc = nothing
         )
 
         # next, check that the linear absorption coefficient between max_tabulated_λ and
