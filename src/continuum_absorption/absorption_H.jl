@@ -202,7 +202,7 @@ suggests that this data has better than 3% accuracy.
 """
 Hminus_bf = bounds_checked_absorption(
     _Hminus_bf;
-    ν_bound = _λ_to_ν_bound( Interval(1.25e-5, Inf; exclusive_lower=false, exclusive_upper=true) ),
+    ν_bound = λ_to_ν_bound( Interval(1.25e-5, Inf; exclusive_lower=false, exclusive_upper=true) ),
     temp_bound = Interval(0, Inf)
 )
 
@@ -275,7 +275,7 @@ We also considered the polynomial fit in Section 5.3 from Kurucz (1970). Unfortu
 to be wrong (it gives lots of negative numbers).
 """
 Hminus_ff = bounds_checked_absorption(_Hminus_ff,
-                                      ν_bound = _λ_to_ν_bound(closed_interval(2.604e-5,1.13918e-3)),
+                                      ν_bound = λ_to_ν_bound(closed_interval(2.604e-5,1.13918e-3)),
                                       temp_bound = closed_interval(2520, 10080))
 
 function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
@@ -362,6 +362,6 @@ wavelengths]."
 """
 H2plus_bf_and_ff = bounds_checked_absorption(
     _H2plus_bf_and_ff;
-    ν_bound = _λ_to_ν_bound(closed_interval(3.846153846153846e-5, 2.5e-4)),
+    ν_bound = λ_to_ν_bound(closed_interval(3.846153846153846e-5, 2.5e-4)),
     temp_bound = closed_interval(2500, 12000)
 )

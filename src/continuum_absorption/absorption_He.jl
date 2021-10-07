@@ -168,6 +168,6 @@ An alternative approach using a fit to older data is provided in section 5.7 of 
 """
 Heminus_ff = bounds_checked_absorption(
     _Heminus_ff,
-    ν_bound = _λ_to_ν_bound(closed_interval(5.063e-5, 1.518780e-03)),
+    ν_bound = λ_to_ν_bound(closed_interval(5.063e-5, 1.518780e-03)),
     temp_bound = closed_interval(2520, 10080)
 )

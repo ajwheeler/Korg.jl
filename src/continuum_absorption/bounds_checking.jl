@@ -48,38 +48,39 @@ function contained_slice(vals::AbstractVector, interval::Interval)
     first_ind:last_ind
 end
 
-# inbound_ν_neighbor
-# oobound_ν_neighbor
-
-function _λ_to_ν_bound(λ_bound::Interval)
+function _convert_λ_endpoint(λ_endpoint::AbstractFloat, λ_lower_bound::Bool)
     calc_λ(ν) = c_cgs/ν
 
-    ν_upper = (λ_bound.lower == 0) ? Inf : c_cgs/λ_bound.lower
-    if isfinite(ν_upper)
-        # adjust ν_upper so that we can pass the assert statement
-        while calc_λ(prevfloat(ν_upper)) ≤ λ_bound.lower # ν_upper is too large, make it smaller
-            ν_upper = prevfloat(ν_upper)
-        end
-        while calc_λ(ν_upper) > λ_bound.lower # ν_upper is too small, make it larger
-            ν_upper = nextfloat(ν_upper)
-        end
-        @assert (calc_λ(ν_upper) ≤ λ_bound.lower) && (calc_λ(prevfloat(ν_upper)) > λ_bound.lower)
-    end
+    # determine the functions that:
+    # - retrieve the neighboring ν val in the in-bounds and out-of-bounds directions
+    # - specify the desired relationship between an in-bounds λ and λ_lower_bound
+    inbound_ν_neighbor, oobound_ν_neighbor, inbound_λ_to_endpoint_relation =
+        λ_lower_bound ? (prevfloat, nextfloat, >) : (nextfloat, prevfloat, <)
 
-    ν_lower = isnothing(λ_bound.upper) ? 0.0 : c_cgs/λ_bound.upper
-    if isfinite(ν_lower) && (!isnothing(λ_bound.upper)) && isfinite(λ_bound.upper)
-        # adjust ν_lower so that we can pass the assert statement
-        while calc_λ(nextfloat(ν_lower)) ≥ λ_bound.upper # ν_lower is too small, make it larger
-            ν_lower = nextfloat(ν_lower)
+    ν_endpoint = (λ_endpoint == 0) ? Inf : c_cgs/λ_endpoint
+    if isfinite(ν_endpoint) && isfinite(λ_endpoint)
+        # Adjust ν_endpoint in 2 cases:
+        # Case 1: The neighboring ν to ν_endpoint that should be in-bounds, corresponds to a λ
+        # value that is out-of-bounds. Nudge ν_endpoint in the "in-bounds" direction until resolved
+        while !inbound_λ_to_endpoint_relation(calc_λ(inbound_ν_neighbor(ν_endpoint)), λ_endpoint)
+            ν_endpoint = inbound_ν_neighbor(ν_endpoint)
         end
-        while calc_λ(ν_lower) < λ_bound.upper # ν_lower is too large, make it smaller
-            ν_lower = prevfloat(ν_lower)
+        # Case 2: The current value of ν_endpoint corresponds to a λ that is in-bounds. Nudge
+        # ν_endpoint in the "out-of-bounds" direction until resolved.
+        while inbound_λ_to_endpoint_relation(calc_λ(ν_endpoint), λ_endpoint)
+            ν_endpoint = oobound_ν_neighbor(ν_endpoint)
         end
-        @assert (calc_λ(ν_lower) ≥ λ_bound.upper) && (calc_λ(nextfloat(ν_lower)) < λ_bound.upper)
     end
-
-    Interval(ν_lower, ν_upper)
+    ν_endpoint
 end
+
+"""
+    λ_to_ν_bound(λ_bound)
+
+Converts an exclusive λ inverval (in cm) to an equivalent frequency interval (in Hz)
+"""
+λ_to_ν_bound(λ_bound::Interval) =
+    Interval(_convert_λ_endpoint(λ_bound.upper, false), _convert_λ_endpoint(λ_bound.lower, true))
 
 function _prep_bound_err(ν, T, ν_indices, func, ν_bound, ν_div_T_bound, temperature_bound)
     signs = "-+"
