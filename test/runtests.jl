@@ -138,17 +138,19 @@ end
                                                           format="abc")
         @test_throws ArgumentError read_linelist("data/linelists/no-isotopic-scaling.vald")
 
-        kurucz_ll = read_linelist("data/linelists/gfallvac08oct17.stub.dat", format="kurucz")
         @testset "kurucz linelist parsing" begin
-            @test issorted(kurucz_ll, by=l->l.wl)
-            @test length(kurucz_ll) == 987
-            @test kurucz_ll[1].wl ≈ 72320.699 * 1e-8
-            @test kurucz_ll[1].log_gf == -0.826
-            @test kurucz_ll[1].species == Korg.Species("Be_II")
-            @test kurucz_ll[1].E_lower ≈ 17.360339371573698
-            @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
-            @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
-            @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
+            for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
+                kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")
+                @test issorted(kurucz_ll, by=l->l.wl)
+                @test length(kurucz_ll) == 987
+                @test kurucz_ll[1].wl ≈ 0.0007234041763337705
+                @test kurucz_ll[1].log_gf == -0.826
+                @test kurucz_ll[1].species == Korg.Species("Be_II")
+                @test kurucz_ll[1].E_lower ≈ 17.360339371573698
+                @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
+                @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
+                @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
+            end
         end
 
         @testset "vald short format, ABO, missing params" begin
