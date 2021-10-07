@@ -25,7 +25,6 @@ singly-ionized Helium atom.
 - `nHe_II_div_partition` is the total number density of singly-ionized Helium divided by the its
    partition function.
 
-
 # Optional Arguments
 - `ion_energy`: The ionization energy of Helium. By default, this is set to the values loaded 
   into the global `ionization_energies` list.
@@ -38,7 +37,8 @@ singly-ionized Helium atom.
 This function simply wraps [`hydrogenic_ff_absorption`](@ref). See that function for additional
 details.
 """
-He_II_bf = bounds_checked_absorption(_He_II_bf, Interval("(0, ∞)"), "ν", Interval("(0, ∞)"))
+He_II_bf = bounds_checked_absorption(_He_II_bf; ν_bound = Interval(0, Inf),
+                                     temp_bound = Interval(0, Inf))
 
 _He_II_ff(ν, T, nHe_III, ne) = hydrogenic_ff_absorption(ν, T, 2, nHe_III, ne)
 
@@ -62,8 +62,9 @@ This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for im
 details.
 """
 He_II_ff = bounds_checked_absorption(
-    _He_II_ff, Interval("[$(1e-4/(hplanck_eV/kboltz_eV)),$(10^1.5/(hplanck_eV/kboltz_eV))]"), "ν/T",
-    Interval("[$(4*RydbergH_eV/kboltz_eV/1e2),$(4*RydbergH_eV/kboltz_eV/1e-3)]")
+    _He_II_ff,
+    ν_div_T_bound = closed_interval( (1e-4, 10^1.5)./(hplanck_eV/kboltz_eV)... ),
+    temp_bound = closed_interval( (4*RydbergH_eV/kboltz_eV)./(1e2, 1e-3)... )
 )
 
 # Compute the number density of atoms in different He I states
@@ -165,6 +166,8 @@ approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10
 
 An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
 """
-Heminus_ff = bounds_checked_absorption(_Heminus_ff,
-                                       Interval("[5.063e-5, 1.518780e-03]"), "λ",
-                                       Interval("[2520, 10080]"))
+Heminus_ff = bounds_checked_absorption(
+    _Heminus_ff,
+    ν_bound = _λ_to_ν_bound(closed_interval(5.063e-5, 1.518780e-03)),
+    temp_bound = closed_interval(2520, 10080)
+)

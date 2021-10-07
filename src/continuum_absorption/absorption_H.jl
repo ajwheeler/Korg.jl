@@ -36,7 +36,8 @@ neutral Hydrogen atom.
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-H_I_bf = bounds_checked_absorption(_H_I_bf, Interval("(0, ∞)"), "ν", Interval("(0, ∞)"))
+H_I_bf = bounds_checked_absorption(_H_I_bf; ν_bound = Interval(0, Inf),
+                                   temp_bound = Interval(0, Inf))
 
 _H_I_ff(ν, T, nH_II, ne) = hydrogenic_ff_absorption(ν, T, 1, nH_II, ne)
 
@@ -59,10 +60,10 @@ This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for im
 details.
 """
 H_I_ff = bounds_checked_absorption(
-    _H_I_ff, Interval("[$(1e-4/(hplanck_eV/kboltz_eV)), $(10^1.5/(hplanck_eV/kboltz_eV))]"), "ν/T",
-    Interval("[$(RydbergH_eV/kboltz_eV/1e2),$(RydbergH_eV/kboltz_eV/1e-3)]")
+    _H_I_ff;
+    ν_div_T_bound = closed_interval( (1e-4, 10^1.5)./(hplanck_eV/kboltz_eV)... ),
+    temp_bound = closed_interval( (RydbergH_eV/kboltz_eV)./(1e2, 1e-3)... )
 )
-#TODO: adjust the above (and He_II_ff) to initialize the intervals with tuples
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
@@ -199,7 +200,11 @@ In other words, the linear absorption coefficient is: ``\\alpha_\\nu = \\sigma_{
 Wishart (1979) expects the tabulated data to have better than 1% percent accuracy. Mathisen (1984)
 suggests that this data has better than 3% accuracy.
 """
-Hminus_bf = bounds_checked_absorption(_Hminus_bf, Interval("[1.25e-5, ∞)"), "λ", Interval("(0, ∞)"))
+Hminus_bf = bounds_checked_absorption(
+    _Hminus_bf;
+    ν_bound = _λ_to_ν_bound( Interval(1.25e-5, Inf; exclusive_lower=false, exclusive_upper=true) ),
+    temp_bound = Interval(0, Inf)
+)
 
 function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
     λ = c_cgs*1e8/ν # in Angstroms
@@ -270,18 +275,11 @@ We also considered the polynomial fit in Section 5.3 from Kurucz (1970). Unfortu
 to be wrong (it gives lots of negative numbers).
 """
 Hminus_ff = bounds_checked_absorption(_Hminus_ff,
-                                      Interval("[2.604e-5, 1.13918e-3]"), "λ",
-                                      Interval("[2520, 10080]"))
+                                      ν_bound = _λ_to_ν_bound(closed_interval(2.604e-5,1.13918e-3)),
+                                      temp_bound = closed_interval(2520, 10080))
 
 function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
     λ = c_cgs*1e8/ν # in ångstroms
-    if !(3846.15 <= λ <= 25000.0) # the lower limit is set to include 1.e5/26 Å
-        throw(DomainError(λ, "The wavelength must lie in the interval [3847 Å, 25000 Å]"))
-    end
-
-    if T < 2500  # we might be able to drop upper limit
-        throw(DomainError(T, "The temperature must be greater than or equal to 2500 K."))
-    end
 
     β_eV = 1.0/(kboltz_eV * T)
 
@@ -362,6 +360,8 @@ times larger than the max λ that the polynomials are fit against). He suggests 
 probably correct "to well within one part in ten even at the lower temperatures and [lower
 wavelengths]."
 """
-H2plus_bf_and_ff = bounds_checked_absorption(_H2plus_bf_and_ff,
-                                             Interval("[3.846153846153846e-5, 2.5e-4]"), "λ",
-                                             Interval("[2500, 12000]"))
+H2plus_bf_and_ff = bounds_checked_absorption(
+    _H2plus_bf_and_ff;
+    ν_bound = _λ_to_ν_bound(closed_interval(3.846153846153846e-5, 2.5e-4)),
+    temp_bound = closed_interval(2500, 12000)
+)
