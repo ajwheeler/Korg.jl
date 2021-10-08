@@ -39,6 +39,22 @@ Korg.voigt
 ## Continuum absorption
 These function can be used to directly compute continuum opacities.
 
+##### Continuum Absorption Kwargs
+
+Many of the functions documented in this section, support the following, common set of keyword
+arguments:
+
+- `extrapolate_bc::Union{Nothing,Real}`: controls how the function behave when it encounters an
+  invalid `ν` or `T` values. When assigned a number, the function assumes that the absorption
+  coefficient for these invalid `ν` or `T` values is the value of `extrapolate_bc`. The default
+  value is `0.0`. When this is set to `nothing`, a `DomainError` is thrown if invalid `ν` or `T`
+  values are encountered.
+- `out_α::Union{Nothing,AbstractVector}`: When this is `nothing` (the default case), the function
+  will simply allocate a new vector to store the output continuum absorption coefficients.
+  Alternatively, this can be a vector (with the same length as the function's `ν` argument). In
+  this case, the function will directly add the computed continuum absorption to the elements of
+  this vector, in-place (the vector is also returned by the function).
+
 ```@docs
 Korg.total_continuum_absorption
 Korg.ContinuumAbsorption.H_I_bf

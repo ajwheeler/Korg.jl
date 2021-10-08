@@ -13,7 +13,8 @@ _H_I_bf(ν, T, nH_I_div_partition, ion_energy = _H_I_ion_energy, nmax_explicit_s
            hydrogenic_bf_absorption(ν, T, 1, nH_I_div_partition, ion_energy, nmax_explicit_sum,
                                     integrate_high_n)
 """
-    H_I_bf(ν, T, nH_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
+    H_I_bf(ν, T, nH_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n];
+           kwargs...)
 
 Compute the bound-free linear absorption coefficient contributed by all energy states of a
 neutral Hydrogen atom.
@@ -32,6 +33,8 @@ neutral Hydrogen atom.
 - `integrate_high_n::bool`: When this is `false`, bf absorption from higher energy states are not
    estimated at all. Default is `true`.
 
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
+
 # Notes
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
@@ -42,18 +45,20 @@ H_I_bf = bounds_checked_absorption(_H_I_bf; ν_bound = Interval(0, Inf),
 _H_I_ff(ν, T, nH_II, ne) = hydrogenic_ff_absorption(ν, T, 1, nH_II, ne)
 
 """
-    H_I_ff(ν, T, nH_II, ne)
+    H_I_ff(ν, T, nH_II, ne; kwargs...)
 
 Compute the H I free-free linear absorption coefficient α.
 
 The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
 reaction:  `photon + e⁻ + H II -> e⁻ + H II`.
 
-#Arguments
+# Arguments
 - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_II`: the number density of ionized Hydrogen in cm⁻³.
 - `ne`: the number density of free electrons.
+
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
@@ -155,7 +160,7 @@ function _Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real,
 end
 
 """
-    Hminus_bf(ν, T, nH_I_div_partition, ne, [ion_energy_H⁻])
+    Hminus_bf(ν, T, nH_I_div_partition, ne, [ion_energy_H⁻]; kwargs...)
 
 Compute the H⁻ bound-free linear absorption coefficient α
 
@@ -166,6 +171,8 @@ Compute the H⁻ bound-free linear absorption coefficient α
 - `ne`: the electron number density
 - `ion_energy_H⁻`: Specifies the ionization energy of the single state of H⁻ in eV. This is
    roughly 0.7552 eV.
+
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 This function assumes that n(H⁻) ≪ n(H I) + n(H II). The number density of n(H⁻) should not be
@@ -235,7 +242,7 @@ function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
 end
 
 """
-    Hminus_ff(ν, T, nH_I_div_partition, ne)
+    Hminus_ff(ν, T, nH_I_div_partition, ne; kwargs...)
 
 Compute the H⁻ free-free linear absorption coefficient α
 
@@ -247,6 +254,8 @@ reaction:  photon + e⁻ + H I -> e⁻ + H I.
 - `T`: temperature in K
 - `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
 - `ne`: the number density of free electrons.
+
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 This is taken from equation 8.13 of Gray (2005). The equation uses a polynomial fig against Table 1
@@ -308,7 +317,7 @@ function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::R
 end
 
 """
-    H2plus_bf_and_ff(ν, T, nH_I_div_partition, n_HII)
+    H2plus_bf_and_ff(ν, T, nH_I_div_partition, n_HII; kwargs...)
 
 Compute the combined H₂⁺ bound-free and free-free linear absorption coefficient α.
 
@@ -321,6 +330,8 @@ This uses polynomial fits from Gray (2005) that were derived from data tabulated
 - `nH_I_div_partition`: the total number density of H I divided by its partition 
    function.
 - `nH_II`: the number density of H II (not of H₂⁺).
+
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 While the formal type signature requires only that these be `Real`, `Float32`s (or `Float32`-derived 
 types) may introduce numerical instability.

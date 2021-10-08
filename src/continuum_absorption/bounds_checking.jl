@@ -117,12 +117,16 @@ Constructs a wrapped function that implements bounds checking and extrapolation
 - `temp_bound::Interval`: Interval of temperatures (in K) over which `func` is valid.
 
 
-The resulting function will have a signature that loosely reflects
-wrapped_func(ν::AbstractVector{<:Real}, T::Real, args...;
-             extrapolate_bc = 0.0, out_α::Union{Nothing, AbstractVector{<:Real}})
-
-# Wrapped Parameters
+The resulting function will have a signature that loosely reflects:
+```
+wrapped_func(ν::AbstractVector{<:Real}, T::Real, args...; kwargs...)
+```
+# Wrapped Function Parameters
 - `ν::AbstractVector{<:Real}`: sorted vector (either forward or reverse order) of frequencies
+- `T::Real`: temperature in K
+- `args...`: function-specific arguments
+
+For a description for the `kwargs...`, see [Continuum Absorption Kwargs](@ref). 
 
 """
 function bounds_checked_absorption(func; ν_bound::Union{Interval,Nothing} = nothing,
@@ -140,13 +144,14 @@ function bounds_checked_absorption(func; ν_bound::Union{Interval,Nothing} = not
     end
     @assert !isnothing(temp_bound) "the current implementation requires temp_bound"
 
-    # It's unnecessary to let T be a Vector since the outputs should be contiguous in ν to
+    # It's probably unnecessary to let T be a Vector since the outputs should be contiguous in ν to
     # fast interpolation. But, if we ever wanted to supporth that case:
     # - we'll have to assume that any vectors in `args...` are the same length as T.
     # - if we made ionization_energy a keyword argument, then you could assume that all entries in
     #   `args...` are vectors with the same length as T.
     function wrapped_func(ν::AbstractVector{<:Real}, T::Real, args...;
-                          extrapolate_bc = 0.0, out_α::Union{Nothing,AbstractVector} = nothing)
+                          extrapolate_bc::Union{Nothing,Real} = 0.0,
+                          out_α::Union{Nothing,AbstractVector} = nothing)
         @assert issorted(ν, rev = first(ν) > last(ν)) "ν should be sorted"
 
         α_type = reduce(promote_type, [eltype(ν), typeof(T), mapreduce(typeof, promote_type, args)])

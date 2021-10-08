@@ -14,7 +14,8 @@ _He_II_bf(ν, T, nHe_II_div_partition, ion_energy = _He_II_ion_energy, nmax_expl
               hydrogenic_bf_absorption(ν, T, 2, nHe_II_div_partition, ion_energy, nmax_explicit_sum,
                                        integrate_high_n)
 """
-    He_II_bf(ν, T, nHe_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n])
+    He_II_bf(ν, T, nHe_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n];
+             kwargs...)
 
 Compute the bound-free linear absorption coefficient contributed by all energy states of a
 singly-ionized Helium atom.
@@ -33,6 +34,8 @@ singly-ionized Helium atom.
 - `integrate_high_n::bool`: When this is `false`, bf absorption from higher energy states are not
    estimated at all. Default is `true`.
 
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
+
 # Notes
 This function simply wraps [`hydrogenic_ff_absorption`](@ref). See that function for additional
 details.
@@ -43,19 +46,20 @@ He_II_bf = bounds_checked_absorption(_He_II_bf; ν_bound = Interval(0, Inf),
 _He_II_ff(ν, T, nHe_III, ne) = hydrogenic_ff_absorption(ν, T, 2, nHe_III, ne)
 
 """
-    He_II_ff(ν, T, nHe_III, ne)
+    He_II_ff(ν, T, nHe_III, ne; kwargs...)
 
 Compute the He II free-free linear absorption coefficient α.
 
 The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
 reaction:  `photon + e⁻ + He III -> e⁻ + He III`.
 
-#Arguments
+# Arguments
 - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
 - `nH_III`: the number density of doubly-ionized Helium in cm⁻³.
 - `ne`: the number density of free electrons.
 
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
@@ -116,7 +120,7 @@ function _Heminus_ff(ν::Real, T::Real, nHe_I_div_partition::Real, ne::Real)
 end
 
 """
-    Heminus_ff(ν, T, nHe_I_div_partition, ne)
+    Heminus_ff(ν, T, nHe_I_div_partition, ne; kwargs...)
 
 Compute the He⁻ free-free opacity κ.
 
@@ -128,6 +132,8 @@ reaction:  `photon + e⁻ + He I -> e⁻ + He I.`
 - `T`: temperature in K
 - `nHe_I_div_partition`: the total number density of H I divided by its partition function.
 - `ne`: the number density of free electrons.
+
+For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 
