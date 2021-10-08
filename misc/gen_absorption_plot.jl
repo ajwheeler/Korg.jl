@@ -30,7 +30,7 @@ function gen_plot(plot_fname, temperature, Pₑ, panel_dict)
               color = i)
         if haskey(Gray_opac_compare.Gray05_opacity_form_funcs, key)
             func, bounds, label_suffix = Gray_opac_compare.Gray05_opacity_form_funcs[key]
-            w = Gray_opac_compare.inbounds(bounds,orig_λ_vals)
+            w = Korg.ContinuumAbsorption.contained.(orig_λ_vals, Ref(bounds))
             λ_vals = orig_λ_vals[w]
             calculated_vals = func.(λ_vals, temperature, Pₑ)
             label = nothing #string("calculated ", label_suffix)

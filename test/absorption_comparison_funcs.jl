@@ -17,6 +17,7 @@
 
 module Gray_opac_compare
 using Korg, HDF5
+using Korg.ContinuumAbsorption: Interval, closed_interval, contained
 using Interpolations: LinearInterpolation, Throw
 
 # Load Gray05 data for a given panel. This returns a tuple holding two dictionaries:
@@ -256,32 +257,18 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
-struct Bounds
-    lower::Union{Float64, Nothing}
-    upper::Union{Float64, Nothing}
-    function Bounds(lower::Union{Float64, Nothing}, upper::Union{Float64, Nothing})
-        if (!isnothing(lower)) && (!isnothing(upper)) && (lower >= upper)
-            error("lower exceeds upper")
-        end
-        new(lower,upper)
-    end
-end
-
-function inbounds(bounds::Bounds, vals::Array{F}) where F <: Real
-    map(vals) do val
-        ((isnothing(bounds.lower) || bounds.lower <= val) &&
-         (isnothing(bounds.upper) || bounds.upper >= val))
-    end |> Array{Bool}
-end
-
-
 # There appears to be some errors in the H₂⁺ opacities, skipping them for now
 const Gray05_opacity_form_funcs =
-    Dict("H"          => (HI_coefficient,         Bounds(nothing, nothing), "H I bf and ff"),
-         "Hminus_bf"  => (Hminus_bf_coefficient,  Bounds(2250.0, 15000.0),  "H⁻ bound-free"),
-         "Hminus_ff"  => (Hminus_ff_coefficient,  Bounds(2604.0, 113918.0), "H⁻ free-free"),
-         "Heminus_ff" => (Heminus_ff_coefficient, Bounds(5063.0, 151878.0), "He⁻ free-free"),
-         "H2plus"     => (H2plus_coefficient,     Bounds(3847.0, 25000.0),   "H₂⁺ ff and bf"),
+    Dict("H"          => (HI_coefficient,
+                          Interval(0, Inf), "H I bf and ff"),
+         "Hminus_bf"  => (Hminus_bf_coefficient,
+                          closed_interval(2250.0, 15000.0),  "H⁻ bound-free"),
+         "Hminus_ff"  => (Hminus_ff_coefficient,
+                          closed_interval(2604.0, 113918.0), "H⁻ free-free"),
+         "Heminus_ff" => (Heminus_ff_coefficient,
+                          closed_interval(5063.0, 151878.0), "He⁻ free-free"),
+         "H2plus"     => (H2plus_coefficient,
+                          closed_interval(3847.0, 25000.0),   "H₂⁺ ff and bf"),
          )
 
 # the absolute tolerances for values the opacity contributions from
@@ -301,7 +288,7 @@ function Gray05_comparison_vals(panel, opacity_func_name)
 
     func, bounds = Gray05_opacity_form_funcs[opacity_func_name][1:2]
 
-    w = inbounds(bounds,orig_λ_vals)
+    w = contained.(orig_λ_vals, Ref(bounds))
     calculated_vals = func.(orig_λ_vals[w], temperature, Pₑ)
     (calculated_vals*1e26, ref_data[w])
 end
