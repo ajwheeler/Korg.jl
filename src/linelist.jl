@@ -157,12 +157,13 @@ const literals = (H_I=Species("H_I"), H_II=Species("H_II"), He_I=Species("He_I")
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", s::Species)
     show(io, m, s.formula)
-    print(io, " ", roman_numerals[s.charge+1])
+    print(io, " ", get_roman_numeral(s))
 end
 
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
 get_atoms(s::Species) = get_atoms(s.formula)
+get_roman_numeral(s::Species) = roman_numeral[s.charge+1]
 
 #This type represents an individual line.
 struct Line{F} 
