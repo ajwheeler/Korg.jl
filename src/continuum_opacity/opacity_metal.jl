@@ -253,10 +253,10 @@ function _get_cross_sec_data(species::Species,
     my_cross_sec_file = if isnothing(cross_sec_file)
         # determine the string representation of Species
         # we don't directly use repr(species) since the representation could change in the future
-        # to not use roman numerals (e.g. if support is added for negatively charged species)
+        # to not use roman numeral (e.g. if support is added for negatively charged species)
         formula_str = repr("text/plain", species.formula)
-        roman_numerals = get_roman_numerals(species)
-        fname = string(formula_str, "_", roman_numerals, ".txt")
+        roman_numeral = get_roman_numeral(species)
+        fname = string(formula_str, "_", roman_numeral, ".txt")
 
         println("cross_sec_file isn't specified. Searching for file in the directory specified ",
                 "by the KORG_OP_DIR environment variable.")

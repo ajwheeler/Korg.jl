@@ -1,5 +1,5 @@
 """
-assert_allclose(actual, reference; [rtol], [atol], [err_msg], [error_location_fmt])
+    assert_allclose(actual, reference; [rtol], [atol], [err_msg], [error_location_fmt])
 
 Raises an assertion exception when any entries in `actual` and `reference` are not equal up to the
 desired tolerance. In other words, all entries of `actual` and `reference` must satisfy:
@@ -33,7 +33,7 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
 
     # now let's provide a detailed error message (this can take longer):
 
-    # first, let's determine what the max error is (and possibly where it happended)
+    # determine what the max error is (and possibly where it happended)
     diff = abs.(actual .- reference)
     max_abs_diff_loc = argmax(diff)
     max_abs_diff = diff[max_abs_diff_loc]
@@ -42,24 +42,20 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     max_rel_error_magnitude_loc = argmax(relative_diff)
     max_rel_error_magnitude = relative_diff[max_rel_error_magnitude_loc]
 
+    # format the message
     lines = isnothing(err_msg) ? [] : [err_msg]
-    push!(lines, string("The arrays aren't consistent to within atol = ", atol,
-                        " rtol = ", rtol))
+    push!(lines, "The arrays aren't consistent to within atol = $atol, rtol = $rtol")
 
-    if (max_rel_error_magnitude == -1.0) && ((rtol != 0.0) || (atol == 0.0))
-        push!(lines, "Max Rel Diff Magnitude: ∞")
-    elseif ((rtol != 0.0) || (atol == 0.0)) && isnothing(max_rel_error_magnitude_loc)
-        push!(lines, string("Max Rel Diff Magnitude: ", max_rel_error_magnitude))
-    elseif ((rtol != 0.0) || (atol == 0.0))
-        push!(lines, string("Max Rel Diff Magnitude: ", max_rel_error_magnitude, " at ",
-                            error_location_fmt(max_rel_error_magnitude_loc)))
+    if (rtol != 0.0) || (rtol == atol == 0.0)
+        suffix = (common_layout) ? " at " * error_location_fmt(max_rel_error_magnitude_loc) : ""
+        push!(lines, string("Max Rel Diff Magnitude: ",
+                            isinf(max_rel_error_magnitude) ? "∞" : max_rel_error_magnitude,
+                            suffix))
     end
 
-    if ((atol != 0.0) || (rtol == 0.0)) && isnothing(max_abs_diff_loc)
-        push!(lines, string("Max Abs Diff Magnitude: ", max_abs_diff))
-    elseif ((atol != 0.0) || (rtol == 0.0))
-        push!(lines, string("Max Abs Diff Magnitude: ", max_abs_diff, " at ",
-                            error_location_fmt( max_abs_diff_loc)))
+    if (atol != 0.0) || (rtol == atol == 0.0)
+        suffix = (common_layout) ? " at " * error_location_fmt(ax_abs_diff_loc) : ""
+        push!(lines, string("Max Abs Diff Magnitude: ", max_abs_diff, suffix))
     end
 
     throw(ErrorException(join(lines, "\n")))
@@ -67,10 +63,11 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
 end
 
 """
-assert_allclose_grid(actual, reference, independent_vars; [rtol], [atol], [err_msg])
+    assert_allclose_grid(actual, reference, independent_vars; [rtol], [atol], [err_msg])
 
-This function is a convenience wrapper around assert_allclose that provides slightly nicer error 
-messages when actual and reference have the same shape. 
+This function is a convenience wrapper around `assert_allclose` that provides slightly nicer error
+messages based on the independent variables generating the grid.  It requires that `actual` and
+`reference` have the same shape.
 
 `independent_vars` should be a `ndims(actual)` element array. The ith element of `independent_vars` 
 should be 2-tuple or 3-tuple:
@@ -82,27 +79,21 @@ function assert_allclose_grid(actual, reference, independent_vars; kwargs...)
     @assert length(independent_vars) == ndims(actual)
 
     function error_location_fmt(index)
-        tmp = []
-        for ax in 1:ndims(actual)
-            name, vals, units = if length(independent_vars[ax]) == 2
-                _name, _vals = independent_vars[ax]
-                _name, _vals, nothing
-            elseif length(independent_vars[ax]) == 3
-                independent_vars[ax]
-            else
-                throw(string("independent_vars[",ax,"] should only have 2 or 3 elements"))
-            end
-            if length(vals) != size(actual)[ax]
-                throw(string("length(independent_vars[",ax,"][2]) should be ", length(vals)))
+        ax_strs = map(1:ndims(actual)) do ax
+            if length(independent_vars[ax]) ∉ [2,3]
+                error("independent_vars[$ax] should only have 2 or 3 elements")
             end
 
-            if isnothing(units)
-                push!(tmp, string(name, " = ", vals[index[ax]]))
-            else
-                push!(tmp, string(name, " = ", vals[index[ax]], " ", units))
+            name, vals = independent_vars[ax][1:2]
+            unit_suffix = (length(independent_vars[ax]) == 3) ? " $(independent_vars[ax][3])" : ""
+
+            if length(vals) != size(actual)[ax]
+                error("length(independent_vars[$ax][2]) should be $(length(vals))")
             end
+
+            "$name = $(vals[index[ax]])" * unit_suffix
         end
-        join(tmp, ", ")
+        join(ax_strs, ", ")
     end
     assert_allclose(actual, reference; error_location_fmt = error_location_fmt, kwargs...)
 end
