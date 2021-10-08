@@ -20,11 +20,11 @@ shape, the locations of the max errors are also printed.
 function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = nothing,
                          error_location_fmt = nothing)
     # make the initial check fast!
-    if !any( abs.(actual .- reference) .> (rtol .* abs.(reference) .+ atol))
+    if all( abs.(actual .- reference) .<= (rtol .* abs.(reference) .+ atol))
         return true
     end
 
-    common_layout = (size(actual) == size(reference)) && (ndims(actual) == ndims(reference))
+    common_layout = size(actual) == size(reference)
     if isnothing(error_location_fmt)
         error_location_fmt = (arg) -> string(arg.I)
     elseif !common_layout
@@ -34,33 +34,13 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     # now let's provide a detailed error message (this can take longer):
 
     # first, let's determine what the max error is (and possibly where it happended)
-    max_rel_error_magnitude = -1.0
-    max_rel_error_magnitude_loc = nothing
-    max_abs_diff = 0.0
-    max_abs_diff_loc = nothing
-    function func(actual_val, ref_val; index = nothing)
-        cur_abs_diff = abs(actual_val - ref_val)
-        if max_abs_diff < cur_abs_diff
-            max_abs_diff = cur_abs_diff
-            max_abs_diff_loc = index
-        end
+    diff = abs.(actual .- reference)
+    max_abs_diff_loc = argmax(diff)
+    max_abs_diff = diff[max_abs_diff_loc]
 
-        if ref_val != 0.0
-            cur_rel_error_mag = cur_abs_diff / abs(ref_val)
-            if max_rel_error_magnitude < cur_rel_error_mag
-                max_rel_error_magnitude = cur_rel_error_mag
-                max_rel_error_magnitude_loc = index
-            end
-        end
-    end
-
-    if common_layout
-        for index in CartesianIndices(size(actual))
-            func(actual[index], reference[index]; index = index)
-        end
-    else
-        func.(actual, reference)
-    end
+    relative_diff = diff ./ abs.(reference)
+    max_rel_error_magnitude_loc = argmax(relative_diff)
+    max_rel_error_magnitude = relative_diff[max_rel_error_magnitude_loc]
 
     lines = isnothing(err_msg) ? [] : [err_msg]
     push!(lines, string("The arrays aren't consistent to within atol = ", atol,

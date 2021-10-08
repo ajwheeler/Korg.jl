@@ -190,23 +190,22 @@ function Base.iterate(itr::EachPhotoIonSubtable, state=nothing)
       cross_section_MegaBarn_arr = cross_section_MegaBarn), nothing)
 end
 
+# this and the following definition implement Julia's informal iterator interface
 Base.eltype(::Type{<:EachPhotoIonSubtable}) =
     Tuple{String, StateID, Float32, Array{Float32,1}, Array{Float32,1}}
-
 Base.IteratorSize(::Type{<:EachPhotoIonSubtable}) = SizeUnknown()
 
-
-_species_with_problematic_subtables = (Species("He_I"), Species("C_I"), Species("C_II"),
-                                       Species("Al_II"), Species("O_II"))
+# In a couple tables, there's a place where the photon energy is listed out of order. This seems to
+# be okay given that this is in a section of the table where the cross-section is zero.
+const _species_with_problematic_subtables = (Species("He_I"), Species("C_I"), Species("C_II"),
+                                             Species("Al_II"), Species("O_II"))
 
 function _interpolator_from_subtable(table_photon_energy_ryd::Vector{Float32},
                                      table_cross_section_MBarn::Vector{Float32},
                                      species::Union{Species,Nothing} = nothing,
                                      extrapolation_bc = 0.0)
     if species in _species_with_problematic_subtables
-        # In a couple tables, there's a place where the photon energy is listed out of order
-        # This seems to be okay given that this is in a section of the table where the
-        # cross-section is zero.
+        
         for j in 1:length(table_photon_energy_ryd)-1
             if table_photon_energy_ryd[j+1] < table_photon_energy_ryd[j]
                 @assert j > 1
@@ -287,9 +286,9 @@ end
                                       partition_func = partition_funcs[species])
 
 Calculate the combined bound-free cross section (in cm²) of an ion species using data from the
-Opacity Project. The result includes contributions from all (provided) energy states, weighted by
-the Boltzmann distribution, and includes the LTE correction for stimulated emission. The result is
-stored in a 2D array with a size given by `(length(λ_vals), length(T_vals))`.
+Opacity Project. The result is the mean of the the bound-free cross section of each electron state,
+weighted by their Boltzmann probabilities. It includes the LTE correction for stimulated emission. 
+The result is stored in a 2D array with a size given by `(length(λ_vals), length(T_vals))`.
 
 # Arguments
 - `λ_vals::AbstractVector`: wavelengths (in cm) to compute the cross sections at
@@ -311,18 +310,18 @@ stored in a 2D array with a size given by `(length(λ_vals), length(T_vals))`.
 # Explanation
 In more mathematical rigor, this function basically evaluates the following equation:
 
-``\overline{\sigma_{{\rm bf},s}}(\lambda,T) = \sum_{{\bf n}\in{\rm states}} \frac{ g_{s,{\bf n}}}{U_s(T)} e^{-E_{s,{\bf n}}/(k_B T)}\left(1 - e^{-h c/(\lambda k_B T)}\right) \sigma_{{\rm bf}, s,{\bf n}}(\lambda)``
+``\overline{\sigma_{\rm bf}}(\lambda,T) = \sum_{{\bf n}\in{\rm states}} \frac{ g_{\bf n}}{U(T)} e^{-E_{\bf n}/(k_B T)}\left(1 - e^{-h c/(\lambda k_B T)}\right) \sigma_{{\rm bf}, {\bf n}}(\lambda)``
 
-where the ``s`` subscript corresponds to a given species. In this equation:
-- ``g_{s,{\bf n}}`` is the statistical weight of state ``{\bf n}`` for species ``s``.
-- ``U_s`` is the partition function for species ``s``.
-- ``E_{s,{\bf n}}`` is the excitation potential of state ``{\bf n}`` for species ``s``. In other
-  words, its the energy difference between state ``{\bf n}`` and the ground state.
-- ``\sigma_{\lambda,{\rm bf}, s,{\bf n}}`` is the bound free cross-section (a.k.a. photo-ionization
-  cross section) of state ``{\bf n}`` for species ``s``.
+In this equation:
+- ``g_{\bf n}`` is the statistical weight of state ``{\bf n}``.
+- ``U`` is the partition function.
+- ``E_{\bf n}`` is the excitation potential of state ``{\bf n}``. In other words, its the energy 
+  difference between state ``{\bf n}`` and the ground state.
+- ``\sigma_{\lambda,{\rm bf}, {\bf n}}`` is the bound-free cross-section (a.k.a. photo-ionization
+  cross section) of state ``{\bf n}``.
 
-Under the assumption of LTE, the linear aborption coefficient for bound-free absorption is simply:
-``\alpha_{\lambda,{\rm bf},s} = n_{s,{\rm tot}} \overline{\sigma_{{\rm bf},s}}(\lambda,T)``.
+The linear aborption coefficient for bound-free absorption is simply:
+``\alpha_{\lambda,{\rm bf}} = n_{\rm tot} \overline{\sigma_{\rm bf}}(\lambda,T)``.
 
 # Notes
 In the future, it needs to be possible to pass an argument that adjusts the energy levels of

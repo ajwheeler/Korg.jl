@@ -569,11 +569,10 @@ end
         @test assert_allclose_grid(hydrogenic_α_OP[comp_ind], hydrogenic_α_dflt[comp_ind],
                                    [("λ", λ_vals[comp_ind], "Å"),];
                                    rtol = OP_compare._hydrogenic_rtol(species_name), atol = 0.0,
-                                   err_msg = string(species_name,
-                                                    "bf absorption coefficients computed using ",
-                                                    "data from the opacity\nproject are ",
-                                                    "inconsistent with the results computed\nfor ",
-                                                    "a hydrogenic atom"))
+                                   err_msg = ("\n$(species_name) bf absorption coefficients " *
+                                              "computed using data from the opacity project are " *
+                                              "inconsistent with the results computed for a " *
+                                              "hydrogenic atom"))
 
     end
 end

@@ -7,8 +7,6 @@
 using Plots, Korg
 include("../test/opacity_comparison_funcs.jl")
 
-_pos_value_extrema(arr) = extrema(filter(x->x>0, arr))
-
 function _plot_x_intervals!(p, x_intervals)
     y_lim = ylims(p)
     for i in 1:size(x_intervals)[1]
@@ -29,6 +27,7 @@ function plot_hydrogenic_comparison(species_name, T = 7800.0, ndens_species = 3.
     hydrogenic_α_dflt = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species,
                                                                       species_name;
                                                                       use_OP_data = false)
+    _pos_value_extrema(arr) = extrema(filter(x->x>0, arr))
     ylims = extrema((_pos_value_extrema(hydrogenic_α_OP)...,
                      _pos_value_extrema(hydrogenic_α_dflt)...))
     if isnothing(p)
