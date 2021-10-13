@@ -43,7 +43,11 @@ function transfer_integral(τ, S; plane_parallel=true)
 end
 
 """
-TODO
+    spherical_transfer(R, radii, α, S, μ_surface_grid)
+
+Perform radiative transfer along rays emerging at the μ values in `μ_surface_grid` in a spherically
+symmetric atmosphere with outer radius `R` [cm], and absorption coefficient, `α`, and source 
+function, `S`, resolved at radii `radii` [cm].
 """
 function spherical_transfer(R, radii, α, S, μ_surface_grid)
     r0 = radii[end] #radii of inner and outer atmosphere layers
@@ -63,7 +67,7 @@ function spherical_transfer(R, radii, α, S, μ_surface_grid)
         if i == 1 || i == 0
             I[:, μ_ind] = zeros(size(α, 2))
             continue
-        end #TODO eliminate for i == 1?
+        end #can eliminate for i == 1?
         
         #ds is the path length through each layer
         ds = -diff(@. sqrt([R ; radii[1:i]]^2 - b^2)) 
