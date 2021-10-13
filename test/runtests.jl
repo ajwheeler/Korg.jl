@@ -263,15 +263,31 @@ end
 end
 
 @testset "atmosphere" begin
-    #the MARCS solar model atmosphere
-    atmosphere = Korg.read_model_atmosphere("data/sun.krz")
-    @test length(atmosphere) == 56
-    @test issorted(first.(atmosphere))
-    @test atmosphere[1].colmass == 9.747804143e-3
-    @test atmosphere[1].temp == 4066.8
-    @test atmosphere[1].electron_number_density == 3.76980e10
-    @test atmosphere[1].number_density == 4.75478e14
-    @test atmosphere[1].density == 1.00062e-9
+    @testset "plane-parallel atmosphere" begin
+        #the MARCS solar model atmosphere
+        atm = Korg.read_model_atmosphere("data/sun.krz")
+        @test atm isa Korg.PlanarAtmosphere
+        @test length(atm.layers) == 56
+        @test issorted([l.temp for l in atm.layers])
+        @test atm.layers[1].colmass == 9.747804143e-3
+        @test atm.layers[1].temp == 4066.8
+        @test atm.layers[1].electron_number_density == 3.76980e10
+        @test atm.layers[1].number_density == 4.75478e14
+        @test atm.layers[1].density == 1.00062e-9
+    end
+    @testset "spherical atmosphere" begin
+        atm = Korg.read_model_atmosphere(
+                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
+        @test atm isa Korg.ShellAtmosphere
+        @test length(atm.layers) == 54 #drop layers hotter than 10^4 K
+        @test issorted([l.temp for l in atm.layers])
+        @test atm.layers[1].colmass == 2.847945094e-1
+        @test atm.layers[1].temp == 3949.3
+        @test atm.layers[1].electron_number_density == 1.76718e+08
+        @test atm.layers[1].number_density == 1.53962e12
+        @test atm.layers[1].density == 3.23963e-12
+        @test atm.layers[1].r == 2.24482e11 + 2.583E+12 #row value + header value
+    end
 end
 
 @testset "synthesis" begin
