@@ -363,15 +363,23 @@ end
     @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
 end
 
-@testset "autodiff" begin
+using SpecialFunctions: expint
+@testset "transfer" begin
+    xs = 2:0.01:8
+    @test Korg.exponential_integral_2.(xs) ≈ expint.(2, xs) rtol=1e-3
+end
+
+@testset "intgegration tests" begin
     using ForwardDiff
 
-    atm = read_model_atmosphere("data/sun.krz")
-    linelist = read_linelist("data/linelists/5000-5005.vald")
-    wls = 5000:0.01:5005
-    flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
-                         vmic=p[3]).flux
-
-    #make sure this works.
-    ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+    for atm_file in ["data/sun.krz",
+             "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz"]
+        atm = read_model_atmosphere(atm_file)
+        linelist = read_linelist("data/linelists/5000-5005.vald")
+        wls = 5000:0.01:5005
+        flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
+                             vmic=p[3]).flux
+        #make sure this works.
+        ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+    end
 end
