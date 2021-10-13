@@ -163,7 +163,7 @@ end
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
 get_atoms(s::Species) = get_atoms(s.formula)
-get_roman_numeral(s::Species) = roman_numeral[s.charge+1]
+get_roman_numeral(s::Species) = roman_numerals[s.charge+1]
 
 #This type represents an individual line.
 struct Line{F} 
