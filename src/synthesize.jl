@@ -22,7 +22,8 @@ Optional arguments:
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
   calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
-- `mu_grid`
+- `mu_grid`: the range of (surface) μ values at which to calculate the surface flux when doing 
+   transfer in spherical geometry (when `atm` is a `ShellAtmosphere`).
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
