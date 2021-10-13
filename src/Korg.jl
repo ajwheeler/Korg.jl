@@ -10,6 +10,7 @@ module Korg
     include("read_statmech_quantities.jl") #approximate Us, Ks, chis
     include("statmech.jl")                 #statistical mechanics, molecular equilibrium
     include("atmosphere.jl")               #parse model atmospheres
+    include("transfer.jl")                 #radiative transfer integrals
 
     #load data when the package is imported. 
     const ionization_energies = setup_ionization_energies()

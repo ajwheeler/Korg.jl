@@ -265,15 +265,44 @@ end
 end
 
 @testset "atmosphere" begin
-    #the MARCS solar model atmosphere
-    atmosphere = Korg.read_model_atmosphere("data/sun.krz")
-    @test length(atmosphere) == 56
-    @test issorted(first.(atmosphere))
-    @test atmosphere[1].colmass == 9.747804143e-3
-    @test atmosphere[1].temp == 4066.8
-    @test atmosphere[1].electron_density == 3.76980e10
-    @test atmosphere[1].number_density == 4.75478e14
-    @test atmosphere[1].density == 1.00062e-9
+    @testset "plane-parallel atmosphere" begin
+        #the MARCS solar model atmosphere
+        atm = Korg.read_model_atmosphere("data/sun.krz")
+        @test atm isa Korg.PlanarAtmosphere
+        @test length(atm.layers) == 56
+        @test issorted([l.temp for l in atm.layers])
+        @test atm.layers[1].colmass == 9.747804143e-3
+        @test atm.layers[1].temp == 4066.8
+        @test atm.layers[1].electron_number_density == 3.76980e10
+        @test atm.layers[1].number_density == 4.75478e14
+        @test atm.layers[1].density == 1.00062e-9
+    end
+    @testset "spherical atmosphere" begin
+        atm = Korg.read_model_atmosphere(
+                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
+        @test atm isa Korg.ShellAtmosphere
+        @test length(atm.layers) == 54 #drop layers hotter than 10^4 K
+        @test issorted([l.temp for l in atm.layers])
+        @test atm.layers[1].colmass == 2.847945094e-1
+        @test atm.layers[1].temp == 3949.3
+        @test atm.layers[1].electron_number_density == 1.76718e+08
+        @test atm.layers[1].number_density == 1.53962e12
+        @test atm.layers[1].density == 3.23963e-12
+        @test atm.layers[1].r == 2.24482e11 + 2.583E+12 #row value + header value
+    end
+
+    @testset "atmosphere type conversion" begin
+        atm = Korg.read_model_atmosphere("data/sun.krz")
+        atm2 = Korg.PlanarAtmosphere(Korg.ShellAtmosphere(atm, 7e10)) #arbitrary radius
+        @test atm.layers == atm2.layers
+
+        atm = Korg.read_model_atmosphere(
+                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
+        R = atm.layers[1].r + 0.5(atm.layers[1].r - atm.layers[2].r)
+        atm2 = Korg.ShellAtmosphere(Korg.PlanarAtmosphere(atm), R)
+        @test [l.temp for l in atm.layers] == [l.temp for l in atm2.layers]
+        @test [l.r for l in atm.layers] ≈ [l.r for l in atm2.layers] rtol=1e-3
+    end
 end
 
 @testset "synthesis" begin
@@ -336,15 +365,23 @@ end
     @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
 end
 
+using SpecialFunctions: expint
+@testset "transfer" begin
+    xs = 2:0.01:8
+    @test Korg.exponential_integral_2.(xs) ≈ expint.(2, xs) rtol=1e-3
+end
+
 @testset "autodiff" begin
     using ForwardDiff
 
-    atm = read_model_atmosphere("data/sun.krz")
-    linelist = read_linelist("data/linelists/5000-5005.vald")
-    wls = 5000:0.01:5005
-    flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
-                         vmic=p[3]).flux
-
-    #make sure this works.
-    ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+    for atm_file in ["data/sun.krz",
+             "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz"]
+        atm = read_model_atmosphere(atm_file)
+        linelist = read_linelist("data/linelists/5000-5005.vald")
+        wls = 5000:0.01:5005
+        flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
+                             vmic=p[3]).flux
+        #make sure this works.
+        ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+    end
 end

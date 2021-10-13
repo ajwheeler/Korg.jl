@@ -1,4 +1,4 @@
-using Interpolations: LinearInterpolation, Flat
+using Interpolations: LinearInterpolation, Flat, lbounds, ubounds
 using SpecialFunctions: gamma
 using HDF5
 
@@ -142,8 +142,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
     F0 = 1.25e-9 * nₑ^(2/3)
     α_hlines = zeros(length(λs))
     for line in hline_stark_profiles
-        if !all(Interpolations.lbounds(line.λ0.itp)[1:2] 
-                .< (T, nₑ) .< Interpolations.ubounds(line.λ0.itp)[1:2])
+        if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
             continue #transitions to high levels are omitted for high nₑ and T
         end
         λ₀ = line.λ0(T, nₑ)
