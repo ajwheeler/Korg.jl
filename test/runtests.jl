@@ -369,7 +369,7 @@ using SpecialFunctions: expint
     @test Korg.exponential_integral_2.(xs) ≈ expint.(2, xs) rtol=1e-3
 end
 
-@testset "intgegration tests" begin
+@testset "autodiff" begin
     using ForwardDiff
 
     for atm_file in ["data/sun.krz",
