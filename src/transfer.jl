@@ -65,7 +65,7 @@ function spherical_transfer(R, radii, α, S, μ_surface_grid)
             i -= 1
         end
         if i == 1 || i == 0
-            I[:, μ_ind] = zeros(size(α, 2))
+            I[:, μ_ind] .= 0
             continue
         end #can eliminate for i == 1?
         
