@@ -288,6 +288,19 @@ end
         @test atm.layers[1].density == 3.23963e-12
         @test atm.layers[1].r == 2.24482e11 + 2.583E+12 #row value + header value
     end
+
+    @testset "atmosphere type conversion" begin
+        atm = Korg.read_model_atmosphere("data/sun.krz")
+        atm2 = Korg.PlanarAtmosphere(Korg.ShellAtmosphere(atm, 7e10)) #arbitrary radius
+        @test atm.layers == atm2.layers
+
+        atm = Korg.read_model_atmosphere(
+                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
+        R = atm.layers[1].r + 0.5(atm.layers[1].r - atm.layers[2].r)
+        atm2 = Korg.ShellAtmosphere(Korg.PlanarAtmosphere(atm), R)
+        @test [l.temp for l in atm.layers] == [l.temp for l in atm2.layers]
+        @test [l.r for l in atm.layers] ≈ [l.r for l in atm2.layers] rtol=1e-3
+    end
 end
 
 @testset "synthesis" begin
