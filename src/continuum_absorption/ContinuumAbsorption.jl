@@ -15,6 +15,7 @@ include("absorption_H.jl")
 export He_II_bf, He_II_ff, Heminus_ff
 include("absorption_He.jl")
 
+include("absorption_ff_metal.jl")
 include("scattering.jl")
 
 # the following are only imported for computing experimental metal bf continuum opacities
