@@ -5,6 +5,10 @@ Spec Ion        WL_vac(A)  log gf* E_low(eV) J lo E_up(eV)  J up   lower   upper
 '  LS                                                             3d2.(3P).4s.4p.(3P*) z5S*'
 '  LS                                                                     3d2.4s.(2D).5s 3D'
 '_          Kurucz TiI 2016 Ti               1 wl:K16   1 gf:K16   1 K16   1 K16   1 K16   1 K16   1 K16   1 K16   1 K16'
+'Ti 1',        5000.1235, -0.760,  3.1124,  2.0,  5.5920,  3.0,  1.930,  1.360,  0.780, 7.970,-5.260,  -7.540, 0.018,
+'  LS                                                             3d2.(3P).4s.4p.(3P*) z5S*'
+'  LS                                                                     3d2.4s.(2D).5s 3D'
+'_          Kurucz TiI 2016 Ti               1 wl:K16   1 gf:K16   1 K16   1 K16   1 K16   1 K16   1 K16   1 K16   1 K16'
 'castelli_ap00k2_T05750G40.krz',
 'H :  0.92','He: -1.11',
 'Li:-10.94','Be:-10.64','B : -9.49','C : -3.52','N : -4.12','O : -3.21',

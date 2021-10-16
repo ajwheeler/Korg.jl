@@ -189,14 +189,18 @@ end
         @testset "vald various formats" begin
             short_all = read_linelist("data/linelists/short-extract-all.vald")
             long_all_cm_air = read_linelist("data/linelists/long-extract-all-air-wavenumber.vald")
+            long_all_cm_air_noquotes = read_linelist("data/linelists/long-extract-all-air-wavenumber-noquotes.vald")
             short_stellar = read_linelist("data/linelists/short-extract-stellar.vald")
             long_stellar = read_linelist("data/linelists/long-extract-stellar.vald")
 
             @test (length(short_all) == length(short_stellar) == length(long_all_cm_air) == 
-                   length(long_stellar) == 1)
+                   length(long_all_cm_air_noquotes) == length(long_stellar) == 2)
 
+            #these should be identical since there was no unit conversion
+            @test long_all_cm_air[1] == long_all_cm_air_noquotes[1]
             @test short_all[1] == short_stellar[1] == long_stellar[1]
 
+            #when there was unit conversion, they should be approximately equal
             @test short_all[1].wl ≈ long_all_cm_air[1].wl
             @test short_all[1].log_gf == long_all_cm_air[1].log_gf
             @test short_all[1].species == long_all_cm_air[1].species
