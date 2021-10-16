@@ -362,7 +362,10 @@ function parse_vald_linelist(f)
                             ":isotopic abundance."))
     end
 
-    shortformat = !(occursin(r"^\' ", lines[firstline + 1])) #vald short or long format
+    #we take the linelist to be long-format when the second line after the header starts with a 
+    #space or a single quote followed a space.  In some linelists the quotes are there, but in 
+    #others they are not.
+    shortformat = !(occursin(r"^\'? ", lines[firstline + 1])) 
     body = lines[firstline : (shortformat ? 1 : 4) : end]
     body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
     
