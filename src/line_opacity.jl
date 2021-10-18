@@ -58,6 +58,9 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, part
 
         if !isnothing(α_cntm)
             α_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm]
+            if all(amplitude ./ α_crit .< 1e-10)
+                continue
+            end
             Δλ_crit = @. sqrt(amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
             window_size = max(maximum(4Δλ_D), maximum(Δλ_crit))
         end
