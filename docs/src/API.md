@@ -2,33 +2,41 @@ This page docuements the Korg API for users of the package. Low-level functions 
 digging into the guts of Korg will be interested in can be found on the 
 [developer documentation](../devdocs).
 
-# top-level functions
+# Top-level functions
 If you are synthesize a spectrum Korg, these are the functions you will call.  
 These functions are exported, so if you do `using Korg`, you can call them unquallified (i.e.
 `synthesize` instead of `Korg.synthesize`).  
 
 ```@docs
 synthesize
-read_line_list
+read_linelist
 read_model_atmosphere
-constant_R_LSF
-rectify
 ```
 
-# Secondary functions.
+# Secondary functions
 You don't need use these to synthesize spectra, but they might be relevant depending on what you are 
 doing.
 
-## line absorption 
+## Postprocessing
+These are used to transform observational or synthetic spectra.
+
+```@docs
+Korg.rectify
+Korg.constant_R_LSF
+```
+
+## Line absorption 
 These functions can be used to directly compute line opacities. 
 
 ```@docs
 Korg.line_absorption
 Korg.line_profile
+Korg.hydrogen_line_absorption
+Korg.setup_hydrogen_stark_profiles
 Korg.voigt
 ```
 
-## continuum absorption
+## Continuum absorption
 These function can be used to directly compute continuum opacities.
 
 ```@docs
@@ -44,7 +52,7 @@ Korg.ContinuumOpacity.Heminus_ff
 Korg.ContinuumOpacity.electron_scattering
 ```
 
-## statistical mechanics
+## Statistical mechanics
 These functions can be used to calculate the number densities of all species in a given atospheric 
 layer, or other statmech calculations. 
 
@@ -54,9 +62,11 @@ Korg.molecular_equilibrium_equations
 Korg.molecular_equilibrium
 ```
 
-## misc
+## Misc
 
 ```@docs
 Korg.blackbody
 Korg.get_absolute_abundances
+Korg.air_to_vacuum
+Korg.vacuum_to_air
 ```

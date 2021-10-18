@@ -3,4 +3,6 @@
 
 1D LTE stellar spectral synthesis in pure julia.
 
+_Korg is in beta, but it will be ready for you to use very soon :)_
+
 [Read the docs!](https://ajwheeler.github.io/Korg.jl/dev/)

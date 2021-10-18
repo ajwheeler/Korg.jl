@@ -138,17 +138,19 @@ end
                                                           format="abc")
         @test_throws ArgumentError read_linelist("data/linelists/no-isotopic-scaling.vald")
 
-        kurucz_ll = read_linelist("data/linelists/gfallvac08oct17.stub.dat", format="kurucz")
         @testset "kurucz linelist parsing" begin
-            @test issorted(kurucz_ll, by=l->l.wl)
-            @test length(kurucz_ll) == 987
-            @test kurucz_ll[1].wl ≈ 72320.699 * 1e-8
-            @test kurucz_ll[1].log_gf == -0.826
-            @test kurucz_ll[1].species == Korg.Species("Be_II")
-            @test kurucz_ll[1].E_lower ≈ 17.360339371573698
-            @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
-            @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
-            @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
+            for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
+                kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")
+                @test issorted(kurucz_ll, by=l->l.wl)
+                @test length(kurucz_ll) == 987
+                @test kurucz_ll[1].wl ≈ 0.0007234041763337705
+                @test kurucz_ll[1].log_gf == -0.826
+                @test kurucz_ll[1].species == Korg.Species("Be_II")
+                @test kurucz_ll[1].E_lower ≈ 17.360339371573698
+                @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
+                @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
+                @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
+            end
         end
 
         @testset "vald short format, ABO, missing params" begin
@@ -187,14 +189,18 @@ end
         @testset "vald various formats" begin
             short_all = read_linelist("data/linelists/short-extract-all.vald")
             long_all_cm_air = read_linelist("data/linelists/long-extract-all-air-wavenumber.vald")
+            long_all_cm_air_noquotes = read_linelist("data/linelists/long-extract-all-air-wavenumber-noquotes.vald")
             short_stellar = read_linelist("data/linelists/short-extract-stellar.vald")
             long_stellar = read_linelist("data/linelists/long-extract-stellar.vald")
 
             @test (length(short_all) == length(short_stellar) == length(long_all_cm_air) == 
-                   length(long_stellar) == 1)
+                   length(long_all_cm_air_noquotes) == length(long_stellar) == 2)
 
+            #these should be identical since there was no unit conversion
+            @test long_all_cm_air[1] == long_all_cm_air_noquotes[1]
             @test short_all[1] == short_stellar[1] == long_stellar[1]
 
+            #when there was unit conversion, they should be approximately equal
             @test short_all[1].wl ≈ long_all_cm_air[1].wl
             @test short_all[1].log_gf == long_all_cm_air[1].log_gf
             @test short_all[1].species == long_all_cm_air[1].species
@@ -263,15 +269,44 @@ end
 end
 
 @testset "atmosphere" begin
-    #the MARCS solar model atmosphere
-    atmosphere = Korg.read_model_atmosphere("data/sun.krz")
-    @test length(atmosphere) == 56
-    @test issorted(first.(atmosphere))
-    @test atmosphere[1].colmass == 9.747804143e-3
-    @test atmosphere[1].temp == 4066.8
-    @test atmosphere[1].electron_density == 3.76980e10
-    @test atmosphere[1].number_density == 4.75478e14
-    @test atmosphere[1].density == 1.00062e-9
+    @testset "plane-parallel atmosphere" begin
+        #the MARCS solar model atmosphere
+        atm = Korg.read_model_atmosphere("data/sun.krz")
+        @test atm isa Korg.PlanarAtmosphere
+        @test length(atm.layers) == 56
+        @test issorted([l.temp for l in atm.layers])
+        @test atm.layers[1].colmass == 9.747804143e-3
+        @test atm.layers[1].temp == 4066.8
+        @test atm.layers[1].electron_number_density == 3.76980e10
+        @test atm.layers[1].number_density == 4.75478e14
+        @test atm.layers[1].density == 1.00062e-9
+    end
+    @testset "spherical atmosphere" begin
+        atm = Korg.read_model_atmosphere(
+                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
+        @test atm isa Korg.ShellAtmosphere
+        @test length(atm.layers) == 54 #drop layers hotter than 10^4 K
+        @test issorted([l.temp for l in atm.layers])
+        @test atm.layers[1].colmass == 2.847945094e-1
+        @test atm.layers[1].temp == 3949.3
+        @test atm.layers[1].electron_number_density == 1.76718e+08
+        @test atm.layers[1].number_density == 1.53962e12
+        @test atm.layers[1].density == 3.23963e-12
+        @test atm.layers[1].r == 2.24482e11 + 2.583E+12 #row value + header value
+    end
+
+    @testset "atmosphere type conversion" begin
+        atm = Korg.read_model_atmosphere("data/sun.krz")
+        atm2 = Korg.PlanarAtmosphere(Korg.ShellAtmosphere(atm, 7e10)) #arbitrary radius
+        @test atm.layers == atm2.layers
+
+        atm = Korg.read_model_atmosphere(
+                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
+        R = atm.layers[1].r + 0.5(atm.layers[1].r - atm.layers[2].r)
+        atm2 = Korg.ShellAtmosphere(Korg.PlanarAtmosphere(atm), R)
+        @test [l.temp for l in atm.layers] == [l.temp for l in atm2.layers]
+        @test [l.r for l in atm.layers] ≈ [l.r for l in atm2.layers] rtol=1e-3
+    end
 end
 
 @testset "synthesis" begin
@@ -319,30 +354,38 @@ end
 
 @testset "air <--> vacuum" begin
     wls = collect(2000.0:π:10000.0)
-    @test vacuum_to_air.(air_to_vacuum.(wls)) ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls)) ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls)) ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)) ≈ wls rtol=1e-3
 
     #try it in cgs
     wls .*= 1e8
-    @test vacuum_to_air.(air_to_vacuum.(wls)) ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls)) ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls)) ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)) ≈ wls rtol=1e-3
 
     #units should be automatically chosen
-    @test vacuum_to_air.(air_to_vacuum.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
-    @test vacuum_to_air.(air_to_vacuum.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
-    @test air_to_vacuum.(vacuum_to_air.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls*1e-8)*1e8) ≈ wls rtol=1e-3
+    @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
+    @test Korg.air_to_vacuum.(Korg.vacuum_to_air.(wls)*1e8)*1e-8 ≈ wls rtol=1e-3
+end
+
+using SpecialFunctions: expint
+@testset "transfer" begin
+    xs = 2:0.01:8
+    @test Korg.exponential_integral_2.(xs) ≈ expint.(2, xs) rtol=1e-3
 end
 
 @testset "autodiff" begin
     using ForwardDiff
 
-    atm = read_model_atmosphere("data/sun.krz")
-    linelist = read_linelist("data/linelists/5000-5005.vald")
-    wls = 5000:0.01:5005
-    flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
-                         vmic=p[3]).flux
-
-    #make sure this works.
-    ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+    for atm_file in ["data/sun.krz",
+             "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz"]
+        atm = read_model_atmosphere(atm_file)
+        linelist = read_linelist("data/linelists/5000-5005.vald")
+        wls = 5000:0.01:5005
+        flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
+                             vmic=p[3]).flux
+        #make sure this works.
+        ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+    end
 end

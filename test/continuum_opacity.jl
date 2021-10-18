@@ -1,4 +1,5 @@
 include("opacity_comparison_funcs.jl")
+include("utilities.jl")
 
 function _calc_Hminus_ff_absorption_coef(ν, T)
     # We invert the H⁻ opacity to solve for the absorption coefficient:
@@ -99,9 +100,9 @@ end
     @test check_Hminus_ff_values(0.0225)
     # we only have measurements for b and c
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
-        calculated, ref = Gray05_comparison_vals(panel,"Hminus_ff")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -166,9 +167,9 @@ end
 @testset "H⁻ bound-free opacity" begin
     @test check_Hminus_bf_values(0.0025)
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["a", "b", "c"]
-        calculated, ref = Gray05_comparison_vals(panel,"Hminus_bf")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_bf")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
     @testset "Extreme wavelengths" begin
         # this tests the opacity function at wavelengths outside of the Wishart (1979) table
@@ -266,9 +267,9 @@ end
     # this really only amounts to a sanity check because the absolute tolerance is of the same
     # magnitude as the actual values
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
-        calculated, ref = Gray05_comparison_vals(panel,"Heminus_ff")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Heminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -316,9 +317,9 @@ end
 @testset "combined H₂⁺ ff and bf opacity" begin
     @test check_H2plus_ff_and_bf_opacity(0.015)
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b"]
-        calculated, ref = Gray05_comparison_vals(panel,"H2plus")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H2plus")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray05_atols[panel])
+        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -538,8 +539,40 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
                                                                           ("c",0.125),
                                                                           ("d",35)]
-        calculated, ref = Gray05_comparison_vals(panel,"H")
+        calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
         @test all(calculated .≥ 0.0)
         @test all(abs.(calculated - ref) .≤ atol)
+    end
+end
+
+
+@testset "TOPbase bound-free opacities" begin
+    T = 7800.0 #K, this is fairly arbitrary
+    ndens_species = 3.0e16 #cm⁻³, this is fairly arbitrary
+
+    @testset "$species_name comparison" for species_name in ["H_I", "He_II"]
+        λ_vals = OP_compare._dflt_λ_vals(species_name)
+
+        # compute the absorption coefficients using the TOPbase data
+        hydrogenic_α_OP = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
+                                                                        species_name;
+                                                                        use_OP_data = true)
+        # compute the absorption coefficients using our function for hydrogenic atoms
+        hydrogenic_α_dflt = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
+                                                                          species_name;
+                                                                          use_OP_data = false)
+
+        λ_comp_intervals = OP_compare._λ_comp_intervals(species_name)
+        comp_ind = map(λ_vals) do λ
+            any(λ_comp_intervals[:, 1] .<= λ .<= λ_comp_intervals[:, 2])
+        end
+        @test assert_allclose_grid(hydrogenic_α_OP[comp_ind], hydrogenic_α_dflt[comp_ind],
+                                   [("λ", λ_vals[comp_ind], "Å"),];
+                                   rtol = OP_compare._hydrogenic_rtol(species_name), atol = 0.0,
+                                   err_msg = ("\n$(species_name) bf absorption coefficients " *
+                                              "computed using data from the opacity project are " *
+                                              "inconsistent with the results computed for a " *
+                                              "hydrogenic atom"))
+
     end
 end

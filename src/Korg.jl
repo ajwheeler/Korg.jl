@@ -1,6 +1,5 @@
 module Korg
-    export synthesize, constant_R_LSF, rectify, air_to_vacuum, vacuum_to_air, read_linelist, 
-            read_model_atmosphere
+    export synthesize, read_linelist, read_model_atmosphere
 
     _data_dir = joinpath(@__DIR__, "../data") 
 
@@ -11,6 +10,7 @@ module Korg
     include("read_statmech_quantities.jl") #approximate Us, Ks, chis
     include("statmech.jl")                 #statistical mechanics, molecular equilibrium
     include("atmosphere.jl")               #parse model atmospheres
+    include("transfer.jl")                 #radiative transfer integrals
 
     #load data when the package is imported. 
     const ionization_energies = setup_ionization_energies()

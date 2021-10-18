@@ -13,4 +13,9 @@ export He_II_bf, He_II_ff, Heminus_ff
 include("opacity_He.jl")
 
 include("scattering.jl")
+
+# the following are only imported for computing experimental metal bf continuum opacities
+using ..Korg: partition_funcs, Species, Formula, ismolecule, get_roman_numeral
+export absorption_coef_bf_TOPBase
+include("opacity_metal.jl")
 end

@@ -18,8 +18,7 @@
 #     OUTPUT_NAME the location where the opacity will be saved
 
 
-using Plots
-include("../src/Korg.jl")
+using Plots, Korg
 include("../test/opacity_comparison_funcs.jl")
            
 function gen_plot(plot_fname, temperature, Pₑ, panel_dict)
@@ -29,9 +28,9 @@ function gen_plot(plot_fname, temperature, Pₑ, panel_dict)
 
         plot!(p[1], orig_λ_vals, orig_data, label = key,
               color = i)
-        if haskey(Gray05_opacity_form_funcs, key)
-            func, bounds, label_suffix = Gray05_opacity_form_funcs[key]
-            w = inbounds(bounds,orig_λ_vals)
+        if haskey(Gray_opac_compare.Gray05_opacity_form_funcs, key)
+            func, bounds, label_suffix = Gray_opac_compare.Gray05_opacity_form_funcs[key]
+            w = Gray_opac_compare.inbounds(bounds,orig_λ_vals)
             λ_vals = orig_λ_vals[w]
             calculated_vals = func.(λ_vals, temperature, Pₑ)
             label = nothing #string("calculated ", label_suffix)
@@ -65,7 +64,7 @@ function main(args)
     println("Plotting data for panel \"", panel_name, "\" and writing the result to ", plot_fname)
 
     # load the data extracted from the figure
-    panel_prop, panel_dict = load_panel_data(panel_name)
+    panel_prop, panel_dict = Gray_opac_compare.load_panel_data(panel_name)
 
     temperature = panel_prop["temperature"]
     Pₑ = 10^panel_prop["log10(electron_pressure)"]

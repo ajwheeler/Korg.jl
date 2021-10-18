@@ -21,6 +21,7 @@ Elm Ion       WL_vac(A) Excit(eV) log gf*   Rad.  Stark    Waals factor   Refere
 'Ti 1',      5000.12350,   3.1124, -0.760,  7.970,-5.260,  -7.540,  0.780,'  15 wl:K16  15 K16  15 gf:K16  15 K16  15 K16  15 K16  15 K16             Ti'
 #This comment and those in the header are here to test the parser. Don't delete.
 #'Ti 1',      5000.12350,   3.1124, -0.760,  7.970,-5.260,  -7.540,  0.780,'  15 wl:K16  15 K16  15 gf:K16  15 K16  15 K16  15 K16  15 K16             Ti'
+'Ti 1',      5000.12350,   3.1124, -0.760,  7.970,-5.260,  -7.540,  0.780,'  15 wl:K16  15 K16  15 gf:K16  15 K16  15 K16  15 K16  15 K16             Ti'
 * oscillator strengths were scaled by the solar isotopic ratios.
  References:
   1. Plez 2012 Ti48O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants

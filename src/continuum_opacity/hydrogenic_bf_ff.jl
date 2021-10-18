@@ -69,7 +69,12 @@ function _hydrogenic_bf_cross_section(Z::Integer, n::Integer, ν::Real, ion_freq
         A, B, C = _bf_σ_coef[min(n,length(_bf_σ_coef))]
 
         poly = A + (B + C*Z2*inv_ν)*Z2*inv_ν
-        _bf_σ_const*Z2*(inv_n2*inv_n2*inv_n)*(inv_ν^3)*poly
+        # equation 5.5 of Kurucz had a typo in it. In the numerator of the fraction that is
+        # multiplied by the entire polynomial, Z² should be Z⁴. This was discovered during
+        # comparisons with data from the Opacity Project, and can be confirmed by:
+        # - looking at eqn 5.6 of Kurucz (it uses Z⁴ instead of Z²)
+        # - comparison against equation 10.54 of Rybicki & Lightman
+        _bf_σ_const*Z2*Z2*(inv_n2*inv_n2*inv_n)*(inv_ν^3)*poly
     end
 end
 
@@ -258,12 +263,16 @@ This approach was adopted from equation 5.8 from section 5.1 of Kurucz (1970). C
 equation 5.18b of Rybicki & Lightman (2004), reveals that the equation in Kurucz (1970) omits the
 dependence on ρ. According to Rybicki & Lightman (2004) the free-free opacity (corrected for
 stimulated emission) is:
+```
     coef * Z² *ne * ni * (1 - exp(-hplanck*ν/(kboltz*T))) * g_ff / (sqrt(T) * ν³ * ρ)
+```
 Note that the g_ff is the free-free gaunt factor and coef is ∼3.7e8 (a more exact coefficient can
 be computed from eqn 5.18a).
 
 With this in mind, equation 5.8 of Kurucz (1970) should actually read
+```
     ne * n(H II) * F_ν(T) * (1 - exp(-hplanck*ν/(kboltz*T))) / ρ
+```
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
 """
 function hydrogenic_ff_opacity(Z::Integer, ni::Real, ne::Real, ν::Real, ρ::Real, T::Real)

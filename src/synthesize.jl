@@ -1,36 +1,42 @@
-import Interpolations #for Interpolations.line
 using Interpolations: LinearInterpolation
 import ..ContinuumOpacity
 
 """
-    synthesize(atm, linelist, λs, [metallicity]; abundances=Dict())
+    synthesize(atm, linelist, λs; metallicity=0, abundances=Dict(), vmic=0, ... )
 
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
 wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
 
-optional arguments:
+For efficiency reasons, `λs` must be an `AbstractRange`, such as `6000:0.01:6500`.  It can't be an 
+arbitrary list of wavelengths.
+
+Optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
-- `vmic` (default: 0) is the microturbulent velocity, ξ, in km/s.
-- `abundances` is a `Dict` mapping atomic symbols to A(X) format abundances, i.e. 
-   A(x) = log_10(n_X/n_H) + 12, where n_X is the number density of X. These overrides `metallicity`.
+- `abundances` is a `Dict` mapping atomic symbols to ``A(X)`` format abundances, i.e. 
+   ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
+   These override `metallicity`.
+- `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provide wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
-- `cntm_step`: the wavelength resolution with which continuum opacities are calculated.
-- `ionization_energies`, a Dict containing the first three ionization energies of each element, 
+- `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
+  calculated.
+- `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
+- `mu_grid`: the range of (surface) μ values at which to calculate the surface flux when doing 
+   transfer in spherical geometry (when `atm` is a `ShellAtmosphere`).
+- `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
-- `partition_funcs`, a Dict mapping species to partition functions. Defaults to data from 
+- `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
    Barklem & Collet 2016, `Korg.partition_funcs`.
-- `equilibrium_constants`, a Dict mapping diatomic molecules to their molecular equilbrium constants
-  in partial pressure form.  Defaults to data from Barklem and Collet 2016, 
-  `Korg.equilibrium_constants`.
-
-Uses solar abundances scaled by `metallicity` and for those not provided.
+- `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
+   molecular equilbrium constants in partial pressure form.  Defaults to data from 
+   Barklem and Collet 2016, `Korg.equilibrium_constants`.
 """
-function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, abundances=Dict(), 
-                    line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    ionization_energies=ionization_energies, partition_funcs=partition_funcs,
-                    equilibrium_constants=equilibrium_constants)
+function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
+                    vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
+                    hydrogen_lines=true, mu_grid=0.05:0.05:1,
+                    ionization_energies=ionization_energies, 
+                    partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
@@ -51,59 +57,62 @@ function synthesize(atm, linelist, λs; metallicity::Real=0.0, vmic::Real=1.0, a
 
     ns = []
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α_type = typeof(promote(atm[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
+    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
                             metallicity, vmic, abundances[1])[1])
-    α = Matrix{α_type}(undef, length(atm), length(λs))
-    for (i, layer) in enumerate(atm)
+    α = Matrix{α_type}(undef, length(atm.layers), length(λs))
+    for (i, layer) in enumerate(atm.layers)
         number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
-                                                 layer.electron_density)
+                                                 layer.electron_number_density)
         push!(ns, number_densities)
 
         #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
         #interpolator that can be used to approximate it over a fine grid.
         α_cntm = LinearInterpolation(cntmλs,
                                     total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
-                                                            layer.electron_density, layer.density, 
-                                                            number_densities, partition_funcs
+                                                            layer.electron_number_density, 
+                                                            layer.density, number_densities, 
+                                                            partition_funcs
                                                            ) * layer.density)
         α[i, :] = α_cntm.(λs)
 
-        α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_density, 
+        α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_number_density, 
                                     number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
-
-        α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_density, 
-                                             number_densities[literals.H_I], 
-                                             partition_funcs[literals.H_I], 
-                                             hline_stark_profiles, vmic*1e5)
+    
+        if hydrogen_lines
+            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
+                                                 number_densities[literals.H_I], 
+                                                 partition_funcs[literals.H_I], 
+                                                 hline_stark_profiles, vmic*1e5)
+        end
     end
 
-    #the thickness of each atmospheric layer 
-    Δcolmass = diff((l->l.colmass).(atm))
-    Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm)
+    source_fn = blackbody.((l->l.temp).(atm.layers), λs')
 
-    τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
+    flux = if atm isa ShellAtmosphere
+        rs = (l->l.r).(atm.layers)
+        R = rs[1] + 0.5(rs[1] - rs[2])
+        I = spherical_transfer(R, rs, α, source_fn, mu_grid) #μ-resolve intensity
+        2π * [Korg.trapezoid_rule(mu_grid, mu_grid .* I) for I in eachrow(I)]
+    else #atm isa PlanarAtmosphere
+        #the thickness of each atmospheric layer 
+        Δcolmass = diff((l->l.colmass).(atm.layers))
+        Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm.layers)
+        τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
 
-    source_fn = blackbody.((l->l.temp).(atm), λs')
-
-    #The exponential integral function, expint, captures the integral over the disk of the star to 
-    #get the emergent astrophysical flux. I was made aware of this form of the solution, by
-    #Edmonds+ 1969 (https://ui.adsabs.harvard.edu/abs/1969JQSRT...9.1427E/abstract).
-    #You can verify it by substituting the variable of integration in the exponential integal, t,
-    #with mu=1/t.
-    flux = map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
-        2.0*trapezoid_rule(τ_λ, S_λ .* exponential_integral_2.(τ_λ))
+        map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
+            2π * transfer_integral(τ_λ, S_λ; plane_parallel=true)
+        end
     end
 
-    #return the solution, along with other quantities across wavelength and atmospheric layer.
     #idk whether we should return this extra stuff long-term, but it's useful for debugging
-    (flux=flux, alpha=α, tau=τ, source_fn=source_fn, number_densities=ns)
+    (flux=flux, alpha=α, number_densities=ns)
 end
 
 """
     get_absolute_abundances(metallicity, A_X)
 
-Calculate N_X/N_total for each element X given some specified abundances, A(X).  Use the 
-metallicity [X/H] to calculate those remaining from the solar values (except He).
+Calculate ``n_X/n_\\mathrm{total}`` for each element X given some specified abundances, ``A(X)``.  Use the 
+metallicity [``X``/H] to calculate those remaining from the solar values (except He).
 """
 function get_absolute_abundances(metallicity, A_X::Dict) :: Vector{Number}
     if "H" in keys(A_X)
@@ -140,7 +149,8 @@ The total continuum opacity, κ, at many frequencies, ν.
 - `nₑ` is the electron number density in cm^-3
 - `ρ` is the density in g cm^-3 
 - `number_densities` is a `Dict` mapping each species to its number density
-- `partition_funcs` is a `Dict mapping each species to its partition function
+- `partition_funcs` is a `Dict` mapping each species to its partition function (e.g. 
+  `Korg.partition_funcs`)
 """
 function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_densities::Dict, 
                                  partition_funcs::Dict) where F <: Real
@@ -184,93 +194,3 @@ function blackbody(T, λ)
 
     2*h*c^2/λ^5 * 1/(exp(h*c/λ/k/T) - 1)
 end
-
-"""
-    trapezoid_rule(xs, fs)
-
-Approximate the integral from x₁ to x₂ of f(x) with the trapezoid rule given x-values `xs` and f(x)
-values `fs`.
-
-This should be good enough to numerically solve the transport equation, since model atmospheres
-usually have carefully chosen knots.  We probably want to add higher-order aproximations later.
-"""
-function trapezoid_rule(xs, fs)
-    Δs = diff(xs)
-    weights = [0 ; Δs] + [Δs ; 0]
-    sum(0.5 * weights .* fs)
-end
-
-"""
-    exponential_integral_2(x)
-
-Approximate second order exponential integral, E_2(x).  This stiches together several series 
-expansions to get an approximation which is accurate within 1% for all `x`.
-"""
-function exponential_integral_2(x) 
-    if x < 1.1
-        _expint_small(x)
-    elseif x < 2.5
-        _expint_2(x)
-    elseif x < 3.5
-        _expint_3(x)
-    elseif x < 4.5
-        _expint_4(x)
-    elseif x < 5.5
-        _expint_5(x)
-    elseif x < 6.5
-        _expint_6(x)
-    elseif x < 7.5
-        _expint_7(x)
-    elseif x < 9
-        _expint_8(x)
-    else
-        _expint_large(x)
-    end
-end
-
-function _expint_small(x) 
-    #euler mascheroni constant
-    ℇ = 0.57721566490153286060651209008240243104215933593992
-    1 + ((log(x) + ℇ - 1) + (-0.5 + (0.08333333333333333 + (-0.013888888888888888 + 
-                                                            0.0020833333333333333*x)*x)*x)*x)*x
-end
-function _expint_large(x)
-    invx = 1/x
-    exp(-x) * (1 + (-2 + (6 + (-24 + 120*invx)*invx)*invx)*invx)*invx
-end
-function _expint_2(x)
-    x -= 2
-    0.037534261820486914 + (-0.04890051070806112 + (0.033833820809153176 + (-0.016916910404576574 + 
-                                          (0.007048712668573576 -0.0026785108140579598*x)*x)*x)*x)*x
-end
-function _expint_3(x)
-    x -= 3
-    0.010641925085272673   + (-0.013048381094197039   + (0.008297844727977323   + 
-            (-0.003687930990212144   + (0.0013061422257001345  - 0.0003995258572729822*x)*x)*x)*x)*x
-end
-function _expint_4(x)
-    x -= 4
-    0.0031982292493385146  + (-0.0037793524098489054  + (0.0022894548610917728  + 
-            (-0.0009539395254549051  + (0.00031003034577284415 - 8.466213288412284e-5*x )*x)*x)*x)*x
-end
-function _expint_5(x)
-    x -= 5
-    0.000996469042708825   + (-0.0011482955912753257  + (0.0006737946999085467  +
-            (-0.00026951787996341863 + (8.310134632205409e-5   - 2.1202073223788938e-5*x)*x)*x)*x)*x
-end
-function _expint_6(x)
-    x -= 6
-    0.0003182574636904001  + (-0.0003600824521626587  + (0.00020656268138886323 + 
-            (-8.032993165122457e-5   + (2.390771775334065e-5   - 5.8334831318151185e-6*x)*x)*x)*x)*x
-end
-function _expint_7(x)
-    x -= 7
-    0.00010350984428214624 + (-0.00011548173161033826 + (6.513442611103688e-5   + 
-            (-2.4813114708966427e-5  + (7.200234178941151e-6   - 1.7027366981408086e-6*x)*x)*x)*x)*x
-end
-function _expint_8(x)
-    x -= 8
-    3.413764515111217e-5   + (-3.76656228439249e-5    + (2.096641424390699e-5   + 
-            (-7.862405341465122e-6   + (2.2386015208338193e-6  - 5.173353514609864e-7*x )*x)*x)*x)*x
-end
-

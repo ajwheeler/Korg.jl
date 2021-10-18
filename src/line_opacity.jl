@@ -1,4 +1,4 @@
-using Interpolations: LinearInterpolation, Flat
+using Interpolations: LinearInterpolation, Flat, lbounds, ubounds
 using SpecialFunctions: gamma
 using HDF5
 
@@ -7,7 +7,7 @@ using HDF5
                    ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
 
 Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
-`λs`. 
+`λs` [cm^-1]. 
 
 other arguments:
 - `temp` the temerature in K
@@ -18,11 +18,11 @@ other arguments:
 The three keyword arguments specify how the size of the window over which each line is calculated 
 is chosen.  
 - If `α_cntm` is passed as a callable returning the continuum opacity as a function of 
-wavelength, the line window will extend to 4 doppler widths or the wavelength at which the Lorentz
-wings of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.  
-`cutoff_threshold` defaults to 1e-3.  
+  wavelength, the line window will extend to 4 doppler widths or the wavelength at which the Lorentz
+  wings of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.  
+   `cutoff_threshold` defaults to 1e-3.  
 - if `α_cntm` is not passed, defaults to `window_size`, which is 2e-7 (in cm, i.e. 20 Å) unless
-otherwise specified
+  otherwise specified
 """
 function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
                          ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
@@ -124,7 +124,7 @@ Arguments:
 - `T`: temperature [K]
 - `nₑ`: electron number density [cm^-3]
 - `nH_I`: neutral hydrogen number density [cm^-3]
-- `hline_stark_profiles`: (returned by `setup_hline_stark_profiles`)
+- `hline_stark_profiles`: (returned by setup_hline_stark_profiles`)
 - `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
    are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
    doppler profile.
@@ -142,8 +142,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
     F0 = 1.25e-9 * nₑ^(2/3)
     α_hlines = zeros(length(λs))
     for line in hline_stark_profiles
-        if !all(Interpolations.lbounds(line.λ0.itp)[1:2] 
-                .< (T, nₑ) .< Interpolations.ubounds(line.λ0.itp)[1:2])
+        if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
             continue #transitions to high levels are omitted for high nₑ and T
         end
         λ₀ = line.λ0(T, nₑ)

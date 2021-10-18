@@ -157,12 +157,13 @@ const literals = (H_I=Species("H_I"), H_II=Species("H_II"), He_I=Species("He_I")
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", s::Species)
     show(io, m, s.formula)
-    print(io, " ", roman_numerals[s.charge+1])
+    print(io, " ", get_roman_numeral(s))
 end
 
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
 get_atoms(s::Species) = get_atoms(s.formula)
+get_roman_numeral(s::Species) = roman_numerals[s.charge+1]
 
 #This type represents an individual line.
 struct Line{F} 
@@ -268,20 +269,27 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    read_linelist(fname; format="vald")
+    read_linelist(filename; format="vald")
 
 Parse a linelist file.
 
-Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html),
-`format="vald"` for a Vald linelist, and `format="moog"` for a MOOG linelist (doesn't yet support 
-broadening parameters or dissociation energies).  VALD linelists can be either "short" or "long" 
-format, "extract all" or "extract stellar".
+Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
+(`format=kurucz_vac` if it uses vacuum wavelengths; Be warned that Korg will not assume that 
+wavelengths are vacuum below 2000 Å),`format="vald"` for a 
+[VALD](http://vald.astro.uu.se/~vald/php/vald.php) linelist, and `format="moog"` for a MOOG linelist
+(doesn't support broadening parameters or dissociation energies).  
+
+VALD linelists (the default and preferred format) can be either "short" or "long" format, 
+"extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
+wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
 """
 function read_linelist(fname::String; format="vald") :: Vector{Line}
     format = lowercase(format)
     linelist = open(fname) do f
         if format == "kurucz"
-            parse_kurucz_linelist(f)
+            parse_kurucz_linelist(f; vacuum=false)
+        elseif format == "kurucz_vac"
+            parse_kurucz_linelist(f; vacuum=true)
         elseif format == "vald"
             parse_vald_linelist(f)
         elseif format == "moog"
@@ -307,22 +315,34 @@ end
 expOrMissing(x) = x == 0.0 ? missing : 10.0^x
 idOrMissing(x) = x == 0.0 ? missing : x
 
-function parse_kurucz_linelist(f)
-    map(eachline(f)) do line
+function parse_kurucz_linelist(f; vacuum=false)
+    lines = Line[]
+    for row in eachline(f)
+        row == "" && continue #skip empty lines
+
+        #some linelists have a missing column in the wavelenth region
+        if length(row) == 159 
+            row = " " * row
+        end
+        
         #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
         #determined by parity
-        E_levels = map((line[25:36], line[53:64])) do s
+        E_levels = map((row[25:36], row[53:64])) do s
             #abs because Kurucz multiplies predicted values by -1
             abs(parse(Float64,s)) * c_cgs * hplanck_eV
         end
-        Line(parse(Float64, line[1:11])*1e-7,
-             parse(Float64, line[12:18]),
-             Species(line[19:24]),
-             min(E_levels...),
-             expOrMissing(parse(Float64, line[81:86])),
-             expOrMissing(parse(Float64, line[87:92])),
-             idOrMissing(parse(Float64, line[93:98])))
+
+        wl_transform = vacuum ? identity : air_to_vacuum
+
+        push!(lines, Line(wl_transform(parse(Float64, row[1:11])*1e-7), #convert from nm to cm
+                     parse(Float64, row[12:18]),
+                     Species(row[19:24]),
+                     min(E_levels...),
+                     expOrMissing(parse(Float64, row[81:86])),
+                     expOrMissing(parse(Float64, row[87:92])),
+                     idOrMissing(parse(Float64, row[93:98]))))
     end
+    lines
 end
 
 function parse_vald_linelist(f)
@@ -342,7 +362,10 @@ function parse_vald_linelist(f)
                             ":isotopic abundance."))
     end
 
-    shortformat = !(occursin(r"^\' ", lines[firstline + 1])) #vald short or long format
+    #we take the linelist to be long-format when the second line after the header starts with a 
+    #space or a single quote followed a space.  In some linelists the quotes are there, but in 
+    #others they are not.
+    shortformat = !(occursin(r"^\'? ", lines[firstline + 1])) 
     body = lines[firstline : (shortformat ? 1 : 4) : end]
     body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
     
