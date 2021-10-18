@@ -24,16 +24,11 @@ is chosen.
 - if `α_cntm` is not passed, defaults to `window_size`, which is 2e-7 (in cm, i.e. 20 Å) unless
   otherwise specified
 """
-function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
+function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
                          ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
     if length(linelist) == 0
         return zeros(length(λs))
     end
-
-    #type shenanigans to allow autodiff to do its thing
-    α_type = typeof(promote(linelist[1].wl,λs[1],temp,nₑ,n_densities[literals.H_I],ξ,
-                            cutoff_threshold)[1])
-    α_lines = zeros(α_type, length(λs))
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
@@ -43,39 +38,39 @@ function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition
         m = get_mass(line.species)
         
         #doppler-broadening parameter
-        Δλ_D = doppler_width(line.wl, temp, m, ξ)
+        Δλ_D = doppler_width.(line.wl, temp, m, ξ)
 
         #get all damping params from linelist.  There may be better sources for this.
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
-            Γ += (nₑ*scaled_stark(line.gamma_stark, temp) +
-                  n_densities[literals.H_I]*scaled_vdW(line.vdW, m, temp))
+            Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
+                      n_densities[literals.H_I] .* [scaled_vdW(line.vdW, m, T) for T in temp])
         end
         #doing this involves an implicit aproximation that λ(ν) is linear over the line window
-        Δλ_L = Γ * line.wl^2 / c_cgs
+        Δλ_L = @. Γ * line.wl^2 / c_cgs
 
-        β = 1/(kboltz_eV * temp)
+        β = @. 1/(kboltz_eV * temp)
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
-        levels_factor = (exp(-β*line.E_lower) - exp(-β*E_upper)) / partition_fns[line.species](temp)
+        levels_factor = @. (exp(-β*line.E_lower) - exp(-β*E_upper)) ./ partition_fns[line.species].(temp)
 
         #total wl-integrated absorption coefficient
-        amplitude = 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
+        amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
 
         if !isnothing(α_cntm)
-            α_crit = α_cntm(line.wl) * cutoff_threshold
-            Δλ_crit = sqrt(amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
-            window_size = max(4Δλ_D, Δλ_crit)
+            α_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm]
+            Δλ_crit = @. sqrt(amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
+            window_size = max(maximum(4Δλ_D), maximum(Δλ_crit))
         end
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
-        if lb==ub
+        if lb >= ub
             continue
         end
 
-        invΔλ_D = 1/Δλ_D
-        @inbounds view(α_lines, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, amplitude,
-                                                         view(λs, lb:ub))
+        invΔλ_D = 1.0./Δλ_D
+
+        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, amplitude,
+                                                       view(λs, lb:ub)')
     end
-    α_lines
 end
 
 """

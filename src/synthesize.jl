@@ -54,38 +54,39 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     abundances = get_absolute_abundances(metallicity, abundances)
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
+    n_dicts = map(atm.layers) do layer
+         molecular_equilibrium(MEQs, layer.temp, layer.number_density, layer.electron_number_density)
+    end
+    number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1])])
 
-    ns = []
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
                             metallicity, vmic, abundances[1])[1])
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
-    for (i, layer) in enumerate(atm.layers)
-        number_densities = molecular_equilibrium(MEQs, layer.temp, layer.number_density,
-                                                 layer.electron_number_density)
-        push!(ns, number_densities)
 
-        #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
-        #interpolator that can be used to approximate it over a fine grid.
-        α_cntm = LinearInterpolation(cntmλs,
-                                    total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
+    #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
+    #interpolator that can be used to approximate it over a fine grid.
+    α_cntm = map(zip(atm.layers, n_dicts)) do (layer, ns)
+        LinearInterpolation(cntmλs, total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
                                                             layer.electron_number_density, 
-                                                            layer.density, number_densities, 
-                                                            partition_funcs
+                                                            layer.density, ns, partition_funcs
                                                            ) * layer.density)
-        α[i, :] = α_cntm.(λs)
-
-        α[i, :] .+= line_absorption(linelist, λs, layer.temp, layer.electron_number_density, 
-                                    number_densities, partition_funcs, vmic*1e5; α_cntm=α_cntm)
-    
-        if hydrogen_lines
-            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
-                                                 number_densities[literals.H_I], 
-                                                 partition_funcs[literals.H_I], 
-                                                 hline_stark_profiles, vmic*1e5)
-        end
     end
 
+    for (i, layer) in enumerate(atm.layers)
+       if hydrogen_lines
+           α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
+                                                number_densities[literals.H_I], 
+                                                partition_funcs[literals.H_I], 
+                                                hline_stark_profiles, vmic*1e5)
+       end
+       α[i, :] = α_cntm[i].(λs)
+    end
+
+    line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
+                     [layer.electron_number_density for layer in atm.layers], number_densities,
+                     partition_funcs, vmic*1e5; α_cntm=α_cntm)
+    
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
 
     flux = if atm isa ShellAtmosphere
@@ -105,7 +106,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     end
 
     #idk whether we should return this extra stuff long-term, but it's useful for debugging
-    (flux=flux, alpha=α, number_densities=ns)
+    (flux=flux, alpha=α, number_densities=number_densities)
 end
 
 """
