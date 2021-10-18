@@ -58,11 +58,9 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, part
 
         if !isnothing(α_cntm)
             α_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm]
-            if all(amplitude ./ α_crit .< 1e-10)
-                continue
-            end
-            Δλ_crit = @. sqrt(amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
-            window_size = max(maximum(4Δλ_D), maximum(Δλ_crit))
+            Δλ_crit_L = @. sqrt(amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
+            Δλ_crit_D = @. critical_doppler_delta_wl(α_crit, amplitude, Δλ_D)
+            window_size = max(maximum(Δλ_crit_D), maximum(Δλ_crit_L))
         end
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
         if lb >= ub
@@ -73,6 +71,14 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, part
 
         @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, amplitude,
                                                        view(λs, lb:ub)')
+    end
+end
+
+function critical_doppler_delta_wl(α_crit, amplitude, Δλ_D)
+    if amplitude/(sqrt(2π)*Δλ_D) < α_crit                                        
+        0                                                                                    
+    else                                                                                     
+        Δλ_D * sqrt(-2log(sqrt(2π) * Δλ_D * α_crit / amplitude))                             
     end
 end
 
