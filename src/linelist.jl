@@ -175,7 +175,7 @@ struct Line{F}
     gamma_stark::F            #s^-1
     vdW::Union{F, Tuple{F,F}} #either Γ_vdW [s^-1] per electron or (σ, α) from ABO theory
 
-    """
+    @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F, 
              gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
              vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
