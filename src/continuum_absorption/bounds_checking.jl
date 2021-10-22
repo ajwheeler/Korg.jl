@@ -14,7 +14,7 @@ end
 
 
 """
-    bounds_checked_absorption(func; [ν_bound], [temp_bound])
+    bounds_checked_absorption(func; ν_bound, temp_bound)
 
 Constructs a wrapped function that implements bounds checking and extrapolation
 
@@ -57,7 +57,7 @@ function bounds_checked_absorption(func; ν_bound = Interval(0, Inf), temp_bound
 
         # handle any out-of-bounds arguments. If !error_oobounds, assume that there is 0 absorption
         # for these args. Otherwise, throw error
-        if (length(idx) != length(ν)) && error_oobounds  # (it's okay for this to be slow)
+        if (idx != 1:length(ν)) && error_oobounds  # (it's okay for this to be slow)
             throw(_prep_bound_err(ν, T, idx, func, ν_bound, temp_bound))
         end
 

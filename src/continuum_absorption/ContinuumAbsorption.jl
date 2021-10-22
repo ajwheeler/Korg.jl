@@ -24,7 +24,7 @@ include("absorption_metal.jl")
 export total_continuum_absorption
 
 """
-    total_continuum_absorption(νs, T, nₑ, number_densities, partition_funcs; [error_oobounds])
+    total_continuum_absorption(νs, T, nₑ, number_densities, partition_funcs; error_oobounds)
 
 The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
 

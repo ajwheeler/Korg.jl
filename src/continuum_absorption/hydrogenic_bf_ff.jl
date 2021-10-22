@@ -197,7 +197,7 @@ end
 Returns a table of thermally-averaged free-free Gaunt factors, and the values of log₁₀(γ²) and
 log₁₀(u) associated with each point.
 
-By default, this loads the non-relativistic free-free data published by
+This loads the non-relativistic free-free data published by
 [van Hoof et al. (2014)](https://ui.adsabs.harvard.edu/abs/2014MNRAS.444..420V/abstract).
 
 Note: This function code could trivially be adapted to load the relativistic free-free gaunt
