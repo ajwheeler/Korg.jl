@@ -24,58 +24,87 @@ is chosen.
 - if `α_cntm` is not passed, defaults to `window_size`, which is 2e-7 (in cm, i.e. 20 Å) unless
   otherwise specified
 """
-function line_absorption(linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
+function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
                          ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
     if length(linelist) == 0
         return zeros(length(λs))
     end
 
-    #type shenanigans to allow autodiff to do its thing
-    α_type = typeof(promote(linelist[1].wl,λs[1],temp,nₑ,n_densities[literals.H_I],ξ,
-                            cutoff_threshold)[1])
-    α_lines = zeros(α_type, length(λs))
-
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
     lb = 1
     ub = 1
+    β = @. 1/(kboltz_eV * temp)
     for line in linelist
         m = get_mass(line.species)
         
         #doppler-broadening parameter
-        Δλ_D = doppler_width(line.wl, temp, m, ξ)
+        σ = doppler_width.(line.wl, temp, m, ξ)
 
         #get all damping params from linelist.  There may be better sources for this.
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
-            Γ += (nₑ*scaled_stark(line.gamma_stark, temp) +
-                  n_densities[literals.H_I]*scaled_vdW(line.vdW, m, temp))
+            Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
+                      n_densities[literals.H_I] .* [scaled_vdW(line.vdW, m, T) for T in temp])
         end
-        #doing this involves an implicit aproximation that λ(ν) is linear over the line window
-        Δλ_L = Γ * line.wl^2 / c_cgs
+        #calculate the lorentz broadenign parameter in in wavelength. Doing this involves an 
+        #implicit aproximation that λ(ν) is linear over the line window.
+        γ = @. Γ * line.wl^2 / c_cgs
 
-        β = 1/(kboltz_eV * temp)
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
-        levels_factor = (exp(-β*line.E_lower) - exp(-β*E_upper)) / partition_fns[line.species](temp)
+        levels_factor = @. (exp(-β*line.E_lower) - exp(-β*E_upper)) ./ partition_fns[line.species].(temp)
 
         #total wl-integrated absorption coefficient
-        amplitude = 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
+        amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
 
         if !isnothing(α_cntm)
-            α_crit = α_cntm(line.wl) * cutoff_threshold
-            Δλ_crit = sqrt(amplitude * Δλ_L / α_crit) #where α from lorentz component == α_crit
-            window_size = max(4Δλ_D, Δλ_crit)
+            ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
+            Δλ_D = maximum(inverse_gaussian_density.(ρ_crit, σ))
+            Δλ_L = maximum(inverse_lorentz_density.(ρ_crit, γ))
+            window_size = max(Δλ_D, Δλ_L)
         end
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
-        if lb==ub
+        if lb >= ub
             continue
         end
 
-        invΔλ_D = 1/Δλ_D
-        @inbounds view(α_lines, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, amplitude,
-                                                         view(λs, lb:ub))
+        invσ = 1.0./σ
+        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, invσ, γ, amplitude, view(λs, lb:ub)')
     end
-    α_lines
+end
+
+"""
+    inverse_gaussian_density(ρ, σ)
+
+Calculate the inverse of a (0-centered) Gaussian PDF with standard deviation `σ`, i.e. the value of 
+`x` for which `ρ = exp(-0.5 x^2/σ^2}) / √[2π]`, which is given by `σ √[-2 log (√[2π]σρ)]`.  Returns 
+0 when ρ is larger than any value taken on by the PDF.
+
+See also: [`inverse_lorentz_density`](@ref).
+"""
+function inverse_gaussian_density(ρ, σ)
+    if ρ > 1/(sqrt(2π) * σ)
+        0.0
+    else
+        σ * sqrt(-2log(sqrt(2π) * σ * ρ))
+    end
+end
+
+"""
+    inverse_lorentz_density(ρ, γ)
+
+Calculate the inverse of a (0-centered) Lorentz PDF with width `γ`, i.e. the value of `x` for which 
+`ρ = 1 / (π γ (1 + x^2/γ^2))`, which is given by `√[γ/(πρ) - γ^2]`. Returns 0 when ρ is larger than 
+any value taken on by the PDF.
+
+See also: [`inverse_gaussian_density`](@ref).
+"""
+function inverse_lorentz_density(ρ, γ)
+    if ρ > 1/(π*γ)
+        0.0
+    else
+        sqrt(γ/(π * ρ) - γ^2)
+    end
 end
 
 """
