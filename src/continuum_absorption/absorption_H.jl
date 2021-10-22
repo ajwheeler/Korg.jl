@@ -64,11 +64,8 @@ For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-H_I_ff = bounds_checked_absorption(
-    _H_I_ff;
-    ν_div_T_bound = closed_interval( (1e-4, 10^1.5)./(hplanck_eV/kboltz_eV)... ),
-    temp_bound = closed_interval( (RydbergH_eV/kboltz_eV)./(1e2, 1e-3)... )
-)
+H_I_ff = bounds_checked_absorption(_H_I_ff; ν_bound = λ_to_ν_bound(_gauntff_λ_bounds),
+                                   temp_bound = _gauntff_T_bounds)
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)

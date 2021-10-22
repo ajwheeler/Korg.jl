@@ -17,7 +17,7 @@
 
 module Gray_opac_compare
 using Korg, HDF5
-using Korg.ContinuumAbsorption: Interval, closed_interval, contained
+using Korg: Interval, closed_interval, contained
 using Interpolations: LinearInterpolation, Throw
 
 # Load Gray05 data for a given panel. This returns a tuple holding two dictionaries:

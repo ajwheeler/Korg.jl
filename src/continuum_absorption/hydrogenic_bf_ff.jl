@@ -261,9 +261,6 @@ const _gauntff_interpolator, _gauntff_T_bounds, _gauntff_λ_bounds = begin
     γ2_lb, γ2_ub = _find_bound_inds(log10_γ2, extrema(calc_log10_γ2.(Z_extrema, T_extrema'))...)
     u_lb, u_ub   = _find_bound_inds(log10_u,  extrema( calc_log10_u.(λ_extrema, T_extrema'))...)
 
-    println("log10_u: ", log10_u[u_lb:u_ub])
-    println("log10_γ2: ", log10_γ2[γ2_lb:γ2_ub])
-
     # make a copy of the selected data so that the unneeded data can be garbage collected
     revised_table = copy(table_val[u_lb:u_ub, γ2_lb:γ2_ub])
 

@@ -65,11 +65,8 @@ For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
 details.
 """
-He_II_ff = bounds_checked_absorption(
-    _He_II_ff,
-    ν_div_T_bound = closed_interval( (1e-4, 10^1.5)./(hplanck_eV/kboltz_eV)... ),
-    temp_bound = closed_interval( (4*RydbergH_eV/kboltz_eV)./(1e2, 1e-3)... )
-)
+He_II_ff = bounds_checked_absorption(_He_II_ff; ν_bound = λ_to_ν_bound(_gauntff_λ_bounds),
+                                     temp_bound = _gauntff_T_bounds)
 
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)

@@ -37,18 +37,17 @@ Korg.voigt
 ```
 
 ## Continuum absorption
-These function can be used to directly compute continuum opacities.
+These function can be used to directly compute continuum absorption coefficients.
 
 ##### Continuum Absorption Kwargs
 
-Many of the functions documented in this section, support the following, common set of keyword
-arguments:
+All bound-free and free-free absorption functions (other than `absorption_coef_bf_TOPBase`) support
+the following keyword arguments:
 
-- `extrapolate_bc::Union{Nothing,Real}`: controls how the function behave when it encounters an
-  invalid `ν` or `T` values. When assigned a number, the function assumes that the absorption
-  coefficient for these invalid `ν` or `T` values is the value of `extrapolate_bc`. The default
-  value is `0.0`. When this is set to `nothing`, a `DomainError` is thrown if invalid `ν` or `T`
-  values are encountered.
+- `error_oobounds::Bool`: specifies the function's behavior when it encounters invalid `ν` or `T`
+  values. When `false` (the default), the function assumes that the absorption coefficient for
+  these invalid `ν` or `T` values is `0.0`. Otherwise, a `DomainError` is thrown when invalid `ν`
+  or `T` values are encountered.
 - `out_α::Union{Nothing,AbstractVector}`: When this is `nothing` (the default case), the function
   will simply allocate a new vector to store the output continuum absorption coefficients.
   Alternatively, this can be a vector (with the same length as the function's `ν` argument). In
@@ -66,6 +65,7 @@ Korg.ContinuumAbsorption.He_II_bf
 Korg.ContinuumAbsorption.He_II_ff
 Korg.ContinuumAbsorption.Heminus_ff
 Korg.ContinuumAbsorption.electron_scattering
+Korg.ContinuumAbsorption.rayleigh
 Korg.ContinuumAbsorption.hydrogenic_bf_absorption
 Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```

@@ -10,6 +10,7 @@ rescaled to match Schwerdtfeger 2006.  The formulation for H2 is from Dalgarno a
 wavelength ratio gets large, 1300 Å seems like a reasonable limit to use for all of these.
 """
 function rayleigh(νs::AbstractVector{<:Real}, nH_I, nHe_I, nH2)
+    @assert c_cgs/maximum(νs) > 1.3e-5
     σth = 6.65246e-25 #Thompson scattering cross section [cm^2]
 
     #(ħω/ 2E_H)^2 in Colgan+ 2016.  The photon energy over 2Ryd
