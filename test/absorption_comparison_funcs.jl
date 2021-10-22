@@ -113,7 +113,9 @@ end
 #   represent it with the variable σ_ν.
 # - he defines the "continuous absorption coefficient per neutral hydrogen atom" and denotes it
 #   with κ. Rybicki & Lightman don't explicitly define this quantity, but it's compatible with
-#   their nomenclature. R&L would express this quantity as α_ν/nH_I (in their notation)
+#   their nomenclature. R&L would express this quantity as α_ν/nH_I (in their notation). This is
+#   NOT a cross-section in the general case (e.g. for continuum absorption of He, Gray still
+#   defines the "continuous absorption coefficient per neutral hydrogen atom" as κ = α_ν/nH_I).
 # - he uses κ_ν to denote the mass opacity (just like Rybicki & Lightman)
 #
 # Now we actually define the functions that compute the opacities in the form comparable with

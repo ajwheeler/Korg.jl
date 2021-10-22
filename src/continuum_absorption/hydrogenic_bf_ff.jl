@@ -293,7 +293,6 @@ adequate for stellar atmospheres.
 In [van Hoof et al. (2015)](https://ui.adsabs.harvard.edu/abs/2015MNRAS.449.2112V), they find that
 relativistic effects introduce a ∼0.75% at 100MK, for Z = 1 (when Z > 1, the change is smaller).
 
-
 This function currently uses linear interpolation. However, van Hoof et al. (2014) provides an
 implementation of a third-order Lagrange scheme, which "reaches a relative precision better than
 1.5e-4 everywhere." The C and Fortran implementations of this scheme can be found
@@ -341,6 +340,10 @@ With this in mind, equation 5.8 of Kurucz (1970) should actually read
     κ = ne * n(H II) * F_ν(T) * (1 - exp(-hplanck*ν/(kboltz*T))) / ρ
 ```
 where F_ν(T) = coef * Z² * g_ff / (sqrt(T) * ν³).
+
+See `gaunt_ff_vanHoof` for details about where our gaunt factor data comes from. For simplicity, we
+enforce temperature and ν bounds constraints that don't include all of the available gaunt factor
+data. In practice, this should never be a concern for stellar spectroscopy.
 """
 function hydrogenic_ff_absorption(ν::Real, T::Real, Z::Integer, ni::Real, ne::Real)
     inv_T = 1.0/T
@@ -348,7 +351,7 @@ function hydrogenic_ff_absorption(ν::Real, T::Real, Z::Integer, ni::Real, ne::R
 
     hν_div_kT = (hplanck_eV/kboltz_eV) * ν * inv_T
     log_u = log10(hν_div_kT)
-    log_γ2 = log10((RydbergH_eV/kboltz_eV) * Z2 * inv_T)
+    log_γ2 = log10((Rydberg_eV/kboltz_eV) * Z2 * inv_T)
     gaunt_ff = gaunt_ff_vanHoof(log_u, log_γ2)
 
     F_ν = 3.6919e8*gaunt_ff*Z2*sqrt(inv_T)/(ν*ν*ν)

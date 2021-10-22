@@ -166,11 +166,16 @@ closed_interval(lo, up) = Interval(lo, up; exclusive_lower = false, exclusive_up
     contained(value, interval)
 
 Returns whether `value` is contained by `interval`.
+
+# Examples
+```julia-repl
+julia> contained(0.5, Interval(1.0,10.0))
+false
+julia> contained(5.0, Interval(1.0,10.0))
+true
+```
 """
-function contained(value::Real, interval::Interval)
-    # this can give the wrong result if isfinite(value) is omitted
-    (value > interval.lower) && (value < interval.upper) && isfinite(value)
-end
+contained(value::Real, interval::Interval) = interval.lower < value < interval.upper
 
 
 """
@@ -184,8 +189,6 @@ contained_slice(vals::AbstractVector, interval::Interval) =
     searchsortedfirst(vals, interval.lower):searchsortedlast(vals, interval.upper)
 
 function _convert_λ_endpoint(λ_endpoint::AbstractFloat, λ_lower_bound::Bool)
-    calc_λ(ν) = c_cgs/ν
-
     # determine the functions that:
     # - retrieve the neighboring ν val in the in-bounds and out-of-bounds directions
     # - specify the desired relationship between an in-bounds λ and λ_lower_bound
@@ -193,16 +196,16 @@ function _convert_λ_endpoint(λ_endpoint::AbstractFloat, λ_lower_bound::Bool)
         λ_lower_bound ? (prevfloat, nextfloat, >) : (nextfloat, prevfloat, <)
 
     ν_endpoint = (λ_endpoint == 0) ? Inf : c_cgs/λ_endpoint
-    if isfinite(ν_endpoint) && isfinite(λ_endpoint)
+    if isfinite(ν_endpoint) && (ν_endpoint != 0)
         # Adjust ν_endpoint in 2 cases:
         # Case 1: The neighboring ν to ν_endpoint that should be in-bounds, corresponds to a λ
         # value that is out-of-bounds. Nudge ν_endpoint in the "in-bounds" direction until resolved
-        while !inbound_λ_to_endpoint_relation(calc_λ(inbound_ν_neighbor(ν_endpoint)), λ_endpoint)
+        while !inbound_λ_to_endpoint_relation(c_cgs/inbound_ν_neighbor(ν_endpoint), λ_endpoint)
             ν_endpoint = inbound_ν_neighbor(ν_endpoint)
         end
         # Case 2: The current value of ν_endpoint corresponds to a λ that is in-bounds. Nudge
         # ν_endpoint in the "out-of-bounds" direction until resolved.
-        while inbound_λ_to_endpoint_relation(calc_λ(ν_endpoint), λ_endpoint)
+        while inbound_λ_to_endpoint_relation(c_cgs/ν_endpoint, λ_endpoint)
             ν_endpoint = oobound_ν_neighbor(ν_endpoint)
         end
     end
@@ -212,7 +215,8 @@ end
 """
     λ_to_ν_bound(λ_bound)
 
-Converts an exclusive λ inverval (in cm) to an equivalent frequency interval (in Hz)
+Converts a λ `Inverval` (in cm) to an equivalent ν `Interval` (in Hz), correctly accounting for 
+tricky floating point details at the bounds.
 """
 λ_to_ν_bound(λ_bound::Interval) =
     Interval(_convert_λ_endpoint(λ_bound.upper, false), _convert_λ_endpoint(λ_bound.lower, true))
