@@ -16,27 +16,22 @@ end
 
 function _test_contained_slice(vals::AbstractVector, interval::Korg.Interval)
 
-    for i in 1:2
-        cur_vals = (i == 1) ? vals : reverse(vals)
+    idx = Korg.contained_slice(vals, interval)
+    first_ind, last_ind = first(idx), last(idx)
 
-        idx = Korg.contained_slice(cur_vals, interval)
-        first_ind, last_ind = first(idx), last(idx)
+    @assert first_ind >= 1 && last_ind <= length(vals)
 
-        @assert first_ind >= 1 && last_ind <= length(cur_vals)
+    result = Korg.contained.(vals, Ref(interval))
 
-        result = Korg.contained.(cur_vals, Ref(interval))
-
-        if all(result)
-            @test (first_ind == 1) && (last_ind == length(cur_vals))
-        elseif any(result)
-            @test last_ind >= first_ind
-            @test all(.!result[1:first_ind-1])
-            @test all(result[first_ind:last_ind])
-            @test all(.!result[last_ind+1:length(cur_vals)])
-        else
-            @test first_ind == last_ind+1
-        end
-
+    if all(result)
+        @test (first_ind == 1) && (last_ind == length(vals))
+    elseif any(result)
+        @test last_ind >= first_ind
+        @test all(.!result[1:first_ind-1])
+        @test all(result[first_ind:last_ind])
+        @test all(.!result[last_ind+1:length(vals)])
+    else
+        @test first_ind == last_ind+1
     end
 
 end

@@ -70,12 +70,13 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
     #interpolator that can be used to approximate it over a fine grid.
+    sorted_cntmνs = c_cgs ./ reverse(cntmλs)
     α_cntm = map(zip(atm.layers, n_dicts)) do (layer, ns)
-        LinearInterpolation(
-            cntmλs, total_continuum_absorption(c_cgs ./ cntmλs, layer.temp,
-                                               layer.electron_number_density,
-                                               ns, partition_funcs)
-        )
+        α_cntm_vals = total_continuum_absorption(sorted_cntmνs, layer.temp,
+                                                 layer.electron_number_density,
+                                                 ns, partition_funcs)
+        reverse!(α_cntm_vals)
+        LinearInterpolation(cntmλs, α_cntm_vals) # LinearInterpolation needs ranges to be increasing
     end
 
     for (i, layer) in enumerate(atm.layers)

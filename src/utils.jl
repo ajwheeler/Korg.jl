@@ -176,20 +176,12 @@ end
 """
     contained_slice(vals, interval)
 
-Returns a range of indices denoting the elements of `vals` that are contained by `interval`. When
-no entries are contained by interval, this returns `(1,0)` (which is a valid empty slice).
-This function assumes that `vals` is sorted in increasing/decreasing order.
+Returns a range of indices denoting the elements of `vals` (which are assumed to be sorted in
+ increasing order) that are contained by `interval`. When no entries are contained by interval,
+this returns `(1,0)` (which is a valid empty slice).
 """
-function contained_slice(vals::AbstractVector, interval::Interval)
-    if first(vals) < last(vals)
-        first_ind = searchsortedfirst(vals, interval.lower)
-        last_ind = searchsortedlast(vals, interval.upper)
-    else
-        first_ind = searchsortedlast(vals, interval.upper; rev = true) + 1
-        last_ind = searchsortedfirst(vals, interval.lower; rev = true) - 1
-    end
-    first_ind:last_ind
-end
+contained_slice(vals::AbstractVector, interval::Interval) =
+    searchsortedfirst(vals, interval.lower):searchsortedlast(vals, interval.upper)
 
 function _convert_λ_endpoint(λ_endpoint::AbstractFloat, λ_lower_bound::Bool)
     calc_λ(ν) = c_cgs/ν
