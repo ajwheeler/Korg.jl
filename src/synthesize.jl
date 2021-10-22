@@ -79,12 +79,12 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     for (i, layer) in enumerate(atm.layers)
        if hydrogen_lines
+           α[i, :] .= α_cntm[i].(λs)
            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
                                                 number_densities[literals.H_I], 
                                                 partition_funcs[literals.H_I], 
                                                 hline_stark_profiles, vmic*1e5)
        end
-       α[i, :] = α_cntm[i].(λs)
     end
 
     line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
