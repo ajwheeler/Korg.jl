@@ -24,6 +24,10 @@ Optional arguments:
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
 - `mu_grid`: the range of (surface) μ values at which to calculate the surface flux when doing 
    transfer in spherical geometry (when `atm` is a `ShellAtmosphere`).
+- `line_cutoff_threshold` (default: `1e-3`): the fraction of the continuum absorption coefficient 
+   at which line profiles are truncated.  This has major performance impacts, since line absorption
+   calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
+   The default value should effect final spectra below the 10^-3 level.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
@@ -34,7 +38,7 @@ Optional arguments:
 """
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
                     vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, mu_grid=0.05:0.05:1,
+                    hydrogen_lines=true, mu_grid=0.05:0.05:1, line_cutoff_threshold=1e-3,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
@@ -85,7 +89,8 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
                      [layer.electron_number_density for layer in atm.layers], number_densities,
-                     partition_funcs, vmic*1e5; α_cntm=α_cntm)
+                     partition_funcs, vmic*1e5; α_cntm=α_cntm, 
+                     cutoff_threshold=line_cutoff_threshold)
     
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
 
