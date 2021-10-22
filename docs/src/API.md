@@ -29,7 +29,7 @@ Korg.constant_R_LSF
 These functions can be used to directly compute line opacities. 
 
 ```@docs
-Korg.line_absorption
+Korg.line_absorption!
 Korg.line_profile
 Korg.hydrogen_line_absorption
 Korg.setup_hydrogen_stark_profiles
