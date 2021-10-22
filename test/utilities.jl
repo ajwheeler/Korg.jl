@@ -26,7 +26,7 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
 
     common_layout = size(actual) == size(reference)
     if isnothing(error_location_fmt)
-        error_location_fmt = (arg) -> string(arg.I)
+        error_location_fmt = (arg) -> string( (arg isa Integer) ? arg : arg.I)
     elseif !common_layout
         throw("error_location_fmt must be nothing b/c actual and reference have different shapes")
     end
@@ -54,7 +54,7 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     end
 
     if (atol != 0.0) || (rtol == atol == 0.0)
-        suffix = (common_layout) ? " at " * error_location_fmt(ax_abs_diff_loc) : ""
+        suffix = (common_layout) ? " at " * error_location_fmt(max_abs_diff_loc) : ""
         push!(lines, string("Max Abs Diff Magnitude: ", max_abs_diff, suffix))
     end
 

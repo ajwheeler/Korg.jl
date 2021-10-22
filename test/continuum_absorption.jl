@@ -1,3 +1,5 @@
+using Interpolations: bounds
+
 include("absorption_comparison_funcs.jl")
 include("utilities.jl")
 
@@ -395,6 +397,54 @@ end
     end
 end
 
+"""
+    compare_gauntff_kurucz([rtol])
+
+Compare the free-free gaunt factor to the reference values tabulated in section 5.1 of Kurucz
+(1970). These reference tabulated values are less accurate than the values we're actually using
+(since these values were derived from a figure in Karsas and Latter (1961)), but they're adequate
+for testing purposes.
+"""
+function compare_gauntff_kurucz(rtol = 0.15)
+
+    # First, get bounds of log₁₀(u) = log₁₀(RydbergH*Z²/(k*T)) & log₁₀(γ²) = log₁₀(Rydberg*Z²/(k*T)),
+    # in which our actual data is known.
+    _log10_u_bounds, _log10_γ2_bounds = bounds(Korg.ContinuumAbsorption._gauntff_interpolator.itp)
+    log10_u_bounds = Korg.ContinuumAbsorption.Interval(_log10_u_bounds...)
+    log10_γ2_bounds = Korg.ContinuumAbsorption.Interval(_log10_γ2_bounds...)
+
+
+    # Next, initialize the reference data
+    log10_γ2 = [-3.0, -2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0]
+    log10_u = [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5]
+    ref_gaunt_ff = [5.53 5.49 5.46 5.43 5.40 5.25 5.00 4.69 4.48 4.16 3.85;
+                    4.91 4.87 4.84 4.80 4.77 4.63 4.40 4.13 3.87 3.52 3.27;
+                    4.29 4.25 4.22 4.18 4.15 4.02 3.80 3.57 3.27 2.98 2.70;
+                    3.64 3.61 3.59 3.56 3.54 3.41 3.22 2.97 2.70 2.45 2.20;
+                    3.00 2.98 2.97 2.95 2.94 2.81 2.65 2.44 2.21 2.01 1.81;
+                    2.41 2.41 2.41 2.41 2.41 2.32 2.19 2.02 1.84 1.67 1.50;
+                    1.87 1.89 1.91 1.93 1.95 1.90 1.80 1.68 1.52 1.41 1.30;
+                    1.33 1.39 1.44 1.49 1.55 1.56 1.51 1.42 1.33 1.25 1.17;
+                    0.90 0.95 1.00 1.08 1.17 1.30 1.32 1.30 1.20 1.15 1.11;
+                    0.45 0.48 0.52 0.60 0.75 0.91 1.15 1.18 1.15 1.11 1.08;
+                    0.33 0.36 0.39 0.46 0.59 0.76 0.97 1.09 1.13 1.10 1.08;
+                    0.19 0.21 0.24 0.28 0.38 0.53 0.76 0.96 1.08 1.09 1.09]
+
+
+    # now, get the set of log10_γ2 and log10_u values where we can make the comparison
+    ref_u_slc = Korg.ContinuumAbsorption.contained_slice(log10_u, log10_u_bounds)
+    ref_γ2_slc = Korg.ContinuumAbsorption.contained_slice(log10_γ2, log10_γ2_bounds)
+    @assert length(ref_u_slc) > 0 && length(ref_γ2_slc) > 0
+    cmp_log10_u, cmp_log10_γ2 = log10_u[ref_u_slc], log10_γ2[ref_γ2_slc]
+
+    # finally, perform the comparison
+    assert_allclose_grid(
+        Korg.ContinuumAbsorption._gauntff_interpolator.(cmp_log10_u, cmp_log10_γ2'),
+        ref_gaunt_ff[ref_u_slc, ref_γ2_slc],
+        [("log₁₀u", cmp_log10_u), ("log₁₀γ²", cmp_log10_γ2)];
+        rtol = rtol, atol = 0.0
+    )
+end
 
 """
     gray_H_I_ff_absorption_coef(λ, T, [gaunt_func])
@@ -445,6 +495,10 @@ end
 
 
 @testset "H I free-free absorption" begin
+    @testset "Kurucz (1970) Free-Free Gaunt Factor comparison" begin
+        @test compare_gauntff_kurucz(0.15)
+    end
+
     @testset "Gray (2005) implementation comparison" begin
         # Compare the different formulations of the free-free absorption under the conditions of
         # the panels of figure 8.5 of Gray (2005). Outside of these conditions, it's unclear where
@@ -471,7 +525,8 @@ end
             nH_II = nH_total * wII / (1 + wII)
             # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II
             absorption_coef = Korg.ContinuumAbsorption.H_I_ff(ν_vals, T, nH_II, nₑ) / nH_I
-            @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.0015
+            @test assert_allclose_grid(absorption_coef, ref_absorption_coef, [("λ", λ_vals, "Å")];
+                                       rtol = 0.032, atol = 0)
             @test all(absorption_coef .≥ 0.0)
         end
     end
@@ -608,10 +663,10 @@ end
 @testset "combined H I bf and ff absorption" begin
     @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
                                                                           ("c",0.125),
-                                                                          ("d",35)]
+                                                                          ("d",38.5)]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ atol)
+        @test assert_allclose(calculated, ref; rtol = 0.0, atol = atol)
     end
 end
 

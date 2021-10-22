@@ -1,6 +1,6 @@
 module ContinuumAbsorption
 
-using ..Korg: ionization_energies, literals # not sure that this is the best idea
+using ..Korg: ionization_energies, literals, _data_dir # not sure that this is the best idea
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
 # define helper functions

@@ -191,51 +191,122 @@ function hydrogenic_bf_absorption(ν::Real, T::Real, Z::Integer, nsdens_div_part
 end
 
 
+"""
+    _load_gauntff_table([fname])
 
-# this table is taken from section 5.1 of Kurucz (1970)
-const _ff_interpolator = begin
-    table_val = [5.53 5.49 5.46 5.43 5.40 5.25 5.00 4.69 4.48 4.16 3.85;
-                 4.91 4.87 4.84 4.80 4.77 4.63 4.40 4.13 3.87 3.52 3.27;
-                 4.29 4.25 4.22 4.18 4.15 4.02 3.80 3.57 3.27 2.98 2.70;
-                 3.64 3.61 3.59 3.56 3.54 3.41 3.22 2.97 2.70 2.45 2.20;
-                 3.00 2.98 2.97 2.95 2.94 2.81 2.65 2.44 2.21 2.01 1.81;
-                 2.41 2.41 2.41 2.41 2.41 2.32 2.19 2.02 1.84 1.67 1.50;
-                 1.87 1.89 1.91 1.93 1.95 1.90 1.80 1.68 1.52 1.41 1.30;
-                 1.33 1.39 1.44 1.49 1.55 1.56 1.51 1.42 1.33 1.25 1.17;
-                 0.90 0.95 1.00 1.08 1.17 1.30 1.32 1.30 1.20 1.15 1.11;
-                 0.45 0.48 0.52 0.60 0.75 0.91 1.15 1.18 1.15 1.11 1.08;
-                 0.33 0.36 0.39 0.46 0.59 0.76 0.97 1.09 1.13 1.10 1.08;
-                 0.19 0.21 0.24 0.28 0.38 0.53 0.76 0.96 1.08 1.09 1.09]
-    # The x-axis is log₁₀(RydbergH*Z²/(k*T)) = log₁₀(γ²)
-    xaxis = [-3.0, -2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5,  2.0]
-    # The y-axis is log₁₀(h*ν/(k*T)) = log₁₀(u)
-    yaxis = [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5,  0.0,  0.5,  1.0,  1.5]
+Returns a table of thermally-averaged free-free Gaunt factors, and the values of log₁₀(γ²) and
+log₁₀(u) associated with each point.
 
-    # Since the grid is regularly spaced, we could probably make this faster
-    # pass y,x to the interpolator
-    LinearInterpolation((yaxis, xaxis), table_val, extrapolation_bc=Throw())
+By default, this loads the non-relativistic free-free data published by
+[van Hoof et al. (2014)](https://ui.adsabs.harvard.edu/abs/2014MNRAS.444..420V/abstract).
+
+Note: This function code could trivially be adapted to load the relativistic free-free gaunt
+factors published by
+[van Hoof et al (2015)](https://ui.adsabs.harvard.edu/abs/2015MNRAS.449.2112V/abstract).
+"""
+function _load_gauntff_table(fname = joinpath(_data_dir, "vanHoof2014-nr-gauntff.dat"))
+    parse_header_line(type, s) = (last = something(findfirst('#',s), length(s)+1) - 1;
+                                  parse.(type,split(s[1:last])) )
+
+    f = open(fname, "r")
+    skipchars((c)->false, f; linecomment='#') # skip 1st section of comments
+
+    log10_γ2, log10_u = begin # parse header values
+        magic_number = parse_header_line(Int64, readline(f))[1]
+        @assert magic_number == 20140210
+        num_γ2, num_u = parse_header_line(Int64, readline(f))
+        log10_γ2_start = parse_header_line(Float64, readline(f))[1]
+        log10_u_start = parse_header_line(Float64, readline(f))[1]
+        # step_size has units of dex and applies to both axes
+        step_size = parse_header_line(Float64, readline(f))[1]
+
+        (range(log10_γ2_start, length = num_γ2, step = step_size),
+         range(log10_u_start, length = num_u, step = step_size))
+    end
+    skipchars((c)->false, f; linecomment='#') # skip 2nd section of comments
+
+    out = Matrix{Float64}(undef, length(log10_u), length(log10_γ2))
+    for i in 1:length(log10_u)
+        view(out,i,:) .= parse.(Float64, split(readline(f)))
+    end
+
+    # at this point there is a number section of comments followed by a grid of uncertainties for
+    # each value. We'll ignore those. That secondary section may or may not be present in versions
+    # of the table that included relativistic calculations
+    close(f)
+
+    out, log10_γ2, log10_u
+end
+
+
+# maybe also initialize λ_bounds and T_bounds
+const _gauntff_interpolator, _gauntff_T_bounds, _gauntff_λ_bounds = begin
+
+    # load in the tabulated data
+    table_val, log10_γ2, log10_u = _load_gauntff_table()
+
+    # the table is bigger than it needs to be. We can easily cut its size by a factor of ~10
+    T_extrema = [100.0, 1e6] # units of K
+    λ_extrema = [1.0e-6, 1.0e-2] # units of cm (equivalent to 100 Å and 100 μm)
+    Z_extrema = [1, 2]
+
+    function _find_bound_inds(range, min, max) # this is very similar to some duplicated code
+        lb,ub = searchsortedlast(range, min), searchsortedfirst(range, max)
+        @assert (range[lb] ≤ min) && (range[ub] ≥ max)
+        lb, ub
+    end
+    calc_log10_γ2(Z, Tₑ) = log10(Rydberg_eV * Z^2 / (kboltz_eV * Tₑ))
+    calc_log10_u(λ, Tₑ) = log10(hplanck_cgs * c_cgs / (λ * kboltz_cgs * Tₑ))
+
+    γ2_lb, γ2_ub = _find_bound_inds(log10_γ2, extrema(calc_log10_γ2.(Z_extrema, T_extrema'))...)
+    u_lb, u_ub   = _find_bound_inds(log10_u,  extrema( calc_log10_u.(λ_extrema, T_extrema'))...)
+
+    println("log10_u: ", log10_u[u_lb:u_ub])
+    println("log10_γ2: ", log10_γ2[γ2_lb:γ2_ub])
+
+    # make a copy of the selected data so that the unneeded data can be garbage collected
+    revised_table = copy(table_val[u_lb:u_ub, γ2_lb:γ2_ub])
+
+    (LinearInterpolation((log10_u[u_lb:u_ub], log10_γ2[γ2_lb:γ2_ub]), revised_table,
+                         extrapolation_bc = Throw()),
+     closed_interval(T_extrema...),
+     closed_interval(λ_extrema...))
 end
 
 """
-    gaunt_ff_kurucz(log_u, log_γ2)
+    gaunt_ff_vanHoof(log_u, log_γ2)
 
-computes the thermally averaged free-free gaunt factor by interpolating the table provided in
-section 5.1 of Kurucz (1970). The table was derived from a figure in Karsas and Latter (1961).
+computes the thermally averaged, non-relativistic free-free gaunt factor by interpolating the table
+provided by [van Hoof et al. (2014)](https://ui.adsabs.harvard.edu/abs/2014MNRAS.444..420V).
 
 # Arguments
-- `log_u`: Equal to log₁₀(u) = log₁₀(h*ν/(k*T))
-- `log_γ2`: Equal to log₁₀(γ²) = log₁₀(RydbergH*Z²/(k*T))
+- `log_u`: Equal to log₁₀(u) = log₁₀(h*ν/(k*Tₑ))
+- `log_γ2`: Equal to log₁₀(γ²) = log₁₀(Rydberg*Z²/(k*Tₑ))
 
-# Note
-There is some ambiguity over whether we should replace RydbergH*Z² in the definition of γ² with the
-ionization energy, but it's probably a negligible difference (given the log scale).
+`Rydberg` is the "infinite mass unit of energy" and `Tₑ` is the temperature of free electrons (for
+our purposes, we assume that free electrons are in thermal equilibrium with ions and neutral
+species).
 
-In the future, we may want to the interpolate the table reported in van Hoof, Ferland, Williams,
-Volk, Chatzikos, Lykins, & Porter (2013) because it's more accurate and applies over a larger range
-of values.
+# Notes
+
+van Hoof et al. (2014) computed the associated data table with a non-relativistic approach, which
+is invalid at very high temperatures. They conclude (from comparisons with a different paper) that
+their "results should be accurate up to electron temperatures of roughly 100 MK". This is more than
+adequate for stellar atmospheres.
+In [van Hoof et al. (2015)](https://ui.adsabs.harvard.edu/abs/2015MNRAS.449.2112V), they find that
+relativistic effects introduce a ∼0.75% at 100MK, for Z = 1 (when Z > 1, the change is smaller).
+
+
+This function currently uses linear interpolation. However, van Hoof et al. (2014) provides an
+implementation of a third-order Lagrange scheme, which "reaches a relative precision better than
+1.5e-4 everywhere." The C and Fortran implementations of this scheme can be found
+[here](http://data.nublado.org/gauntff/), and are copyrighted by a BSD-style license.
+
+Earlier variants of this function used less-accurate data from section 5.1 of Kurucz (1970) that
+extended over a smaller interval of data. That table was originally derived from a figure in Karsas
+and Latter (1961) and it's now used for testing purposes.
 """
-gaunt_ff_kurucz(log_u, log_γ2) = _ff_interpolator(log_u, log_γ2)
-
+gaunt_ff_vanHoof(log_u, log_γ2) = _gauntff_interpolator(log_u, log_γ2)
 
 """
     hydrogenic_ff_absorption(ν, T, Z, ni, ne)
@@ -281,7 +352,7 @@ function hydrogenic_ff_absorption(ν::Real, T::Real, Z::Integer, ni::Real, ne::R
     hν_div_kT = (hplanck_eV/kboltz_eV) * ν * inv_T
     log_u = log10(hν_div_kT)
     log_γ2 = log10((RydbergH_eV/kboltz_eV) * Z2 * inv_T)
-    gaunt_ff = gaunt_ff_kurucz(log_u, log_γ2)
+    gaunt_ff = gaunt_ff_vanHoof(log_u, log_γ2)
 
     F_ν = 3.6919e8*gaunt_ff*Z2*sqrt(inv_T)/(ν*ν*ν)
 
