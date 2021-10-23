@@ -139,3 +139,84 @@ function _parse_item(line, itemspec)
         (n, f(parse(t, line[r])))
     end
 end
+
+
+# take some care to avoid subnormal values (they can slow things down a lot!)
+_nextfloat_skipsubnorm(v::F) where {F<:AbstractFloat} =
+    ifelse(-floatmin(F) ≤ v < 0, F(0), ifelse(0 ≤ v < floatmin(F), floatmin(F), nextfloat(v)))
+_prevfloat_skipsubnorm(v::F) where {F<:AbstractFloat} =
+    ifelse(-floatmin(F) < v ≤ 0, -floatmin(F), ifelse(0 < v ≤ floatmin(F), F(0), prevfloat(v)))
+
+struct Interval # represents an exclusive interval
+    lower::Float64
+    upper::Float64
+
+    function Interval(lower::Real, upper::Real; exclusive_lower = true, exclusive_upper = true)
+        @assert lower < upper "the upper bound must exceed the lower bound"
+        lower, upper = Float64(lower), Float64(upper)
+        new((exclusive_lower || isinf(lower)) ? lower : _prevfloat_skipsubnorm(lower),
+            (exclusive_upper || isinf(upper)) ? upper : _nextfloat_skipsubnorm(upper))
+    end
+end
+
+# convenience function for defining interval where both bounds are inclusive
+closed_interval(lo, up) = Interval(lo, up; exclusive_lower = false, exclusive_upper = false)
+
+"""
+    contained(value, interval)
+
+Returns whether `value` is contained by `interval`.
+
+# Examples
+```julia-repl
+julia> contained(0.5, Interval(1.0,10.0))
+false
+julia> contained(5.0, Interval(1.0,10.0))
+true
+```
+"""
+contained(value::Real, interval::Interval) = interval.lower < value < interval.upper
+
+
+"""
+    contained_slice(vals, interval)
+
+Returns a range of indices denoting the elements of `vals` (which are assumed to be sorted in
+ increasing order) that are contained by `interval`. When no entries are contained by interval,
+this returns `(1,0)` (which is a valid empty slice).
+"""
+contained_slice(vals::AbstractVector, interval::Interval) =
+    searchsortedfirst(vals, interval.lower):searchsortedlast(vals, interval.upper)
+
+function _convert_λ_endpoint(λ_endpoint::AbstractFloat, λ_lower_bound::Bool)
+    # determine the functions that:
+    # - retrieve the neighboring ν val in the in-bounds and out-of-bounds directions
+    # - specify the desired relationship between an in-bounds λ and λ_lower_bound
+    inbound_ν_neighbor, oobound_ν_neighbor, inbound_λ_to_endpoint_relation =
+        λ_lower_bound ? (prevfloat, nextfloat, >) : (nextfloat, prevfloat, <)
+
+    ν_endpoint = (λ_endpoint == 0) ? Inf : c_cgs/λ_endpoint
+    if isfinite(ν_endpoint) && (ν_endpoint != 0)
+        # Adjust ν_endpoint in 2 cases:
+        # Case 1: The neighboring ν to ν_endpoint that should be in-bounds, corresponds to a λ
+        # value that is out-of-bounds. Nudge ν_endpoint in the "in-bounds" direction until resolved
+        while !inbound_λ_to_endpoint_relation(c_cgs/inbound_ν_neighbor(ν_endpoint), λ_endpoint)
+            ν_endpoint = inbound_ν_neighbor(ν_endpoint)
+        end
+        # Case 2: The current value of ν_endpoint corresponds to a λ that is in-bounds. Nudge
+        # ν_endpoint in the "out-of-bounds" direction until resolved.
+        while inbound_λ_to_endpoint_relation(c_cgs/ν_endpoint, λ_endpoint)
+            ν_endpoint = oobound_ν_neighbor(ν_endpoint)
+        end
+    end
+    ν_endpoint
+end
+
+"""
+    λ_to_ν_bound(λ_bound)
+
+Converts a λ `Inverval` (in cm) to an equivalent ν `Interval` (in Hz), correctly accounting for 
+tricky floating point details at the bounds.
+"""
+λ_to_ν_bound(λ_bound::Interval) =
+    Interval(_convert_λ_endpoint(λ_bound.upper, false), _convert_λ_endpoint(λ_bound.lower, true))

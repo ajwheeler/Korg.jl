@@ -6,6 +6,19 @@ have questions, do not hesitate to ask.
 - Whenever possible, calculations should be precise up to a factor of $$10^{-3}$$.  When it's easy and inexpensive, they should be precise to $$10^{-5}$$ or better.  
 - Ensure types are generic enough to support dual numbers and autodifferentiation. 
 - Limit lines to 100 characters.
+- try to use ASCII characters in the names of functions that are part of the public API.
+
+## Continuum Absorption
+
+Steps for implementing new continuum sources of absorption:
+- Define a helper function that computes a single absorption coefficient (in units of cm⁻²). The function should accept `ν` (in Hz) and `T` (in K) as the first and second arguments, respectively. The convention is for it should share a name with the corresponding public function, but have an underscore pre-appended (e.g. we define `_H_I_bf` to help implement `H_I_bf`).
+- The public function is the function constructed and returned by `Korg.ContinuumAbsorption.bounds_checked_absorption` that wraps the above helper function. This wrapper function implements bounds-checking for `ν` and `T` and supports the keyword arguments described in [Continuum Absorption Kwargs](@ref).
+- Add a docstring describing the new function. At the very least, please describe any non-standard arguments and include a reference in the docstring to the source where the function was taken from.
+- Add a line to `doc/src/API.md` under the `Continuum absorption` heading to render the docstring of your new function.
+- Add a line to `total_continuum_absorption` that calls the new public function for absorption.
+
+The first two steps may not apply for sources that don't directly depend on `ν` and `T` (e.g.
+absorption from scattering).
 
 ## Experimental support for bound-free metal absorption coefficients
 
@@ -64,5 +77,5 @@ In the future, we also plan to add support for reading in photoionization tables
 Here are all the documented methods in Korg.
 
 ```@autodocs
-Modules = [Korg, Korg.ContinuumOpacity]
+Modules = [Korg, Korg.ContinuumAbsorption]
 ```

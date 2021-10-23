@@ -37,19 +37,37 @@ Korg.voigt
 ```
 
 ## Continuum absorption
-These function can be used to directly compute continuum opacities.
+These function can be used to directly compute continuum absorption coefficients.
+
+##### Continuum Absorption Kwargs
+
+All bound-free and free-free absorption functions (other than `absorption_coef_bf_TOPBase`) support
+the following keyword arguments:
+
+- `error_oobounds::Bool`: specifies the function's behavior when it encounters invalid `ν` or `T`
+  values. When `false` (the default), the function assumes that the absorption coefficient for
+  these invalid `ν` or `T` values is `0.0`. Otherwise, a `DomainError` is thrown when invalid `ν`
+  or `T` values are encountered.
+- `out_α::Union{Nothing,AbstractVector}`: When this is `nothing` (the default case), the function
+  will simply allocate a new vector to store the output continuum absorption coefficients.
+  Alternatively, this can be a vector (with the same length as the function's `ν` argument). In
+  this case, the function will directly add the computed continuum absorption to the elements of
+  this vector, in-place (the vector is also returned by the function).
 
 ```@docs
-Korg.total_continuum_opacity
-Korg.ContinuumOpacity.H_I_bf
-Korg.ContinuumOpacity.H_I_ff
-Korg.ContinuumOpacity.Hminus_bf
-Korg.ContinuumOpacity.Hminus_ff
-Korg.ContinuumOpacity.H2plus_bf_and_ff
-Korg.ContinuumOpacity.He_II_bf
-Korg.ContinuumOpacity.He_II_ff
-Korg.ContinuumOpacity.Heminus_ff
-Korg.ContinuumOpacity.electron_scattering
+Korg.total_continuum_absorption
+Korg.ContinuumAbsorption.H_I_bf
+Korg.ContinuumAbsorption.H_I_ff
+Korg.ContinuumAbsorption.Hminus_bf
+Korg.ContinuumAbsorption.Hminus_ff
+Korg.ContinuumAbsorption.H2plus_bf_and_ff
+Korg.ContinuumAbsorption.He_II_bf
+Korg.ContinuumAbsorption.He_II_ff
+Korg.ContinuumAbsorption.Heminus_ff
+Korg.ContinuumAbsorption.electron_scattering
+Korg.ContinuumAbsorption.rayleigh
+Korg.ContinuumAbsorption.hydrogenic_bf_absorption
+Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```
 
 ## Statistical mechanics

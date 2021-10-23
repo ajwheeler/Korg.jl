@@ -1,5 +1,5 @@
 using Interpolations: LinearInterpolation
-import ..ContinuumOpacity
+import ..ContinuumAbsorption: total_continuum_absorption
 
 """
     synthesize(atm, linelist, λs; metallicity=0, abundances=Dict(), vmic=0, ... )
@@ -70,11 +70,13 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
     #interpolator that can be used to approximate it over a fine grid.
+    sorted_cntmνs = c_cgs ./ reverse(cntmλs)
     α_cntm = map(zip(atm.layers, n_dicts)) do (layer, ns)
-        LinearInterpolation(cntmλs, total_continuum_opacity(c_cgs ./ cntmλs, layer.temp, 
-                                                            layer.electron_number_density, 
-                                                            layer.density, ns, partition_funcs
-                                                           ) * layer.density)
+        α_cntm_vals = total_continuum_absorption(sorted_cntmνs, layer.temp,
+                                                 layer.electron_number_density,
+                                                 ns, partition_funcs)
+        reverse!(α_cntm_vals)
+        LinearInterpolation(cntmλs, α_cntm_vals) # LinearInterpolation needs ranges to be increasing
     end
 
     for (i, layer) in enumerate(atm.layers)
@@ -145,47 +147,7 @@ function get_absolute_abundances(metallicity, A_X::Dict) :: Vector{Number}
     abundances
 end
 
-"""
-    total_continuum_opacity(νs, T, nₑ, ρ, number_densities, partition_funcs)
 
-The total continuum opacity, κ, at many frequencies, ν.
-
-- `νs` are frequencies in Hz
-- `T` is temperature in K
-- `nₑ` is the electron number density in cm^-3
-- `ρ` is the density in g cm^-3 
-- `number_densities` is a `Dict` mapping each species to its number density
-- `partition_funcs` is a `Dict` mapping each species to its partition function (e.g. 
-  `Korg.partition_funcs`)
-"""
-function total_continuum_opacity(νs::Vector{F}, T::F, nₑ::F, ρ::F, number_densities::Dict, 
-                                 partition_funcs::Dict) where F <: Real
-    κ = zeros(F, length(νs))
-
-    #TODO check all arguments
-
-    #Hydrogen continuum opacities
-    nH_I = number_densities[literals.H_I]
-    nH_I_div_U = nH_I / partition_funcs[literals.H_I](T)
-    κ += ContinuumOpacity.H_I_bf.(nH_I_div_U, νs, ρ, T) 
-    κ += ContinuumOpacity.H_I_ff.(number_densities[literals.H_II], nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.Hminus_bf.(nH_I_div_U, nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.Hminus_ff.(nH_I_div_U, nₑ, νs, ρ, T)
-    κ += ContinuumOpacity.H2plus_bf_and_ff.(nH_I_div_U, number_densities[literals.H_II], νs, ρ, T)
-    
-    #He continuum opacities
-    κ += ContinuumOpacity.He_II_bf.(number_densities[literals.H_II] / 
-                                    partition_funcs[literals.H_II](T), νs, ρ, T)
-    #κ += ContinuumOpacity.He_II_ff.(number_densities[literals.He_III], nₑ, νs, ρ, T)
-    # ContinuumOpacity.Heminus_ff is only valid for λ ≥ 5063 Å
-    #κ += ContinuumOpacity.Heminus_ff.(number_densities[literals.He_I] / 
-    #        partition_funcs[literals.He_I](T), nₑ, νs, ρ, T)
-    
-    #electron scattering
-    κ .+= ContinuumOpacity.electron_scattering(nₑ, ρ)
-    
-    κ
-end
 
 
 """

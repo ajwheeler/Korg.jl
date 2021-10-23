@@ -18,8 +18,8 @@ module Korg
     const equilibrium_constants = setup_equilibrium_constants()
     const hline_stark_profiles = setup_hydrogen_stark_profiles()
 
-    include("continuum_opacity/continuum_opacity.jl") #Define continuum opacity functions.
-    include("synthesize.jl")                          #solve radiative transfer equation
-    include("utils.jl")                               #functions to apply LSF, vac<->air wls, etc
+    include("utils.jl")                                #functions to apply LSF, vac<->air wls, etc.
+    include("continuum_absorption/ContinuumAbsorption.jl")  #Define continuum absorption functions.
+    include("synthesize.jl")                                #solve radiative transfer equation
 
 end # module

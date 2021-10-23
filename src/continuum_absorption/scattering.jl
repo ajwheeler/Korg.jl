@@ -10,6 +10,7 @@ rescaled to match Schwerdtfeger 2006.  The formulation for H2 is from Dalgarno a
 wavelength ratio gets large, 1300 Å seems like a reasonable limit to use for all of these.
 """
 function rayleigh(νs::AbstractVector{<:Real}, nH_I, nHe_I, nH2)
+    @assert c_cgs/maximum(νs) > 1.3e-5
     σth = 6.65246e-25 #Thompson scattering cross section [cm^2]
 
     #(ħω/ 2E_H)^2 in Colgan+ 2016.  The photon energy over 2Ryd
@@ -36,19 +37,17 @@ function rayleigh(νs::AbstractVector{<:Real}, nH_I, nHe_I, nH2)
 end
 
 """
-    electron_scattering(nₑ, ρ)
+    electron_scattering(nₑ)
 
-Compute the opacity from scattering off of free electrons. This has no wavelength dependence. It
-assumes isotropic scattering
+Compute the linear absorption coefficient, α, from scattering off of free electrons. This has no
+wavelength dependence. It assumes isotropic scattering.
 
 # Arguments
 - `nₑ::F`: number density of free electrons (in cgs)
-- `ρ::F`: the mass density
 
 # Notes
 I adopted the formula described in section 5.12 of Kurucz (1970) and the equation in the electron
 scattering subsection of Gray (2005); the actual coefficient value comes from the latter. It turns
 out that the coefficient in Kurucz (1970) has a typo (it's a factor of 10 too large).
 """
-electron_scattering(nₑ::F, ρ::F) where {F<:Real} = 0.6648e-24*nₑ/ρ
-
+electron_scattering(nₑ::F) where {F<:Real} = 0.6648e-24*nₑ
