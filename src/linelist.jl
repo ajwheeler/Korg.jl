@@ -359,7 +359,7 @@ function parse_vald_linelist(f)
         throw(ArgumentError("Isotopic scaling not yet implemented."))
     elseif !any(startswith.(lines,"* oscillator strengths were scaled by the solar isotopic ratios."))
         throw(ArgumentError("Can't parse linelist.  Can't detect whether log(gf)s are scaled by "*
-                            ":isotopic abundance."))
+                            "isotopic abundance."))
     end
 
     #we take the linelist to be long-format when the second line after the header starts with a 
