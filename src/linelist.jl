@@ -231,16 +231,21 @@ function approximate_radiative_gamma(wl, log_gf)
 end
 
 """
-A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
-10,000 K. Used for atomic lines with no vdW and stark broadening info in the linelist.
-Returns γ_stark, log10(γ_vdW)
+    approximate_gammas(wl, species, E_lower; ionization_energies=Korg.ionization_energies)
 
-In the calculation of n*², uses the approximation that
-\\overbar{r^2} = 5/2 {n^*}^4 / Z^2
+A simplified form of the Unsoeld (1955) approximation for van der Waals broadening and the 
+[Cowley 1971](https://ui.adsabs.harvard.edu/abs/1971Obs....91..139C/abstract) approximation for 
+Stark broadening, evaluated at 10,000 K. 
+Used for atomic lines with no vdW and stark broadening info in the linelist.
+
+Returns `(γ_stark`, `log10(γ_vdW))` in Hz, where these are the per-perturber quantities.
+For autoionizing lines (those for which E_upper > χ), Returns 0.0 for γ_vdW.
+
+In the calculation of `n*²`, uses the approximation that
+``\\overbar{r^2} = 5/2 {n^*}^4 / Z^2``
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
-Warner 1967.
-
-For autoionizing lines (those for which E_upper > χ), returns 0.0 for γ_vdW.
+[Warner 1967](https://ui.adsabs.harvard.edu/abs/1967MNRAS.136..381W/abstract) (the earliest english 
+work reporting the Unsoeld result).
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
     Z = species.charge + 1 #Z is ionization stage, not atomic number
@@ -253,15 +258,25 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     k = kboltz_cgs
     E_upper = E_lower + (h * c / wl)
 
-    nstar4_upper = (Z^2 * Rydberg_eV / (χ - E_upper))^2
-    #From Cowley 1971
-    γstark = 0.77e-18 * nstar4_upper * wl^2
+    #It's not obvious to me which Rydberg constant to use here, and below in Δrbar2.  The sources
+    #are not entirely clear. It doesn't make a big difference.
+    nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
+    #I'm not actually able to reproduce Crowley 1971 equation 7 (his simplified form) from equation 
+    #5, but these match the values in the Turbospectrum source, so they are probably correct.
+    #The constants here were calculated assuming that "v" is the mean (not modal) electron speed
+    if Z == 1
+        γstark = 2.25910152e-7 * nstar4_upper #Cowley (1971) equation 5 evaluated at T=10,000 K
+    else
+        #Cowley (1971) equation 6 @ T=10,000 K (n.b. the constant is 12/5 * that above)
+        γstark = 5.42184365e-7 * nstar4_upper / (Z + 1)^2 
+    end
 
     Δrbar2 = (5/2) * Rydberg_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
     if χ < E_upper
         γvdW = 0.0
     else
-        #(log) γ_vdW From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
+        # (log) γ_vdW From R J Rutten's course notes. 
+        # Equations 11.29 and 11.30 from Gray 2005 are equivalent 
         γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
     end
 
