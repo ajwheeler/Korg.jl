@@ -238,7 +238,8 @@ Returns γ_stark, log10(γ_vdW)
 In the calculation of n*², uses the approximation that
 \\overbar{r^2} = 5/2 {n^*}^4 / Z^2
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
-[Warner 1967](https://ui.adsabs.harvard.edu/abs/1967MNRAS.136..381W/abstract).
+[Warner 1967](https://ui.adsabs.harvard.edu/abs/1967MNRAS.136..381W/abstract) (which is the earliest
+english work reporting the Unsoeld result).
 
 For autoionizing lines (those for which E_upper > χ), returns 0.0 for γ_vdW.
 """
@@ -263,7 +264,8 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     if χ < E_upper
         γvdW = 0.0
     else
-        #(log) γ_vdW From R J Rutten's course notes. An equivalent form can be found in Gray 2005.
+        # (log) γ_vdW From R J Rutten's course notes. 
+        # Equations 11.29 and 11.30 from Gray 2005 are equivalent 
         γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
     end
 
