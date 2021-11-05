@@ -260,6 +260,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
     #I'm not actually able to reproduce Crowley 1971 equation 7 (his simplified form) from equation 
     #5, but these match the values in the Turbospectrum source, so they are probably correct.
+    #The constants here were calculated assuming that "v" is the mean (not modal) electron speed
     if Z == 1
         γstark = 2.25910152e-7 * nstar4_upper #Cowley (1971) equation 5 evaluated at T=10,000 K
     else
