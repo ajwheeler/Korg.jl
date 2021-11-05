@@ -231,14 +231,14 @@ function approximate_radiative_gamma(wl, log_gf)
 end
 
 """
-A simplified form of the Unsoeld (1995) approximation for van der Waals and Stark broadening at 
+A simplified form of the Unsoeld (1955) approximation for van der Waals and Stark broadening at 
 10,000 K. Used for atomic lines with no vdW and stark broadening info in the linelist.
 Returns γ_stark, log10(γ_vdW)
 
 In the calculation of n*², uses the approximation that
 \\overbar{r^2} = 5/2 {n^*}^4 / Z^2
 which neglects the dependence on the angular momentum quantum number, l, in the the form given by
-Warner 1967.
+[Warner 1967](https://ui.adsabs.harvard.edu/abs/1967MNRAS.136..381W/abstract).
 
 For autoionizing lines (those for which E_upper > χ), returns 0.0 for γ_vdW.
 """
