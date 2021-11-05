@@ -40,14 +40,11 @@ end
     electron_scattering(nₑ)
 
 Compute the linear absorption coefficient, α, from scattering off of free electrons. This has no
-wavelength dependence. It assumes isotropic scattering.
+wavelength dependence. It assumes isotropic scattering.  (See, e.g. Gray p 160.)
 
 # Arguments
 - `nₑ::F`: number density of free electrons (in cgs)
-
-# Notes
-I adopted the formula described in section 5.12 of Kurucz (1970) and the equation in the electron
-scattering subsection of Gray (2005); the actual coefficient value comes from the latter. It turns
-out that the coefficient in Kurucz (1970) has a typo (it's a factor of 10 too large).
 """
-electron_scattering(nₑ::F) where {F<:Real} = 0.6648e-24*nₑ
+function electron_scattering(nₑ::F) where {F<:Real} 
+    8π/3 * (electron_charge_cgs^2/(electron_mass_cgs * c_cgs^2))^2 * nₑ
+end
