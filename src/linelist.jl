@@ -253,9 +253,11 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     k = kboltz_cgs
     E_upper = E_lower + (h * c / wl)
 
-    nstar4_upper = (Z^2 * Rydberg_eV / (χ - E_upper))^2
-    #From Cowley 1971
-    γstark = 0.77e-18 * nstar4_upper * wl^2
+    #It's not obvious to me which Rydberg constant to use here, and below in Δrbar2.  The sources
+    #are not entirely clear. It doesn't make a big difference.
+    nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
+    #From Cowley 1971 - converted to freq units
+    γstark = 4.616803e-8 * nstar4_upper
 
     Δrbar2 = (5/2) * Rydberg_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
     if χ < E_upper
