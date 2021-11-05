@@ -218,7 +218,8 @@ function Base.show(io::IO, m::MIME"text/plain", line::Line)
     print(io, " ", round(line.wl*1e8, digits=6), " Å")
 end
 
-""" approximate_radiative_gamma(wl, log_gf)
+"""
+    approximate_radiative_gamma(wl, log_gf)
 
 Approximate radiate broadening parameter.
 """
@@ -230,6 +231,8 @@ function approximate_radiative_gamma(wl, log_gf)
 end
 
 """
+    approximate_gammas(wl, species, E_lower; ionization_energies=Korg.ionization_energies)
+
 A simplified form of the Unsoeld (1955) approximation for van der Waals broadening and the 
 [Cowley 1971](https://ui.adsabs.harvard.edu/abs/1971Obs....91..139C/abstract) approximation for 
 Stark broadening, evaluated at 10,000 K. 
