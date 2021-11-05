@@ -46,5 +46,5 @@ wavelength dependence. It assumes isotropic scattering.  (See, e.g. Gray p 160.)
 - `nₑ::F`: number density of free electrons (in cgs)
 """
 function electron_scattering(nₑ::F) where {F<:Real} 
-    nₑ  *  8π/3 * (electron_charge_cgs^2/(electron_mass_cgs * c_cgs^2))^2
+    8π/3 * (electron_charge_cgs^2/(electron_mass_cgs * c_cgs^2))^2 * nₑ
 end
