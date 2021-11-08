@@ -2,13 +2,21 @@ using Interpolations: LinearInterpolation
 import ..ContinuumAbsorption: total_continuum_absorption
 
 """
-    synthesize(atm, linelist, λs; metallicity=0, abundances=Dict(), vmic=0, ... )
+    synthesize(atm, linelist, λ_start, λ_stop, [λ_step=0.01]; metallicity=0, abundances=Dict(), vmic=0, ... )
 
 Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
-wavelengths `λs` [Å] to get the resultant astrophysical flux at each wavelength.
+from `λ_start` to `λ_stop` in steps of `λ_step` (all Å) to get the resultant astrophysical flux at 
+each wavelength.  An `AbstractRange` can also be probvided directly in place of `λ_start`, `λ_stop`,
+and `λ_step`.
 
-For efficiency reasons, `λs` must be an `AbstractRange`, such as `6000:0.01:6500`.  It can't be an 
-arbitrary list of wavelengths.
+Returns a named tuple with keys:
+    - `flux`: the output spectrum
+    - `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
+       size (layers x wavelengths)
+    - `number_densities`: A dictionary mapping `Species` to vectors of nunber densities at each 
+       atmospheric layer
+    - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
+      `air_wavelengths=true` this will not be the same as the input wavelenths.
 
 Optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
@@ -16,7 +24,12 @@ Optional arguments:
    ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
    These override `metallicity`.
 - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
-- `line_buffer` (default: 10): the farthest (in Å) any line can be from the provide wavelenth range 
+- `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
+   be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
+   wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
+   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown.
+- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
+- `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
@@ -36,6 +49,26 @@ Optional arguments:
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
 """
+function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0.01
+                    ; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4, kwargs...)
+    wls = if air_wavelengths
+        len = Int(round((λ_stop - λ_start)/λ_step))+1
+        vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
+        vac_step = (vac_stop - vac_start) / (len-1)
+        wls = StepRangeLen(vac_start, vac_step, len)
+        max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
+        if max_diff > wavelength_conversion_warn_threshold
+            throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
+                                *"linear vacuum wavelength range. This solution differs by up to " * 
+                                "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you" *
+                                "want to suppress this error."))
+        end
+        wls
+    else
+        StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)
+    end
+    synthesize(atm, linelist, wls; kwargs...)
+end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
                     vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     hydrogen_lines=true, mu_grid=0.05:0.05:1, line_cutoff_threshold=1e-3,
@@ -49,10 +82,11 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     #sort the lines if necessary and check that λs is sorted
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
-    if !issorted(λs)
-        throw(ArgumentError("λs must be sorted"))
+    if step(λs) > 0
+        throw(ArgumentError("λs must be in increasing order."))
     end
 
+    #discard lines far from the wavelength range being synthesized
     linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
 
     abundances = get_absolute_abundances(metallicity, abundances)
@@ -112,8 +146,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
         end
     end
 
-    #idk whether we should return this extra stuff long-term, but it's useful for debugging
-    (flux=flux, alpha=α, number_densities=number_densities)
+    (flux=flux, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
 end
 
 """
