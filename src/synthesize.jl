@@ -82,7 +82,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     #sort the lines if necessary and check that λs is sorted
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
-    if step(λs) > 0
+    if step(λs) < 0
         throw(ArgumentError("λs must be in increasing order."))
     end
 
