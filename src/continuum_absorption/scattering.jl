@@ -1,14 +1,18 @@
 """
     rayleigh(λs, nH_I, nHe_II, nH2)
 
-Absorption coefficient from Rayleigh scattering by neutral H, He, and H2.  Formulations taken from 
-Colgan+ 2016.  
+Absorption coefficient from Rayleigh scattering by neutral H, He, and H2.  Formulations for H and He
+are via [Colgan+ 2016](https://ui.adsabs.harvard.edu/abs/2016ApJ...817..116C/abstract).  Formulation 
+for H2 from 
+[Dalgarno and Williams 1962](https://ui.adsabs.harvard.edu/abs/1962ApJ...136..690D/abstract).
 
-The formulations for H is adapted from Lee 2005, which states that it is applicable redward of 
-Lyman alpha. The formulation for He is adapted from Dalgarno 1962, Dalgarno & Kingston 1960, and 
-rescaled to match Schwerdtfeger 2006.  The formulation for H2 is from Dalgarno and Williams 1963 and
-is applicable redward of 1300 Å.  Since Rayleigh scattering breaks down when the particle size to 
-wavelength ratio gets large, 1300 Å seems like a reasonable limit to use for all of these.
+The Dalgarno and Williams H2 is applicable redward of 1300 Å.  Since Rayleigh scattering breaks down
+when the particle size to wavelength ratio gets large, we that all frequencies passed to this 
+function be equivalent to 1300 Å or greater.
+
+The formulations for H is adapted from 
+[Lee 2005](https://ui.adsabs.harvard.edu/abs/1962ApJ...136..690D/abstract), which states that it is 
+applicable redward of Lyman alpha. See Colgan 2016 for details on He.
 """
 function rayleigh(νs::AbstractVector{<:Real}, nH_I, nHe_I, nH2)
     @assert c_cgs/maximum(νs) > 1.3e-5
