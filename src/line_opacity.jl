@@ -45,7 +45,7 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, part
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
             Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
-                      n_densities[literals.H_I] .* [scaled_vdW(line.vdW, m, T) for T in temp])
+                      n_densities[species"H_I"] .* [scaled_vdW(line.vdW, m, T) for T in temp])
         end
         #calculate the lorentz broadenign parameter in in wavelength. Doing this involves an 
         #implicit aproximation that λ(ν) is linear over the line window.
