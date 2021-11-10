@@ -104,10 +104,10 @@ end
 
 @testset "O I-III and CN partition functions are monotonic in T" begin
     Ts = 1:100:10000
-    @test issorted(Korg.partition_funcs[Korg.Species("O_I")].(Ts))
-    @test issorted(Korg.partition_funcs[Korg.Species("O_II")].(Ts))
-    @test issorted(Korg.partition_funcs[Korg.Species("O_III")].(Ts))
-    @test issorted(Korg.partition_funcs[Korg.Species("CN_I")].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.species"O_I"].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.species"O_II"].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.species"O_III"].(Ts))
+    @test issorted(Korg.partition_funcs[Korg.species"CN_I"].(Ts))
 end
 
 @testset "stat mech" begin
@@ -115,7 +115,7 @@ end
         nH_tot = 1e15
         # specify χs and Us to decouple this testset from other parts of the code
         χs = [(Korg.RydbergH_eV, -1.0, -1.0)]
-        Us = Dict([Korg.literals.H_I=>(T -> 2.0), Korg.literals.H_II=>(T -> 1.0)])
+        Us = Dict([Korg.species"H_I"=>(T -> 2.0), Korg.species"H_II"=>(T -> 1.0)])
         # iterate from less than 1% ionized to more than 99% ionized
         for T in [3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3, 1e4, 1.1e4, 1.2e4, 1.3e4, 1.4e4, 1.5e5]
             nₑ = electron_ndens_Hplasma(nH_tot, T, 2.0)
@@ -149,12 +149,12 @@ end
 
         n = Korg.molecular_equilibrium(MEQs, 5700.0, nₜ, nₑ)
         #make sure number densities are sensible
-        @test (n[Korg.Species("C_III")] < n[Korg.Species("C_II")] < n[Korg.Species("C_I")] < 
-               n[Korg.literals.H_II] < n[Korg.literals.H_I])
+        @test (n[Korg.species"C_III"] < n[Korg.species"C_II"] < n[Korg.species"C_I"] < 
+               n[Korg.species"H_II"] < n[Korg.species"H_I"])
 
         #total number of carbons is correct
         total_C = map(collect(keys(n))) do species
-            if species == Korg.Species("C2")
+            if species == Korg.species"C2"
                 n[species] * 2
             elseif 0x06 in Korg.get_atoms(species.formula)
                 n[species]
@@ -169,16 +169,16 @@ end
 @testset "lines" begin
     @testset "linelists" begin 
         @testset "species codes" begin
-            @test Korg.Species("01.00")   == Korg.Species("H I")
-            @test Korg.Species("101.0")   == Korg.Species("H2 I")
-            @test Korg.Species("01.0000") == Korg.Species("H I")
-            @test Korg.Species("02.01")   == Korg.Species("He II")
-            @test Korg.Species("02.1000") == Korg.Species("He II")
-            @test Korg.Species("0608")    == Korg.Species("CO I")
-            @test Korg.Species("0606")    == Korg.Species("C2 I")
-            @test Korg.Species("606")     == Korg.Species("C2 I")
-            @test Korg.Species("0608.00") == Korg.Species("CO I")
-            @test Korg.Species("OOO")     == Korg.Species("O3")
+            @test Korg.species"01.00"   == Korg.species"H"
+            @test Korg.species"101.0"   == Korg.species"H2 I"
+            @test Korg.species"01.0000" == Korg.species"H I"
+            @test Korg.species"02.01"   == Korg.species"He II"
+            @test Korg.species"02.1000" == Korg.species"He II"
+            @test Korg.species"0608"    == Korg.species"CO"
+            @test Korg.species"0606"    == Korg.species"C2 I"
+            @test Korg.species"606"     == Korg.species"C2 I"
+            @test Korg.species"0608.00" == Korg.species"CO I"
+            @test Korg.species"OOO"     == Korg.species"O3"
 
             @test_throws ArgumentError Korg.Species("06.05.04")
             @test_throws Exception Korg.Species("99.01")
@@ -208,7 +208,7 @@ end
                 @test length(kurucz_ll) == 987
                 @test kurucz_ll[1].wl ≈ 0.0007234041763337705
                 @test kurucz_ll[1].log_gf == -0.826
-                @test kurucz_ll[1].species == Korg.Species("Be_II")
+                @test kurucz_ll[1].species == Korg.species"Be_II"
                 @test kurucz_ll[1].E_lower ≈ 17.360339371573698
                 @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
                 @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
@@ -221,7 +221,7 @@ end
             @test length(linelist) == 6
             @test linelist[1].wl ≈ 3000.0414 * 1e-8
             @test linelist[1].log_gf == -2.957
-            @test linelist[1].species == Korg.Species("Fe_I")
+            @test linelist[1].species == Korg.species"Fe_I"
             @test linelist[1].E_lower ≈ 3.3014
             @test linelist[1].gamma_rad ≈ 1.905460717963248e7
             @test linelist[1].gamma_stark ≈ 0.0001230268770812381
@@ -278,7 +278,7 @@ end
             @test issorted(moog_linelist, by=l->l.wl)
             @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
             @test moog_linelist[1].log_gf ≈ -0.280
-            @test moog_linelist[1].species == Korg.Species("Ti_I")
+            @test moog_linelist[1].species == Korg.species"Ti_I"
             @test moog_linelist[2].E_lower ≈ 3.265
         end
     end
@@ -325,7 +325,7 @@ end
         close(fid)
 
         αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, 
-                                           Korg.partition_funcs[Korg.literals.H_I], 
+                                           Korg.partition_funcs[Korg.species"H_I"], 
                                            Korg.hline_stark_profiles, 0.0)
         @test αs_ref ≈ αs rtol=1e-5
     end

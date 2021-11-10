@@ -1,6 +1,6 @@
 module ContinuumAbsorption
 
-using ..Korg: ionization_energies, literals, _data_dir # not sure that this is the best idea
+using ..Korg: ionization_energies, @species_str, _data_dir # not sure that this is the best idea
 using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
@@ -52,23 +52,23 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
 
     # Hydrogen continuum absorption
-    nH_I = number_densities[literals.H_I]
-    nH_I_div_U = nH_I / partition_funcs[literals.H_I](T)
+    nH_I = number_densities[species"H_I"]
+    nH_I_div_U = nH_I / partition_funcs[species"H_I"](T)
     H_I_bf(νs, T, nH_I_div_U; kwargs...)
-    H_I_ff(νs, T, number_densities[literals.H_II], nₑ; kwargs...)
+    H_I_ff(νs, T, number_densities[species"H_II"], nₑ; kwargs...)
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
-    H2plus_bf_and_ff(νs, T, nH_I_div_U, number_densities[literals.H_II]; kwargs...)
+    H2plus_bf_and_ff(νs, T, nH_I_div_U, number_densities[species"H_II"]; kwargs...)
 
     # He continuum opacities
-    He_II_bf(νs, T, number_densities[literals.H_II] / partition_funcs[literals.H_II](T); kwargs...)
-    He_II_ff(νs, T, number_densities[literals.He_III], nₑ; kwargs...)
-    Heminus_ff(νs, T, number_densities[literals.He_I] / partition_funcs[literals.He_I](T), nₑ;
+    He_II_bf(νs, T, number_densities[species"H_II"] / partition_funcs[species"H_II"](T); kwargs...)
+    He_II_ff(νs, T, number_densities[species"He_III"], nₑ; kwargs...)
+    Heminus_ff(νs, T, number_densities[species"He_I"] / partition_funcs[species"He_I"](T), nₑ;
                kwargs...)
 
     # scattering
     α .+= electron_scattering(nₑ)
-    α .+= rayleigh(νs, nH_I, number_densities[literals.He_I], number_densities[Species("H2")])
+    α .+= rayleigh(νs, nH_I, number_densities[species"He_I"], number_densities[species"H2"])
 
     α
 end

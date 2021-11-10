@@ -128,6 +128,8 @@ end
 
 Parse the "species code" as it is often specified in linelists and return a the "astronomy" 
 notation. 01.00 → "H_I", 02.01 → "He_II", 02.1000 → "He_II", 0608 → "CO_I", etc.  
+
+To parse at compile time, use the `species` string macro, i.e. `species"H I"`.
 """
 function Species(code::AbstractString)
     code = strip(code, ['0', ' '])
@@ -150,9 +152,10 @@ function Species(code::AbstractString)
     Species(formula, charge)
 end
 
-#these are handy to avoid speding cycles instantiating commonly referenced species
-const literals = (H_I=Species("H_I"), H_II=Species("H_II"), He_I=Species("He_I"), 
-                  He_II=Species("He_II"), He_III=Species("He_III"))
+#used to contruct Species at compile time and avoid parsing in hot loops
+macro species_str(s)
+    Species(s)
+end
 
 #pretty-print lines in REPL and jupyter notebooks
 function Base.show(io::IO, m::MIME"text/plain", s::Species)
@@ -315,7 +318,7 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
     end
 
     filter!(linelist) do line #filter triply+ ionized and hydrogen lines
-        (0 <= line.species.charge <= 2) && (line.species != literals.H_I)
+        (0 <= line.species.charge <= 2) && (line.species != species"H_I")
     end
 
     #ensure linelist is sorted
