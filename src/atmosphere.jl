@@ -51,6 +51,11 @@ function ShellAtmosphere(atm::PlanarAtmosphere, R)
                      for (l, r) in zip(atm.layers, rs)])
 end
 
+#pretty-printing
+function Base.show(io::IO, m::MIME"text/plain", atm::A) where A <: ModelAtmosphere
+    print(io, "$(A) with $(length(atm.layers)) layers")
+end
+
 """
     read_model_atmosphere(filename; truncate_at_10000K=true)
 
