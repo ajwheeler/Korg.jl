@@ -438,6 +438,16 @@ using SpecialFunctions: expint
     @test Korg.exponential_integral_2.(xs) ≈ expint.(2, xs) rtol=1e-3
 end
 
+@testset "synthesize wavelength handling" begin
+    atm = read_model_atmosphere("data/sun.krz")
+    wls = 15000:0.01:15500
+    @test synthesize(atm, [], 15000, 15500).wavelengths ≈ wls
+    @test synthesize(atm, [], 15000, 15500; air_wavelengths=true).wavelengths ≈ Korg.air_to_vacuum.(wls)
+    @test_throws ArgumentError synthesize(atm, [], 15000, 15500; air_wavelengths=true, 
+                                          wavelength_conversion_warn_threshold=1e-20)
+    @test_throws ArgumentError synthesize(atm, [], 2000, 8000, air_wavelengths=true)
+end
+
 @testset "autodiff" begin
     using ForwardDiff
 
