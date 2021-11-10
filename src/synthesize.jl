@@ -13,7 +13,7 @@ Returns a named tuple with keys:
     - `flux`: the output spectrum
     - `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
        size (layers x wavelengths)
-    - `number_densities`: A dictionary mapping `Species` to vectors of nunber densities at each 
+    - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
        atmospheric layer
     - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
       `air_wavelengths=true` this will not be the same as the input wavelenths.
