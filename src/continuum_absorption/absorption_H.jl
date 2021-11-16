@@ -286,7 +286,6 @@ Hminus_ff = bounds_checked_absorption(_Hminus_ff,
 
 function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
     λ = c_cgs*1e8/ν # in ångstroms
-
     β_eV = 1.0/(kboltz_eV * T)
 
     # coef should be roughly 2.51e-42
@@ -311,6 +310,14 @@ function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::R
 
     # Gray (2005) notes that they remove the stimulated emission factor. We need to put it back:
     uncorrected_opacity * stimulated_emission_correction
+end
+
+function stancil_H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
+    λ = c_cgs*1e8/ν # in ångstroms
+    β_eV = 1.0/(kboltz_eV * T)
+    stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
+
+
 end
 
 """
