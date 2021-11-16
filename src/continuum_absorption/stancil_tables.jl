@@ -8,14 +8,14 @@ It also contains pre-constructed interpolation objects.
 module Stancil1994
 
 using Interpolations: LinearInterpolation, Linear
-Ts_He2plus = [4200,6300,8400,12600,16800,25200,33600,50400]
-Ts_H2plus  = [3150,4200,5040,6300,8400,12600,16800,25200]
+Ts_He2plus      = [4200,6300,8400,12600,16800,25200,33600,50400]
+Ks_He2plus_vals = [0.96, 9.7683, 29.997, 89.599, 265.32, 845.01, 4289.5] #in "units" of 10^21
+Ts_H2plus       = [3150,4200,5040,6300,8400,12600,16800,25200]
+Ks_H2plus_vals  = [0.9600,9.7683,29.997,89.599,265.32,845.01,1685.3,4289.5] #in "units" of 10^19
 
-#Qs and Ks not used, copied for completeness
+#Qs not used, copied for completeness
 #Qs_He2plus = [1166.8,2591.9,4372.1,8078.8,11353.,16288.,19652.,23818.] 
-#Ks_He2plus = [0.96, 9.7683, 29.997, 89.599, 265.32, 845.01, 4289.5] #in "units" of 10^21
 #Qs_H2plus  = [142.07,247.23,358.74,568.37,999.84,1968.2,2877.3,4313.9]
-#Ks_H2_plus = [0.9600,9.7683,29.997,89.599,265.32,845.01,1685.3,4289.5] #in "units" of 10^19
 
 # they are provided in nm, we convert them to Å
 # for some reason, the wavelenth table for H₂⁺ contains 295 nm, but that for He₂⁺ doesn't
@@ -199,10 +199,16 @@ Ts_H2plus  = [3150,4200,5040,6300,8400,12600,16800,25200]
                      3.8110 3.7000 3.6420 3.5820 3.5200 3.4560 3.4220  3.3870
                      4.3230 4.2180 4.1640 4.1080 4.0500 3.9900 3.9580  3.9260]
 
-#construct interpolations, converting cross-sections coeffs to cgs
+# construct interpolations, converting cross-sections coeffs to cgs
 σ_H2plus_ff = LinearInterpolation((λs_H2plus_ff, Ts_H2plus), σ_H2plus_ff_table .* 1e-39, Linear())
 σ_H2plus_bf = LinearInterpolation((λs_bf, Ts_H2plus), σ_H2plus_bf_table .* 1e-18, Linear())
 σ_He2plus_ff = LinearInterpolation((λs_He2plus_ff, Ts_He2plus), σ_He2plus_ff_table .* 1e-39, Linear())
 σ_He2plus_bf = LinearInterpolation((λs_bf, Ts_He2plus), σ_He2plus_bf_table .* 1e-18, Linear())
+
+# construct equilibrium constants.  
+# When Korg supports ionized molecules, we can use the Barklem and Collet values.  
+# For now, these are fine.
+K_H2plus  LinearInterpolation(Ts_H2plus, K_H2plus_vals, Linear())
+K_He2plus = LinearInterpolation(Ts_He2plus, K_He2plus_vals, Linear())
 
 end #module

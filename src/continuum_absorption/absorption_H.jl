@@ -317,10 +317,12 @@ function stancil_H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, n
     β_eV = 1.0/(kboltz_eV * T)
     stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
 
-    Stancil1994.σ_H2plus_bf
+    K = Stancil1994.K_H2plus(T) # n(H I) n(H II) / n(H₂⁺)
+    σbf = Stancil1994.σ_H2plus_bf(λ, T)
+    σff = Stancil1994.σ_H2plus_ff(λ, T)
 
-
-
+    #TODO should this be ground-state H I (as in the gray approximation we are using now?) or all H I
+    (σbf/K + σff) * nH_I * nH_II * stimulated_emission_correction
 end
 
 """
