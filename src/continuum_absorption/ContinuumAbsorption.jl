@@ -7,6 +7,7 @@ include("../constants.jl") # I'm not thrilled to duplicate this, but I think it'
 # define helper functions
 include("bounds_checking.jl")
 include("hydrogenic_bf_ff.jl")
+include("stancil_tables.jl")
 
 export H_I_bf, H_I_ff, Hminus_bf, Hminus_ff, H2plus_bf_and_ff
 include("absorption_H.jl")

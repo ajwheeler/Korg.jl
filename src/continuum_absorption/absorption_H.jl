@@ -317,6 +317,9 @@ function stancil_H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, n
     β_eV = 1.0/(kboltz_eV * T)
     stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
 
+    Stancil1994.σ_H2plus_bf
+
+
 
 end
 
