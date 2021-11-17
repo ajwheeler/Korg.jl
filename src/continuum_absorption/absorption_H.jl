@@ -321,9 +321,15 @@ function stancil_H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, n
     σbf = Stancil1994.σ_H2plus_bf(λ, T)
     σff = Stancil1994.σ_H2plus_ff(λ, T)
 
+    nH_I = nH_I_div_partition #TODO CHANGE
     #TODO should this be ground-state H I (as in the gray approximation we are using now?) or all H I
     (σbf/K + σff) * nH_I * nH_II * stimulated_emission_correction
 end
+H2plus_bf_and_ff = bounds_checked_absorption(
+    stancil_H2plus_bf_and_ff;
+    ν_bound = λ_to_ν_bound(closed_interval(7e-6, 2e-3)),
+    temp_bound = closed_interval(3150, 25200)
+)
 
 """
     H2plus_bf_and_ff(ν, T, nH_I_div_partition, n_HII; kwargs...)
@@ -380,8 +386,8 @@ times larger than the max λ that the polynomials are fit against). He suggests 
 probably correct "to well within one part in ten even at the lower temperatures and [lower
 wavelengths]."
 """
-H2plus_bf_and_ff = bounds_checked_absorption(
-    _H2plus_bf_and_ff;
-    ν_bound = λ_to_ν_bound(closed_interval(3.846153846153846e-5, 2.5e-4)),
-    temp_bound = closed_interval(2500, 12000)
-)
+#H2plus_bf_and_ff = bounds_checked_absorption(
+#    _H2plus_bf_and_ff;
+#    ν_bound = λ_to_ν_bound(closed_interval(3.846153846153846e-5, 2.5e-4)),
+#    temp_bound = closed_interval(2500, 12000)
+#)
