@@ -309,10 +309,8 @@ function check_H2plus_ff_and_bf_absorption(target_precision, verbose = true)
     nH_I = 1e15
     nH_II = 1e13
 
-    nH_I_divU = nH_I/partition_val
     const_factor = 1e39 /(nH_I * nH_II)
-    calc_func(ν,T) =  const_factor * Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I_divU,
-                                                                                nH_II)[1]
+    calc_func(ν,T) = const_factor*Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I, nH_II)[1]
 
     λ_cgs = 1.0 ./_wavenumbers
     _compare_against_table(_table, λ_cgs, _T_vals, calc_func, target_precision, verbose)
