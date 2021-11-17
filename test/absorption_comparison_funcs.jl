@@ -220,8 +220,7 @@ function H2plus_coefficient(λ, T, Pₑ)
     ρ = 1.0 # arbitrary value because we divide it out after
 
     ν = (Korg.c_cgs*1e8)/λ
-    linear_absorb_coef = Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I_div_partition,
-                                                                   nH_II)[1]
+    linear_absorb_coef = Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I, nH_II)[1]
     linear_absorb_coef / (Pₑ * nH_I)
 end
 

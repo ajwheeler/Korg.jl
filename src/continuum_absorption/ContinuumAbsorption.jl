@@ -59,7 +59,7 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     H_I_ff(νs, T, number_densities[species"H_II"], nₑ; kwargs...)
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
-    H2plus_bf_and_ff(νs, T, nH_I_div_U, number_densities[species"H_II"]; kwargs...)
+    H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
     # He continuum opacities
     He_II_bf(νs, T, number_densities[species"H_II"] / partition_funcs[species"H_II"](T); kwargs...)
