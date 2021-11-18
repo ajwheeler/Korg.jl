@@ -347,7 +347,7 @@ reliable.  Once ionized molecules are fully supported, those values should be us
 cross sections are tabulated down to only 3150 K, the cross sections could be linearly interpolated 
 1000 K or so lower, if reliable K values are availble.
 
-Becauce n(H₂⁺) is computed on the fly, the "cross-sections" used in this function have units of 
+Because n(H₂⁺) is computed on the fly, the "cross-sections" used (internally) by this function have units of 
 cm^-5, since they must be multiplied by n(H I) and n(H II) to obtain absorption coefficients.
 
 Stancil, [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract), and
