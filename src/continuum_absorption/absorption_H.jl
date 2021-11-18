@@ -284,92 +284,52 @@ Hminus_ff = bounds_checked_absorption(_Hminus_ff,
                                       ν_bound = λ_to_ν_bound(closed_interval(2.604e-5,1.13918e-3)),
                                       temp_bound = closed_interval(2520, 10080))
 
-function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
+function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I::Real, nH_II::Real)
     λ = c_cgs*1e8/ν # in ångstroms
-
     β_eV = 1.0/(kboltz_eV * T)
-
-    # coef should be roughly 2.51e-42
-    coef = 16*π^4*bohr_radius_cgs^5*electron_charge_cgs^2/(3*hplanck_cgs*c_cgs) # cm⁵
     stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
 
-    logλ = log10(λ)
-    log2λ = logλ*logλ
-    log3λ = log2λ*logλ
+    K = Stancil1994.K_H2plus(T) # n(H I) n(H II) / n(H₂⁺)
+    σbf = Stancil1994.σ_H2plus_bf(λ, T)
+    σff = Stancil1994.σ_H2plus_ff(λ, T)
 
-    σ1 = -1040.54 + 1345.71 * logλ - 547.628 * log2λ + 71.9684 * log3λ
-    # there was a typo in Gray (2005). In the book they give the following polynomial as the fit
-    # for U₁. In reality, it is the fit for negative U₁
-    neg_U1 = 54.0532 - 32.713 * logλ + 6.6699 * log2λ - 0.4574 * log3λ
-    # note: Gray (2005) used the equivalent expression: σ1*10^(neg_U1 * θ) where θ = 5040/T
-    atomic_cross_section = σ1 * exp(neg_U1 * β_eV)
-
-    # see the docstring for an explanation of why we explicitly consider the ground state density
-    nH_I_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
-
-    uncorrected_opacity = coef * atomic_cross_section * nH_I_gs * nH_II
-
-    # Gray (2005) notes that they remove the stimulated emission factor. We need to put it back:
-    uncorrected_opacity * stimulated_emission_correction
+    (σbf/K + σff) * nH_I * nH_II * stimulated_emission_correction
 end
 
 """
     H2plus_bf_and_ff(ν, T, nH_I_div_partition, n_HII; kwargs...)
 
-Compute the combined H₂⁺ bound-free and free-free linear absorption coefficient α.
-
-This uses polynomial fits from Gray (2005) that were derived from data tabulated in
-[Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
+Compute the combined H₂⁺ bound-free and free-free linear absorption coefficient α using the tables 
+from [Stancil 1994](https://ui.adsabs.harvard.edu/abs/1994ApJ...430..360S/abstract).
 
 # Arguments
 - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
 - `T`: temperature in K
-- `nH_I_div_partition`: the total number density of H I divided by its partition 
+- `nH_I`: the total number density of H I divided by its partition 
    function.
 - `nH_II`: the number density of H II (not of H₂⁺).
 
 For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
-While the formal type signature requires only that these be `Real`, `Float32`s (or `Float32`-derived 
-types) may introduce numerical instability.
-
 # Notes
-This follows equation 8.15 of Gray (2005), which involves 2 polynomials that were fit to data
-provided in [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract).
+This computes the H₂⁺ number density from those of H I and H II, since ionized molecules 
+are not included in the molecular equlibrium calculation.  Stancil provides approximate equilibrium 
+constants, K, for the molecule, but the Barklem and Collet values used elsewhere by Korg may be more 
+reliable.  Once ionized molecules are fully supported, those values should be used instead. While 
+cross sections are tabulated down to only 3150 K, the cross sections could be linearly interpolated 
+1000 K or so lower, if reliable K values are availble.
 
-The combined H₂⁺ bound-free and free-free linear absorption coefficient can be cast as:
-```
-α = const * σ₁ * exp(-U₁ / (kboltz*T)) * n(H I, n=1) * n(H II) * (1 - exp(-hν/(kboltz*T)))
-```
-where σ₁ and U₁ are just functions of ν. Note that Bates (1952) and Gray (2005) both use the number
-density of all energy states of H I instead of n(H I, n=1). However, Kurucz (1970) makes a note in
-section 5.2 about how the photodisociation of H₂⁺ produces a ground state H atom and that we should
-therefore use n(H I, n=1) instead. This difference will only cause Bates/Gray to be wrong by a
-fraction of a percent (at most) for T ≤ 1.2e4 K. In this function we use n(H I, n=1).
+Because n(H₂⁺) is computed on the fly, the "cross-sections" used (internally) by this function have units of 
+cm^-5, since they must be multiplied by n(H I) and n(H II) to obtain absorption coefficients.
 
-In this function, we use polynomial approximations that Gray (2005) fit for σ₁ and U₁ using data
-from Table 1 of Bates (1952). Gray (2005) claims that the approximations match Bates' (1952)
-tabulated absorption data for 3800 Å ≤ λ ≤ 25000 Å at an accuracy of 0.3%. After reviewing the data
-in Bates (1952) I've concluded that Gray (2005) actually rounded down the lower end of the
-wavelength from 10⁵/26 Å (or ∼3847 Å) to 3800 Å. In other words, the approximation is good for
-3847 Å ≤ λ ≤ 25000.0 Å.
-
-While this may fit to σ₁ and U₁ to better than 0.3%, comparisons against values from table 2 of
-Bates (1952) indicate that the function only reproduces the full "absorption coeffient" at better
-than 1.5%. Gray (2005) did not specify a temperature range, but Bates (1952) only computed the
-absorption coefficient for 2500 K ≤ T ≤ 12000 K. In the text they have a comment that the proton's
-De Broglie wavelength is large at 2500 K and their semi-classical treatment may start to break
-down. However, as long as we use n(H I, n=1), there doesn't seem to be any reason for us to enforce
-an upper temperature limit.
-
-Bates (1952) states that his classical treatment of the interaction is probably most accurate at
-higher temperatures and longer wavelengths (note that the longest λ considered in the paper is 8
-times larger than the max λ that the polynomials are fit against). He suggests that treatment is
-probably correct "to well within one part in ten even at the lower temperatures and [lower
-wavelengths]."
+Stancil, [Bates (1952)](https://ui.adsabs.harvard.edu/abs/1952MNRAS.112...40B/abstract), and
+Gray (2005) all use n(H I), but Kurucz (1970) notes in section 5.2 that the photodisociation of H₂⁺ 
+produces a ground state H atom and that we should therefore use n(H I, n=1) instead. This difference 
+causes a descrepancy of a fraction of a percent (at most) for T ≤ 1.2e4 K. Here we use n(H I).
 """
 H2plus_bf_and_ff = bounds_checked_absorption(
     _H2plus_bf_and_ff;
-    ν_bound = λ_to_ν_bound(closed_interval(3.846153846153846e-5, 2.5e-4)),
-    temp_bound = closed_interval(2500, 12000)
+    ν_bound = λ_to_ν_bound(closed_interval(7e-6, 2e-3)),
+    temp_bound = closed_interval(3150, 25200)
 )
+

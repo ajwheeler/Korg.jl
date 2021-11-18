@@ -4,4 +4,8 @@ Manifest.toml
 *.jl~
 misc/Playground.ipynb
 misc/statprof/*
+misc/a.pdf
+misc/b.pdf
+misc/c.pdf
+misc/d.pdf
 docs/build/
