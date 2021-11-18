@@ -284,34 +284,6 @@ Hminus_ff = bounds_checked_absorption(_Hminus_ff,
                                       ν_bound = λ_to_ν_bound(closed_interval(2.604e-5,1.13918e-3)),
                                       temp_bound = closed_interval(2520, 10080))
 
-function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I_div_partition::Real, nH_II::Real)
-    λ = c_cgs*1e8/ν # in ångstroms
-    β_eV = 1.0/(kboltz_eV * T)
-
-    # coef should be roughly 2.51e-42
-    coef = 16*π^4*bohr_radius_cgs^5*electron_charge_cgs^2/(3*hplanck_cgs*c_cgs) # cm⁵
-    stimulated_emission_correction = (1 - exp(-hplanck_eV*ν*β_eV))
-
-    logλ = log10(λ)
-    log2λ = logλ*logλ
-    log3λ = log2λ*logλ
-
-    σ1 = -1040.54 + 1345.71 * logλ - 547.628 * log2λ + 71.9684 * log3λ
-    # there was a typo in Gray (2005). In the book they give the following polynomial as the fit
-    # for U₁. In reality, it is the fit for negative U₁
-    neg_U1 = 54.0532 - 32.713 * logλ + 6.6699 * log2λ - 0.4574 * log3λ
-    # note: Gray (2005) used the equivalent expression: σ1*10^(neg_U1 * θ) where θ = 5040/T
-    atomic_cross_section = σ1 * exp(neg_U1 * β_eV)
-
-    # see the docstring for an explanation of why we explicitly consider the ground state density
-    nH_I_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
-
-    uncorrected_opacity = coef * atomic_cross_section * nH_I_gs * nH_II
-
-    # Gray (2005) notes that they remove the stimulated emission factor. We need to put it back:
-    uncorrected_opacity * stimulated_emission_correction
-end
-
 function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I::Real, nH_II::Real)
     λ = c_cgs*1e8/ν # in ångstroms
     β_eV = 1.0/(kboltz_eV * T)
