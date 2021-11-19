@@ -199,7 +199,6 @@ end
 
         @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
                                                           format="abc")
-        @test_throws ArgumentError read_linelist("data/linelists/no-isotopic-scaling.vald")
 
         @testset "kurucz linelist parsing" begin
             for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
@@ -271,6 +270,24 @@ end
             @test short_all[1].gamma_rad == long_all_cm_air[1].gamma_rad
             @test short_all[1].gamma_stark == long_all_cm_air[1].gamma_stark
             @test short_all[1].vdW == long_all_cm_air[1].vdW
+        end
+
+        @testset "vald isotopic scaling" begin
+            short_all = read_linelist("data/linelists/isotopic_scaling/short-all-unscaled.vald")
+            long_all = read_linelist("data/linelists/isotopic_scaling/long-all-unscaled.vald")
+            short_stellar = read_linelist("data/linelists/isotopic_scaling/short-stellar-unscaled.vald")
+            long_stellar = read_linelist("data/linelists/isotopic_scaling/long-stellar-unscaled.vald")
+            scaled = read_linelist("data/linelists/isotopic_scaling/scaled.vald")
+            unscaled_lists = [short_all, long_all, short_stellar, long_stellar]
+
+            for list in unscaled_lists
+                for field in [:wl, :species, :E_lower, :gamma_rad, :gamma_stark, :vdW]
+                    @test getfield.(scaled, field) == getfield.(list, field)
+                end
+                for (line1, line2) in zip(scaled, list)
+                    @test line1.log_gf .≈ line2.log_gf rtol=1e-2
+                end
+            end
         end
 
         moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")

@@ -1,0 +1,118 @@
+ 3000.00000, 10000.00000, 129389, 29358280, 2.0 Wavelength region, lines selected, lines processed, Vmicro
+                                                  Damping parameters    Lande  Central
+Spec Ion       WL_vac(A)  Excit(eV) Vmic log gf* Rad.   Stark   Waals   factor  depth  Reference
+'CN 1',       3569.00751,  0.2895, 2.0, -1.131, 7.180, 0.000,   0.000, 99.000, 0.195, '  72 wl:BRW  72 BRW  72 gf:BRW  72 BRW  72 BRW  72 BRW  72 BRW    (12)C(14)N'
+'CN 1',       3569.02687,  0.2894, 2.0, -1.164, 7.180, 0.000,   0.000, 99.000, 0.183, '  72 wl:BRW  72 BRW  72 gf:BRW  72 BRW  72 BRW  72 BRW  72 BRW    (12)C(14)N'
+'Cr 1',       3569.04432,  3.9659, 2.0, -0.511, 8.230,-5.960,  -7.730,  0.660, 0.222, '  21 wl:K16  21 K16  21 gf:K16  21 K16  21 K16  21 K16  21 K16    Cr'
+'castelli_ap00k2_T05000G40.krz',
+'H :  0.92','He: -1.11',
+'Li:-10.94','Be:-10.64','B : -9.49','C : -3.52','N : -4.12','O : -3.21',
+'F : -7.48','Ne: -3.96','Na: -5.71','Mg: -4.46','Al: -5.57','Si: -4.49',
+'P : -6.59','S : -4.71','Cl: -6.54','Ar: -5.64','K : -6.92','Ca: -5.68',
+'Sc: -8.87','Ti: -7.02','V : -8.04','Cr: -6.37','Mn: -6.65','Fe: -4.54',
+'Co: -7.12','Ni: -5.79','Cu: -7.83','Zn: -7.44','Ga: -9.16','Ge: -8.63',
+'As: -9.67','Se: -8.63','Br: -9.41','Kr: -8.73','Rb: -9.44','Sr: -9.07',
+'Y : -9.80','Zr: -9.44','Nb:-10.62','Mo:-10.12','Tc:-20.00','Ru:-10.20',
+'Rh:-10.92','Pd:-10.35','Ag:-11.10','Cd:-10.27','In:-10.38','Sn:-10.04',
+'Sb:-11.04','Te: -9.80','I :-10.53','Xe: -9.87','Cs:-10.91','Ba: -9.91',
+'La:-10.87','Ce:-10.46','Pr:-11.33','Nd:-10.54','Pm:-20.00','Sm:-11.03',
+'Eu:-11.53','Gd:-10.92','Tb:-11.69','Dy:-10.90','Ho:-11.78','Er:-11.11',
+'Tm:-12.04','Yb:-10.96','Lu:-11.98','Hf:-11.16','Ta:-12.17','W :-10.93',
+'Re:-11.76','Os:-10.59','Ir:-10.69','Pt:-10.24','Au:-11.03','Hg:-10.91',
+'Tl:-11.14','Pb:-10.09','Bi:-11.33','Po:-20.00','At:-20.00','Rn:-20.00',
+'Fr:-20.00','Ra:-20.00','Ac:-20.00','Th:-11.95','Pa:-20.00','U :-12.54',
+'Np:-20.00','Pu:-20.00','Am:-20.00','Cm:-20.00','Bk:-20.00','Cf:-20.00',
+'Es:-20.00','END'
+* oscillator strengths were NOT scaled by the solar isotopic ratios.
+ References:
+  1. Kurucz obs. energy level: Fe 1
+  2. Kurucz 2019 obs:  OH
+  3. Kurucz obs. energy level: V 1
+  4. Kurucz obs. energy level: Cr 2
+  5. Cr 2: Raassen & Uylings
+  6. Van der Waals data
+  7. Hf 1 - U 2 Bell
+  8. Ce 2: DREAM data
+  9. Fe 1: exp. data
+ 10. Kurucz obs. energy level: Ca 1
+ 11. Kurucz obs. energy level: Ti 2
+ 12. Kurucz obs. energy level: Co 1
+ 13. Kurucz obs. energy level: Mn 1
+ 14. Kurucz obs. energy level: Fe 2
+ 15. Fe 2: Raassen & Uylings
+ 16. Wisconsin exp. data with IS
+ 17. Kurucz obs. energy level: Ti 1
+ 18. Co: NBS data
+ 19. Kurucz obs. energy level: Ni 2
+ 20. Ti1-Cr1-Mn1-Mn2-Ni2 Wisconsin exp. data
+ 21. Kurucz obs. energy level: Cr 1
+ 22. Cr: NBS data
+ 23. Kurucz obs. energy level: V 2
+ 24. Cu 1 - Ba 2 Bell
+ 25. Kurucz obs. energy level: Ni 1
+ 26. La 1 - Lu 2 Bell
+ 27. VALD2: Ni 1
+ 28. Fe 2: exp. data
+ 29. Ti1-Ti2-Mn1 IC exp. data
+ 30. Lund: exp. data
+ 31. Wallace wavelength data
+ 32. Kurucz obs. energy level: Mn 2
+ 33. Kurucz obs. energy level: Y 1
+ 34. Yb 2: DREAM data
+ 35. VALD2: Ru
+ 36. Kurucz obs. energy level: Si 1
+ 37. Mn: NBS data
+ 38. Kurucz obs. energy level: Co 2
+ 39. Co 2: Raassen & Uylings
+ 40. Kurucz obs. energy level: Cu 1
+ 41. Kurucz obs. energy level: Sc 1
+ 42. VALD2: Sc
+ 43. Kurucz obs. energy level: S 1
+ 44. V : NBS data
+ 45. VALD2: Mn 2
+ 46. Lu 2: DREAM data
+ 47. NH: Brooks 2015 XX, Fernando 2018 AX
+ 48. Kurucz obs. energy level: Y 2
+ 49. Sc: NBS data
+ 50. Kurucz obs. energy level: Sc 2
+ 51. NLTE lines: Al
+ 52. VALD2: Ti 2
+ 53. Er 2: DREAM data
+ 54. Fe: NBS data
+ 55. C 1-6, N 1-7, O 1-8, Na 1, Mg 1: NIST 2010
+ 56. NLTE lines: Mg
+ 57. VALD2: V 2
+ 58. VALD2: Y 2
+ 59. Tm 2: DREAM data
+ 60. Ni: NBS data
+ 61. Kurucz obs. energy level: K 1
+ 62. Kurucz obs. energy level: Ca 2
+ 63. Li 1 - K 5 Bell
+ 64. Ca1-2 exp. data with IS
+ 65. Sr 1 (GC+NIST) data
+ 66. NLTE lines: Na
+ 67. VALD2: Cr
+ 68. VALD2: Co
+ 69. Kurucz obs. energy level: Sr 2
+ 70. Kurucz 2010 obs:  CN
+ 71. Brooke 2014 obs:  CN
+ 72. Brooke 2014 obs:  CN
+ 73. Brooke 2014 obs:  CN
+ 74. Ti: NBS data
+ 75. Jorgansen 1996 obs:  CH
+ 76. NLTE lines: H
+ 77. Sm 2: DREAM data
+ 78. Nd 2: DREAM data
+ 79. Pr 2: DREAM data
+ 80. C 1-6, N 1-7, O 1-8, Na 1, Mg 1: NIST 2010
+ 81. Kurucz obs. energy level: Si 2
+ 82. Si 2 exp. data
+ 83. Si exp.
+ 84. Ga 1-2-3 NIST data
+ 85. NLTE lines: K
+ 86. Kurucz 2010 obs:  SiH
+ 87. Brooke 2013 obs:  C2-12
+ 88. Kurucz 1995 Mg24H,Mg25H,Mg26H A-X,B-prime-X observed
+ 89. VALD2: S 1
+ 90. NLTE lines: O
+ 91. VALD2: P 1

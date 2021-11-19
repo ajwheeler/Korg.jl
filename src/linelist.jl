@@ -287,9 +287,9 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    read_linelist(filename; format="vald")
+    read_linelist(filename; format="vald", isotopic_abundances=Korg.isotopic_abundances)
 
-Parse a linelist file.
+Parse a linelist file, returning a vector of [`Line`](@ref)s.
 
 Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
 (`format=kurucz_vac` if it uses vacuum wavelengths; Be warned that Korg will not assume that 
@@ -301,7 +301,11 @@ VALD linelists (the default and preferred format) can be either "short" or "long
 "extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
 wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
 
-TODO isotopes
+When they are not pre-scaled by isotopic abundace (which VALD does by default), Korg will 
+automatically adjust the log_gf of each line according to the `isotopic_abundances`, which defaults 
+to the values from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses).
+To use custom isotopic abundances, just pass `isotopic_abundances` as a dictionary mapping
+`(atomic number, atomic weight)` pairs to abundances between 0 and 1.
 """
 function read_linelist(fname::String; format="vald", isotopic_abundances::Dict=isotopic_abundances
                       ) :: Vector{Line}
@@ -392,7 +396,8 @@ function parse_vald_linelist(f, isotopic_abundances)
     body = body[1 : findfirst(l->l[1]!='\"' || !isuppercase(l[2]), body)-1]
 
     CSVheader = if shortformat && extractall
-        ["species", "wl", "E_low", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW"]
+        ["species", "wl", "E_low", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW", "lande", 
+         "reference"]
     elseif shortformat #extract stellar
         ["species", "wl", "E_low", "Vmic", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW", 
          "lande", "depth", "reference"]
@@ -400,7 +405,8 @@ function parse_vald_linelist(f, isotopic_abundances)
         ["species", "wl", "loggf", "E_low", "J_lo", "E_up", "J_up", "lower_lande", "upper_lande",
          "mean_lande", "gamma_rad", "gamma_stark", "gamma_vdW"]
     end
-    body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, delim=',', silencewarnings=false)
+    body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, delim=',', 
+                    silencewarnings=true)
 
     E_low = if contains(header, "cm") #convert E_low to eV if necessary
         body.E_low * c_cgs * hplanck_eV
@@ -419,7 +425,13 @@ function parse_vald_linelist(f, isotopic_abundances)
     end
 
     loggf = body.loggf .+ if scale_isotopes
-        map(body.reference) do ref
+        refs = if !shortformat #the references are on different lines
+            lines[firstline+3 .+ ((0:length(body)-1) .* 4)]
+        else #references are in the last column
+            body.reference
+        end
+
+        map(refs) do ref
             #find things that look like (16)O or (64)Ni in reference string
             regexp = r"\((?<isotope>\d\d?\d?)\)(?<elem>\p{Lu}\p{Ll}?)"
             #add up the adjustments to log(gf) from isotopic abundances (zero if no info is present)
