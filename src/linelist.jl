@@ -287,9 +287,9 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    read_linelist(filename; format="vald")
+    read_linelist(filename; format="vald", isotopic_abundances=Korg.isotopic_abundances)
 
-Parse a linelist file.
+Parse a linelist file, returning a vector of [`Line`](@ref)s.
 
 Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
 (`format=kurucz_vac` if it uses vacuum wavelengths; Be warned that Korg will not assume that 
@@ -300,8 +300,15 @@ wavelengths are vacuum below 2000 Å),`format="vald"` for a
 VALD linelists (the default and preferred format) can be either "short" or "long" format, 
 "extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
 wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
+
+When they are not pre-scaled by isotopic abundace (which VALD does by default), Korg will 
+automatically adjust the log_gf of each line according to the `isotopic_abundances`, which defaults 
+to the values from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses).
+To use custom isotopic abundances, just pass `isotopic_abundances` as a dictionary mapping
+`(atomic number, atomic weight)` pairs to abundances between 0 and 1.
 """
-function read_linelist(fname::String; format="vald") :: Vector{Line}
+function read_linelist(fname::String; format="vald", isotopic_abundances::Dict=isotopic_abundances
+                      ) :: Vector{Line}
     format = lowercase(format)
     linelist = open(fname) do f
         if format == "kurucz"
@@ -309,7 +316,7 @@ function read_linelist(fname::String; format="vald") :: Vector{Line}
         elseif format == "kurucz_vac"
             parse_kurucz_linelist(f; vacuum=true)
         elseif format == "vald"
-            parse_vald_linelist(f)
+            parse_vald_linelist(f, isotopic_abundances)
         elseif format == "moog"
             parse_moog_linelist(f)
         else
@@ -363,41 +370,43 @@ function parse_kurucz_linelist(f; vacuum=false)
     lines
 end
 
-function parse_vald_linelist(f)
+function parse_vald_linelist(f, isotopic_abundances)
     lines = filter!(collect(eachline(f))) do line
         length(line) > 0 && line[1] != '#' #remove comments and empty lines
     end
+
+    lines = replace.(lines, "'"=>"\"") #replace single quotes with double
 
     # is this an "extract all" or an "extract stellar" linelist?
     extractall = !occursin(r"^\s+\d", lines[1])
     firstline = extractall ? 3 : 4
     header = lines[firstline - 1]
 
-    if any(startswith.(lines,"* oscillator strengths were NOT scaled by the solar isotopic ratios."))
-        throw(ArgumentError("Isotopic scaling not yet implemented."))
-    elseif !any(startswith.(lines,"* oscillator strengths were scaled by the solar isotopic ratios."))
+    scale_isotopes = any(startswith.(lines, "* oscillator strengths were NOT scaled "))
+    if !scale_isotopes && !any(startswith.(lines,"* oscillator strengths were scaled "))
         throw(ArgumentError("Can't parse linelist.  Can't detect whether log(gf)s are scaled by "*
                             "isotopic abundance."))
     end
 
     #we take the linelist to be long-format when the second line after the header starts with a 
-    #space or a single quote followed a space.  In some linelists the quotes are there, but in 
-    #others they are not.
-    shortformat = !(occursin(r"^\'? ", lines[firstline + 1])) 
+    #space or a quote followed a space.  In some linelists the quotes are there, but in others 
+    #they are not.
+    shortformat = !(occursin(r"^\"? ", lines[firstline + 1])) 
     body = lines[firstline : (shortformat ? 1 : 4) : end]
-    body = body[1 : findfirst(l->l[1]!='\'' || !isuppercase(l[2]), body)-1]
-    
+    body = body[1 : findfirst(l->l[1]!='\"' || !isuppercase(l[2]), body)-1]
+
     CSVheader = if shortformat && extractall
-        ["species", "wl", "E_low", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW"]
+        ["species", "wl", "E_low", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW", "lande", 
+         "reference"]
     elseif shortformat #extract stellar
-        ["species", "wl", "E_low", "Vmic", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW"]
+        ["species", "wl", "E_low", "Vmic", "loggf", "gamma_rad", "gamma_stark", "gamma_vdW", 
+         "lande", "depth", "reference"]
     else #long format (extract all or extract stellar)
         ["species", "wl", "loggf", "E_low", "J_lo", "E_up", "J_up", "lower_lande", "upper_lande",
          "mean_lande", "gamma_rad", "gamma_stark", "gamma_vdW"]
     end
-    body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, silencewarnings=true)
-
-    species = (s->s[2:end-1]).(body.species) #strip quotes
+    body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, delim=',', 
+                    silencewarnings=true)
 
     E_low = if contains(header, "cm") #convert E_low to eV if necessary
         body.E_low * c_cgs * hplanck_eV
@@ -415,7 +424,28 @@ function parse_vald_linelist(f)
         throw(ArgumentError( "Can't parse linelist.  Can't determine vac/air wls: " * header))
     end
 
-    Line.(wl * 1e-8, body.loggf, Species.(species), E_low, expOrMissing.(body.gamma_rad), 
+    loggf = body.loggf .+ if scale_isotopes
+        refs = if !shortformat #the references are on different lines
+            lines[firstline+3 .+ ((0:length(body)-1) .* 4)]
+        else #references are in the last column
+            body.reference
+        end
+
+        map(refs) do ref
+            #find things that look like (16)O or (64)Ni in reference string
+            regexp = r"\((?<isotope>\d\d?\d?)\)(?<elem>\p{Lu}\p{Ll}?)"
+            #add up the adjustments to log(gf) from isotopic abundances (zero if no info is present)
+            log_probs = map(findall(regexp, ref)) do r
+                m = match(regexp, ref[r])
+                log10(isotopic_abundances[atomic_numbers[m["elem"]], parse(Int64, m["isotope"])])
+            end
+            sum([0 ; log_probs])
+        end
+    else
+        0
+    end
+
+    Line.(wl * 1e-8, loggf, Species.(body.species), E_low, expOrMissing.(body.gamma_rad), 
           expOrMissing.(body.gamma_stark), idOrMissing.(body.gamma_vdW))
 end
 

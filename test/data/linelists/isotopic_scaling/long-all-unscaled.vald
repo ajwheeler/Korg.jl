@@ -1,0 +1,73 @@
+                                                                    Lande factors       Damping parameters
+Elm Ion      WL_vac(A)   log gf* E_low(eV) J lo E_up(eV)  J up  lower   upper    mean    Rad.  Stark  Waals
+'CN 1',      3569.00751,  -1.131,  0.2895, 12.5,  3.7634, 13.5, 99.000, 99.000, 99.000, 7.180, 0.000,   0.000
+  Hb                                                 3s2.4s2.1p4.5s1          X,2,0,e,12,1
+  Hb                                                 3s2.4s1.1p4.5s2          B,2,0,e,13,2
+'_                             6 wl:BRW   6 gf:BRW   6 BRW   6 BRW   6 BRW   6 BRW   6 BRW   6 BRW   6 BRW    (12)C(14)N'
+'CN 1',      3569.02687,  -1.164,  0.2894, 11.5,  3.7633, 12.5, 99.000, 99.000, 99.000, 7.180, 0.000,   0.000
+  Hb                                                 3s2.4s2.1p4.5s1          X,2,0,f,12,1
+  Hb                                                 3s2.4s1.1p4.5s2          B,2,0,f,13,2
+'_                             6 wl:BRW   6 gf:BRW   6 BRW   6 BRW   6 BRW   6 BRW   6 BRW   6 BRW   6 BRW    (12)C(14)N'
+'Cr 1',      3569.04432,  -0.511,  3.9659,  4.0,  7.4397,  5.0,  1.000,  0.890,  0.660, 8.230,-5.960,  -7.730
+  LS                                                                           3d4.4s2 a1G
+  LS                                                                      3d5.(2H).4p x1H*
+'_      A   Kurucz Cr I 2016  12 wl:K16  12 gf:K16  12 K16  12 K16  12 K16  12 K16  12 K16  12 K16  12 K16    Cr'
+* oscillator strengths were NOT scaled by the solar isotopic ratios.
+ References:
+  1. Plez 2012 Ti49O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  2. Plez 2012 Ti50O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  3. Plez 2012 Ti48O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  4. Kurucz obs. energy level: Ni 3
+  5. Plez 2012 Ti46O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  6. Brooke 2014 obs:  CN
+  7. Hf 1 - U 2 Bell
+  8. Plez 2012 Ti47O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
+  9. Kurucz obs. energy level: V 2
+ 10. Kurucz obs. energy level: Ni 2
+ 11. Kurucz obs. energy level: Cr 3
+ 12. Kurucz obs. energy level: Cr 1
+ 13. Kurucz obs. energy level: P 2
+ 14. Kurucz obs. energy level: Fe 2
+ 15. Kurucz obs. energy level: Cr 2
+ 16. Brooke 2013 obs:  C2-12
+ 17. Brooke 2014 obs:  CN
+ 18. Tm 3: DREAM data
+ 19. Ce 2: DREAM data
+ 20. Tm 2: DREAM data
+ 21. Lund: exp. data
+ 22. Kurucz obs. energy level: Cu 1
+ 23. Kurucz obs. energy level: Mn 2
+ 24. Kurucz obs. energy level: Cu 2
+ 25. Kurucz obs. energy level: Fe 1
+ 26. Kurucz 2010 obs:  CN
+ 27. Kurucz obs. energy level: Ti 1
+ 28. Wisconsin exp. data with IS
+ 29. Kurucz obs. energy level: Sc 1
+ 30. Kurucz obs. energy level: V 3
+ 31. Kurucz obs. energy level: Ni 6
+ 32. Li 1 - K 5 Bell
+ 33. Kurucz obs. energy level: V 4
+ 34. Kurucz obs. energy level: Co 1
+ 35. Brooke 2014 obs:  CN
+ 36. Yb 2: DREAM data
+ 37. Fe 1: exp. data
+ 38. Van der Waals data
+ 39. Cu 1 - Ba 2 Bell
+ 40. Ne 1-9: NIST 2010
+ 41. VALD2: Ru
+ 42. Kurucz obs. energy level: Fe 6
+ 43. Kurucz 2019 obs:  OH
+ 44. Kurucz obs. energy level: Y 1
+ 45. Kurucz obs. energy level: Co 3
+ 46. Kurucz obs. energy level: V 1
+ 47. Jorgansen 1996 obs:  CH
+ 48. Kurucz obs. energy level: C 2
+ 49. Cr 2: Raassen & Uylings
+ 50. Kurucz obs. energy level: Ca 1
+ 51. Co 2: Raassen & Uylings
+ 52. Fe 2: Raassen & Uylings
+ 53. Kurucz obs. energy level: Co 2
+ 54. Kurucz obs. energy level: Fe 3
+ 55. Kurucz obs. energy level: Mn 3
+ 56. Mn 3: Raassen & Uylings
+ 57. NH: Brooks 2015 XX, Fernando 2018 AX

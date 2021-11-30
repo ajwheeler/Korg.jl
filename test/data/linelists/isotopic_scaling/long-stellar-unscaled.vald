@@ -1,0 +1,59 @@
+ 3569.00000, 3570.00000, 146, 3340, 0.0 Wavelength region, lines selected, lines processed, Vmicro
+                                                                       Lande factors       Damping parameters   Central
+Spec Ion        WL_vac(A)  log gf* E_low(eV) J lo E_up(eV)  J up   lower   upper   mean   Rad.   Stark   Waals   depth
+'CN 1',       3569.00751, -1.131,  0.2895, 12.5,  3.7634, 13.5, 99.000, 99.000, 99.000, 7.180, 0.000,   0.000, 0.200,
+'  Hb                                                 3s2.4s2.1p4.5s1          X,2,0,e,12,1'
+'  Hb                                                 3s2.4s1.1p4.5s2          B,2,0,e,13,2'
+'_                             1 wl:BRW   1 gf:BRW   1 BRW   1 BRW   1 BRW   1 BRW   1 BRW   1 BRW   1 BRW    (12)C(14)N'
+'CN 1',       3569.02687, -1.164,  0.2894, 11.5,  3.7633, 12.5, 99.000, 99.000, 99.000, 7.180, 0.000,   0.000, 0.187,
+'  Hb                                                 3s2.4s2.1p4.5s1          X,2,0,f,12,1'
+'  Hb                                                 3s2.4s1.1p4.5s2          B,2,0,f,13,2'
+'_                             1 wl:BRW   1 gf:BRW   1 BRW   1 BRW   1 BRW   1 BRW   1 BRW   1 BRW   1 BRW    (12)C(14)N'
+'Cr 1',       3569.04432, -0.511,  3.9659,  4.0,  7.4397,  5.0,  1.000,  0.890,  0.660, 8.230,-5.960,  -7.730, 0.364,
+'  LS                                                                           3d4.4s2 a1G'
+'  LS                                                                      3d5.(2H).4p x1H*'
+'_      A   Kurucz Cr I 2016   3 wl:K16   3 gf:K16   3 K16   3 K16   3 K16   3 K16   3 K16   3 K16   3 K16    Cr'
+'castelli_ap00k2_T05000G40.krz',
+'H :  0.92','He: -1.11',
+'Li:-10.94','Be:-10.64','B : -9.49','C : -3.52','N : -4.12','O : -3.21',
+'F : -7.48','Ne: -3.96','Na: -5.71','Mg: -4.46','Al: -5.57','Si: -4.49',
+'P : -6.59','S : -4.71','Cl: -6.54','Ar: -5.64','K : -6.92','Ca: -5.68',
+'Sc: -8.87','Ti: -7.02','V : -8.04','Cr: -6.37','Mn: -6.65','Fe: -4.54',
+'Co: -7.12','Ni: -5.79','Cu: -7.83','Zn: -7.44','Ga: -9.16','Ge: -8.63',
+'As: -9.67','Se: -8.63','Br: -9.41','Kr: -8.73','Rb: -9.44','Sr: -9.07',
+'Y : -9.80','Zr: -9.44','Nb:-10.62','Mo:-10.12','Tc:-20.00','Ru:-10.20',
+'Rh:-10.92','Pd:-10.35','Ag:-11.10','Cd:-10.27','In:-10.38','Sn:-10.04',
+'Sb:-11.04','Te: -9.80','I :-10.53','Xe: -9.87','Cs:-10.91','Ba: -9.91',
+'La:-10.87','Ce:-10.46','Pr:-11.33','Nd:-10.54','Pm:-20.00','Sm:-11.03',
+'Eu:-11.53','Gd:-10.92','Tb:-11.69','Dy:-10.90','Ho:-11.78','Er:-11.11',
+'Tm:-12.04','Yb:-10.96','Lu:-11.98','Hf:-11.16','Ta:-12.17','W :-10.93',
+'Re:-11.76','Os:-10.59','Ir:-10.69','Pt:-10.24','Au:-11.03','Hg:-10.91',
+'Tl:-11.14','Pb:-10.09','Bi:-11.33','Po:-20.00','At:-20.00','Rn:-20.00',
+'Fr:-20.00','Ra:-20.00','Ac:-20.00','Th:-11.95','Pa:-20.00','U :-12.54',
+'Np:-20.00','Pu:-20.00','Am:-20.00','Cm:-20.00','Bk:-20.00','Cf:-20.00',
+'Es:-20.00','END'
+* oscillator strengths were NOT scaled by the solar isotopic ratios.
+ References:
+  1. Brooke 2014 obs:  CN
+  2. Hf 1 - U 2 Bell
+  3. Kurucz obs. energy level: Cr 1
+  4. Brooke 2014 obs:  CN
+  5. Ce 2: DREAM data
+  6. Lund: exp. data
+  7. Kurucz obs. energy level: Fe 1
+  8. Kurucz 2010 obs:  CN
+  9. Kurucz obs. energy level: Ti 1
+ 10. Wisconsin exp. data with IS
+ 11. Kurucz obs. energy level: Sc 1
+ 12. Kurucz obs. energy level: Co 1
+ 13. Brooke 2014 obs:  CN
+ 14. Fe 1: exp. data
+ 15. Van der Waals data
+ 16. Cu 1 - Ba 2 Bell
+ 17. VALD2: Ru
+ 18. Kurucz 2019 obs:  OH
+ 19. Kurucz obs. energy level: V 1
+ 20. Co 2: Raassen & Uylings
+ 21. Kurucz obs. energy level: Ca 1
+ 22. Kurucz obs. energy level: Fe 2
+ 23. Fe 2: Raassen & Uylings
