@@ -288,6 +288,13 @@ end
                     @test line1.log_gf .≈ line2.log_gf rtol=1e-2
                 end
             end
+
+            #make sure the default isotopic abundances sum to 1.
+            isotopes = keys(Korg.isotopic_abundances)
+            for Z in sort(collect(Set(first.(isotopes))))
+                isos = filter(==(Z) ∘ first, isotopes)                                               
+                @assert sum([Korg.isotopic_abundances[iso] for iso in isos]) ≈ 1                       
+            end
         end
 
         moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
