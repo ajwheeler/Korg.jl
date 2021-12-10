@@ -132,14 +132,17 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     flux = if atm isa ShellAtmosphere
         rs = (l->l.r).(atm.layers)
-        R = rs[1] + 0.5(rs[1] - rs[2])
+        #R = rs[1] + 0.5(rs[1] - rs[2])
+        R = rs[1] + (rs[1] - rs[2])
         I = spherical_transfer(R, rs, α, source_fn, mu_grid) #μ-resolve intensity
-        2π * [Korg.trapezoid_rule(mu_grid, mu_grid .* I) for I in eachrow(I)]
+        #2π * [Korg.trapezoid_rule(mu_grid, mu_grid .* I) for I in eachrow(I)]
+        flux = 2π * [Korg.trapezoid_rule(mu_grid, mu_grid .* I) for I in eachrow(I)]
+        return (flux=flux, I=I, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
     else #atm isa PlanarAtmosphere
         #the thickness of each atmospheric layer 
-        Δcolmass = diff((l->l.colmass).(atm.layers))
-        Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm.layers)
-        τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
+        Δz = -diff([l.z for l in atm.layers])
+        Δz = 0.5([0 ; Δz] + [Δz; 0])
+        τ = cumsum(α .* Δz, dims=1) #optical depth at each layer at each wavelenth
 
         map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
             2π * transfer_integral(τ_λ, S_λ; plane_parallel=true)

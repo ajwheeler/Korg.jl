@@ -1,7 +1,7 @@
 abstract type ModelAtmosphere end
 
 struct PlanarAtmosphereLayer{F}
-    colmass::F                 #g
+    z::F                       #g
     temp::F                    #K
     electron_number_density::F #cm^-3
     number_density::F          #cm^-3
@@ -13,12 +13,11 @@ struct PlanarAtmosphere{F} <: ModelAtmosphere
 end
 
 struct ShellAtmosphereLayer{F}
-    colmass::F                 #g
+    r::F                       #cm
     temp::F                    #K
     electron_number_density::F #cm^-3
     number_density::F          #cm^-3
     density::F                 #g cm^-3
-    r::F                       #cm
 end
 
 struct ShellAtmosphere{F} <: ModelAtmosphere
@@ -103,5 +102,43 @@ function read_model_atmosphere(fname::AbstractString; truncate_at_10000K=true)
          else
              PlanarAtmosphere(layers)
          end
+    end
+end
+
+function read_mod_atmosphere(fname::AbstractString; truncate_at_10000K=true)
+    open(fname) do f
+        #these files are small, so it's not a big deal to load them entirely into memory
+        lines = collect(eachline(f)) 
+        i = findfirst(occursin.("Number of depth points", lines))
+        if isnothing(i)
+            throw(ArgumentError("Can't parse .mod file: can't detect number of layers."))
+        end
+        nlayers = parse(Int, split(lines[i])[1])
+
+        header = findfirst(occursin.("lgTauR", lines))
+        if isnothing(header)
+            throw(ArgumentError("Can't parse .mod file: can't find header."))
+        end
+        blockA = lines[header+1:header+nlayers]
+        blockB = lines[header+nlayers+2 : header+1+2nlayers]
+
+        layers = map(zip(blockA, blockB)) do (lineA, lineB)
+            nums = parse.(Float64, strip.(split(lineA * lineB)))
+            temp = nums[5]
+            Pe = nums[6]
+            Pg = nums[7]
+
+            PlanarAtmosphereLayer(-nums[4], temp, Pe/(temp*kboltz_cgs), Pg/(temp*kboltz_cgs), 
+                                  nums[13])
+        end
+
+        if truncate_at_10000K
+            filter!(layers) do layer
+                layer.temp < 10_000
+            end
+        end
+
+        #TODO handle spherical atmosphers
+        PlanarAtmosphere(layers)
     end
 end
