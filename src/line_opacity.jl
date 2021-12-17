@@ -287,7 +287,7 @@ end
 """
     line_profile(λ₀, invΔλ_D, Δλ_L, line_amplitude, λ)
 
-A voigt profile centered on λ₀ with doppler width `invΔλ_D` = 1/Δλ_D and lorentz width `Δλ_L` 
+A voigt profile centered on λ₀ with Doppler width 1/`invΔλ_D` and Lorentz width `Δλ_L` 
 evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
 """
 function line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L::Real, line_amplitude::Real, λ::Real)

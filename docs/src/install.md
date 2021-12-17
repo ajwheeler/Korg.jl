@@ -5,8 +5,11 @@ See also [the platform specific instructions](https://julialang.org/downloads/pl
 if you would like to use Julia from the command line.  
 
 ## 2. Install Korg
-Lauch a julia session (either by launching the app, or typing `julia` on the command line if you 
-have that set up).  Type `]` to enter `Pkg` mode, then type `add Korg`.  That's it!
+
+1. Lauch a julia session (either by launching the app, or typing `julia` on the command line if you have that set up).
+2. Type `]` to enter `Pkg` mode.
+3. Type `add Korg` to install Korg and its dependencies.
+4. Press backspace or `CTRL+C` to exit `Pkg` mode (and return to the Julia REPL)
 
 Alternatively, you can run
 ```julia
@@ -27,10 +30,8 @@ If you would like to use Korg from Python, you can use
 installation notes](https://pyjulia.readthedocs.io/en/latest/installation.html), but here's the 
 short version: 
 ```
-$ python3 -m pip install --user julia.
+$ python3 -m pip install --user julia
 $ python
 >>> import julia
 >>> julia.install()
 ```
-
-See [the python example notebook]() for a demonstration of how to use Korg from Python.
