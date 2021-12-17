@@ -302,7 +302,7 @@ VALD linelists (the default and preferred format) can be either "short" or "long
 wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
 
 When they are not pre-scaled by isotopic abundace (which VALD does by default), Korg will 
-automatically adjust the log_gf of each line according to the `isotopic_abundances`, which defaults 
+automatically adjust the `log_gf` of each line according to `isotopic_abundances`, which defaults 
 to the values from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses).
 To use custom isotopic abundances, just pass `isotopic_abundances` as a dictionary mapping
 `(atomic number, atomic weight)` pairs to abundances between 0 and 1.

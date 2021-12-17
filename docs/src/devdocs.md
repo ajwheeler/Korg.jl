@@ -1,14 +1,15 @@
 This page contains info for people interested in contributing code to Korg.  If you 
 have questions, do not hesitate to ask.
 
-## code guidelines
+## Code guidelines
 - Try to be explicit about units throughout the code, particularly when not using CGS.
 - Whenever possible, calculations should be precise up to a factor of $$10^{-3}$$.  When it's easy and inexpensive, they should be precise to $$10^{-5}$$ or better.  
 - Ensure types are generic enough to support dual numbers and autodifferentiation. 
 - Limit lines to 100 characters.
-- try to use ASCII characters in the names of functions that are part of the public API.
+- Use ASCII characters in the names of functions that are part of the public API.
+- Unless they will never be called elsewhere, provide docstrings describing the inputs, assumptions and outputs of any functions you write.
 
-## Continuum Absorption
+## Continuum absorption
 
 Steps for implementing new continuum sources of absorption:
 - Define a helper function that computes a single absorption coefficient (in units of cm⁻²). The function should accept `ν` (in Hz) and `T` (in K) as the first and second arguments, respectively. The convention is for it should share a name with the corresponding public function, but have an underscore pre-appended (e.g. we define `_H_I_bf` to help implement `H_I_bf`).
