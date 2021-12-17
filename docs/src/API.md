@@ -1,6 +1,6 @@
 This page docuements the Korg API for users of the package. Low-level functions that only people 
-digging into the guts of Korg will be interested in can be found on the 
-[developer documentation](../devdocs).
+digging into the internals of Korg will be interested in can be found on the 
+[developer documentation page](../devdocs).
 
 # Top-level functions
 If you are synthesize a spectrum Korg, these are the functions you will call.  
