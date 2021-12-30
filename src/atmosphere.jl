@@ -105,10 +105,19 @@ function read_model_atmosphere(fname::AbstractString; truncate_at_10000K=true)
     end
 end
 
-function read_mod_atmosphere(fname::AbstractString; truncate_at_10000K=true)
+function read_mod_atmosphere(fname::AbstractString; truncate_at_10000K=true) :: ModelAtmosphere
     open(fname) do f
         #these files are small, so it's not a big deal to load them entirely into memory
         lines = collect(eachline(f)) 
+        
+        Rind = findfirst(occursin.("Radius", lines))
+        if isnothing(Rind)
+            throw(ArgumentError("Can't parse .mod file:  can't detect radius." * 
+                                " (should be 1.0 for plane-parallel atmospheres.)"))
+        end
+        R = parse(Float64, split(lines[Rind])[1])
+        planar = R == 1
+
         i = findfirst(occursin.("Number of depth points", lines))
         if isnothing(i)
             throw(ArgumentError("Can't parse .mod file: can't detect number of layers."))
@@ -128,8 +137,13 @@ function read_mod_atmosphere(fname::AbstractString; truncate_at_10000K=true)
             Pe = nums[6]
             Pg = nums[7]
 
-            PlanarAtmosphereLayer(-nums[4], temp, Pe/(temp*kboltz_cgs), Pg/(temp*kboltz_cgs), 
-                                  nums[13])
+            if planar
+                PlanarAtmosphereLayer(-nums[4], temp, Pe/(temp*kboltz_cgs), Pg/(temp*kboltz_cgs), 
+                                      nums[13])
+            else
+                ShellAtmosphereLayer(R-nums[4], temp, Pe/(temp*kboltz_cgs), Pg/(temp*kboltz_cgs), 
+                                      nums[13])
+            end
         end
 
         if truncate_at_10000K
@@ -139,6 +153,10 @@ function read_mod_atmosphere(fname::AbstractString; truncate_at_10000K=true)
         end
 
         #TODO handle spherical atmosphers
-        PlanarAtmosphere(layers)
+        if planar
+            PlanarAtmosphere(layers)
+        else
+            ShellAtmosphere(layers)
+        end
     end
 end
