@@ -52,16 +52,18 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
 
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
 
-    # Hydrogen continuum absorption
+    #parameters used more than once
     nH_I = number_densities[species"H_I"]
     nH_I_div_U = nH_I / partition_funcs[species"H_I"](T)
+
+    # Hydrogen continuum absorption
     H_I_bf(νs, T, nH_I_div_U; kwargs...)
     H_I_ff(νs, T, number_densities[species"H_II"], nₑ; kwargs...)
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
-    # He continuum opacities
+    # He continuum absorption
     He_II_bf(νs, T, number_densities[species"H_II"] / partition_funcs[species"H_II"](T); kwargs...)
     He_II_ff(νs, T, number_densities[species"He_III"], nₑ; kwargs...)
     Heminus_ff(νs, T, number_densities[species"He_I"] / partition_funcs[species"He_I"](T), nₑ;

@@ -1,24 +1,99 @@
 """
-    _ray_approximate_transfer_integral(τ, m, b)
+    radiative_transfer(atm::ModelAtmosphere, α, S, α_ref, mu_grid)
 
-The exact solution to \$\\int (m\\tau + b) \\exp(-\\tau)\$ d\\tau\$.
+Returns the astrophysical flux at each wavelength.
+
+inputs:
+- `atm`: the model atmosphere.
+- `α`: a matric (atmospheric layers × wavelengths) containing the absoprtion coefficient
+- `S`: the source fuction as a matrix of the same shape.
+- `α_ref`: the continuum absoprtion coefficient at the reference wavelength (5000 Å). Used to 
+   rescale the total absorption to match the model atmosphere. This value should be calculated by 
+   Korg.
+- `mu_grid`: (required if atm is a [`ShellAtmosphere`](@ref)) the values of μ at which to calculate 
+   the surface intensity, which is integrated to obtain the astrophysical flux.
 """
-function _ray_approximate_transfer_integral(τ, m, b)
-    -exp(-τ) * (m*τ + b + m)
+function radiative_transfer(atm::PlanarAtmosphere, α, S, α_ref, mu_grid=nothing)
+    τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
+    planar_transfer(α, S, τ5, α_ref)
+end
+function radiative_transfer(atm::ShellAtmosphere, α, S, α_ref, mu_grid)
+    τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
+    rs = [l.r for l in atm.layers]
+    spherical_transfer(α, S, τ5, α_ref, rs, mu_grid)[2] #discard I, take F only
+end
+
+
+"""
+    planar_transfer(α, S, τ_ref, α_ref)
+
+Returns the astrophysical flux. See [`radiative_transfer`](@ref) for an explantion of the arguments.
+"""
+function planar_transfer(α, S, τ_ref, α_ref)
+    #this could possibly be sped up with explicit allocations and looping
+    map(zip(eachcol(α), eachcol(S))) do (α_λ, S_λ)
+        τ = cumulative_trapezoid_rule(log.(τ_ref), τ_ref .* α_λ ./ α_ref) 
+        2π * transfer_integral(τ, S_λ; plane_parallel=true)
+    end
 end
 
 """
-    _plane_parallel_approximate_transfer_integral(τ, m, b)
+    spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
 
-The exact solution to \$\\int (m\\tau + b) E_2(\\tau)\$ d\\tau\$.
+Perform radiative transfer along rays emerging at the μ values in `μ_surface_grid` in a spherically
+symmetric atmosphere resolved at radii `radii` [cm]. See [`radiative_transfer`](@ref) for an 
+explantion of the arguments. Note that `radii` should be in decreasing order.
 
-The exponential integral function, expint, captures the integral over the disk of the star to 
-get the emergent astrophysical flux. You can verify it by substituting the variable of integration 
-in the exponential integal, t, with mu=1/t.
+Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intensity`, a matrix of 
+shape (wavelengths × mu values), is the surface intensity as a function of μ.
 """
-function _plane_parallel_approximate_transfer_integral(τ, m, b)
-    1/6 * (τ*exponential_integral_2(τ)*(3b+2m*τ) - exp(-τ)*(3b + 2m*(τ+1)))
+function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
+    R, r0 = radii[1] + (radii[1] - radii[2]), radii[end] #upper and lower bounds of atmosphere
+
+    #I is intensity as a funciton of μ and λ, filled in the loop below
+    I_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
+    I = Matrix{I_type}(undef, size(α, 2), length(μ_surface_grid)) 
+
+    #do radiative transfer along each ray
+    for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
+        # impact parameter of ray
+        b = R * sqrt(1 - μ_surface^2)
+        
+        #calculate the index of the lowest layer the ray passes through.
+        #doing this with `findfirst` is messier at first and last index
+        i = argmin(abs.(radii .- b)) 
+        if radii[i] < b
+            i -= 1
+        end
+        if i == 0 
+            I[:, μ_ind] .= 0
+            continue
+        end 
+
+        #geometric path-length correction
+        ds_dr = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
+
+        for j in 1:size(α, 2) #iterate over wavelength
+            integrand = ds_dr .* τ_ref[1:i] .* α[1:i, j] ./ α_ref[1:i] 
+            τ_λ = cumulative_trapezoid_rule(log.(τ_ref[1:i]), integrand)
+            I[j, μ_ind] = transfer_integral(τ_λ, S[1:i, j]; plane_parallel=false)
+
+            if b > r0
+                #if the ray never leaves the model atmosphere, include the contribution from the 
+                #other side of the star. This should probably by audited for off-by-one errors.
+                τ_prime = τ_λ[end] .+ [cumsum(reverse(diff(τ_λ))) ; 0]
+                I[j, μ_ind] += transfer_integral(τ_prime, S[1:i, j]; plane_parallel=false)
+            else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
+                I[j, μ_ind] += exp(-τ_λ[end]) * S[end, j]
+            end
+        end
+    end
+    #calculate 2π∫μIdμ to get astrophysical flux
+    #this is likely not the most efficient way to do this.
+    F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachrow(I)]
+    I, F
 end
+
 
 """
     transfer_integral(τ, S; plane_parallel=true)
@@ -43,68 +118,50 @@ function transfer_integral(τ, S; plane_parallel=true)
 end
 
 """
-    spherical_transfer(R, radii, α, S, μ_surface_grid)
+    _ray_approximate_transfer_integral(τ, m, b)
 
-Perform radiative transfer along rays emerging at the μ values in `μ_surface_grid` in a spherically
-symmetric atmosphere with outer radius `R` [cm], and absorption coefficient, `α`, and source 
-function, `S`, resolved at radii `radii` [cm].
+The exact solution to \$\\int (m\\tau + b) \\exp(-\\tau)\$ d\\tau\$.
 """
-function spherical_transfer(R, radii, α, S, μ_surface_grid)
-    r0 = radii[end] #radii of inner and outer atmosphere layers
-    
-    I_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
-    I = Matrix{I_type}(undef, size(α, 2), length(μ_surface_grid))
-    
-    for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
-        # impact parameter of ray
-        b = R * sqrt(1 - μ_surface^2)
-        
-        #calculate the index of the lowest layer the ray passes through
-        i = argmin(abs.(radii .- b))
-        if radii[i] < b
-            i -= 1
-        end
-        if i == 1 || i == 0
-            I[:, μ_ind] .= 0
-            continue
-        end #can eliminate for i == 1?
-        
-        #ds is the path length through each layer
-        ds = -diff(@. sqrt([R ; radii[1:i]]^2 - b^2)) 
-        dτ = α[1:i, :] .* ds
-        τ = cumsum(dτ, dims=1)
-        
-        for j in 1:size(τ, 2) #iterate over wavelength
-            I[j, μ_ind] = transfer_integral(τ[:, j], S[1:i, j]; plane_parallel=false)
-        end
-        if b > r0
-            #if the ray never leaves the model atmosphere, include 
-            #the contribution from the other side of the star
-            τ_prime = τ[end:end, :] .+ [cumsum(reverse(dτ[2:end, :], dims=1), dims=1) 
-                                        ; zeros(size(τ[end:end, :]))]
-            for j in 1:size(τ, 2) #Iterate over wavelength
-                I[j, μ_ind] += transfer_integral(τ_prime[:, j], S[1:i, j]; plane_parallel=false)
-            end
-        else #otherwise assume I=S at atmosphere lower boundary
-            I[:, μ_ind] += @. exp(-τ[end, :]) * S[end, :]
-        end
-    end
-    I
+function _ray_approximate_transfer_integral(τ, m, b)
+    -exp(-τ) * (m*τ + b + m)
+end
+
+"""
+    _plane_parallel_approximate_transfer_integral(τ, m, b)
+
+The exact solution to \$\\int (m\\tau + b) E_2(\\tau)\$ d\\tau\$.
+
+The exponential integral function, expint, captures the integral over the disk of the star to 
+get the emergent astrophysical flux. You can verify it by substituting the variable of integration 
+in the exponential integal, t, with mu=1/t.
+"""
+function _plane_parallel_approximate_transfer_integral(τ, m, b)
+    1/6 * (τ*exponential_integral_2(τ)*(3b+2m*τ) - exp(-τ)*(3b + 2m*(τ+1)))
 end
 
 """
     trapezoid_rule(xs, fs)
 
-Approximate the integral from x₁ to x₂ of f(x) with the trapezoid rule given x-values `xs` and f(x)
-values `fs`.
-
-This should be good enough to numerically solve the transport equation, since model atmospheres
-usually have carefully chosen knots.  We probably want to add higher-order aproximations later.
+Approximate the integral f(x) with the trapezoid rule over x-values `xs` given f(x) values `fs`.
 """
 function trapezoid_rule(xs, fs)
     Δs = diff(xs)
     weights = [0 ; Δs] + [Δs ; 0]
     sum(0.5 * weights .* fs)
+end
+
+"""
+    cumulative_trapezoid_rule(xs, fs)
+
+Approximate the closed integral of f(x) from the first element of `xs` to each element of `xs` with
+the trapezoid rule, given f values `fs`. Returns a vector of values of the same length as `xs` and 
+`fs`.
+"""
+function cumulative_trapezoid_rule(xs, fs)
+    #it would be nice to have a less-redundant, faster version of this. TODO
+    map(1:length(xs)) do i
+        trapezoid_rule(xs[1:i], fs[1:i])
+    end
 end
 
 """
@@ -114,7 +171,9 @@ Approximate second order exponential integral, E_2(x).  This stiches together se
 expansions to get an approximation which is accurate within 1% for all `x`.
 """
 function exponential_integral_2(x) 
-    if x < 1.1
+    if x == 0
+        0.0
+    elseif x < 1.1
         _expint_small(x)
     elseif x < 2.5
         _expint_2(x)
