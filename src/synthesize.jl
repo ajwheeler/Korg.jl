@@ -101,7 +101,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
 
     α_cntm = Vector(undef, length(atm.layers))     #vector of continuum-absorption interpolators
-    α5 = Vector{α_type}(undef, length(atm.layers)) #reference absorption at each layer
+    α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
     n_dicts = Vector(undef, length(atm.layers))    #vector of (species -> number density) Dicts
     for (i, layer) in enumerate(atm.layers)
         n_dicts[i] = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
