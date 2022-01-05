@@ -5,7 +5,7 @@ Returns the astrophysical flux at each wavelength.
 
 inputs:
 - `atm`: the model atmosphere.
-- `α`: a matric (atmospheric layers × wavelengths) containing the absoprtion coefficient
+- `α`: a matrix (atmospheric layers × wavelengths) containing the absoprtion coefficient
 - `S`: the source fuction as a matrix of the same shape.
 - `α_ref`: the continuum absoprtion coefficient at the reference wavelength (5000 Å). Used to 
    rescale the total absorption to match the model atmosphere. This value should be calculated by 
