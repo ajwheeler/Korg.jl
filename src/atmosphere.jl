@@ -31,8 +31,7 @@ end
 Construct a planar atmosphere with the data from a shell atmosphere.  Mostly useful for testing.
 """
 function PlanarAtmosphere(atm::ShellAtmosphere)
-    #TODO adapt
-    PlanarAtmosphere([PlanarAtmosphereLayer(l.tau_5000, l.r, l.temp, l.electron_number_density, 
+    PlanarAtmosphere([PlanarAtmosphereLayer(l.tau_5000, l.z, l.temp, l.electron_number_density, 
                                             l.number_density) for l in atm.layers])
 end
 
@@ -43,14 +42,8 @@ Construct a shell atmosphere with the data from a planar atmosphere and an outer
 useful for testing.
 """
 function ShellAtmosphere(atm::PlanarAtmosphere, R)
-    #TODO adapt
-    Δcolmass = diff((l->l.colmass).(atm.layers))
-    Δs = 0.5([0 ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm.layers)
-    rs = R .- cumsum(Δs)
-
-    ShellAtmosphere([ShellAtmosphereLayer(l.tau_5000, r, l.temp, l.electron_number_density, 
-                                          l.number_density) 
-                     for (l, r) in zip(atm.layers, rs)])
+    ShellAtmosphere([ShellAtmosphereLayer(l.tau_5000, l.z, l.temp, l.electron_number_density, 
+                                          l.number_density) for l in atm.layers], R)
 end
 
 #pretty-printing
