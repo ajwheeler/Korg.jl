@@ -423,7 +423,17 @@ end
         #gaussian PDF should integral to 1.
         pdf(x) = exp(-1/2 * x^2) / sqrt(2π)
         xs = -10:0.1:10
-        @test Korg.trapezoid_rule(xs, pdf.(xs) * 0.1) - 1.0 < 1e-5
+        fs = pdf.(xs)
+
+        #do they match the analytic solution?
+        @test Korg.trapezoid_rule(xs, fs) ≈ 1.0  atol=1e-5
+        @test Korg.cumulative_trapezoid_rule(xs, fs)[end] ≈ 1.0 atol=1e-5
+
+        #do they match each other?
+        naive_partial_integrals = map(1:length(xs)) do i
+            Korg.trapezoid_rule(xs[1:i], fs[1:i])
+        end
+        @test naive_partial_integrals ≈ Korg.cumulative_trapezoid_rule(xs, fs)
     end
 end
 

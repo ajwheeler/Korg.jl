@@ -160,10 +160,7 @@ the trapezoid rule, given f values `fs`. Returns a vector of values of the same 
 `fs`.
 """
 function cumulative_trapezoid_rule(xs, fs)
-    #it would be nice to have a less-redundant, faster version of this. TODO
-    map(1:length(xs)) do i
-        trapezoid_rule(xs[1:i], fs[1:i])
-    end
+    [0 ; cumsum(0.5(fs[1:end-1] + fs[2:end]) .* diff(xs))]
 end
 
 """
