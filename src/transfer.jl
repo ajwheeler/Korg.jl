@@ -19,8 +19,10 @@ function radiative_transfer(atm::PlanarAtmosphere, α, S, α_ref, mu_grid=nothin
 end
 function radiative_transfer(atm::ShellAtmosphere, α, S, α_ref, mu_grid)
     τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
-    rs = [l.r for l in atm.layers]
-    spherical_transfer(α, S, τ5, α_ref, rs, mu_grid)[2] #discard I, take F only
+    radii = [atm.R + l.z for l in atm.layers]
+    photosphere_correction = radii[1]^2 / atm.R^2
+    #discard I, take F only
+    photosphere_correction * spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)[2]
 end
 
 
@@ -48,7 +50,7 @@ Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intens
 shape (wavelengths × mu values), is the surface intensity as a function of μ.
 """
 function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
-    R, r0 = radii[1] + (radii[1] - radii[2]), radii[end] #upper and lower bounds of atmosphere
+    R, r0 = radii[1], radii[end] #lower bound of atmosphere
 
     #I is intensity as a funciton of μ and λ, filled in the loop below
     I_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])

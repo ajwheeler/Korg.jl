@@ -6,7 +6,6 @@ struct PlanarAtmosphereLayer{F}
     temp::F                    #K
     electron_number_density::F #cm^-3
     number_density::F          #cm^-3
-    density::F                 #g cm^-3
 end
 
 struct PlanarAtmosphere{F} <: ModelAtmosphere
@@ -15,18 +14,15 @@ end
 
 struct ShellAtmosphereLayer{F}
     tau_5000::F                #dimensionless
-    #depth::F                       #cm TODO
-    r::F
+    z::F                       #cm TODO
     temp::F                    #K
     electron_number_density::F #cm^-3
     number_density::F          #cm^-3
-    density::F                 #g cm^-3
 end
 
 struct ShellAtmosphere{F} <: ModelAtmosphere
     layers::Vector{ShellAtmosphereLayer{F}}
-    #TODO
-    #R::F #the radius of the star. For MARCS models, this is where τ_ros == 1, not the top.
+    R::F #the radius of the star where τ_ros == 1, i.e. the photosphere (not the top)
 end
 
 """
@@ -37,7 +33,7 @@ Construct a planar atmosphere with the data from a shell atmosphere.  Mostly use
 function PlanarAtmosphere(atm::ShellAtmosphere)
     #TODO adapt
     PlanarAtmosphere([PlanarAtmosphereLayer(l.tau_5000, l.r, l.temp, l.electron_number_density, 
-                                            l.number_density, l.density) for l in atm.layers])
+                                            l.number_density) for l in atm.layers])
 end
 
 """
@@ -53,7 +49,7 @@ function ShellAtmosphere(atm::PlanarAtmosphere, R)
     rs = R .- cumsum(Δs)
 
     ShellAtmosphere([ShellAtmosphereLayer(l.tau_5000, r, l.temp, l.electron_number_density, 
-                                          l.number_density, l.density) 
+                                          l.number_density) 
                      for (l, r) in zip(atm.layers, rs)])
 end
 
@@ -105,9 +101,9 @@ function read_model_atmosphere(fname::AbstractString; truncate_at_10000K=true) :
             nₑ = nums[6]/(temp*kboltz_cgs) #electron number density
             n = nums[7]/(temp*kboltz_cgs)  #non-electron number density
             if planar
-                PlanarAtmosphereLayer(10^nums[3], -nums[4], temp, nₑ, n, nums[13])
+                PlanarAtmosphereLayer(10^nums[3], -nums[4], temp, nₑ, n)
             else
-                ShellAtmosphereLayer(10^nums[3], R-nums[4], temp, nₑ, n, nums[13])
+                ShellAtmosphereLayer(10^nums[3], -nums[4], temp, nₑ, n)
             end
         end
 
@@ -120,7 +116,7 @@ function read_model_atmosphere(fname::AbstractString; truncate_at_10000K=true) :
         if planar
             PlanarAtmosphere(layers)
         else
-            ShellAtmosphere(layers)
+            ShellAtmosphere(layers, R)
         end
-    end
+     end
 end
