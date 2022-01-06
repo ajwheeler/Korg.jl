@@ -93,13 +93,13 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
 
-    #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
-                            metallicity, vmic, abundances[1])[1])
-    α = Matrix{α_type}(undef, length(atm.layers), length(λs))
-
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
 
+    #float-like type general to handle dual numbers
+    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
+                            metallicity, vmic, abundances[1])[1])
+    #the absorption coefficient, α, for each wavelength and atmospheric layer
+    α = Matrix{α_type}(undef, length(atm.layers), length(λs))
     α_cntm = Vector(undef, length(atm.layers))     #vector of continuum-absorption interpolators
     α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
     n_dicts = Vector(undef, length(atm.layers))    #vector of (species -> number density) Dicts
@@ -124,7 +124,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
         end
     end
 
-    #put number densities in big dict.  Would be better to allocate in this form from beginning.
+    #put number densities in a dict of vectors, rather than a vector of dicts.
     number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1])])
 
     #add contribution of line absorption to α
