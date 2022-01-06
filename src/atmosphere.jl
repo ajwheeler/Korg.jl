@@ -14,7 +14,7 @@ end
 
 struct ShellAtmosphereLayer{F}
     tau_5000::F                #dimensionless
-    z::F                       #cm TODO
+    z::F                       #cm
     temp::F                    #K
     electron_number_density::F #cm^-3
     number_density::F          #cm^-3
