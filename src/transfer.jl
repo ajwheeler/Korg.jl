@@ -134,27 +134,29 @@ end
     ray_transfer_integral(τ, S)
 
 Compute exactly the solution to the transfer integral obtained be linearly interpolating the source 
-function, `S` across optical depths `τ`, without approximating the factor of exp(-τ)
+function, `S` across optical depths `τ`, without approximating the factor of exp(-τ).
+
+This breaks the integral into the sum of integrals of the form 
+\$\\int (m\\tau + b) \\exp(-\\tau)\$ d\\tau\$ , 
+which is equal to
+\$ -\\exp(-\\tau) (m*\\tau + b + m)\$.
 """
 function ray_transfer_integral(τ, S)
-    I = 0
+    if length(τ) == 1
+        return 0.0
+    end
+    I = 0.0
+    next_exp_negτ = exp(-τ[1])
     for i in 1:length(τ)-1
         @inbounds m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
-        @inbounds b = S[i] - m*τ[i]
-        @inbounds I += (_ray_approximate_transfer_integral(τ[i+1], m, b) - 
-                        _ray_approximate_transfer_integral(τ[i], m, b))
+        cur_exp_negτ = next_exp_negτ
+        @inbounds next_exp_negτ = exp(-τ[i+1])
+        @inbounds I += (-next_exp_negτ * (S[i+1] + m) + cur_exp_negτ * (S[i] + m))
     end
+    #add non-telescopically-canceled -exp(-τ)*b term from first and last index
+    I += -exp(-τ[1]) * (S[1] - (S[2]-S[1])/(τ[2]-τ[1])*τ[1] )
+    I += exp(-τ[end-1]) * (S[end-1] - (S[end]-S[end-1])/(τ[end]-τ[end-1])*τ[end-1] )
     I
-end
-
-
-"""
-    _ray_approximate_transfer_integral(τ, m, b)
-
-The exact solution to \$\\int (m\\tau + b) \\exp(-\\tau)\$ d\\tau\$.
-"""
-function _ray_approximate_transfer_integral(τ, m, b)
-    -exp(-τ) * (m*τ + b + m)
 end
 
 """
