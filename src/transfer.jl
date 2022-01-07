@@ -37,7 +37,7 @@ function planar_transfer(α, S, τ_ref, α_ref)
     τ_λ = Vector{eltype(α)}(undef, size(α, 1))
     for i in 1:size(α, 2)
         cumulative_trapezoid_rule!(τ_λ, log_τ_ref, τ_ref .* view(α, :, i) ./ α_ref)
-        I[i] = 2π * transfer_integral(τ_λ, view(S, :, i); plane_parallel=true)
+        I[i] = 2π * all_mu_transfer_integral(τ_λ, view(S, :, i))
     end
     I
 end
@@ -80,21 +80,23 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         #geometric path-length correction
         ds_dr = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
 
-
         #prealocate per-wavelength τ array
         τ_λ = Vector{eltype(α)}(undef, size(α, 1))
-        for j in 1:size(α, 2) #iterate over wavelength
-            integrand = ds_dr .* τ_ref[1:i] .* α[1:i, j] ./ α_ref[1:i] 
-            cumulative_trapezoid_rule!(τ_λ, log_τ_ref[1:i], integrand)
-            I[j, μ_ind] = transfer_integral(τ_λ[1:i], S[1:i, j]; plane_parallel=false)
+        for λ_ind in 1:size(α, 2) #iterate over wavelength
+            integrand = ds_dr .* view(τ_ref,1:i) .* view(α,1:i, λ_ind) ./ view(α_ref,1:i) 
+            cumulative_trapezoid_rule!(τ_λ, view(log_τ_ref,1:i), integrand)
+            I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
 
             if b > r0
                 #if the ray never leaves the model atmosphere, include the contribution from the 
-                #other side of the star. This should probably by audited for off-by-one errors.
-                τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(τ_λ[1:i]))) ; 0]
-                I[j, μ_ind] += transfer_integral(τ_prime, S[1:i, j]; plane_parallel=false)
+                #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
+                #This is less accurate than actually integrating to find τ, but the effect is small.
+                #This should probably by audited for off-by-one errors.  It's also inneficient, but
+                #it doesn't get called much.
+                τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
+                I[λ_ind, μ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
             else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-                I[j, μ_ind] += exp(-τ_λ[end]) * S[end, j]
+                I[λ_ind, μ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
             end
         end
     end
@@ -106,26 +108,39 @@ end
 
 
 """
-    transfer_integral(τ, S; plane_parallel=true)
+    all_mu_transfer_integral(τ, S)
 
 Compute exactly the solution to the transfer integral obtained be linearly interpolating the source 
-function, `S` across optical depths `τ`, without approximating factor of exp(-τ) or E₂(τ).
+function, `S` across optical depths `τ`, without approximating the factor of E₂(τ).
 """
-function transfer_integral(τ, S; plane_parallel=true)
-    @assert size(τ) == size(S)
-    indef_integral = if plane_parallel
-        _plane_parallel_approximate_transfer_integral
-    else
-        _ray_approximate_transfer_integral
-    end
+function all_mu_transfer_integral(τ, S)
     I = 0
     for i in 1:length(τ)-1
-        m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
-        b = S[i] - m*τ[i]
-        I += (indef_integral(τ[i+1], m, b) - indef_integral(τ[i], m, b))
+        @inbounds m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
+        @inbounds b = S[i] - m*τ[i]
+        @inbounds I += (_plane_parallel_approximate_transfer_integral(τ[i+1], m, b) - 
+                        _plane_parallel_approximate_transfer_integral(τ[i], m, b))
     end
     I
 end
+
+"""
+    ray_transfer_integral(τ, S)
+
+Compute exactly the solution to the transfer integral obtained be linearly interpolating the source 
+function, `S` across optical depths `τ`, without approximating the factor of exp(-τ)
+"""
+function ray_transfer_integral(τ, S)
+    I = 0
+    for i in 1:length(τ)-1
+        @inbounds m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
+        @inbounds b = S[i] - m*τ[i]
+        @inbounds I += (_ray_approximate_transfer_integral(τ[i+1], m, b) - 
+                        _ray_approximate_transfer_integral(τ[i], m, b))
+    end
+    I
+end
+
 
 """
     _ray_approximate_transfer_integral(τ, m, b)
