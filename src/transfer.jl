@@ -65,7 +65,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
 
     #preallocations
     #geometric path-length correction, and other wavelength-indenpendent integrand factors
-    integrand_factor = Matrix{el_type}(undef, length(μ_surface_grid), size(α, 1))
+    integrand_factor = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
     #the index of the lowest atmospheric layer pierced by each ray
     lowest_layer_indices = Vector{Int}(undef, length(μ_surface_grid))
     for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
@@ -79,7 +79,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         end
         lowest_layer_indices[μ_ind] = i
 
-        integrand_factor[μ_ind, 1:i] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) * τ_ref_α_ref[1:i]
+        integrand_factor[1:i, μ_ind] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) * τ_ref_α_ref[1:i]
     end
 
     #preallocations
@@ -89,7 +89,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     for λ_ind in 1:size(α, 2), μ_ind in 1:length(μ_surface_grid)
         i = lowest_layer_indices[μ_ind]
         for k in 1:i #I can't figure out how to write this as a fast one-liner
-            integrand[k] = α[k, λ_ind] * integrand_factor[μ_ind, k]
+            integrand[k] = α[k, λ_ind] * integrand_factor[k, μ_ind]
         end
         cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i)
         I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
