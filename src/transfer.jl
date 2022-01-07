@@ -153,9 +153,6 @@ function ray_transfer_integral(τ, S)
         @inbounds next_exp_negτ = exp(-τ[i+1])
         @inbounds I += (-next_exp_negτ * (S[i+1] + m) + cur_exp_negτ * (S[i] + m))
     end
-    #add non-telescopically-canceled -exp(-τ)*b term from first and last index
-    I += -exp(-τ[1]) * (S[1] - (S[2]-S[1])/(τ[2]-τ[1])*τ[1] )
-    I += exp(-τ[end-1]) * (S[end-1] - (S[end]-S[end-1])/(τ[end]-τ[end-1])*τ[end-1] )
     I
 end
 
