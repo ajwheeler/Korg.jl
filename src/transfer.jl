@@ -60,52 +60,49 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     log_τ_ref = log.(τ_ref) 
     τ_ref_α_ref = τ_ref ./ α_ref
 
-    #I is intensity as a funciton of μ and λ, filled in the loop below
-    I_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
-    I = Matrix{I_type}(undef, size(α, 2), length(μ_surface_grid)) 
+    #general element type with which to preallocate arrays
+    el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
 
     #preallocations
-    integrand_factor = Vector{eltype(α)}(undef, size(α, 1))
-    τ_λ = Vector{eltype(α)}(undef, size(α, 1)) 
-    integrand = Vector{eltype(α)}(undef, size(α, 1))
-
-    #do radiative transfer along each ray
+    #geometric path-length correction, and other wavelength-indenpendent integrand factors
+    integrand_factor = Matrix{el_type}(undef, length(μ_surface_grid), size(α, 1))
+    #the index of the lowest atmospheric layer pierced by each ray
+    lowest_layer_indices = Vector{Int}(undef, length(μ_surface_grid))
     for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
         # impact parameter of ray
         b = R * sqrt(1 - μ_surface^2)
         
-        #calculate the index of the lowest layer the ray passes through.
         #doing this with `findfirst` is messier at first and last index
         i = argmin(abs.(radii .- b)) 
         if radii[i] < b
             i -= 1
         end
-        if i == 0 
-            I[:, μ_ind] .= 0
-            continue
-        end 
+        lowest_layer_indices[μ_ind] = i
 
-        #geometric path-length correction, and other wavelength-indenpendent integrand factors
-        integrand_factor[1:i] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) * τ_ref_α_ref[1:i]
+        integrand_factor[μ_ind, 1:i] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) * τ_ref_α_ref[1:i]
+    end
 
-        for λ_ind in 1:size(α, 2) #iterate over wavelength
-            for k in 1:i #I can't figure out how to write this as a fast one-liner
-                integrand[k] = α[k, λ_ind] * integrand_factor[k]
-            end
-            cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i)
-            I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
+    #preallocations
+    I = Matrix{el_type}(undef, size(α, 2), length(μ_surface_grid)) #the surface intensity
+    integrand = Vector{el_type}(undef, size(α, 1))                 #integrand of τ integral 
+    τ_λ = Vector{el_type}(undef, size(α, 1))                       #optical depth at a particular λ
+    for λ_ind in 1:size(α, 2), μ_ind in 1:length(μ_surface_grid)
+        i = lowest_layer_indices[μ_ind]
+        for k in 1:i #I can't figure out how to write this as a fast one-liner
+            integrand[k] = α[k, λ_ind] * integrand_factor[μ_ind, k]
+        end
+        cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i)
+        I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
 
-            if b > r0
-                #if the ray never leaves the model atmosphere, include the contribution from the 
-                #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
-                #This is less accurate than actually integrating to find τ, but the effect is small.
-                #This should probably by audited for off-by-one errors.  It's also inneficient, but
-                #it doesn't get called much.
-                τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
-                I[λ_ind, μ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
-            else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-                I[λ_ind, μ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
-            end
+        if i < length(radii)
+            #if the ray never leaves the model atmosphere, include the contribution from the 
+            #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
+            #This is less accurate than actually integrating to find τ, but the effect is small.
+            #This should probably by audited for off-by-one errors.  It's also inneficient.
+            τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
+            I[λ_ind, μ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
+        else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
+            I[λ_ind, μ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
         end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
