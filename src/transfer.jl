@@ -95,6 +95,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i) #compute τ_λ
         I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
 
+        #this branch could be factored out of this loop, which might speed things up.
         if i < length(radii)
             #if the ray never leaves the model atmosphere, include the contribution from the 
             #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
@@ -107,7 +108,6 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
-    #this is likely not the most efficient way to do this.
     F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachrow(I)]
     I, F
 end
