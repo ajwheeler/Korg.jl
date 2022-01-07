@@ -33,11 +33,12 @@ Returns the astrophysical flux. See [`radiative_transfer`](@ref) for an explanti
 """
 function planar_transfer(α, S, τ_ref, α_ref)
     log_τ_ref = log.(τ_ref)
+    τ_ref_α_ref = τ_ref ./ α_ref
     I = Vector{eltype(α)}(undef, size(α, 2))
     τ_λ = Vector{eltype(α)}(undef, size(α, 1))
-    for i in 1:size(α, 2)
-        @inbounds cumulative_trapezoid_rule!(τ_λ, log_τ_ref, τ_ref .* view(α, :, i) ./ α_ref)
-        I[i] = 2π * all_mu_transfer_integral(τ_λ, view(S, :, i))
+    for λ_ind in 1:size(α, 2)
+        @inbounds cumulative_trapezoid_rule!(τ_λ, log_τ_ref, view(α, :, λ_ind) .* τ_ref_α_ref)
+        I[λ_ind] = 2π * all_mu_transfer_integral(τ_λ, view(S, :, λ_ind))
     end
     I
 end
@@ -183,14 +184,14 @@ function trapezoid_rule(xs, fs)
 end
 
 """
-    cumulative_trapezoid_rule!(out, xs, fs, len)
+    cumulative_trapezoid_rule!(out, xs, fs, [len=length(xs)])
 
 Approximate the closed integral of f(x) from the first element of `xs` to each element of `xs` 
 (up to `len`) with the trapezoid rule, given f values `fs`. 
 
 Assigns to the preallocated vector `out`.
 """
-function cumulative_trapezoid_rule!(out, xs, fs, len)
+function cumulative_trapezoid_rule!(out, xs, fs, len=length(xs))
     out[1] = 0.0
     for i in 2:len
         out[i] = out[i-1] + 0.5*(fs[i]+fs[i-1])*(xs[i]-xs[i-1])
