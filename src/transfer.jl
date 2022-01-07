@@ -51,7 +51,7 @@ symmetric atmosphere resolved at radii `radii` [cm]. See [`radiative_transfer`](
 explantion of the arguments. Note that `radii` should be in decreasing order.
 
 Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intensity`, a matrix of 
-shape (wavelengths × mu values), is the surface intensity as a function of μ.
+shape (mu values × wavelengths), is the surface intensity as a function of μ.
 """
 function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     R, r0 = radii[1], radii[end] #lower bound of atmosphere
@@ -83,7 +83,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     end
 
     #preallocations
-    I = Matrix{el_type}(undef, size(α, 2), length(μ_surface_grid)) #the surface intensity
+    I = Matrix{el_type}(undef, length(μ_surface_grid), size(α, 2)) #the surface intensity
     integrand = Vector{el_type}(undef, size(α, 1))                 #integrand of τ integral 
     τ_λ = Vector{el_type}(undef, size(α, 1))                       #optical depth at a particular λ
     #iterate over λ in the outer loop, μ in the inner loop
@@ -93,7 +93,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             integrand[k] = α[k, λ_ind] * integrand_factor[k, μ_ind]
         end
         cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i) #compute τ_λ
-        I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
+        I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
 
         #this branch could be factored out of this loop, which might speed things up.
         if i < length(radii)
@@ -102,16 +102,15 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             #This is less accurate than actually integrating to find τ, but the effect is small.
             #This should probably by audited for off-by-one errors.  It's also inneficient.
             τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
-            I[λ_ind, μ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
+            I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
         else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-            I[λ_ind, μ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
+            I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
         end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
-    F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachrow(I)]
+    F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
     I, F
 end
-
 
 """
     all_mu_transfer_integral(τ, S)
