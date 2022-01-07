@@ -36,7 +36,7 @@ function planar_transfer(α, S, τ_ref, α_ref)
     I = Vector{eltype(α)}(undef, size(α, 2))
     τ_λ = Vector{eltype(α)}(undef, size(α, 1))
     for i in 1:size(α, 2)
-        cumulative_trapezoid_rule!(τ_λ, log_τ_ref, τ_ref .* view(α, :, i) ./ α_ref)
+        @inbounds cumulative_trapezoid_rule!(τ_λ, log_τ_ref, τ_ref .* view(α, :, i) ./ α_ref)
         I[i] = 2π * all_mu_transfer_integral(τ_λ, view(S, :, i))
     end
     I
@@ -55,11 +55,18 @@ shape (wavelengths × mu values), is the surface intensity as a function of μ.
 function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     R, r0 = radii[1], radii[end] #lower bound of atmosphere
 
-    log_τ_ref = log.(τ_ref) #precompute for use in transfer integral
+    #precompute for use in transfer integral
+    log_τ_ref = log.(τ_ref) 
+    τ_ref_α_ref = τ_ref ./ α_ref
 
     #I is intensity as a funciton of μ and λ, filled in the loop below
     I_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
     I = Matrix{I_type}(undef, size(α, 2), length(μ_surface_grid)) 
+
+    #preallocations
+    integrand_factor = Vector{eltype(α)}(undef, size(α, 1))
+    τ_λ = Vector{eltype(α)}(undef, size(α, 1)) 
+    integrand = Vector{eltype(α)}(undef, size(α, 1))
 
     #do radiative transfer along each ray
     for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
@@ -77,14 +84,14 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             continue
         end 
 
-        #geometric path-length correction
-        ds_dr = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
+        #geometric path-length correction, and other wavelength-indenpendent integrand factors
+        integrand_factor[1:i] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) * τ_ref_α_ref[1:i]
 
-        #prealocate per-wavelength τ array
-        τ_λ = Vector{eltype(α)}(undef, size(α, 1))
         for λ_ind in 1:size(α, 2) #iterate over wavelength
-            integrand = ds_dr .* view(τ_ref,1:i) .* view(α,1:i, λ_ind) ./ view(α_ref,1:i) 
-            cumulative_trapezoid_rule!(τ_λ, view(log_τ_ref,1:i), integrand)
+            for k in 1:i #I can't figure out how to write this as a fast one-liner
+                integrand[k] = α[k, λ_ind] * integrand_factor[k]
+            end
+            cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i)
             I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
 
             if b > r0
@@ -176,14 +183,16 @@ function trapezoid_rule(xs, fs)
 end
 
 """
-    cumulative_trapezoid_rule!(out, xs, fs)
+    cumulative_trapezoid_rule!(out, xs, fs, len)
 
-Approximate the closed integral of f(x) from the first element of `xs` to each element of `xs` with
-the trapezoid rule, given f values `fs`. Assigns to the preallocated vector `out`.
+Approximate the closed integral of f(x) from the first element of `xs` to each element of `xs` 
+(up to `len`) with the trapezoid rule, given f values `fs`. 
+
+Assigns to the preallocated vector `out`.
 """
-function cumulative_trapezoid_rule!(out, xs, fs)
+function cumulative_trapezoid_rule!(out, xs, fs, len)
     out[1] = 0.0
-    for i in 2:length(xs)
+    for i in 2:len
         out[i] = out[i-1] + 0.5*(fs[i]+fs[i-1])*(xs[i]-xs[i-1])
     end
 end
