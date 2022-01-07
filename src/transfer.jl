@@ -32,11 +32,14 @@ end
 Returns the astrophysical flux. See [`radiative_transfer`](@ref) for an explantion of the arguments.
 """
 function planar_transfer(α, S, τ_ref, α_ref)
-    #this could possibly be sped up with explicit allocations and looping
-    map(zip(eachcol(α), eachcol(S))) do (α_λ, S_λ)
-        τ = cumulative_trapezoid_rule(log.(τ_ref), τ_ref .* α_λ ./ α_ref) 
-        2π * transfer_integral(τ, S_λ; plane_parallel=true)
+    log_τ_ref = log.(τ_ref)
+    I = Vector{eltype(α)}(undef, size(α, 2))
+    τ_λ = Vector{eltype(α)}(undef, size(α, 1))
+    for i in 1:size(α, 2)
+        cumulative_trapezoid_rule!(τ_λ, log_τ_ref, τ_ref .* view(α, :, i) ./ α_ref)
+        I[i] = 2π * transfer_integral(τ_λ, view(S, :, i); plane_parallel=true)
     end
+    I
 end
 
 """
@@ -51,6 +54,8 @@ shape (wavelengths × mu values), is the surface intensity as a function of μ.
 """
 function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     R, r0 = radii[1], radii[end] #lower bound of atmosphere
+
+    log_τ_ref = log.(τ_ref) #precompute for use in transfer integral
 
     #I is intensity as a funciton of μ and λ, filled in the loop below
     I_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
@@ -75,15 +80,18 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         #geometric path-length correction
         ds_dr = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
 
+
+        #prealocate per-wavelength τ array
+        τ_λ = Vector{eltype(α)}(undef, size(α, 1))
         for j in 1:size(α, 2) #iterate over wavelength
             integrand = ds_dr .* τ_ref[1:i] .* α[1:i, j] ./ α_ref[1:i] 
-            τ_λ = cumulative_trapezoid_rule(log.(τ_ref[1:i]), integrand)
-            I[j, μ_ind] = transfer_integral(τ_λ, S[1:i, j]; plane_parallel=false)
+            cumulative_trapezoid_rule!(τ_λ, log_τ_ref[1:i], integrand)
+            I[j, μ_ind] = transfer_integral(τ_λ[1:i], S[1:i, j]; plane_parallel=false)
 
             if b > r0
                 #if the ray never leaves the model atmosphere, include the contribution from the 
                 #other side of the star. This should probably by audited for off-by-one errors.
-                τ_prime = τ_λ[end] .+ [cumsum(reverse(diff(τ_λ))) ; 0]
+                τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(τ_λ[1:i]))) ; 0]
                 I[j, μ_ind] += transfer_integral(τ_prime, S[1:i, j]; plane_parallel=false)
             else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
                 I[j, μ_ind] += exp(-τ_λ[end]) * S[end, j]
@@ -153,14 +161,16 @@ function trapezoid_rule(xs, fs)
 end
 
 """
-    cumulative_trapezoid_rule(xs, fs)
+    cumulative_trapezoid_rule!(out, xs, fs)
 
 Approximate the closed integral of f(x) from the first element of `xs` to each element of `xs` with
-the trapezoid rule, given f values `fs`. Returns a vector of values of the same length as `xs` and 
-`fs`.
+the trapezoid rule, given f values `fs`. Assigns to the preallocated vector `out`.
 """
-function cumulative_trapezoid_rule(xs, fs)
-    [0 ; cumsum(0.5(fs[1:end-1] + fs[2:end]) .* diff(xs))]
+function cumulative_trapezoid_rule!(out, xs, fs)
+    out[1] = 0.0
+    for i in 2:length(xs)
+        out[i] = out[i-1] + 0.5*(fs[i]+fs[i-1])*(xs[i]-xs[i-1])
+    end
 end
 
 """

@@ -425,15 +425,19 @@ end
         xs = -10:0.1:10
         fs = pdf.(xs)
 
-        #do they match the analytic solution?
-        @test Korg.trapezoid_rule(xs, fs) ≈ 1.0  atol=1e-5
-        @test Korg.cumulative_trapezoid_rule(xs, fs)[end] ≈ 1.0 atol=1e-5
+        partial_ints = similar(xs)
+        Korg.cumulative_trapezoid_rule!(partial_ints, xs, fs)
 
-        #do they match each other?
         naive_partial_integrals = map(1:length(xs)) do i
             Korg.trapezoid_rule(xs[1:i], fs[1:i])
         end
-        @test naive_partial_integrals ≈ Korg.cumulative_trapezoid_rule(xs, fs)
+
+        #do they match the analytic solution?
+        @test Korg.trapezoid_rule(xs, fs) ≈ 1.0  atol=1e-5
+        @test partial_ints[end] ≈ 1.0 atol=1e-5
+
+        #do they match each other?
+        @test naive_partial_integrals ≈ partial_ints
     end
 end
 
