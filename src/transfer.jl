@@ -86,12 +86,13 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     I = Matrix{el_type}(undef, size(α, 2), length(μ_surface_grid)) #the surface intensity
     integrand = Vector{el_type}(undef, size(α, 1))                 #integrand of τ integral 
     τ_λ = Vector{el_type}(undef, size(α, 1))                       #optical depth at a particular λ
-    for λ_ind in 1:size(α, 2), μ_ind in 1:length(μ_surface_grid)
+    #iterate over λ in the outer loop, μ in the inner loop
+    for λ_ind in 1:size(α, 2), μ_ind in 1:length(μ_surface_grid) 
         i = lowest_layer_indices[μ_ind]
         for k in 1:i #I can't figure out how to write this as a fast one-liner
             integrand[k] = α[k, λ_ind] * integrand_factor[k, μ_ind]
         end
-        cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i)
+        cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i) #compute τ_λ
         I[λ_ind, μ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
 
         if i < length(radii)
