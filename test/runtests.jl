@@ -359,41 +359,43 @@ end
 @testset "atmosphere" begin
     @testset "plane-parallel atmosphere" begin
         #the MARCS solar model atmosphere
-        atm = Korg.read_model_atmosphere("data/sun.krz")
+        atm = Korg.read_model_atmosphere("data/sun.mod")
         @test atm isa Korg.PlanarAtmosphere
         @test length(atm.layers) == 56
         @test issorted([l.temp for l in atm.layers])
-        @test atm.layers[1].colmass == 9.747804143e-3
+        @test atm.layers[1].tau_5000 ≈ 0.00001209483645
+        @test atm.layers[1].z == 6.931E+07
         @test atm.layers[1].temp == 4066.8
-        @test atm.layers[1].electron_number_density == 3.76980e10
-        @test atm.layers[1].number_density == 4.75478e14
-        @test atm.layers[1].density == 1.00062e-9
+        @test atm.layers[1].electron_number_density ≈ 3.769664452210607e10
+        @test atm.layers[1].number_density ≈ 4.75509171357701e14
     end
     @testset "spherical atmosphere" begin
         atm = Korg.read_model_atmosphere(
-                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
+                "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
         @test atm isa Korg.ShellAtmosphere
-        @test length(atm.layers) == 54 #drop layers hotter than 10^4 K
+        @test length(atm.layers) == 53 #drop layers hotter than 10^4 K
         @test issorted([l.temp for l in atm.layers])
-        @test atm.layers[1].colmass == 2.847945094e-1
-        @test atm.layers[1].temp == 3949.3
-        @test atm.layers[1].electron_number_density == 1.76718e+08
-        @test atm.layers[1].number_density == 1.53962e12
-        @test atm.layers[1].density == 3.23963e-12
-        @test atm.layers[1].r == 2.24482e11 + 2.583E+12 #row value + header value
+        @test atm.R == 2.5827E+12
+        @test atm.layers[1].tau_5000 ≈ 4.584584692493259e-5
+        @test atm.layers[1].z == 2.222e11
+        @test atm.layers[1].temp == 3935.2
+        @test atm.layers[1].electron_number_density ≈ 1.7336231777439526e8
+        @test atm.layers[1].number_density ≈ 1.5411190391302566e12
     end
 
     @testset "atmosphere type conversion" begin
-        atm = Korg.read_model_atmosphere("data/sun.krz")
+        atm = Korg.read_model_atmosphere("data/sun.mod")
         atm2 = Korg.PlanarAtmosphere(Korg.ShellAtmosphere(atm, 7e10)) #arbitrary radius
         @test atm.layers == atm2.layers
 
         atm = Korg.read_model_atmosphere(
-                "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz")
-        R = atm.layers[1].r + 0.5(atm.layers[1].r - atm.layers[2].r)
-        atm2 = Korg.ShellAtmosphere(Korg.PlanarAtmosphere(atm), R)
-        @test [l.temp for l in atm.layers] == [l.temp for l in atm2.layers]
-        @test [l.r for l in atm.layers] ≈ [l.r for l in atm2.layers] rtol=1e-3
+                "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
+        atm2 = Korg.ShellAtmosphere(Korg.PlanarAtmosphere(atm), 1.0)
+        @test [l.tau_5000 for l in atm.layers]                == [l.tau_5000 for l in atm2.layers]
+        @test [l.z for l in atm.layers]                       == [l.z for l in atm2.layers]
+        @test [l.temp for l in atm.layers]                    == [l.temp for l in atm2.layers]
+        @test [l.number_density for l in atm.layers]          == [l.number_density for l in atm2.layers]
+        @test [l.electron_number_density for l in atm.layers] == [l.electron_number_density for l in atm2.layers]
     end
 end
 
@@ -422,7 +424,21 @@ end
         #gaussian PDF should integral to 1.
         pdf(x) = exp(-1/2 * x^2) / sqrt(2π)
         xs = -10:0.1:10
-        @test Korg.trapezoid_rule(xs, pdf.(xs) * 0.1) - 1.0 < 1e-5
+        fs = pdf.(xs)
+
+        partial_ints = similar(xs)
+        Korg.cumulative_trapezoid_rule!(partial_ints, xs, fs)
+
+        naive_partial_integrals = map(1:length(xs)) do i
+            Korg.trapezoid_rule(xs[1:i], fs[1:i])
+        end
+
+        #do they match the analytic solution?
+        @test Korg.trapezoid_rule(xs, fs) ≈ 1.0  atol=1e-5
+        @test partial_ints[end] ≈ 1.0 atol=1e-5
+
+        #do they match each other?
+        @test naive_partial_integrals ≈ partial_ints
     end
 end
 
@@ -464,7 +480,7 @@ using SpecialFunctions: expint
 end
 
 @testset "synthesize wavelength handling" begin
-    atm = read_model_atmosphere("data/sun.krz")
+    atm = read_model_atmosphere("data/sun.mod")
     wls = 15000:0.01:15500
     @test synthesize(atm, [], 15000, 15500).wavelengths ≈ wls
     @test synthesize(atm, [], 15000, 15500; air_wavelengths=true).wavelengths ≈ Korg.air_to_vacuum.(wls)
@@ -476,8 +492,8 @@ end
 @testset "autodiff" begin
     using ForwardDiff
 
-    for atm_file in ["data/sun.krz",
-             "data/s6000_g+1.0_m0.5_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.krz"]
+    for atm_file in ["data/sun.mod",
+             "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"]
         atm = read_model_atmosphere(atm_file)
         linelist = read_linelist("data/linelists/5000-5005.vald")
         wls = 5000:0.01:5005

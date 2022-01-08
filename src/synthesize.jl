@@ -10,13 +10,13 @@ each wavelength.  An `AbstractRange` can also be probvided directly in place of 
 and `λ_step`.
 
 Returns a named tuple with keys:
-    - `flux`: the output spectrum
-    - `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
-       size (layers x wavelengths)
-    - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
-       atmospheric layer
-    - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
-      `air_wavelengths=true` this will not be the same as the input wavelenths.
+- `flux`: the output spectrum
+- `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
+   size (layers x wavelengths)
+- `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
+   atmospheric layer
+- `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
+  `air_wavelengths=true` this will not be the same as the input wavelenths.
 
 Optional arguments:
 - `metallicity`, i.e. [metals/H] is log_10 solar relative
@@ -71,7 +71,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0
 end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
                     vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, mu_grid=0.05:0.05:1, line_cutoff_threshold=1e-3,
+                    hydrogen_lines=true, mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
@@ -92,59 +92,49 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     abundances = get_absolute_abundances(metallicity, abundances)
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
-    n_dicts = map(atm.layers) do layer
-         molecular_equilibrium(MEQs, layer.temp, layer.number_density, layer.electron_number_density)
-    end
-    number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1])])
 
-    #the absorption coefficient, α, for each wavelength and atmospheric layer
+    sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
+
+    #float-like type general to handle dual numbers
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
                             metallicity, vmic, abundances[1])[1])
+    #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
-
-    #Calculate the continuum absorption over cntmλs, which is a sparser grid, then construct an
-    #interpolator that can be used to approximate it over a fine grid.
-    sorted_cntmνs = c_cgs ./ reverse(cntmλs)
-    α_cntm = map(zip(atm.layers, n_dicts)) do (layer, ns)
-        α_cntm_vals = total_continuum_absorption(sorted_cntmνs, layer.temp,
-                                                 layer.electron_number_density,
-                                                 ns, partition_funcs)
-        reverse!(α_cntm_vals)
-        LinearInterpolation(cntmλs, α_cntm_vals) # LinearInterpolation needs ranges to be increasing
-    end
-
+    α_cntm = Vector(undef, length(atm.layers))     #vector of continuum-absorption interpolators
+    α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
+    n_dicts = Vector(undef, length(atm.layers))    #vector of (species -> number density) Dicts
     for (i, layer) in enumerate(atm.layers)
+        n_dicts[i] = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
+                                           layer.electron_number_density)
+
+        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp,
+                                                         layer.electron_number_density,
+                                                         n_dicts[i], partition_funcs))
+        α_cntm[i] = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm[i].(λs)
+
+        α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, layer.electron_number_density,
+                                           n_dicts[i], partition_funcs)[1]
+
         if hydrogen_lines
             α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
-                                                 number_densities[species"H_I"][i], 
+                                                 n_dicts[i][species"H_I"], 
                                                  partition_funcs[species"H_I"], 
                                                  hline_stark_profiles, vmic*1e5)
         end
     end
 
+    #put number densities in a dict of vectors, rather than a vector of dicts.
+    number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1])])
+
+    #add contribution of line absorption to α
     line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
                      [layer.electron_number_density for layer in atm.layers], number_densities,
                      partition_funcs, vmic*1e5; α_cntm=α_cntm, 
                      cutoff_threshold=line_cutoff_threshold)
-    
+
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
-
-    flux = if atm isa ShellAtmosphere
-        rs = (l->l.r).(atm.layers)
-        R = rs[1] + 0.5(rs[1] - rs[2])
-        I = spherical_transfer(R, rs, α, source_fn, mu_grid) #μ-resolve intensity
-        2π * [Korg.trapezoid_rule(mu_grid, mu_grid .* I) for I in eachrow(I)]
-    else #atm isa PlanarAtmosphere
-        #the thickness of each atmospheric layer 
-        Δcolmass = diff((l->l.colmass).(atm.layers))
-        Δs = 0.5([Δcolmass[1] ; Δcolmass] + [Δcolmass; Δcolmass[end]]) ./ (l->l.density).(atm.layers)
-        τ = cumsum(α .* Δs, dims=1) #optical depth at each layer at each wavelenth
-
-        map(zip(eachcol(τ), eachcol(source_fn))) do (τ_λ, S_λ)
-            2π * transfer_integral(τ_λ, S_λ; plane_parallel=true)
-        end
-    end
+    flux = radiative_transfer(atm, α, source_fn, α5, mu_grid)
 
     (flux=flux, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
 end
@@ -179,9 +169,6 @@ function get_absolute_abundances(metallicity, A_X::Dict) :: Vector{Number}
     abundances ./= sum(abundances)
     abundances
 end
-
-
-
 
 """
     blackbody(T, λ)
