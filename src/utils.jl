@@ -1,5 +1,5 @@
 using Statistics: quantile
-using Interpolations: LinearInterpolation
+using Interpolations: LinearInterpolation, Flat
 
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
@@ -42,6 +42,7 @@ Experiments on real spectra show an agreement between the interpolated rectified
 "exact" one (with default values) at the 3 × 10^-4 level.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
+    #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
     inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
     lb = 1
     ub = 1
@@ -50,7 +51,7 @@ function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0
         lb, ub = move_bounds(wls, lb, ub, λ, bandwidth)
         quantile(flux[lb:ub], q)
     end
-    itp = LinearInterpolation(wls[inds], moving_quantile)
+    itp = LinearInterpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
     flux ./ itp.(wls)
 end
 
