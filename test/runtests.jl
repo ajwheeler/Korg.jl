@@ -102,12 +102,13 @@ function electron_ndens_Hplasma(nH_tot, T, H_I_partition_val = 2.0)
     nₑ
 end
 
-@testset "O I-III and CN partition functions are monotonic in T" begin
-    Ts = 1:100:10000
-    @test issorted(Korg.partition_funcs[Korg.species"O_I"].(Ts))
-    @test issorted(Korg.partition_funcs[Korg.species"O_II"].(Ts))
-    @test issorted(Korg.partition_funcs[Korg.species"O_III"].(Ts))
-    @test issorted(Korg.partition_funcs[Korg.species"CN_I"].(Ts))
+@testset "O I-III and CN partition functions are (nearly) monotonic in T" begin
+    lnTs = 0:0.1:log(10_000.0)
+    nearly_monotonic(Us) = all(diff(Us) .> -1e-4)
+    @test nearly_monotonic(Korg.partition_funcs[Korg.species"O_I"].(lnTs))
+    @test nearly_monotonic(Korg.partition_funcs[Korg.species"O_II"].(lnTs))
+    @test nearly_monotonic(Korg.partition_funcs[Korg.species"O_III"].(lnTs))
+    @test nearly_monotonic(Korg.partition_funcs[Korg.species"CN_I"].(lnTs))
 end
 
 @testset "stat mech" begin
@@ -350,7 +351,7 @@ end
         close(fid)
 
         αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, 
-                                           Korg.partition_funcs[Korg.species"H_I"], 
+                                           Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 
                                            Korg.hline_stark_profiles, 0.0)
         @test αs_ref ≈ αs rtol=1e-5
     end

@@ -43,8 +43,8 @@ Optional arguments:
    The default value should effect final spectra below the 10^-3 level.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
-- `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
-   Barklem & Collet 2016, `Korg.partition_funcs`.
+- `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
+   to data from Barklem & Collet 2016, `Korg.partition_funcs`.
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
@@ -119,7 +119,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
         if hydrogen_lines
             α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
                                                  n_dicts[i][species"H_I"], 
-                                                 partition_funcs[species"H_I"], 
+                                                 partition_funcs[species"H_I"](log(layer.temp)), 
                                                  hline_stark_profiles, vmic*1e5)
         end
     end

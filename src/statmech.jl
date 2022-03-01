@@ -17,8 +17,8 @@ arguments:
 function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::Dict)
     χI, χII, χIII = ionization_energies[atom]
     atom = Formula(atom)
-    UI = partition_funcs[Species(atom, 0)](T)
-    UII = partition_funcs[Species(atom, 1)](T)
+    UI = partition_funcs[Species(atom, 0)](log(T))
+    UII = partition_funcs[Species(atom, 1)](log(T))
 
     k = kboltz_eV
     transU = translational_U(electron_mass_cgs, T)
@@ -27,7 +27,7 @@ function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::D
     wIII = if atom == Formula(1) # hydrogen
         0.0
     else
-        UIII = partition_funcs[Species(atom, 2)](T)
+        UIII = partition_funcs[Species(atom, 2)](log(T))
         (wII*2.0/nₑ * (UIII/UII) * transU * exp(-χII/(k*T)))
     end
     wII, wIII
@@ -102,7 +102,7 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
             F .= atom_number_densities .- ion_factors .* x
             for m in molecules
                 el1, el2 = get_atoms(m.formula)
-                nₘ = x[el1] * x[el2] * kboltz_cgs * T / 10^equilibrium_constants[m](T)
+                nₘ = x[el1] * x[el2] * kboltz_cgs * T / 10^equilibrium_constants[m](log(T))
                 #RHS: subtract atoms which are part of mollecules
                 F[el1] -= nₘ
                 F[el2] -= nₘ
@@ -163,7 +163,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
         n₂ = number_densities[Species(Formula(el2), 0)]
         logK = MEQs.equilibrium_constants[m]
         #add 1 to logK to conver to to cgs from mks
-        number_densities[m] = n₁ * n₂ * kboltz_cgs * T / 10^logK(T)
+        number_densities[m] = n₁ * n₂ * kboltz_cgs * T / 10^logK(log(T))
     end
 
     number_densities

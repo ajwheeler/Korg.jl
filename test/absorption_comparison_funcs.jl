@@ -325,7 +325,7 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, species_
                                                             cross_sec_file = cross_sec_file)[:, 1]
     else
         ν_vals = (Korg.c_cgs*1e8)./λ_vals # Hz
-        ndens_div_partition = ndens_species/Korg.partition_funcs[Korg.Species(species_name)](T)
+        ndens_div_partition = ndens_species/Korg.partition_funcs[Korg.Species(species_name)](log(T))
         κ_dflt_approach = if species_name == "H_I"
             H_I_ion_energy = 13.598
             Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, ndens_div_partition, H_I_ion_energy)
