@@ -2,15 +2,15 @@ module CubicSplines
 using LinearAlgebra
 
 #=
-This module is contained slightly-modified functions from DataInterpolations.jl (license below).
+This module is contained modified functions from DataInterpolations.jl (license below).
 We aren't depending on DataInterpolations because it's dependencies are very heavy.
 In the future, hopefully we can eliminate interpolation code and depend on a widely-used
 well-tested and lightweight library.
 
-Note, I've swapped the order of t and u (t is the abscissae/x-values, u are the y-values)
-We might at some point want to add analytic derivatives (DataInterpolations has these), 
-but since ForwardDiff doesn't use ChainRules, there is no way to get them used in autodiff 
-(untill/unless you use a different library.)
+Note, I've swapped the order of t and u (t is the abscissae/x-values, u are the y-values). The other 
+major change is that I've simplified the types. We might at some point want to add analytic 
+derivatives (DataInterpolations has these), but since ForwardDiff doesn't use ChainRules, there is 
+no way to get them used in autodiff (untill/unless you use a different library.)
 
 Copyright (c) 2018: University of Maryland, Center for Translational Medicine.
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,12 +30,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =#
 
-struct CubicSpline{uType,tType,hType,zType,FT,T}
+struct CubicSpline{tType,uType,hType,zType,T}
     t::tType
     u::uType
     h::hType
     z::zType
-    CubicSpline{FT}(t,u,h,z) where FT = new{typeof(t),typeof(u),typeof(h),typeof(z),FT,eltype(u)}(t,u,h,z)
+    CubicSpline(t,u,h,z) = new{typeof(t),typeof(u),typeof(h),typeof(z),eltype(u)}(t,u,h,z)
 end
 
 function CubicSpline(t,u)
@@ -47,7 +47,7 @@ function CubicSpline(t,u)
     tA = LinearAlgebra.Tridiagonal(dl,d_tmp,du)
     d = map(i -> i == 1 || i == n + 1 ? 0 : 6(u[i+1] - u[i]) / h[i+1] - 6(u[i] - u[i-1]) / h[i], 1:n+1)
     z = tA\d
-    CubicSpline{true}(t,u,h[1:n+1],z)
+    CubicSpline(t,u,h[1:n+1],z)
 end
 
 function (A::CubicSpline{<:AbstractVector{<:Number}})(t::Number)
