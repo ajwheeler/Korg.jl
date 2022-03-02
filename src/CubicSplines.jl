@@ -58,7 +58,7 @@ function CubicSpline(t,u)
 end
 
 function (A::CubicSpline{<:AbstractVector{<:Number}})(t::Number)
-    if !(A.t[1] < t < A.t[end])
+    if !(A.t[1] <= t <= A.t[end])
         throw(ArgumentError("Out-of-bounds value $(t) passed to interpolant. Must be between" * 
                             " $(A.t[1]) and $(A.t[end])")) 
     end
