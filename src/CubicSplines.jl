@@ -2,8 +2,8 @@ module CubicSplines
 using LinearAlgebra
 
 #=
-This module is contained modified functions from DataInterpolations.jl (license below).
-We aren't depending on DataInterpolations because it's dependencies are very heavy.
+This module contains modified functions from DataInterpolations.jl (license below).
+We aren't depending on DataInterpolations because its dependencies are very heavy.
 In the future, hopefully we can eliminate interpolation code and depend on a widely-used
 well-tested and lightweight library.
 
