@@ -10,7 +10,7 @@ well-tested and lightweight library.
 Note, I've swapped the order of t and u (t is the abscissae/x-values, u are the y-values). The other 
 major change is that I've simplified the types. We might at some point want to add analytic 
 derivatives (DataInterpolations has these), but since ForwardDiff doesn't use ChainRules, there is 
-no way to get them used in autodiff (untill/unless you use a different library.)
+no way to get them used in autodiff (until/unless you use a different library.)
 
 Copyright (c) 2018: University of Maryland, Center for Translational Medicine.
 Permission is hereby granted, free of charge, to any person obtaining a copy
