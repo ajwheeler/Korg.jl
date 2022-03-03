@@ -1,4 +1,4 @@
-using Interpolations: LinearInterpolation, Throw
+using ..CubicSplines: CubicSpline
 
 """
     setup_ionization_energies([filename])
@@ -59,7 +59,7 @@ setup_equilibrium_constants() = read_partition_funcs(
     functon read_atomic_partition_funcs([transform=identity])
 
 Constructs a Dict holding tables containing partition function or equilibrium constant values across
-temperature.
+ln(temperature).
 
 The optional argument, `transform` is applied to each value. It is used to perform unit conversions,
 when loading equilibrium constants
@@ -87,6 +87,6 @@ function read_partition_funcs(fname; transform=identity)
     end
 
     map(data_pairs) do (species, vals)
-        species, LinearInterpolation(temperatures, vals, extrapolation_bc=Throw())
+        species, CubicSpline(log.(temperatures), vals)
     end |> Dict
 end

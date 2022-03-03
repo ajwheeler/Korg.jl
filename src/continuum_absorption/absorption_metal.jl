@@ -304,8 +304,7 @@ The result is stored in a 2D array with a size given by `(length(λ_vals), lengt
   atomic symbol of the species (e.g. `H`, `He`, `Al`) and `<ion-state>` is replaced with the 
   capital Roman numeral(s) specifying the ionization state.
 - `partition_func`: Specifies the partition function for the current species. This should be a
-  callable that accepts temperature as an argument. When this is `nothing`, it falls back to the
-  default partition functions.
+  callable that accepts ln(temperature) as an argument. Defaults to the built-in values.
 
 # Explanation
 In more mathematical rigor, this function basically evaluates the following equation:
@@ -341,7 +340,7 @@ function weighted_bf_cross_section_TOPBase(λ_vals::AbstractVector, T_vals::Abst
     @assert !ismolecule(species) # species must be an atom or atomic ion
 
     # precompute Temperature-dependent constant
-    inv_partition_func_val = 1.0./partition_func.(T_vals)
+    inv_partition_func_val = 1.0./partition_func.(log.(T_vals))
 
     β_Ryd = RydbergH_eV./(kboltz_eV .* T_vals)
 

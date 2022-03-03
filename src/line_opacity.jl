@@ -52,7 +52,8 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, part
         γ = @. Γ * line.wl^2 / c_cgs
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
-        levels_factor = @. (exp(-β*line.E_lower) - exp(-β*E_upper)) ./ partition_fns[line.species].(temp)
+        levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)) /
+                             partition_fns[line.species](log(temp)))
 
         #total wl-integrated absorption coefficient
         amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
@@ -153,6 +154,7 @@ Arguments:
 - `T`: temperature [K]
 - `nₑ`: electron number density [cm^-3]
 - `nH_I`: neutral hydrogen number density [cm^-3]
+- `UH_I`: the value of the neutral hydrogen partition function
 - `hline_stark_profiles`: (returned by setup_hline_stark_profiles`)
 - `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
    are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
@@ -179,7 +181,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
         Elo = RydbergH_eV * (1 - 1/line.lower^2)
         Eup = RydbergH_eV * (1 - 1/line.upper^2)
         β = 1/(kboltz_eV * T)
-        levels_factor = (exp(-β*Elo) - exp(-β*Eup)) / UH_I(T)
+        levels_factor = (exp(-β*Elo) - exp(-β*Eup)) / UH_I
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
         #compute profile with either self or stark broadening
