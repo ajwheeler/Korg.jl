@@ -10,24 +10,25 @@ Applies a gaussian line spread function the the spectrum with flux vector `flux`
 vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda.``
 
 !!! warning
-    This is a naive, slow implementation.  Do not use it when performance matters.
+    - This is a naive, slow implementation.  Do not use it when performance matters.
 
-    `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
-    It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
-    otherwise desired) grid.
+    - `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
+       It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
+       otherwise desired) grid.
 """
 function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
     convF = zeros(F, length(flux))
+    normalization_factor = Vector{F}(undef, length(flux))
     for i in 1:length(wls)
         λ0 = wls[i]
         σ = λ0 / R / 2
         mask = λ0 - 4σ .< wls .< λ0 + 4σ
-        ϕ = normal_pdf.(wls[mask] .- λ0, λ0 / R / 2)
-        ϕ ./= sum(ϕ)
+        ϕ = normal_pdf.(wls[mask] .- λ0, σ)
+        normalization_factor[i] = 1 ./ sum(ϕ)
         convF[mask] += flux[i]*ϕ
     end
-    convF
+    convF .* normalization_factor
 end
 
 """
