@@ -27,7 +27,8 @@ Optional arguments:
 - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
    wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
-   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown.
+   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
+   wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
 - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 

@@ -58,9 +58,8 @@ end
 """
     air_to_vacuum(λ; cgs=λ<1)
 
-Convert λ from an air wavelength to a vacuum wavelength.  
-λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.
-Formula from Birch and Downs (1994) via the VALD website.
+Convert λ from an air to vacuum.  λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.  Formula 
+from Birch and Downs (1994) via the VALD website.
 """
 function air_to_vacuum(λ; cgs=λ<1)
     if cgs
@@ -77,9 +76,8 @@ end
 """
     vacuum_to_air(λ; cgs=λ<1)
 
-convert λ from a vacuum wavelength to an air wavelength
-λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.
-Formula from Birch and Downs (1994) via the VALD website.
+convert λ from a vacuum to air.  λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.  Formula 
+from Birch and Downs (1994) via the VALD website.
 """
 function vacuum_to_air(λ; cgs=λ<1)
     if cgs
