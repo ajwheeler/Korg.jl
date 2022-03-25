@@ -8,7 +8,7 @@ module Korg
     include("atomic_data.jl")              #symbols and atomic weights
     include("isotopic_abundances.jl")      #self-explanatory
     include("linelist.jl")                 #parse linelists, define Line type
-    include("line_opacity.jl")             #opacity, line profile, voigt function
+    include("line_absorption.jl")          #opacity, line profile, voigt function
     include("read_statmech_quantities.jl") #approximate Us, Ks, chis
     include("statmech.jl")                 #statistical mechanics, molecular equilibrium
     include("atmosphere.jl")               #parse model atmospheres
