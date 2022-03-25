@@ -148,7 +148,10 @@ _zero2epsilon(x) = x + (x == 0) * floatmin()
                                   stark_window_size=3e-7, self_window_size=1e-6)
 
 Calculate contribution to the the absorption coefficient, α, from hydrogen lines in units of cm^-1,
-at wavelengths `λs`.
+at wavelengths `λs`. For Halpha, Hbeta, and Hgamma, add the p-d approximated profiles from 
+[Barklem, Piskunovet, and O'Mara 2000](https://ui.adsabs.harvard.edu/abs/2000A%26A...363.1091B/abstract)
+to the absortion coefficient.  This "convolution by summation" is inexact, but true convolution is
+expensive.
 
 Arguments:
 - `T`: temperature [K]
@@ -159,8 +162,8 @@ Arguments:
 - `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
    are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
    doppler profile.
-- `stark_window_size`: the max distance from each line center [cm] at which to calculate the line 
-   absorption for lines besides Hα-Hγ (those dominated by stark broadening).
+- `stark_window_size`: the max distance from each line center [cm] at which to calculate the stark
+   broadening profile
 - `self_window_size`: the max distance from each line center [cm] at which to calculate the line 
    absorption for Hα-Hγ (those dominated by self-broadening).
 """
@@ -187,8 +190,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
         #compute profile with either self or stark broadening
         Hmass = get_mass(Formula("H"))
 
-        #if it's Halpha, Hbeta, or Hgamma, add the H broadening as a pure lorentzian. 
-        #(convolve be adding)
+        #if it's Halpha, Hbeta, or Hgamma, add the resonant broadening to the absorption vector
         if line.lower == 2 && line.upper in [3, 4, 5]
             #ABO params and line center
             λ₀, σ, α = if line.upper == 3
