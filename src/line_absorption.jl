@@ -186,6 +186,9 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
 
         #compute profile with either self or stark broadening
         Hmass = get_mass(Formula("H"))
+
+        #if it's Halpha, Hbeta, or Hgamma, add the H broadening as a pure lorentzian. 
+        #(convolve be adding)
         if line.lower == 2 && line.upper in [3, 4, 5]
             #ABO params and line center
             λ₀, σ, α = if line.upper == 3
@@ -209,17 +212,18 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
             end
             @inbounds view(α_hlines, lb:ub) .+= line_profile.(λ₀, 1.0/Δλ_D, Δλ_L, amplitude, 
                                                              view(λs, lb:ub))
-        else #use Stehle+ 1999 Stark-broadened profiles
-            lb, ub = move_bounds(λs, 0, 0, λ₀, stark_window_size)
-            if lb == ub
-                continue
-            end
-                
-            ν₀ = c_cgs / (λ₀)
-            scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
-            dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
-            @inbounds view(α_hlines,lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
         end
+
+        #use Stehle+ 1999 Stark-broadened profiles
+        lb, ub = move_bounds(λs, 0, 0, λ₀, stark_window_size)
+        if lb == ub
+            continue
+        end
+            
+        ν₀ = c_cgs / (λ₀)
+        scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
+        dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
+        @inbounds view(α_hlines,lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
     α_hlines
 end
