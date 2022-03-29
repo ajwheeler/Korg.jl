@@ -118,10 +118,10 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                                            n_dicts[i], partition_funcs)[1]
 
         if hydrogen_lines
-            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
-                                                 n_dicts[i][species"H_I"], 
-                                                 partition_funcs[species"H_I"](log(layer.temp)), 
-                                                 hline_stark_profiles, vmic*1e5)
+            hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
+                                      n_dicts[i][species"H_I"], 
+                                      partition_funcs[species"H_I"](log(layer.temp)), 
+                                      hline_stark_profiles, vmic*1e5)
         end
     end
 

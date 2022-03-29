@@ -167,14 +167,13 @@ Arguments:
 - `self_window_size`: the max distance from each line center [cm] at which to calculate the line 
    absorption for Hα-Hγ (those dominated by self-broadening).
 """
-function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
-                                  stark_window_size=3e-7, self_window_size=1e-6)
+function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
+                                   stark_window_size=3e-7, self_window_size=1e-6)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
     #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
     #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2/3)
-    α_hlines = zeros(length(λs))
     for line in hline_stark_profiles
         if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
             continue #transitions to high levels are omitted for high nₑ and T
@@ -212,8 +211,7 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
             if lb == ub
                 continue
             end
-            @inbounds view(α_hlines, lb:ub) .+= line_profile.(λ₀, 1.0/Δλ_D, Δλ_L, amplitude, 
-                                                             view(λs, lb:ub))
+            @inbounds view(αs,lb:ub) .+= line_profile.(λ₀, 1.0/Δλ_D, Δλ_L, amplitude, view(λs, lb:ub))
         end
 
         #use Stehle+ 1999 Stark-broadened profiles
@@ -225,9 +223,8 @@ function hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles
         ν₀ = c_cgs / (λ₀)
         scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
         dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
-        @inbounds view(α_hlines,lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
+        @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
-    α_hlines
 end
 
 "the width of the doppler-broadening profile"
