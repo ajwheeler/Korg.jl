@@ -366,9 +366,10 @@ end
                HDF5.read_attribute(fid["profile"], "stop_wl") )
         close(fid)
 
-        αs = Korg.hydrogen_line_absorption(wls, 9000.0, 1e11, 1e13, 
-                                           Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 
-                                           Korg.hline_stark_profiles, 0.0)
+        αs = zeros(length(wls))
+        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1e11, 1e13, 
+                                       Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 
+                                       Korg.hline_stark_profiles, 0.0)
         @test αs_ref ≈ αs rtol=1e-5
     end
 end
@@ -513,7 +514,7 @@ end
              "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"]
         atm = read_model_atmosphere(atm_file)
         linelist = read_linelist("data/linelists/5000-5005.vald")
-        wls = 5000:0.01:5005
+        wls = 6564:0.01:6565
         flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
                              vmic=p[3]).flux
         #make sure this works.
