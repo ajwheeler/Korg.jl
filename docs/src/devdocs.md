@@ -1,3 +1,4 @@
+# Developer documentation
 This page contains info for people interested in contributing code to Korg.  If you 
 have questions, do not hesitate to ask.
 
@@ -78,5 +79,5 @@ In the future, we also plan to add support for reading in photoionization tables
 Here are all the documented methods in Korg.
 
 ```@autodocs
-Modules = [Korg, Korg.ContinuumAbsorption]
+Modules = [Korg, Korg.CubicSplines, Korg.ContinuumAbsorption.Stancil1994]
 ```
