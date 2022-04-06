@@ -1,1 +1,1 @@
-"misc/Tutorial notebooks/*" linguist-documentation
+*.ipynb linguist-documentation
