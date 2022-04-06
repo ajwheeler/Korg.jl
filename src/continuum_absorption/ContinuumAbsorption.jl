@@ -9,17 +9,12 @@ include("bounds_checking.jl")
 include("hydrogenic_bf_ff.jl")
 include("stancil_tables.jl")
 
-export H_I_bf, H_I_ff, Hminus_bf, Hminus_ff, H2plus_bf_and_ff
 include("absorption_H.jl")
-
-export He_II_bf, He_II_ff, Heminus_ff
 include("absorption_He.jl")
-
 include("scattering.jl")
 
 # the following are only imported for computing experimental metal bf continuum opacities
 using ..Korg: partition_funcs, Species, Formula, ismolecule, get_roman_numeral
-export absorption_coef_bf_TOPBase
 include("absorption_metal.jl")
 
 export total_continuum_absorption
