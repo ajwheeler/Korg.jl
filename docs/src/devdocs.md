@@ -79,5 +79,5 @@ In the future, we also plan to add support for reading in photoionization tables
 Here are all the documented methods in Korg.
 
 ```@autodocs
-Modules = [Korg, Korg.CubicSplines, Korg.ContinuumAbsorption.Stancil1994]
+Modules = [Korg, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994]
 ```
