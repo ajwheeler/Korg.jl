@@ -1,6 +1,8 @@
+# API
+
 This page docuements the Korg API for users of the package. Low-level functions that only people 
 digging into the internals of Korg will be interested in can be found on the 
-[developer documentation page](../devdocs).
+[Developer documentation](@ref).
 
 # Top-level functions
 If you are synthesize a spectrum Korg, these are the functions you will call.  
@@ -31,7 +33,7 @@ These functions can be used to directly compute line opacities.
 ```@docs
 Korg.line_absorption!
 Korg.line_profile
-Korg.hydrogen_line_absorption
+Korg.hydrogen_line_absorption!
 Korg.setup_hydrogen_stark_profiles
 Korg.voigt
 ```
