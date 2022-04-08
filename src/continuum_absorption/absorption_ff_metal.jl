@@ -41,7 +41,7 @@ In short, the free-free absorption (including stimulated emission) is given by:
 ``\\alpha_{\rm ff} = \\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z) (1 + D(T, \\sigma))``,
 
 where
-- ``\\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z)`` should includes the correction for 
+- ``\\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z)`` should include the correction for 
   stimulated emission.
 - ``D(T, \\sigma)`` is specified as the `departure` arg, and is expected to interpolate over
 the tabulated values specified in Table III of Peach (1970).
