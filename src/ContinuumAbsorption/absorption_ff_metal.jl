@@ -55,8 +55,7 @@ This uses the hydrogenic approximation for all species except for those that hav
 
 """
 function metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Real;
-                              departure_coefficients=Peach1994.departure_coefficients,
-                              exclude_species_with_departure_terms::Bool = false)
+                              departure_coefficients=Peach1994.departure_coefficients)
 
     error("I think we may need the user to pass in the partition functions for every species")
 
@@ -73,8 +72,6 @@ function metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Rea
 
             # skip cases where the species has not electrons, and is perfectly described by the
             # hydrogenic free-free absorption HI free-free, He II free-free, & Li III free-free
-            continue
-        elseif (exclude_species_with_departure_terms && (k in departure_coefficients))
             continue
         elseif k in departure_coefficients
             #add directly to α_out if there is a departure coefficient
