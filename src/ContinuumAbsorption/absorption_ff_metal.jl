@@ -41,12 +41,12 @@ In short, the free-free absorption (including stimulated emission) is given by:
 ``\\alpha_{\rm ff} = \\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z) (1 + D(T, \\sigma))``,
 
 where
-- ``\\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z)`` should includes the correction for 
+- ``\\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z)`` should include the correction for 
   stimulated emission.
 - ``D(T, \\sigma)`` is specified as the `departure` arg, and is expected to interpolate over
 the tabulated values specified in Table III of Peach (1970).
 
-It might not be immediately obvious the above equation relates to the equations presented in
+It might not be immediately obvious how the above equation relates to the equations presented in
 Peach (1970). Peach describes the calculation for ``k_\nu^F``, the free-free absorption 
 coefficient (uncorrected for stimulated emission) per particle of the species that the interaction 
 is named after. In other words, he computes:
@@ -364,7 +364,7 @@ _Mg_I_ff(ν::Real, T::Real, ndens_MgII::Real, nₑ::Real) =
     metal_ff_absorption(ν, T, Z, ni, ne)
 
 Computes the free-free linear absorption coefficient (in cm⁻¹) of a metal species for which a 
-departure term is specified.
+departure term is not specified.
 
 A free-free interaction is named as though the species interacting with the free electron had one 
 more bound electron (in other words it's named as though the free-electron and ion were bound 
