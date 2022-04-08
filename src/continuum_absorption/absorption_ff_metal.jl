@@ -46,7 +46,7 @@ where
 - ``D(T, \\sigma)`` is specified as the `departure` arg, and is expected to interpolate over
 the tabulated values specified in Table III of Peach (1970).
 
-It might not be immediately obvious the above equation relates to the equations presented in
+It might not be immediately obvious how the above equation relates to the equations presented in
 Peach (1970). Peach describes the calculation for ``k_\nu^F``, the free-free absorption 
 coefficient (uncorrected for stimulated emission) per particle of the species that the interaction 
 is named after. In other words, he computes:
