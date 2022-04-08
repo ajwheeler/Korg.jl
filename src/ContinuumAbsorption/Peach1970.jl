@@ -1,16 +1,54 @@
 """
-This module contains the tabulated ff departure coeffients from 
+This module contains interpolators of the tabulated ff departure coeffients from 
 [Peach+ 1970](https://ui.adsabs.harvard.edu/abs/1970MmRAS..73....1P/abstract), which we use to 
-correct the hydrogenic ff absorption coefficient for TODO
+correct the hydrogenic ff absorption coefficient for TODO.  It contains a dictionary 
+`departure_coefficients`, which maps `Species` to interpolator objects.  Crucially, the dictionary 
+is indexed by the species which actually participates in the interaction, not the one after which 
+the interaction is named.
+
+0 interpolation (corresponds to hydrogenic) TODO
+
+TODO OCR warning
+
+The species for which we use corrections are the same species which get corrected in 
+MARCS/Turbospectrum (see Table 1 of 
+[Gustafsson+ 2008](https://ui.adsabs.harvard.edu/abs/2008A%26A...486..951G/abstract)).
+The choices seem are largely motivated by which species have departure terms at normal
+stellar atmosphere conditions and which species are most abundant in the sun.
+
+The free-free absorption coefficient (including stimulated emission) is given by:
+
+``\\alpha_{\rm ff} = \\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z) (1 + D(T, \\sigma))``,
+
+where
+- ``\\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z)`` should include the correction for 
+  stimulated emission.
+- ``n_i`` is the number density fo the ion species that participates in the interation, not the 
+  species the interaction is named after.
+- ``n_e`` is the number density of free electrons.
+- ``D(T, \\sigma)`` is specified as the `departure` arg, and is expected to interpolate over
+the tabulated values specified in Table III of Peach (1970).
+
+It might not be immediately obvious how the above equation relates to the equations presented in
+Peach (1970). Peach describes the calculation for ``k_\nu^F``, the free-free absorption 
+coefficient (uncorrected for stimulated emission) per particle of the species that the interaction 
+is named after. In other words, he computes:
+ 
+``k_\nu^F = \\alpha_{\rm ff}/n_{i-1} \\left(1 - e^\\frac{-h\\nu}{k T}\\right)^{-1}``,
+
+where ``n_{i-1}`` is the number density of the species that the interaction is named after.
+``k_\nu^F`` can directly be computed, under LTE, from just ``\nu``, ``T``, and ``n_{i-1}`` (the
+Saha Equation relates ``\\alpha_{\rm ff}``'s dependence on ``n_e`` and ``n_i`` to ``n_{i-1}`` and 
+``T``.  Gray (2005) follows a similar convention when describing free-free absorption.
 """
 module Peach1970
 
 using Interpolations: LinearInterpolation
 
-# should we be loading this from a hdf5 table?
-const _departure_term_He_I_ff = let
+departure_coefficients = Dict{Species, Any}()
+
+departure_coeffientes[species"He II"] = let
     # this comes from table III of Peach 1970 for neutral Helium
-    # Warning: it's plausible that the OCR software made transcription errors
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
     # of the species participating in the interaction
@@ -57,14 +95,8 @@ const _departure_term_He_I_ff = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-_He_I_ff(ν::Real, T::Real, ndens_HII::Real, nₑ::Real) =
-    metal_ff_absorption_departure(ν, T, 1, ndens_HII, nₑ, _departure_term_He_I_ff)
-
-
-
-const _departure_term_C_I_ff = let
+departure_coefficients[species"C II"] = let
     # this comes from table III of Peach 1970 for neutral Carbon
-    # Warning: it's plausible that the OCR software made transcription errors
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
     # of the species participating in the interaction
@@ -111,15 +143,12 @@ const _departure_term_C_I_ff = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-_C_I_ff(ν::Real, T::Real, ndens_CII::Real, nₑ::Real) =
-    metal_ff_absorption_departure(ν, T, 1, ndens_CII, nₑ, _departure_term_C_I_ff)
-
+#TODO
 const _departure_term_C_II_ff_ParentTerm_S, _departure_term_C_II_ff_ParentTerm_P = let
     # this comes from table III of Peach 1970 for singly ionized Carbon. Peach broke this
     # information up into 2 sub-tables:
     # 1. data for a parent term 'S
     # 2. data for a parent term 'P
-    # Warning: it's plausible that the OCR software made transcription errors
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
     # of the species participating in the interaction.
@@ -193,14 +222,9 @@ const _departure_term_C_II_ff_ParentTerm_S, _departure_term_C_II_ff_ParentTerm_P
      LinearInterpolation((T_vals_P, σ_vals), table_vals_P, extrapolation_bc=0))
 end
 
-function _C_II_ff(ν::Real, T::Real, ndens_CIII::Real, nₑ::Real)
-    # it's been since I looked at this. We need to differentiate the 
-    error("We need to finish implementing this")
-end
 
-const _departure_term_Si_I_ff = let
+departure_coefficients[species"Si II"] = let
     # this comes from table III of Peach 1970 for neutral Silicon
-    # Warning: it's plausible that the OCR software made transcription errors
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
     # of the species participating in the interaction
@@ -246,13 +270,9 @@ const _departure_term_Si_I_ff = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-_Si_I_ff(ν::Real, T::Real, ndens_SiII::Real, nₑ::Real) =
-    metal_ff_absorption_departure(ν, T, 1, ndens_SiII, nₑ, _departure_term_Si_I_ff)
 
-
-const _departure_term_Mg_I_ff = let
+departure_coefficients[species"Mg II"] = let
     # this comes from table III of Peach 1970 for neutral Magnesium
-    # Warning: it's plausible that the OCR software made transcription errors
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
     # of the species participating in the interaction
@@ -296,7 +316,4 @@ const _departure_term_Mg_I_ff = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-_Mg_I_ff(ν::Real, T::Real, ndens_MgII::Real, nₑ::Real) =
-    metal_ff_absorption_departure(ν, T, 1, ndens_MgII, nₑ, _departure_term_Mg_I_ff)
-
-end
+end #module
