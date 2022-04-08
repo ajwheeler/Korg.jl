@@ -89,7 +89,6 @@ function metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Rea
             else
                 error("triply+ ionized species not supported")
             end
-            end
         end
     end
 
