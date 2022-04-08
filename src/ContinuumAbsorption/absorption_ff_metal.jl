@@ -31,8 +31,9 @@ end
 
 
 """
-    all_metal_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Real,
-                            exclude_species_with_departure_terms::Bool = false)
+    metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Real,
+                         departure_coefficients=Peach1994.departure_coefficients,
+                         exclude_species_with_departure_terms::Bool = false)
 
 Computes the free-free linear absorption coefficient (in cm⁻¹) of metal species. This only includes
 free-free absorption for species with a net positive charge of 1, 2, or 3. It also skips Hydrogenic
@@ -53,17 +54,11 @@ This uses the hydrogenic approximation for all species except for those that hav
     it departs from the format of all other continuum absorption calculations).  
 
 """
-function all_metal_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Real,
-                                 exclude_species_with_departure_terms::Bool = false)
+function metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Real;
+                              departure_coefficients=Peach1994.departure_coefficients,
+                              exclude_species_with_departure_terms::Bool = false)
 
     error("I think we may need the user to pass in the partition functions for every species")
-
-    # recall, name of the free-free interaction differs from the name of the participating species
-    departure_dict = Dict([(species"He_II", _He_I_ff),
-                           (species"C_II",  _C_I_ff),
-                           (species"C_III", _C_II_ff),
-                           (species"Si_II", _Si_I_ff),
-                           (species"Mg_II", _Mg_I_ff)])
 
     ndens_Z1 = 0.0
     ndens_Z2 = 0.0
@@ -74,24 +69,26 @@ function all_metal_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::
     for (k,ndens) in number_densities
         if k in [species"H_II", species"He_III", species"Li_IV"]
             # Honestly, it probably only makes sense to treat Hydrogen separately from this
-            # function
+            # function TODO
 
             # skip cases where the species has not electrons, and is perfectly described by the
             # hydrogenic free-free absorption HI free-free, He II free-free, & Li III free-free
             continue
-        elseif (exclude_species_with_departure_terms && (k in departure_dict))
+        elseif (exclude_species_with_departure_terms && (k in departure_coefficients))
             continue
-        elseif k in departure_dict
+        elseif k in departure_coefficients
             #add directly to α_out if there is a departure coefficient
-            α_out += departure_dict[k](ν, T, ndens, ne)
+            σ = ν/ Z^2 * (hplanck_eV / Rydberg_eV) #photon energy in Rydberg*Zeff^2
+            α_out = hydrogenic_ff_absorption(ν, T, Z, ni, ne) * (1 + departure_coefficients(T, σ))
         else
             #sum up contributions of hydrogenic ff coeffs, add them to α_out at the end
-            if (k.charge == 1)     # example: species"O_II"
+            if (k.charge == 1)     # e.g. O II
                 ndens_Z1 += ndens
-            elseif (k.charge == 2) # example: species"O_III"
+            elseif (k.charge == 2) # e.g. O III
                 ndens_Z2 += ndens
-            elseif (k.charge == 3) # example: species"O_IV"
-                ndens_Z3 += ndens
+            else
+                error("triply+ ionized species not supported")
+            end
             end
         end
     end
@@ -99,7 +96,6 @@ function all_metal_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::
     #add contributions from species for which we use the uncorrected hydrogenic approximation
     α_out += hydrogenic_ff_absorption(T, ν, 1, ndens_Z1, ne)
     α_out += hydrogenic_ff_absorption(T, ν, 2, ndens_Z2, ne)
-    α_out += hydrogenic_ff_absorption(T, ν, 3 #= matthew had this as 1=#, ndens_Z3, ne)
 
     α_out
 end
