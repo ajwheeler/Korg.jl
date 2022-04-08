@@ -5,6 +5,8 @@ using StaticArrays: SA
 
 using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
 
+include("Stancil1994.jl")
+
 const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
 const _H⁻_ion_energy = 0.7552 # eV
 
