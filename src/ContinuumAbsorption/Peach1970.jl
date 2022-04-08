@@ -1,7 +1,14 @@
+"""
+This module contains the tabulated ff departure coeffients from 
+[Peach+ 1970](https://ui.adsabs.harvard.edu/abs/1970MmRAS..73....1P/abstract), which we use to 
+correct the hydrogenic ff absorption coefficient for TODO
+"""
 module Peach1970
 
+using Interpolations: LinearInterpolation
+
 # should we be loading this from a hdf5 table?
-const _departure_term_He_I_ff = begin
+const _departure_term_He_I_ff = let
     # this comes from table III of Peach 1970 for neutral Helium
     # Warning: it's plausible that the OCR software made transcription errors
 
@@ -47,7 +54,7 @@ const _departure_term_He_I_ff = begin
                   0.082 0.111 0.143 0.177 0.212 0.247;
                   0.085 0.115 0.147 0.181 0.216 0.251]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=Throw())
+    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 _He_I_ff(ν::Real, T::Real, ndens_HII::Real, nₑ::Real) =
@@ -55,7 +62,7 @@ _He_I_ff(ν::Real, T::Real, ndens_HII::Real, nₑ::Real) =
 
 
 
-const _departure_term_C_I_ff = begin
+const _departure_term_C_I_ff = let
     # this comes from table III of Peach 1970 for neutral Carbon
     # Warning: it's plausible that the OCR software made transcription errors
 
@@ -101,13 +108,13 @@ const _departure_term_C_I_ff = begin
                    0.085  0.154  0.273  0.424  0.623  0.900;
                    0.097  0.168  0.288  0.439  0.641  0.923]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=Throw())
+    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 _C_I_ff(ν::Real, T::Real, ndens_CII::Real, nₑ::Real) =
     metal_ff_absorption_departure(ν, T, 1, ndens_CII, nₑ, _departure_term_C_I_ff)
 
-const _departure_term_C_II_ff_ParentTerm_S, _departure_term_C_II_ff_ParentTerm_P = begin
+const _departure_term_C_II_ff_ParentTerm_S, _departure_term_C_II_ff_ParentTerm_P = let
     # this comes from table III of Peach 1970 for singly ionized Carbon. Peach broke this
     # information up into 2 sub-tables:
     # 1. data for a parent term 'S
@@ -182,8 +189,8 @@ const _departure_term_C_II_ff_ParentTerm_S, _departure_term_C_II_ff_ParentTerm_P
                     0.084 0.206 0.349 0.406 0.642 0.816;
                     0.087 0.209 0.352 0.498 0.644 0.819]
 
-    (LinearInterpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=Throw()),
-     LinearInterpolation((T_vals_P, σ_vals), table_vals_P, extrapolation_bc=Throw()))
+    (LinearInterpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0),
+     LinearInterpolation((T_vals_P, σ_vals), table_vals_P, extrapolation_bc=0))
 end
 
 function _C_II_ff(ν::Real, T::Real, ndens_CIII::Real, nₑ::Real)
@@ -191,7 +198,7 @@ function _C_II_ff(ν::Real, T::Real, ndens_CIII::Real, nₑ::Real)
     error("We need to finish implementing this")
 end
 
-const _departure_term_Si_I_ff = begin
+const _departure_term_Si_I_ff = let
     # this comes from table III of Peach 1970 for neutral Silicon
     # Warning: it's plausible that the OCR software made transcription errors
 
@@ -236,14 +243,14 @@ const _departure_term_Si_I_ff = begin
                    0.008 0.186 0.317 0.537 0.809 1.236;
                    0.109 0.196 0.346 0.545 0.819 1.251]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=Throw())
+    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 _Si_I_ff(ν::Real, T::Real, ndens_SiII::Real, nₑ::Real) =
     metal_ff_absorption_departure(ν, T, 1, ndens_SiII, nₑ, _departure_term_Si_I_ff)
 
 
-const _departure_term_Mg_I_ff = begin
+const _departure_term_Mg_I_ff = let
     # this comes from table III of Peach 1970 for neutral Magnesium
     # Warning: it's plausible that the OCR software made transcription errors
 
@@ -286,7 +293,7 @@ const _departure_term_Mg_I_ff = begin
                   -0.039 -0.035 -0.016  0.008  0.042  0.128;
                   -0.032 -0.030 -0.012  0.011  0.046  0.133]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=Throw())
+    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 _Mg_I_ff(ν::Real, T::Real, ndens_MgII::Real, nₑ::Real) =
