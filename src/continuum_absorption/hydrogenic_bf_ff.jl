@@ -177,7 +177,6 @@ function hydrogenic_bf_absorption(ν::Real, T::Real, Z::Integer, nsdens_div_part
     for n = 1 : nmax_explicit_sum
         ndens_state = ndens_state_hydrogenic(n, nsdens_div_partition, T, ion_energy)
         hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ionization_freq)
-        cur_val = ndens_state * hydrogenic_bf_cross_section
         partial_sum += ndens_state * hydrogenic_bf_cross_section
     end
     α_low_n = partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))

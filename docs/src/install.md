@@ -1,5 +1,4 @@
-
-## 1. Install Julia
+## [1. Install Julia](@id install)
 Install Julia by downloading a binary from [the website](https://julialang.org/downloads/).  
 See also [the platform specific instructions](https://julialang.org/downloads/platform/), especially
 if you would like to use Julia from the command line.  
@@ -21,8 +20,11 @@ julia> Pkg.add("Korg")
     If you are coming from Python, we also recommend installing 
     [IJulia](https://github.com/JuliaLang/IJulia.jl) (for using Julia from Jupyter/IPython 
     notebooks), and [PyPlot](https://github.com/JuliaPy/PyPlot.jl) (for calling `matplotlib` from 
-    Julia.
+    Julia). 
 
+    If you want PyPlot to use you existing python/matplotlib installation, just do 
+    `ENV["PYTHON"] = "/path/to/python"` before you install.  See [here](https://github.com/JuliaPy/PyCall.jl#specifying-the-python-version)
+    for details.
 
 ## 3. (Optional) setup `PyJulia`.
 If you would like to use Korg from Python, you can use 

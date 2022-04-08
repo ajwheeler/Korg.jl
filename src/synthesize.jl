@@ -27,7 +27,8 @@ Optional arguments:
 - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
    wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
-   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown.
+   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
+   wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
 - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
@@ -43,8 +44,8 @@ Optional arguments:
    The default value should effect final spectra below the 10^-3 level.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
-- `partition_funcs`, a `Dict` mapping `Species` to partition functions. Defaults to data from 
-   Barklem & Collet 2016, `Korg.partition_funcs`.
+- `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
+   to data from Barklem & Collet 2016, `Korg.partition_funcs`.
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
@@ -117,10 +118,10 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                                            n_dicts[i], partition_funcs)[1]
 
         if hydrogen_lines
-            α[i, :] .+= hydrogen_line_absorption(λs, layer.temp, layer.electron_number_density, 
-                                                 n_dicts[i][species"H_I"], 
-                                                 partition_funcs[species"H_I"], 
-                                                 hline_stark_profiles, vmic*1e5)
+            hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
+                                      n_dicts[i][species"H_I"], 
+                                      partition_funcs[species"H_I"](log(layer.temp)), 
+                                      hline_stark_profiles, vmic*1e5)
         end
     end
 

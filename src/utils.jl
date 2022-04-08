@@ -9,25 +9,29 @@ normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
 vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda.``
 
-!!! warning
-    This is a naive, slow implementation.  Do not use it when performance matters.
+For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
+the region you are going to compare.
 
-    `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
-    It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
-    otherwise desired) grid.
+!!! warning
+    - This is a naive, slow implementation.  Do not use it when performance matters.
+
+    - `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
+       It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
+       otherwise desired) grid.
 """
 function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
     convF = zeros(F, length(flux))
+    normalization_factor = Vector{F}(undef, length(flux))
     for i in 1:length(wls)
         λ0 = wls[i]
         σ = λ0 / R / 2
         mask = λ0 - 4σ .< wls .< λ0 + 4σ
-        ϕ = normal_pdf.(wls[mask] .- λ0, λ0 / R / 2)
-        ϕ ./= sum(ϕ)
+        ϕ = normal_pdf.(wls[mask] .- λ0, σ)
+        normalization_factor[i] = 1 ./ sum(ϕ)
         convF[mask] += flux[i]*ϕ
     end
-    convF
+    convF .* normalization_factor
 end
 
 """
@@ -58,9 +62,10 @@ end
 """
     air_to_vacuum(λ; cgs=λ<1)
 
-Convert λ from an air wavelength to a vacuum wavelength.  
-λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.
-Formula from Birch and Downs (1994) via the VALD website.
+Convert λ from an air to vacuum.  λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.  Formula 
+from Birch and Downs (1994) via the VALD website.
+
+See also: [`vacuum_to_air`](@ref).
 """
 function air_to_vacuum(λ; cgs=λ<1)
     if cgs
@@ -77,9 +82,10 @@ end
 """
     vacuum_to_air(λ; cgs=λ<1)
 
-convert λ from a vacuum wavelength to an air wavelength
-λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.
-Formula from Birch and Downs (1994) via the VALD website.
+convert λ from a vacuum to air.  λ is assumed to be in Å if it is ⩾ 1, in cm otherwise.  Formula 
+from Birch and Downs (1994) via the VALD website.
+
+See also: [`air_to_vacuum`](@ref).
 """
 function vacuum_to_air(λ; cgs=λ<1)
     if cgs
