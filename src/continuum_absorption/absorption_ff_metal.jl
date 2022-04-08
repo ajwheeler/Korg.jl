@@ -364,7 +364,7 @@ _Mg_I_ff(ν::Real, T::Real, ndens_MgII::Real, nₑ::Real) =
     metal_ff_absorption(ν, T, Z, ni, ne)
 
 Computes the free-free linear absorption coefficient (in cm⁻¹) of a metal species for which a 
-departure term is specified.
+departure term is not specified.
 
 A free-free interaction is named as though the species interacting with the free electron had one 
 more bound electron (in other words it's named as though the free-electron and ion were bound 
