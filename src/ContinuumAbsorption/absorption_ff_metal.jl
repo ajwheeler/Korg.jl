@@ -32,7 +32,7 @@ end
 
 """
     metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Real,
-                         departure_coefficients=Peach1994.departure_coefficients,
+                         departure_coefficients=Peach1970.departure_coefficients,
                          exclude_species_with_departure_terms::Bool = false)
 
 Computes the free-free linear absorption coefficient (in cm⁻¹) of metal species. This only includes
@@ -47,6 +47,7 @@ atoms.
 
 This uses the hydrogenic approximation for all species except for those that have departure terms.
 
+TODO
 !!! note
     This mostly exists for demonstrative purposes.
 
@@ -55,7 +56,7 @@ This uses the hydrogenic approximation for all species except for those that hav
 
 """
 function metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Real;
-                              departure_coefficients=Peach1994.departure_coefficients)
+                              departure_coefficients=Peach1970.departure_coefficients)
 
     error("I think we may need the user to pass in the partition functions for every species")
 
@@ -74,8 +75,10 @@ function metals_ff_absorption(ν::Real, T::Real, number_densities::Dict, ne::Rea
             # hydrogenic free-free absorption HI free-free, He II free-free, & Li III free-free
             continue
         elseif k in departure_coefficients
-            #add directly to α_out if there is a departure coefficient
-            σ = ν/ Z^2 * (hplanck_eV / Rydberg_eV) #photon energy in Rydberg*Zeff^2
+            # photon energy in Rydberg*Zeff^2, see equation (5) in Peach 1967 
+            # https://articles.adsabs.harvard.edu/pdf/1967MmRAS..71....1P
+            σ = ν/ Z^2 * (hplanck_eV / Rydberg_eV) 
+            # add directly to α_out if there is a departure coefficient
             α_out = hydrogenic_ff_absorption(ν, T, Z, ni, ne) * (1 + departure_coefficients(T, σ))
         else
             #sum up contributions of hydrogenic ff coeffs, add them to α_out at the end
