@@ -1,20 +1,19 @@
 """
 This module contains interpolators of the tabulated ff departure coeffients from 
 [Peach+ 1970](https://ui.adsabs.harvard.edu/abs/1970MmRAS..73....1P/abstract), which we use to 
-correct the hydrogenic ff absorption coefficient for TODO.  It contains a dictionary 
-`departure_coefficients`, which maps `Species` to interpolator objects.  Crucially, the dictionary 
-is indexed by the species which actually participates in the interaction, not the one after which 
-the interaction is named.
+correct the hydrogenic ff absorption coefficient for H I ff, C I ff, C II ff, Si I ff, and Mg I ff. It contains a dictionary `departure_coefficients`, which maps `Species` to interpolator objects.  
+Crucially, the dictionary is indexed by the species which actually participates in the interaction, not the one after which the interaction is named.  
 
-0 interpolation (corresponds to hydrogenic) TODO
-
-TODO OCR warning
+Outside the regime in which Peach 1970 provides data, the interpolators return 0, falling back to 
+the hydreogenic approximation.
 
 The species for which we use corrections are the same species which get corrected in 
 MARCS/Turbospectrum (see Table 1 of 
 [Gustafsson+ 2008](https://ui.adsabs.harvard.edu/abs/2008A%26A...486..951G/abstract)).
 The choices seem are largely motivated by which species have departure terms at normal
-stellar atmosphere conditions and which species are most abundant in the sun.
+stellar atmosphere conditions and which species are most abundant in the sun. For C II ff, 
+we include only the contribution from the ¹S parent term, even though (in contrast to other 
+speices) information is available for the ³Pᵒ term as well.
 
 The free-free absorption coefficient (including stimulated emission) is given by:
 
@@ -28,6 +27,7 @@ where
 - ``n_e`` is the number density of free electrons.
 - ``D(T, \\sigma)`` is specified as the `departure` arg, and is expected to interpolate over
 the tabulated values specified in Table III of Peach (1970).
+- σ denotes the energy of the photon in units of RydbergH*Zeff²
 
 It might not be immediately obvious how the above equation relates to the equations presented in
 Peach (1970). Peach describes the calculation for ``k_\nu^F``, the free-free absorption 
@@ -40,6 +40,11 @@ where ``n_{i-1}`` is the number density of the species that the interaction is n
 ``k_\nu^F`` can directly be computed, under LTE, from just ``\nu``, ``T``, and ``n_{i-1}`` (the
 Saha Equation relates ``\\alpha_{\rm ff}``'s dependence on ``n_e`` and ``n_i`` to ``n_{i-1}`` and 
 ``T``.  Gray (2005) follows a similar convention when describing free-free absorption.
+
+!!! warning 
+    The tabulated data in this module was taken from Peach 1970 using OCR software, and may 
+    contain mis-read values, although they produce reasonable behavior and there are no obvious 
+    problems.
 """
 module Peach1970
 
@@ -143,12 +148,14 @@ departure_coefficients[species"C II"] = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-#TODO
-const _departure_term_C_II_ff_ParentTerm_S, _departure_term_C_II_ff_ParentTerm_P = let
+departure_coefficients[species"C III"] = let 
     # this comes from table III of Peach 1970 for singly ionized Carbon. Peach broke this
     # information up into 2 sub-tables:
-    # 1. data for a parent term 'S
-    # 2. data for a parent term 'P
+    # 1. data for a parent term ¹S, corresponding to the 1s²2s² ground state
+    # 2. data for a parent term ³Pᵒ, corresponding to the 1s²2s2p excited state
+
+    # Rather than deal with this complication in Korg's ff code, we omit the contribution from 
+    # the (higher energy) ³Pᵒ parent term
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
     # of the species participating in the interaction.
@@ -186,40 +193,39 @@ const _departure_term_C_II_ff_ParentTerm_S, _departure_term_C_II_ff_ParentTerm_P
                     0.078 0.168 0.262 0.344 0.413 0.482;
                     0.080 0.169 0.263 0.343 0.412 0.481]
 
-     # First, specify the info for the 'S parent term:
+    # First, specify the info for the 'S parent term:
     # The temperature (in K)
-    T_vals_P = [16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0,
-                25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0,
-                38000.0, 40000.0, 42000.0, 44000.0, 46000.0, 48000.0]
+    # T_vals_P = [16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0,
+    #            25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0,
+    #            38000.0, 40000.0, 42000.0, 44000.0, 46000.0, 48000.0]
 
     # the (unitless) departure term
-    table_vals_P = [0.031 0.161 0.319 0.478 0.631 0.809;
-                    0.033 0.162 0.318 0.475 0.627 0.803;
-                    0.035 0.164 0.318 0.474 0.624 0.799;
-                    0.038 0.165 0.318 0.473 0.622 0.797;
-                    0.040 0.166 0.319 0.472 0.621 0.795;
-                    0.042 0.168 0.319 0.472 0.621 0.794;
-                    0.044 0.169 0.320 0.472 0.620 0.793;
-                    0.046 0.171 0.321 0.473 0.620 0.793;
-                    0.048 0.173 0.322 0.473 0.621 0.793;
-                    0.050 0.174 0.323 0.474 0.621 0.793;
-                    0.051 0.176 0.324 0.475 0.622 0.793;
-                    0.053 0.177 0.325 0.475 0.622 0.794;
-                    0.055 0.179 0.327 0.476 0.623 0.795;
-                    0.057 0.180 0.328 0.477 0.624 0.796;
-                    0.059 0.182 0.329 0.478 0.625 0.797;
-                    0.062 0.185 0.332 0.480 0.627 0.799;
-                    0.066 0.188 0.334 0.483 0.629 0.801;
-                    0.069 0.191 0.337 0.485 0.631 0.804;
-                    0.072 0.194 0.339 0.487 0.633 0.806;
-                    0.075 0.197 0.342 0.489 0.635 0.809;
-                    0.078 0.200 0.345 0.491 0.638 0.811;
-                    0.081 0.203 0.347 0.493 0.640 0.814;
-                    0.084 0.206 0.349 0.406 0.642 0.816;
-                    0.087 0.209 0.352 0.498 0.644 0.819]
+    # table_vals_P = [0.031 0.161 0.319 0.478 0.631 0.809;
+    #                 0.033 0.162 0.318 0.475 0.627 0.803;
+    #                 0.035 0.164 0.318 0.474 0.624 0.799;
+    #                 0.038 0.165 0.318 0.473 0.622 0.797;
+    #                 0.040 0.166 0.319 0.472 0.621 0.795;
+    #                 0.042 0.168 0.319 0.472 0.621 0.794;
+    #                 0.044 0.169 0.320 0.472 0.620 0.793;
+    #                 0.046 0.171 0.321 0.473 0.620 0.793;
+    #                 0.048 0.173 0.322 0.473 0.621 0.793;
+    #                 0.050 0.174 0.323 0.474 0.621 0.793;
+    #                 0.051 0.176 0.324 0.475 0.622 0.793;
+    #                 0.053 0.177 0.325 0.475 0.622 0.794;
+    #                 0.055 0.179 0.327 0.476 0.623 0.795;
+    #                 0.057 0.180 0.328 0.477 0.624 0.796;
+    #                 0.059 0.182 0.329 0.478 0.625 0.797;
+    #                 0.062 0.185 0.332 0.480 0.627 0.799;
+    #                 0.066 0.188 0.334 0.483 0.629 0.801;
+    #                 0.069 0.191 0.337 0.485 0.631 0.804;
+    #                 0.072 0.194 0.339 0.487 0.633 0.806;
+    #                 0.075 0.197 0.342 0.489 0.635 0.809;
+    #                 0.078 0.200 0.345 0.491 0.638 0.811;
+    #                 0.081 0.203 0.347 0.493 0.640 0.814;
+    #                 0.084 0.206 0.349 0.406 0.642 0.816;
+    #                 0.087 0.209 0.352 0.498 0.644 0.819]
 
-    (LinearInterpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0),
-     LinearInterpolation((T_vals_P, σ_vals), table_vals_P, extrapolation_bc=0))
+    LinearInterpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0)
 end
 
 
