@@ -1,3 +1,5 @@
+include("Peach1970.jl")
+
 """
     positive_ion_ff_absorption!(α_out::Vector{Real}, ν::Real, T::Real, number_densities::Dict, ne::Real,
                                departure_coefficients=Peach1970.departure_coefficients)
@@ -25,34 +27,35 @@ approximation when they are not.
     - Si I ff absorption: `ni` holds the number density of Si II, and `Z=1` (net charge of Si II)
     - Si II ff absorption: `ni` holds the number density of Si III, and `Z=2` (net charge of Si III)
 """
-function positive_ion_ff_absorption!(α_out::Vector{Real}, νs::Vector{Real}, T::Real,
+function positive_ion_ff_absorption!(α_out::Vector{<:Real}, νs::Vector{<:Real}, T::Real,
                                       number_densities::Dict, ne::Real;
-                                      departure_coefficients=Peach1970.departure_coefficients)
+                                      departure_coefficients=Peach1970.departure_coefficients())
     #TODO bounds checking
-    error("I think we may need the user to pass in the partition functions for every species")
+    #TODO partition function
 
     ndens_Z1 = 0.0
     ndens_Z2 = 0.0
     ndens_Z3 = 0.0
 
-    for (k,ndens) in number_densities
-        if k.charge <= 0
+    for (spec,ndens) in number_densities
+        if spec.charge <= 0
             # skip neutral species. They don't participate in ff interations.
             # While Korg doesn't track negatively charged ions as a separate species at the moment,
             # skip them too, in case that changes.
             continue 
-        elseif k in departure_coefficients
-            D = departure_coefficients[k]
-            # photon energy in Rydberg*Zeff^2, see equation (5) in Peach 1967 
+        elseif spec in keys(departure_coefficients)
+            D = departure_coefficients[spec]
+            # photon energy in Rydberg*Zeff^2, see equation (5) in Peach 1967 (NOT Peach 1970)
             # https://articles.adsabs.harvard.edu/pdf/1967MmRAS..71....1P
-            σs = @. νs / k.charge^2 * (hplanck_eV / Rydberg_eV) 
+            σs = @. νs / spec.charge^2 * (hplanck_eV / Rydberg_eV) 
             # add directly to α_out if there is a departure coefficient
-            @. α_out += hydrogenic_ff_absorption(ν, T, Z, ni, ne) * (1 + D(T, σ))
+            @. α_out += ( hydrogenic_ff_absorption(νs, T, spec.charge, number_densities[spec], ne) 
+                          * (1 + D(T, σs)) )
         else
             #sum up contributions of hydrogenic ff coeffs, add them to α_out at the end
-            if (k.charge == 1)     # e.g. O II
+            if (spec.charge == 1)     # e.g. O II
                 ndens_Z1 += ndens
-            elseif (k.charge == 2) # e.g. O III
+            elseif (spec.charge == 2) # e.g. O III
                 ndens_Z2 += ndens
             else
                 error("triply+ ionized species not supported")
@@ -62,8 +65,8 @@ function positive_ion_ff_absorption!(α_out::Vector{Real}, νs::Vector{Real}, T:
     end
 
     #add contributions from species for which we use the uncorrected hydrogenic approximation
-    @. α_out += hydrogenic_ff_absorption(T, νs, 1, ndens_Z1, ne)
-    @. α_out += hydrogenic_ff_absorption(T, νs, 2, ndens_Z2, ne)
+    @. α_out += hydrogenic_ff_absorption(νs, T, 1, ndens_Z1, ne)
+    @. α_out += hydrogenic_ff_absorption(νs, T, 2, ndens_Z2, ne)
     ;
 end
 

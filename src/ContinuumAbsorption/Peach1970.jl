@@ -1,8 +1,10 @@
 """
 This module contains interpolators of the tabulated ff departure coeffients from 
 [Peach+ 1970](https://ui.adsabs.harvard.edu/abs/1970MmRAS..73....1P/abstract), which we use to 
-correct the hydrogenic ff absorption coefficient for H I ff, C I ff, C II ff, Si I ff, and Mg I ff. It contains a dictionary `departure_coefficients`, which maps `Species` to interpolator objects.  
-Crucially, the dictionary is indexed by the species which actually participates in the interaction, not the one after which the interaction is named.  
+correct the hydrogenic ff absorption coefficient for H I ff, C I ff, C II ff, Si I ff, and Mg I ff. 
+It contains a dictionary (returned by `departure_coefficients()`), which maps `Species` to 
+interpolator objects.  Crucially, the dictionary is indexed by the species which actually 
+participates in the interaction, not the one after which the interaction is named.  
 
 Outside the regime in which Peach 1970 provides data, the interpolators return 0, falling back to 
 the hydreogenic approximation.
@@ -49,10 +51,11 @@ Saha Equation relates ``\\alpha_{\rm ff}``'s dependence on ``n_e`` and ``n_i`` t
 module Peach1970
 
 using Interpolations: LinearInterpolation
+using ...Korg: Species, @species_str
 
-departure_coefficients = Dict{Species, Any}()
+coeffs = Dict{Species, Any}()
 
-departure_coeffientes[species"He II"] = let
+coeffs[species"He II"] = let
     # this comes from table III of Peach 1970 for neutral Helium
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
@@ -100,7 +103,7 @@ departure_coeffientes[species"He II"] = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-departure_coefficients[species"C II"] = let
+coeffs[species"C II"] = let
     # this comes from table III of Peach 1970 for neutral Carbon
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
@@ -148,7 +151,7 @@ departure_coefficients[species"C II"] = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-departure_coefficients[species"C III"] = let 
+coeffs[species"C III"] = let 
     # this comes from table III of Peach 1970 for singly ionized Carbon. Peach broke this
     # information up into 2 sub-tables:
     # 1. data for a parent term ¹S, corresponding to the 1s²2s² ground state
@@ -229,7 +232,7 @@ departure_coefficients[species"C III"] = let
 end
 
 
-departure_coefficients[species"Si II"] = let
+coeffs[species"Si II"] = let
     # this comes from table III of Peach 1970 for neutral Silicon
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
@@ -277,7 +280,7 @@ departure_coefficients[species"Si II"] = let
 end
 
 
-departure_coefficients[species"Mg II"] = let
+coeffs[species"Mg II"] = let
     # this comes from table III of Peach 1970 for neutral Magnesium
 
     # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
@@ -321,5 +324,7 @@ departure_coefficients[species"Mg II"] = let
 
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
+
+departure_coefficients() = coeffs
 
 end #module

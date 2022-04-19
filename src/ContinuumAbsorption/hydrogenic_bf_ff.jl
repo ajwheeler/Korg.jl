@@ -329,7 +329,7 @@ equation 5.18b of Rybicki & Lightman (2004), reveals that the equation in Kurucz
 dependence on ρ. According to Rybicki & Lightman (2004) the free-free absorption coefficient
 (corrected for stimulated emission) is:
 ```
-    α = coef * Z² *ne * ni * (1 - exp(-hplanck*ν/(kboltz*T))) * g_ff / (sqrt(T) * ν³)
+    α = coef * Z² * ne * ni * (1 - exp(-hplanck*ν/(kboltz*T))) * g_ff / (sqrt(T) * ν³)
 ```
 Note that the g_ff is the free-free gaunt factor and coef is ∼3.7e8 (a more exact coefficient can
 be computed from eqn 5.18a).
