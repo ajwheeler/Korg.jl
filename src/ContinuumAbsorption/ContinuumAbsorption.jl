@@ -11,7 +11,7 @@ include("hydrogenic_bf_ff.jl")
 include("absorption_H.jl")
 include("absorption_He.jl")
 
-include("absorption_ff_metal.jl")
+include("absorption_ff_positive_ion.jl")
 include("scattering.jl")
 
 # the following are only imported for computing experimental metal bf continuum opacities
