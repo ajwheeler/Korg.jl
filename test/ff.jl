@@ -39,8 +39,11 @@ begin
     ν = Korg.c_cgs ./ λ_cm
 
     # let's compute α/(ndens_He_II * nₑ). We can do this by specifying ndens_He_II = 1 & nₑ = 1
-    actual_α_div_nₑ_nHeII = Korg.ContinuumAbsorption._He_I_ff.(ν', T_arr, 1.0, 1.0)
-
+    actual_α_div_nₑ_nHeII = zeros(length(T_arr), length(ν))
+    for (i,T) in enumerate(T_arr)
+        Korg.ContinuumAbsorption.positive_ion_ff_absorption!(view(actual_α_div_nₑ_nHeII, i, :),ν,T, 
+                                                             Dict([Korg.species"He II"=>1.0]), 1.0)
+    end
 
     # the ratio (ndens_He_II * nₑ)/ndens_He_I is given by the Saha Equation
     # Korg.saha_ion_weights(...)[1] technically gives this divided by nₑ. We can get the desired
@@ -48,9 +51,9 @@ begin
     atomic_num = 2
     _nₑ = 1.0
     # at these temperatures, the partition function isn't defined. Let's define our own
-    my_partition_funcs = Dict(Korg.Species("He I") => T->1.0,
-                              Korg.Species("He II") => T->2.0,
-                              Korg.Species("He III") => T->1.0)
+    my_partition_funcs = Dict(Korg.species"He I" => T->1.0,
+                              Korg.species"He II" => T->2.0,
+                              Korg.species"He III" => T->1.0)
 
     saha_RHS = map(T_arr) do cur_T
         Korg.saha_ion_weights(cur_T, _nₑ, atomic_num, Korg.ionization_energies,

@@ -27,9 +27,9 @@ approximation when they are not.
     - Si I ff absorption: `ni` holds the number density of Si II, and `Z=1` (net charge of Si II)
     - Si II ff absorption: `ni` holds the number density of Si III, and `Z=2` (net charge of Si III)
 """
-function positive_ion_ff_absorption!(α_out::Vector{<:Real}, νs::Vector{<:Real}, T::Real,
-                                      number_densities::Dict, ne::Real;
-                                      departure_coefficients=Peach1970.departure_coefficients())
+function positive_ion_ff_absorption!(α_out::AbstractVector{<:Real}, νs::AbstractVector{<:Real}, 
+                                     T::Real, number_densities::Dict, ne::Real;
+                                     departure_coefficients=Peach1970.departure_coefficients())
     #TODO bounds checking
     #TODO partition function
 
