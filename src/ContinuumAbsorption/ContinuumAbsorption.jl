@@ -54,18 +54,17 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
 
     # Hydrogen continuum absorption
     H_I_bf(νs, T, nH_I_div_U; kwargs...)
-    # TODO H_I_ff(νs, T, number_densities[species"H_II"], nₑ; kwargs...)
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
     # He continuum absorption
     He_II_bf(νs, T, number_densities[species"H_II"]/partition_funcs[species"H_II"](log(T)); kwargs...)
-    # TODO He_II_ff(νs, T, number_densities[species"He_III"], nₑ; kwargs...)
     Heminus_ff(νs, T, number_densities[species"He_I"] / partition_funcs[species"He_I"](log(T)), nₑ;
                kwargs...)
 
-    # ff absorption from positive ions (i.e. not H⁻ or He⁻)
+    # ff absorption where participating species are positive ions 
+    # i.e. not H⁻ ff or He⁻ ff but H I ff is included
     positive_ion_ff_absorption!(α_out, νs, T, number_densities, nₑ)
 
     # scattering
