@@ -61,7 +61,6 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     end
 
     throw(ErrorException(join(lines, "\n")))
-    false
 end
 
 """
