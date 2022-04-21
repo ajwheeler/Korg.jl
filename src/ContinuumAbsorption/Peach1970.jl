@@ -1,7 +1,7 @@
 """
 This module contains interpolators of the tabulated ff departure coeffients from 
 [Peach+ 1970](https://ui.adsabs.harvard.edu/abs/1970MmRAS..73....1P/abstract), which we use to 
-correct the hydrogenic ff absorption coefficient for H I ff, C I ff, C II ff, Si I ff, and Mg I ff. 
+correct the hydrogenic ff absorption coefficient for H I ff, C I ff, Si I ff, and Mg I ff. 
 It contains a dictionary (returned by `departure_coefficients()`), which maps `Species` to 
 interpolator objects.  Crucially, the dictionary is indexed by the species which actually 
 participates in the interaction, not the one after which the interaction is named.  
@@ -151,85 +151,85 @@ coeffs[species"C II"] = let
     LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
-coeffs[species"C III"] = let 
-    # this comes from table III of Peach 1970 for singly ionized Carbon. Peach broke this
-    # information up into 2 sub-tables:
-    # 1. data for a parent term ¹S, corresponding to the 1s²2s² ground state
-    # 2. data for a parent term ³Pᵒ, corresponding to the 1s²2s2p excited state
-
-    # Rather than deal with this complication in Korg's ff code, we omit the contribution from 
-    # the (higher energy) ³Pᵒ parent term
-
-    # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
-    # of the species participating in the interaction.
-    σ_vals = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30] # This is the same for both subtables
-
-    # First, specify the info for the 'S parent term:
-    # The temperature (in K)
-    T_vals_S = [16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0,
-                25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0,
-                38000.0, 40000.0, 42000.0, 44000.0, 46000.0, 48000.0]
-
-    # the (unitless) departure term
-    table_vals_S = [0.032 0.135 0.247 0.346 0.432 0.516;
-                    0.034 0.136 0.246 0.344 0.429 0.511;
-                    0.036 0.137 0.246 0.343 0.426 0.507;
-                    0.038 0.138 0.246 0.342 0.424 0.504;
-                    0.040 0.140 0.247 0.341 0.423 0.502;
-                    0.042 0.141 0.247 0.341 0.422 0.500;
-                    0.044 0.142 0.248 0.341 0.421 0.499;
-                    0.046 0.144 0.249 0.341 0.420 0.497;
-                    0.048 0.145 0.249 0.341 0.420 0.496;
-                    0.050 0.146 0.250 0.341 0.419 0.495;
-                    0.051 0.148 0.251 0.341 0.419 0.495;
-                    0.053 0.149 0.252 0.342 0.419 0.494;
-                    0.055 0.150 0.252 0.342 0.418 0.493;
-                    0.056 0.151 0.253 0.342 0.418 0.492;
-                    0.058 0.153 0.254 0.342 0.418 0.492;
-                    0.061 0.155 0.255 0.343 0.418 0.491;
-                    0.063 0.157 0.257 0.343 0.417 0.490;
-                    0.066 0.159 0.258 0.343 0.417 0.488;
-                    0.068 0.161 0.259 0.344 0.416 0.487;
-                    0.071 0.163 0.260 0.344 0.416 0.486;
-                    0.073 0.165 0.261 0.344 0.415 0.485;
-                    0.075 0.167 0.262 0.344 0.414 0.483;
-                    0.078 0.168 0.262 0.344 0.413 0.482;
-                    0.080 0.169 0.263 0.343 0.412 0.481]
-
-    # First, specify the info for the 'S parent term:
-    # The temperature (in K)
-    # T_vals_P = [16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0,
-    #            25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0,
-    #            38000.0, 40000.0, 42000.0, 44000.0, 46000.0, 48000.0]
-
-    # the (unitless) departure term
-    # table_vals_P = [0.031 0.161 0.319 0.478 0.631 0.809;
-    #                 0.033 0.162 0.318 0.475 0.627 0.803;
-    #                 0.035 0.164 0.318 0.474 0.624 0.799;
-    #                 0.038 0.165 0.318 0.473 0.622 0.797;
-    #                 0.040 0.166 0.319 0.472 0.621 0.795;
-    #                 0.042 0.168 0.319 0.472 0.621 0.794;
-    #                 0.044 0.169 0.320 0.472 0.620 0.793;
-    #                 0.046 0.171 0.321 0.473 0.620 0.793;
-    #                 0.048 0.173 0.322 0.473 0.621 0.793;
-    #                 0.050 0.174 0.323 0.474 0.621 0.793;
-    #                 0.051 0.176 0.324 0.475 0.622 0.793;
-    #                 0.053 0.177 0.325 0.475 0.622 0.794;
-    #                 0.055 0.179 0.327 0.476 0.623 0.795;
-    #                 0.057 0.180 0.328 0.477 0.624 0.796;
-    #                 0.059 0.182 0.329 0.478 0.625 0.797;
-    #                 0.062 0.185 0.332 0.480 0.627 0.799;
-    #                 0.066 0.188 0.334 0.483 0.629 0.801;
-    #                 0.069 0.191 0.337 0.485 0.631 0.804;
-    #                 0.072 0.194 0.339 0.487 0.633 0.806;
-    #                 0.075 0.197 0.342 0.489 0.635 0.809;
-    #                 0.078 0.200 0.345 0.491 0.638 0.811;
-    #                 0.081 0.203 0.347 0.493 0.640 0.814;
-    #                 0.084 0.206 0.349 0.406 0.642 0.816;
-    #                 0.087 0.209 0.352 0.498 0.644 0.819]
-
-    LinearInterpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0)
-end
+#coeffs[species"C III"] = let 
+#    # this comes from table III of Peach 1970 for singly ionized Carbon. Peach broke this
+#    # information up into 2 sub-tables:
+#    # 1. data for a parent term ¹S, corresponding to the 1s²2s² ground state
+#    # 2. data for a parent term ³Pᵒ, corresponding to the 1s²2s2p excited state
+#
+#    # Rather than deal with this complication in Korg's ff code, we omit the contribution from 
+#    # the (higher energy) ³Pᵒ parent term
+#
+#    # σ denotes the energy of the photon (in units of RydbergH*Zeff², where Zeff is the net charge
+#    # of the species participating in the interaction.
+#    σ_vals = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30] # This is the same for both subtables
+#
+#    # First, specify the info for the 'S parent term:
+#    # The temperature (in K)
+#    T_vals_S = [16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0,
+#                25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0,
+#                38000.0, 40000.0, 42000.0, 44000.0, 46000.0, 48000.0]
+#
+#    # the (unitless) departure term
+#    table_vals_S = [0.032 0.135 0.247 0.346 0.432 0.516;
+#                    0.034 0.136 0.246 0.344 0.429 0.511;
+#                    0.036 0.137 0.246 0.343 0.426 0.507;
+#                    0.038 0.138 0.246 0.342 0.424 0.504;
+#                    0.040 0.140 0.247 0.341 0.423 0.502;
+#                    0.042 0.141 0.247 0.341 0.422 0.500;
+#                    0.044 0.142 0.248 0.341 0.421 0.499;
+#                    0.046 0.144 0.249 0.341 0.420 0.497;
+#                    0.048 0.145 0.249 0.341 0.420 0.496;
+#                    0.050 0.146 0.250 0.341 0.419 0.495;
+#                    0.051 0.148 0.251 0.341 0.419 0.495;
+#                    0.053 0.149 0.252 0.342 0.419 0.494;
+#                    0.055 0.150 0.252 0.342 0.418 0.493;
+#                    0.056 0.151 0.253 0.342 0.418 0.492;
+#                    0.058 0.153 0.254 0.342 0.418 0.492;
+#                    0.061 0.155 0.255 0.343 0.418 0.491;
+#                    0.063 0.157 0.257 0.343 0.417 0.490;
+#                    0.066 0.159 0.258 0.343 0.417 0.488;
+#                    0.068 0.161 0.259 0.344 0.416 0.487;
+#                    0.071 0.163 0.260 0.344 0.416 0.486;
+#                    0.073 0.165 0.261 0.344 0.415 0.485;
+#                    0.075 0.167 0.262 0.344 0.414 0.483;
+#                    0.078 0.168 0.262 0.344 0.413 0.482;
+#                    0.080 0.169 0.263 0.343 0.412 0.481]
+#
+#    # First, specify the info for the 'S parent term:
+#    # The temperature (in K)
+#    # T_vals_P = [16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0,
+#    #            25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0,
+#    #            38000.0, 40000.0, 42000.0, 44000.0, 46000.0, 48000.0]
+#
+#    # the (unitless) departure term
+#    # table_vals_P = [0.031 0.161 0.319 0.478 0.631 0.809;
+#    #                 0.033 0.162 0.318 0.475 0.627 0.803;
+#    #                 0.035 0.164 0.318 0.474 0.624 0.799;
+#    #                 0.038 0.165 0.318 0.473 0.622 0.797;
+#    #                 0.040 0.166 0.319 0.472 0.621 0.795;
+#    #                 0.042 0.168 0.319 0.472 0.621 0.794;
+#    #                 0.044 0.169 0.320 0.472 0.620 0.793;
+#    #                 0.046 0.171 0.321 0.473 0.620 0.793;
+#    #                 0.048 0.173 0.322 0.473 0.621 0.793;
+#    #                 0.050 0.174 0.323 0.474 0.621 0.793;
+#    #                 0.051 0.176 0.324 0.475 0.622 0.793;
+#    #                 0.053 0.177 0.325 0.475 0.622 0.794;
+#    #                 0.055 0.179 0.327 0.476 0.623 0.795;
+#    #                 0.057 0.180 0.328 0.477 0.624 0.796;
+#    #                 0.059 0.182 0.329 0.478 0.625 0.797;
+#    #                 0.062 0.185 0.332 0.480 0.627 0.799;
+#    #                 0.066 0.188 0.334 0.483 0.629 0.801;
+#    #                 0.069 0.191 0.337 0.485 0.631 0.804;
+#    #                 0.072 0.194 0.339 0.487 0.633 0.806;
+#    #                 0.075 0.197 0.342 0.489 0.635 0.809;
+#    #                 0.078 0.200 0.345 0.491 0.638 0.811;
+#    #                 0.081 0.203 0.347 0.493 0.640 0.814;
+#    #                 0.084 0.206 0.349 0.406 0.642 0.816;
+#    #                 0.087 0.209 0.352 0.498 0.644 0.819]
+#
+#    LinearInterpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0)
+#end
 
 
 coeffs[species"Si II"] = let
