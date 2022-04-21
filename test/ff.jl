@@ -62,26 +62,25 @@
     for (spec, Us, λ_cm, Ts, ref_k) in [He_I_ff_vals, C_II_ff_vals]
         ν = Korg.c_cgs ./ λ_cm
 
-        # compute α/(n(X-) * nₑ) by calculating α with both number densities set to 1.
+        # compute α/(n(X+) * nₑ) by calculating α with both number densities set to 1.
+        # here, X+ is X with one less electron, i.e. if X is He I, X+ is He II
         actual_α_div_nₑ_nHeII = zeros(length(Ts), length(ν))
         for (i,T) in enumerate(Ts)
             Korg.ContinuumAbsorption.positive_ion_ff_absorption!(
                      view(actual_α_div_nₑ_nHeII, i, :), ν,T, Dict([spec=>1.0]), 1.0)
         end
 
-        saha_RHS = map(Ts) do cur_T
-            # the ratio (n(X) * nₑ)/n(X-) is given by the Saha Equation.
-            # Korg.saha_ion_weights(...)[1] gives n(X-)/n(X-). We set nₑ = 1.
+        saha_RHS = map(Ts) do T
+            # the ratio (n(X) * nₑ)/n(X+) is given by the Saha Equation.
+            # Korg.saha_ion_weights(...)[1] gives n(X+)/n(X+). We set nₑ = 1.
             nₑ = 1.0
             atomic_num = Korg.get_atoms(spec)[1]
-            Korg.saha_ion_weights(cur_T, nₑ, atomic_num, Korg.ionization_energies, Us)[1]
+            Korg.saha_ion_weights(T, nₑ, atomic_num, Korg.ionization_energies, Us)[1]
         end
         stim_emission_factor = (1 .- exp.(-Korg.hplanck_cgs .* ν' ./ (Korg.kboltz_cgs .* Ts)))
 
         korg_k = actual_α_div_nₑ_nHeII .* saha_RHS ./ stim_emission_factor
 
-        display(korg_k)
-        display(ref_k)
         @test assert_allclose_grid(korg_k, ref_k, [("T", Ts, "K"), ("ν", ν, "Hz")];
                                    atol = 0, rtol = 0.01)
     end
