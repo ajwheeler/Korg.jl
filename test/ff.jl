@@ -75,9 +75,14 @@
             # Korg.saha_ion_weights(...)[1] gives n(X+)/n(X+). We set nₑ = 1.
             nₑ = 1.0
             atomic_num = Korg.get_atoms(spec)[1]
-            Korg.saha_ion_weights(T, nₑ, atomic_num, Korg.ionization_energies, Us)[1]
+            wII, wIII = Korg.saha_ion_weights(T, nₑ, atomic_num, Korg.ionization_energies, Us)
+            weights = [1.0, wII, wIII]
+            weights[spec.charge+1]/weights[spec.charge]
         end
         stim_emission_factor = (1 .- exp.(-Korg.hplanck_cgs .* ν' ./ (Korg.kboltz_cgs .* Ts)))
+
+        display(spec)
+        display(saha_RHS)
 
         korg_k = actual_α_div_nₑ_nHeII .* saha_RHS ./ stim_emission_factor
 

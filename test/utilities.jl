@@ -48,7 +48,7 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
 
     if (rtol != 0.0) || (rtol == atol == 0.0)
         err = @sprintf("Max Rel Diff:  %g = |%g - %g|/|%g|", 
-                       relative_diff[relmax], actual[relmax], reference[relmax], actual[relmax])
+                       relative_diff[relmax], actual[relmax], reference[relmax], reference[relmax])
         err *= (common_layout) ? " at " * error_location_fmt(relmax) : ""
         push!(lines, err)
     end
