@@ -11,11 +11,12 @@
     # per He II). The data excludes the correction for stimulated emission.
     #
     # There is way more data in the table that could be used for self-consistency checks, but the
-    # format seems difficult to digitize, so we use only a few rows from the He II table and the 
-    # C II table.
+    # format seems difficult to digitize, so we use only a few rows from the He II table.
 
     # the participating species and partition func, plus the wavelengths, temps, and k vals for 
-    # He I ff from Peach
+    # He I ff from Peach. Testing heavier elements is more complicated because Peach's and our
+    # partition funcs don't match, though in principal we could reconstruct hers by using the energy
+    # levels in Table I of Peach 1970.
     He_I_ff_vals = let 
         Ts = [1e4, 1.1e4, 1.2e4, 1.3e4, 1.4e4, 1.5e4]
 
@@ -32,34 +33,12 @@
         # at these temperatures, the partition function isn't defined. Let's define our own
         Us = Dict(Korg.species"He I" => T->1.0,
                   Korg.species"He II" => T->2.0,
-                  Korg.species"He III" => T->1.0)
+                  Korg.species"He III" => T->1.0) 
 
         Korg.species"He II", Us, λ_cm, Ts, out_ff
     end
 
-    # the participating species and partition func, plus the wavelengths, temps, and k vals for 
-    # C II ff from Peach
-    C_II_ff_vals = let
-        Ts = [16000,17000,18000,19000,20000,21000]
-
-        λs_cm = [2000, 2500] ./ 1e8
-
-        bf_k_vals = [1.560e-23 4.019e-23 9.320e-23 1.981e-22 3.901e-22 7.202e-22
-                     1.167e-23 2.989e-23 6.898e-23 1.458e-22 2.860e-22 5.260e-22]'
-        bf_and_ff_k_vals = [1.641e-23 4.274e-23 1.003e-22 2.157e-22 4.304e-22 8.054e-22
-                            1.221e-23 3.157e-23 7.304e-23 1.574e-22 3.125e-22 5.821e-22]'
-        out_ff = bf_and_ff_k_vals .- bf_k_vals
-        
-        # At these temperatures, the partition function isn't defined. Let's define our own.  
-        # This just need to be close-ish to the values Peach used.
-        Us = Dict(Korg.species"C I" => T->10.0,
-                  Korg.species"C II" => T->6.0,
-                  Korg.species"C III" => T->1.0)
-
-        Korg.species"C III", Us, λs_cm, Ts, out_ff
-    end
-
-    for (spec, Us, λ_cm, Ts, ref_k) in [He_I_ff_vals, C_II_ff_vals]
+    for (spec, Us, λ_cm, Ts, ref_k) in [He_I_ff_vals] #in case we want to test more later
         ν = Korg.c_cgs ./ λ_cm
 
         # compute α/(n(X+) * nₑ) by calculating α with both number densities set to 1.
@@ -80,9 +59,6 @@
             weights[spec.charge+1]/weights[spec.charge]
         end
         stim_emission_factor = (1 .- exp.(-Korg.hplanck_cgs .* ν' ./ (Korg.kboltz_cgs .* Ts)))
-
-        display(spec)
-        display(saha_RHS)
 
         korg_k = actual_α_div_nₑ_nHeII .* saha_RHS ./ stim_emission_factor
 
