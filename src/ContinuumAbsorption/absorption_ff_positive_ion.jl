@@ -30,8 +30,11 @@ approximation when they are not.
 function positive_ion_ff_absorption!(α_out::AbstractVector{<:Real}, νs::AbstractVector{<:Real}, 
                                      T::Real, number_densities::Dict, ne::Real;
                                      departure_coefficients=Peach1970.departure_coefficients())
-    #TODO bounds checking
-    #TODO partition function
+    if !(_gauntff_T_bounds[1] <= T <= _gauntff_T_bounds[2])
+        return #if T is outside the supported range return without changing α_out
+    end
+    #these are the freqs which are within the supported range
+    idx = (c_cgs/_gauntff_λ_bounds[2]) .< νs .< (c_cgs/_gauntff_λ_bounds[1])
 
     ndens_Z1 = 0.0
     ndens_Z2 = 0.0
@@ -49,8 +52,8 @@ function positive_ion_ff_absorption!(α_out::AbstractVector{<:Real}, νs::Abstra
             # https://articles.adsabs.harvard.edu/pdf/1967MmRAS..71....1P
             σs = @. νs / spec.charge^2 * (hplanck_eV / Rydberg_eV) 
             # add directly to α_out if there is a departure coefficient
-            @. α_out += ( hydrogenic_ff_absorption(νs, T, spec.charge, number_densities[spec], ne) 
-                          * (1 + D(T, σs)) )
+            @. α_out[idx] += ( hydrogenic_ff_absorption(νs[idx], T, spec.charge, 
+                                                        number_densities[spec], ne)*(1+D(T, σs)))
         else
             #sum up contributions of hydrogenic ff coeffs, add them to α_out at the end
             if (spec.charge == 1)     # e.g. O II
@@ -65,8 +68,8 @@ function positive_ion_ff_absorption!(α_out::AbstractVector{<:Real}, νs::Abstra
     end
 
     #add contributions from species for which we use the uncorrected hydrogenic approximation
-    @. α_out += hydrogenic_ff_absorption(νs, T, 1, ndens_Z1, ne)
-    @. α_out += hydrogenic_ff_absorption(νs, T, 2, ndens_Z2, ne)
+    @. α_out[idx] += hydrogenic_ff_absorption(νs[idx], T, 1, ndens_Z1, ne)
+    @. α_out[idx] += hydrogenic_ff_absorption(νs[idx], T, 2, ndens_Z2, ne)
     ;
 end
 
