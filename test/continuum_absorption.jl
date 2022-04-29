@@ -384,7 +384,7 @@ end
 
 Computes the H I free-free linear absorption coefficient per neutral Hydrogen atom by adapting 
 equation 8.10 from Gray (2005). This includes the correction for stimulated emission under LTE.
-In contrast to `Korg.ContinuumAbsorption.H_I_ff`, this implementation directly combines the Saha 
+In contrast to `Korg.ContinuumAbsorption.positive_ion_ff`, this implementation directly combines the Saha 
 equation and uses constants that have been cast into a completely separate format.
 
 # Arguments
