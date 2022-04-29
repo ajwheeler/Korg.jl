@@ -65,7 +65,7 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
 
     # ff absorption where participating species are positive ions 
     # i.e. not H⁻ ff or He⁻ ff but H I ff is included
-    positive_ion_ff_absorption!(α_out, νs, T, number_densities, nₑ)
+    positive_ion_ff_absorption!(α, νs, T, number_densities, nₑ)
 
     # scattering
     α .+= electron_scattering(nₑ)

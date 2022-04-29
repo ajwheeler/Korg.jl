@@ -432,7 +432,7 @@ end
         @test compare_gauntff_kurucz(0.15)
     end
 
-    @testset "Gray (2005) implementation comparison" begin
+    @testset "Gray (2005) H I ff implementation comparison" begin
         # Compare the different formulations of the free-free absorption under the conditions of
         # the panels of figure 8.5 of Gray (2005). Outside of these conditions, it's unclear where
         # Gray's approximation for the gaunt factor breaks down.
@@ -458,10 +458,9 @@ end
             nH_II = nH_total * wII / (1 + wII)
             # recall that H I ff actually refers to: photon + e⁻ + H II -> e⁻ + H II
             absorption_coef = zeros(length(ν_vals))
-            Korg.ContinuumAbsorption.positive_ion_ff_absorption!( absorption_coef, ν_vals, T,
-                                                         Dict([species"H II"=>nH_II]), nₑ) / nH_I
-            #absorption_coef = Korg.ContinuumAbsorption.H_I_ff(ν_vals, T, nH_II, nₑ) / nH_I
-            @test assert_allclose_grid(absorption_coef, ref_absorption_coef, [("λ", λ_vals, "Å")];
+            Korg.ContinuumAbsorption.positive_ion_ff_absorption!(absorption_coef, ν_vals, T,
+                                                     Dict([Korg.species"H II"=>nH_II]), nₑ)
+            @test assert_allclose_grid(absorption_coef./nH_I, ref_absorption_coef, [("λ", λ_vals, "Å")];
                                        rtol = 0.032, atol = 0)
             @test all(absorption_coef .≥ 0.0)
         end

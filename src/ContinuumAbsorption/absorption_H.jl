@@ -311,4 +311,3 @@ H2plus_bf_and_ff = bounds_checked_absorption(
     ν_bound = λ_to_ν_bound(closed_interval(7e-6, 2e-3)),
     temp_bound = closed_interval(3150, 25200)
 )
-
