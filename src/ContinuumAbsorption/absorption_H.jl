@@ -1,5 +1,3 @@
-# we are missing Rayleigh Scattering
-
 using Interpolations: LinearInterpolation, Throw
 using StaticArrays: SA
 
