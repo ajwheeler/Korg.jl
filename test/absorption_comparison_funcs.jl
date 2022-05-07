@@ -271,14 +271,6 @@ const Gray05_opacity_form_funcs =
                           closed_interval(3847.0, 25000.0),   "H₂⁺ ff and bf"),
          )
 
-# the absolute tolerances for values the opacity contributions from
-#    - H⁻ bound-free
-#    - H⁻ free-free
-#    - He⁻ free-free
-# There is a much larger discrepancy between the summed H I bf and ff opacity at large λ. But
-# unlike for H₂⁺, this could simply be a consequence of the different approximations that are used
-const Gray05_atols = Dict("a" => 0.05, "b" => 0.02, "c" => 0.04)
-
 # this function is defined to make tests easier
 function Gray05_comparison_vals(panel, opacity_func_name)
     panel_prop, panel_dict = load_panel_data(panel)

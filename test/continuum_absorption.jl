@@ -103,7 +103,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_ff")
         @test all(calculated .≥ 0.0)
-        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=0.03)
     end
 end
 
@@ -117,7 +117,7 @@ emission.
 This function uses the polynomial provided in equation 8.11 of Gray (2005), that fits the tabulated
 data from Wishart (1979). While Gray (2005) claims that the polynomial fits the data with 0.2%
 precision for 2250 Å ≤ λ ≤ 15000 Å, in practice we find that it fits the data to better than 0.25%
-precision.
+precision.  It fits the McLaughlin (2017) data (what Korg uses) within 3%.
 """
 function _Hminus_bf_cross_section_Gray(λ::Real)
     # we need to somehow factor out this bounds checking
@@ -148,7 +148,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["a", "b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_bf")
         @test all(calculated .≥ 0.0)
-        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0.03)
     end
 end
 
@@ -208,7 +208,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Heminus_ff")
         @test all(calculated .≥ 0.0)
-        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=0.02)
     end
 end
 
@@ -258,7 +258,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H2plus")
         @test all(calculated .≥ 0.0)
-        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=0.02)
     end
 end
 
