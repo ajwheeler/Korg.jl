@@ -1,5 +1,5 @@
 using Interpolations: LinearInterpolation, Throw
-using StaticArrays: SA
+using HDF5: h5read
 
 using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
 
@@ -92,70 +92,22 @@ function _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
     0.25 * nHI_groundstate * ne * coef * β^1.5 * exp(ion_energy * β)
 end
 
-
-const _Hminus_bf_table = SA[1250.0 5.431;   1500.0 6.512;   1750.0 7.918;   2000.0 9.453;
-                            2250.0 11.08;   2500.0 12.75;   2750.0 14.46;   3000.0 16.19;
-                            3250.0 17.92;   3500.0 19.65;   3750.0 21.35;   4000.0 23.02;
-                            4250.0 24.65;   4500.0 26.24;   4750.0 27.77;   5000.0 29.23;
-                            5250.0 30.62;   5500.0 31.94;   5750.0 33.17;   6000.0 34.32;
-                            6250.0 35.37;   6500.0 36.32;   6750.0 37.17;   7000.0 37.91;
-                            7250.0 38.54;   7500.0 39.07;   7750.0 39.48;   8000.0 39.77;
-                            8250.0 39.95;   8500.0 40.01;   8750.0 39.95;   9000.0 39.77;
-                            9250.0 39.48;   9500.0 39.06;   9750.0 38.53;   10000.0 37.89;
-                            10250.0 37.13;  10500.0 36.25;  10750.0 35.28;  11000.0 34.19;
-                            11250.0 33.01;  11500.0 31.72;  11750.0 30.34;  12000.0 28.87;
-                            12250.0 27.33;  12500.0 25.71;  12750.0 24.02;  13000.0 22.26;
-                            13250.0 20.46;  13500.0 18.62;  13750.0 16.74;  14000.0 14.85;
-                            14250.0 12.95;  14500.0 11.07;  14750.0 9.211;  15000.0 7.407;
-                            15250.0 5.677;  15500.0 4.052;  15750.0 2.575;  16000.0 1.302;
-                            16100.0 0.8697; 16200.0 0.4974; 16300.0 0.1989]
-
-const _Hminus_bf_cross_section_interp = LinearInterpolation(view(_Hminus_bf_table, :, 1),
-                                                            view(_Hminus_bf_table, :, 2),
-                                                            extrapolation_bc=Throw())
-
-"""
-    _Hminus_bf_cross_section(λ, ion_energy_H⁻)
-
-Compute the H⁻ bound-free cross-section at a given wavelength (specified in Å). The cross-section 
-has units of megabarns per H⁻ particle and does NOT include a correction for stimulated emission.
-
-This function linearly interpolates the table provided in Wishart (1979).
-"""
-function _Hminus_bf_cross_section(λ, ion_energy_H⁻)
-    Å_per_eV = 1e8 * (hplanck_eV * c_cgs)
-    max_λ_ionize = Å_per_eV/ion_energy_H⁻
-
-    last_table_λ = _Hminus_bf_table[end, 1]
-    last_table_cross_section = _Hminus_bf_table[end, 2]
-
-    @assert max_λ_ionize > last_table_λ
-
-    if λ < _Hminus_bf_table[1,1]
-        throw(DomainError(λ, "λ must be ≥ $(_Hminus_bf_table[1,1]) Å"))
-    elseif λ <= last_table_λ
-        _Hminus_bf_cross_section_interp(λ)
-    elseif λ <= max_λ_ionize
-        # linearly interpolate b/t (last_table_λ, last_table_cross_section) and (max_λ_ionize, 0.0)
-        m = last_table_cross_section/(last_table_λ - max_λ_ionize)
-        m*(λ - max_λ_ionize)
-    else
-        0.0
-    end
-
+const _Hminus_bf_cross_section = let
+    fn = joinpath(_data_dir, "McLaughlin2017Hminusbf.h5")
+    ν = h5read(fn, "nu")
+    σ = h5read(fn, "sigma")
+    LinearInterpolation(ν, σ, extrapolation_bc=Throw())
 end
 
-function _Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real,
-                    ion_energy_H⁻::Real = _H⁻_ion_energy)
-    λ = c_cgs*1e8/ν # in ångstroms
-    cross_section = _Hminus_bf_cross_section(λ, ion_energy_H⁻) # in units of megabarn
-    # convert from megabarn to cm² and include contributions from stimulated emission  1e-18
-    cross_section *= (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T))) * 1e-18
-    _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy) * cross_section
+function _Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
+    cross_section = _Hminus_bf_cross_section(ν) # in units of cm²
+    stimulated_emission_correction = (1 - exp(-hplanck_cgs*ν/(kboltz_cgs*T)))
+    n_Hminus = _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy)
+    n_Hminus * cross_section * stimulated_emission_correction
 end
 
 """
-    Hminus_bf(ν, T, nH_I_div_partition, ne, [ion_energy_H⁻]; kwargs...)
+    Hminus_bf(ν, T, nH_I_div_partition, ne; kwargs...)
 
 Compute the H⁻ bound-free linear absorption coefficient α
 
@@ -164,14 +116,12 @@ Compute the H⁻ bound-free linear absorption coefficient α
 - `T`: temperature in K
 - `nH_I_div_partition`: the total number density of H I divided by its partition function.
 - `ne`: the electron number density
-- `ion_energy_H⁻`: Specifies the ionization energy of the single state of H⁻ in eV. This is
-   roughly 0.7552 eV.
 
 For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
-This function assumes that n(H⁻) ≪ n(H I) + n(H II). The number density of n(H⁻) should not be
-pre-computed (instead it's computed internally by this function).
+This function assumes that n(H⁻) ≪ n(H I) + n(H II). The number density of n(H⁻) isn't precomputed 
+as part of Korg's molecular equlibrium, it's computed here instead.
 
 This function is adapted from equation 8.12 from Grey (2005). That equation specifies the
 absorption coefficient per H I atom (uncorrected by stimulated emission) as:
@@ -181,7 +131,7 @@ absorption coefficient per H I atom (uncorrected by stimulated emission) as:
 where:
 - ``\\sigma_{bf}(\\mathrm{H}^-)`` is the photo dissociation cross-section (Grey uses the variable
   ``\\alpha_{bf}`` in place of ``\\sigma_{bf}``). We estimate this by linearly interpolating data
-  from [Wishart (1979)].
+  from [McLaughlin (2017)](https://ui.adsabs.harvard.edu/abs/2017JPhB...50k4001M/abstract).
 - ``\\chi_{\\mathrm{H}^-}`` is the ionization enrgy of H⁻.
 - θ = log10(e)/(k*T) or θ = 5040/T in units of eV⁻¹
 - U(H⁻,T) is the partition function of H⁻ at temperature T. This is always 1
@@ -204,7 +154,7 @@ suggests that this data has better than 3% accuracy.
 """
 Hminus_bf = bounds_checked_absorption(
     _Hminus_bf;
-    ν_bound = λ_to_ν_bound( Interval(1.25e-5, Inf; exclusive_lower=false, exclusive_upper=true) ),
+    ν_bound = closed_interval(1.8238892857120884e14, 2.417989242625068e19),
     temp_bound = Interval(0, Inf)
 )
 
