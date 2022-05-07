@@ -10,7 +10,7 @@ Additionally, in cases where actual and reference don't have equal values but do
 shape, the locations of the max errors are also printed.
 
 # Keywords
-- `rtol`: The desired relative tolerance
+- `rtol`: The desired relative tolerance.  Use 0 to skip relative comparison.
 - `atol`: The desired absolute tolerance
 - `err_msg`: An optional error message that can be printed when the arrays are not close
 - `error_location_fmt`: An optional keyword used to specify a function that creates a string 

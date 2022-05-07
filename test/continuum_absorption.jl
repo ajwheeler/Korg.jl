@@ -103,7 +103,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -148,7 +148,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["a", "b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_bf")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -208,7 +208,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Heminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -258,7 +258,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H2plus")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=Gray_opac_compare.Gray05_atols[panel])
     end
 end
 
@@ -531,7 +531,7 @@ end
                                                                           ("d",38.5)]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
         @test all(calculated .≥ 0.0)
-        @test assert_allclose(calculated, ref; rtol = 0.0, atol = atol)
+        @test assert_allclose(calculated, ref; rtol=0, atol=atol)
     end
 end
 
