@@ -108,14 +108,10 @@ function inverse_lorentz_density(ρ, γ)
     end
 end
 
-"""
-    load_hydrogen_stark_profiles()
-
-Load the (doppler-convolved) Stark-broadening profiles from disk.
-"""
-function setup_hydrogen_stark_profiles(fname=joinpath(_data_dir, 
-                                                      "Stehle-Hutchson-hydrogen-profiles.h5"))
-    hline_stark_profiles = h5open(fname, "r") do fid
+#load Stark broadening profiles from disk
+const _hline_stark_profiles = let 
+    fname=joinpath(_data_dir, "Stehle-Hutchson-hydrogen-profiles.h5")
+    h5open(fname, "r") do fid
         map(keys(fid)) do transition
             temps = read(fid[transition], "temps")
             nes = read(fid[transition], "electron_number_densities")
@@ -139,7 +135,6 @@ function setup_hydrogen_stark_profiles(fname=joinpath(_data_dir,
     end
 end
 
-
 #used in hydrogen_line_absorption
 _zero2epsilon(x) = x + (x == 0) * floatmin()
 
@@ -148,10 +143,14 @@ _zero2epsilon(x) = x + (x == 0) * floatmin()
                                   stark_window_size=3e-7, self_window_size=1e-6)
 
 Calculate contribution to the the absorption coefficient, α, from hydrogen lines in units of cm^-1,
-at wavelengths `λs`. For Halpha, Hbeta, and Hgamma, add the p-d approximated profiles from 
+at wavelengths `λs`. 
+
+Uses profiles from [Stehlé & Hutcheon (1999)](https://ui.adsabs.harvard.edu/abs/1999A%26AS..140...93S/abstract),
+which include Stark and Doppler broadening.  
+For Halpha, Hbeta, and Hgamma, the p-d approximated profiles from 
 [Barklem, Piskunovet, and O'Mara 2000](https://ui.adsabs.harvard.edu/abs/2000A%26A...363.1091B/abstract)
-to the absortion coefficient.  This "convolution by summation" is inexact, but true convolution is
-expensive.
+are added to the absortion coefficient.  This "convolution by summation" is inexact, but true 
+convolution is expensive.
 
 Arguments:
 - `T`: temperature [K]
@@ -167,14 +166,14 @@ Arguments:
 - `self_window_size`: the max distance from each line center [cm] at which to calculate the line 
    absorption for Hα-Hγ (those dominated by self-broadening).
 """
-function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
+function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ; 
                                    stark_window_size=3e-7, self_window_size=1e-6)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
     #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
     #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2/3)
-    for line in hline_stark_profiles
+    for line in _hline_stark_profiles
         if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
             continue #transitions to high levels are omitted for high nₑ and T
         end
