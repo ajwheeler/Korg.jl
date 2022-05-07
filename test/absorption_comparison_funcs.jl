@@ -173,8 +173,7 @@ function Hminus_bf_coefficient(λ, T, Pₑ, ion_energy_H⁻ = 0.7552)
     partition_func = 2.0 # may want to include the temperature dependence of the partition function
     ν = (Korg.c_cgs*1e8)/λ
 
-    linear_absorb_coef = Korg.ContinuumAbsorption.Hminus_bf([ν], T, nH_I/partition_func, ne,
-                                                            ion_energy_H⁻)[1]
+    linear_absorb_coef = Korg.ContinuumAbsorption.Hminus_bf([ν], T, nH_I/partition_func, ne)[1]
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
