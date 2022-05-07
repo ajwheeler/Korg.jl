@@ -111,7 +111,8 @@ end
     _Hminus_bf_cross_section_Gray(λ)
 
 Compute the H⁻ bound-free cross-section at a given wavelength (specified in Å). The cross-section 
-has units of megabarns per H⁻ particle and does NOT include a correction for stimulated emission.
+is converted to units of cm^2 per H⁻ particle and does NOT include a correction for stimulated 
+emission.
 
 This function uses the polynomial provided in equation 8.11 of Gray (2005), that fits the tabulated
 data from Wishart (1979). While Gray (2005) claims that the polynomial fits the data with 0.2%
@@ -130,7 +131,7 @@ function _Hminus_bf_cross_section_Gray(λ::Real)
     λ5 = λ*λ4
     λ6 = λ*λ5
 
-    (1.99654 - 1.18267e-5 * λ + 2.64243e-6 * λ2 - 4.40524e-10 * λ3 + 3.23992e-14 * λ4
+    1e-18 * (1.99654 - 1.18267e-5 * λ + 2.64243e-6 * λ2 - 4.40524e-10 * λ3 + 3.23992e-14 * λ4
      - 1.39568e-18 * λ5 + 2.78701e-23 * λ6)
 end
 
@@ -141,7 +142,7 @@ end
         νs = Korg.c_cgs ./ (λs * 1e-8)
         grayvals = _Hminus_bf_cross_section_Gray.(λs)
         korgvals = Korg.ContinuumAbsorption._Hminus_bf_cross_section.(νs)
-        @test assert_allclose_grid(korgvals, grayvals, [("λ", λs, "Å")], rtol=0.002)
+        @test assert_allclose_grid(korgvals, grayvals, [("λ", λs, "Å")], rtol=0.02)
     end
 
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["a", "b", "c"]
