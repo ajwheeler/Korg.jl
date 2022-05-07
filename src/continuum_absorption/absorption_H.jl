@@ -130,8 +130,8 @@ absorption coefficient per H I atom (uncorrected by stimulated emission) as:
 
 where:
 - ``\\sigma_{bf}(\\mathrm{H}^-)`` is the photo dissociation cross-section (Grey uses the variable
-  ``\\alpha_{bf}`` in place of ``\\sigma_{bf}``). We estimate this by linearly interpolating data
-  from [McLaughlin (2017)](https://ui.adsabs.harvard.edu/abs/2017JPhB...50k4001M/abstract).
+  ``\\alpha_{bf}`` in place of ``\\sigma_{bf}``). We get this from 
+   [McLaughlin (2017)](https://ui.adsabs.harvard.edu/abs/2017JPhB...50k4001M/abstract).
 - ``\\chi_{\\mathrm{H}^-}`` is the ionization enrgy of H⁻.
 - θ = log10(e)/(k*T) or θ = 5040/T in units of eV⁻¹
 - U(H⁻,T) is the partition function of H⁻ at temperature T. This is always 1
@@ -149,8 +149,12 @@ stimulated emission correction) is given by:
 
 In other words, the linear absorption coefficient is: ``\\alpha_\\nu = \\sigma_{bf}(H^-) n(H⁻) (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right))``
 
-Wishart (1979) expects the tabulated data to have better than 1% percent accuracy. Mathisen (1984)
-suggests that this data has better than 3% accuracy.
+!!! note
+    The McLaughlin tabulated values (downloaded as a text file) contained a stray line out of 
+    monotonic order.  A version of the data file with the line deleted is saved at 
+    `data/McLaughlin2017Hminusbf.dat` for archival purposes.  (Korg doesn't read this file, it reads
+    `data/McLaughlin2017Hminusbf.h5`.)
+
 """
 Hminus_bf = bounds_checked_absorption(
     _Hminus_bf;
