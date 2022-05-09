@@ -132,7 +132,7 @@ arguments:
 - optionally, `x0`, a starting point for the solver
 """
 function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
-    if x0 == nothing
+    if x0 === nothing
         #compute good first guess by neglecting molecules
         x0 = map(MEQs.atoms) do atom
             wII, wIII =  saha_ion_weights(T, nₑ, atom, MEQs.ionization_energies, 
