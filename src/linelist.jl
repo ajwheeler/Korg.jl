@@ -144,7 +144,7 @@ function Species(code::AbstractString)
         charge = findfirst(toks[2] .== roman_numerals)
         charge = (charge isa Int ? charge : parse(Int, toks[2]))
         #if this is a MOOG-style numeric code, the charge is correct, otherwise subtract 1
-        if tryparse(Float64, code) == nothing 
+        if tryparse(Float64, code) === nothing 
             charge -= 1
         end
         charge
