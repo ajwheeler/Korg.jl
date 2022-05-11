@@ -155,6 +155,36 @@ function ray_transfer_integral(τ, S)
     I
 end
 
+function fritsch_butland_derivatives(x, y)
+    h = diff(x) #h[k] = x[k+1] - x[k]
+    @. α = 1/3 * (1 + h[2:end]/(h[2:end] + h[1:end-1])) #α[k] is wrt h[k] and h[k-1]
+    @. d = (y[2:end] - y[1:end-1])/h #d[k] is dₖ₊₀.₅ in paper
+    @. (d[1:end-1] * d[2:end]) / (α*d[2:end] + (1-α)*d[1:end-1])
+end
+
+function ray_transfer_integral_bezier(τ, S)
+    @assert length(τ) == length(S)
+    if length(τ) == 1
+        return 0.0
+    end
+    I = 0.0
+
+    for k in 1:length(τ)-1
+        δ = τ[k+1] - τ[k]
+
+        α = (2 + δ^2 - 2*δ - 2*exp(-δ)) / δ^2
+        β = (2 - (2 + 2δ + δ^2)*exp(-δ)) / δ^2
+        γ = (2*δ - 4 + (2δ + 4)*exp(-δ)) / δ^2
+
+        C⁰ = 
+    
+        I = I*exp(-δ) + α*S[k] + β*S[k+1] + γ*C
+    end
+
+
+    I
+end
+
 """
     _plane_parallel_approximate_transfer_integral(τ, m, b)
 
