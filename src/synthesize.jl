@@ -174,7 +174,7 @@ end
 """
     blackbody(T, λ)
 
-The value of the Planck blackbody function for temperature `T` at wavelength `λ`.
+The value of the Planck blackbody function for temperature `T` at wavelength `λ` [cm].
 """
 function blackbody(T, λ)
     h = hplanck_cgs
