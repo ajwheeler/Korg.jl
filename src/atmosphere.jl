@@ -2,7 +2,7 @@ abstract type ModelAtmosphere end
 
 struct PlanarAtmosphereLayer{F}
     tau_5000::F                #dimensionless
-    z::F                       #g
+    z::F                       #cm
     temp::F                    #K
     electron_number_density::F #cm^-3
     number_density::F          #cm^-3
