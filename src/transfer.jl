@@ -155,11 +155,28 @@ function ray_transfer_integral(τ, S)
     I
 end
 
-function fritsch_butland_derivatives(x, y)
+function fritsch_butland_C(x, y)
     h = diff(x) #h[k] = x[k+1] - x[k]
-    @. α = 1/3 * (1 + h[2:end]/(h[2:end] + h[1:end-1])) #α[k] is wrt h[k] and h[k-1]
-    @. d = (y[2:end] - y[1:end-1])/h #d[k] is dₖ₊₀.₅ in paper
-    @. (d[1:end-1] * d[2:end]) / (α*d[2:end] + (1-α)*d[1:end-1])
+    α = @. 1/3 * (1 + h[2:end]/(h[2:end] + h[1:end-1])) #α[k] is wrt h[k] and h[k-1]
+    d = @. (y[2:end] - y[1:end-1])/h #d[k] is dₖ₊₀.₅ in paper
+    yprime = @. (d[1:end-1] * d[2:end]) / (α*d[2:end] + (1-α)*d[1:end-1])
+
+    C0 = @. y[2:end-1] + h[1:end-1]*yprime/2
+    C1 = @. y[2:end-1] - h[2:end]*yprime/2
+
+    ([C0 ; C1[end]] .+ [C0[1] ; C1]) ./ 2
+end
+
+#alpha should be increasing, s decreasing
+#TODO off-by-one error, how to get non-0 tau at first layer
+function compute_tau_bezier(s, α)
+    τ = similar(α)
+    τ[1] = 0
+    C = fritsch_butland_C(s, α)
+    for i in 2:length(α)
+        τ[i] = τ[i-1] + (s[i-1] - s[i])/3 * (α[i] + α[i-1] + C[i-1])
+    end
+    τ
 end
 
 function ray_transfer_integral_bezier(τ, S)
@@ -169,19 +186,15 @@ function ray_transfer_integral_bezier(τ, S)
     end
     I = 0.0
 
-    for k in 1:length(τ)-1
+    C = fritsch_butland_C(τ, S)
+    for k in length(τ)-1:-1:1
         δ = τ[k+1] - τ[k]
-
         α = (2 + δ^2 - 2*δ - 2*exp(-δ)) / δ^2
         β = (2 - (2 + 2δ + δ^2)*exp(-δ)) / δ^2
         γ = (2*δ - 4 + (2δ + 4)*exp(-δ)) / δ^2
-
-        C⁰ = 
     
-        I = I*exp(-δ) + α*S[k] + β*S[k+1] + γ*C
+        I = I*exp(-δ) + α*S[k] + β*S[k+1] + γ*C[k]
     end
-
-
     I
 end
 
