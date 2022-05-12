@@ -13,34 +13,16 @@ inputs:
 - `mu_grid`: (required if atm is a [`ShellAtmosphere`](@ref)) the values of μ at which to calculate 
    the surface intensity, which is integrated to obtain the astrophysical flux.
 """
-function radiative_transfer(atm::PlanarAtmosphere, α, S, α_ref, mu_grid=nothing)
+function radiative_transfer(atm::PlanarAtmosphere, α, S, α_ref, mu_grid=nothing; bezier=false)
     τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
     planar_transfer(α, S, τ5, α_ref)
 end
 function radiative_transfer(atm::ShellAtmosphere, α, S, α_ref, mu_grid)
     τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
     radii = [atm.R + l.z for l in atm.layers]
-    photosphere_correction = radii[1]^2 / atm.R^2
+    photosphere_correction = radii[1]^2 / atm.R^2 
     #discard I, take F only
     photosphere_correction * spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)[2]
-end
-
-
-"""
-    planar_transfer(α, S, τ_ref, α_ref)
-
-Returns the astrophysical flux. See [`radiative_transfer`](@ref) for an explantion of the arguments.
-"""
-function planar_transfer(α, S, τ_ref, α_ref)
-    log_τ_ref = log.(τ_ref)
-    τ_ref_α_ref = τ_ref ./ α_ref
-    I = Vector{eltype(α)}(undef, size(α, 2))
-    τ_λ = Vector{eltype(α)}(undef, size(α, 1))
-    for λ_ind in 1:size(α, 2)
-        @inbounds cumulative_trapezoid_rule!(τ_λ, log_τ_ref, view(α, :, λ_ind) .* τ_ref_α_ref)
-        I[λ_ind] = 2π * all_mu_transfer_integral(τ_λ, view(S, :, λ_ind))
-    end
-    I
 end
 
 """
@@ -63,9 +45,8 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     #general element type with which to preallocate arrays
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
 
-    #preallocations
-    #geometric path-length correction, and other wavelength-indenpendent integrand factors
-    integrand_factor = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
+    #geometric path-length correction (n_layers × n_μ)
+    ds_dr = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
     #the index of the lowest atmospheric layer pierced by each ray
     lowest_layer_indices = Vector{Int}(undef, length(μ_surface_grid))
     for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
@@ -79,55 +60,43 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         end
         lowest_layer_indices[μ_ind] = i
 
-        integrand_factor[1:i, μ_ind] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) * τ_ref_α_ref[1:i]
+        ds_dr[1:i, μ_ind] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
     end
 
     #preallocations
-    I = Matrix{el_type}(undef, length(μ_surface_grid), size(α, 2)) #the surface intensity
-    integrand = Vector{el_type}(undef, size(α, 1))                 #integrand of τ integral 
-    τ_λ = Vector{el_type}(undef, size(α, 1))                       #optical depth at a particular λ
+    I = Matrix{el_type}(undef, length(μ_surface_grid), size(α, 2)) #surface intensity (n_μ × n_λ)
+    α_ds_dr = Vector{el_type}(undef, size(α, 1))  #integrand of τ integral , α (ds/dr)
+    τ_λ = Vector{el_type}(undef, size(α, 1)) 
     #iterate over λ in the outer loop, μ in the inner loop
     for λ_ind in 1:size(α, 2), μ_ind in 1:length(μ_surface_grid) 
         i = lowest_layer_indices[μ_ind]
+        if i <= 2
+            I[μ_ind, λ_ind] = 0
+            continue
+        end
         for k in 1:i #I can't figure out how to write this as a fast one-liner
-            integrand[k] = α[k, λ_ind] * integrand_factor[k, μ_ind]
+            α_ds_dr[k] = α[k, λ_ind] * ds_dr[k, μ_ind]
         end
-        cumulative_trapezoid_rule!(τ_λ, log_τ_ref, integrand, i) #compute τ_λ
-        I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
+        compute_tau_bezier!(view(τ_λ, 1:i), view(radii, 1:i), view(α, 1:i, λ_ind))
+        I[μ_ind, λ_ind] = ray_transfer_integral_bezier(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
-        #this branch could be factored out of this loop, which might speed things up.
-        if i < length(radii)
-            #if the ray never leaves the model atmosphere, include the contribution from the 
-            #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
-            #This is less accurate than actually integrating to find τ, but the effect is small.
-            #This should probably by audited for off-by-one errors.  It's also inneficient.
-            τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
-            I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
-        else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-            I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
-        end
+        ##this branch could be factored out of this loop, which might speed things up.
+        #if i < length(radii)
+        #    #if the ray never leaves the model atmosphere, include the contribution from the 
+        #    #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
+        #    #This is less accurate than actually integrating to find τ, but the effect is small.
+        #    #This should probably by audited for off-by-one errors.  It's also inneficient.
+        #    τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
+        #    I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
+        #else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
+        #    I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
+        #end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
     F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
     I, F
 end
 
-"""
-    all_mu_transfer_integral(τ, S)
-
-Compute exactly the solution to the transfer integral obtained be linearly interpolating the source 
-function, `S` across optical depths `τ`, without approximating the factor of E₂(τ).
-"""
-function all_mu_transfer_integral(τ, S)
-    I = 0
-    for i in 1:length(τ)-1
-        @inbounds m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
-        @inbounds b = S[i] - m*τ[i]
-        @inbounds I += (_plane_parallel_approximate_transfer_integral(τ[i+1], m, b) - 
-                        _plane_parallel_approximate_transfer_integral(τ[i], m, b))
-    end
-    I
-end
 
 """
     ray_transfer_integral(τ, S)
@@ -155,30 +124,23 @@ function ray_transfer_integral(τ, S)
     I
 end
 
-function fritsch_butland_C(x, y)
-    h = diff(x) #h[k] = x[k+1] - x[k]
-    α = @. 1/3 * (1 + h[2:end]/(h[2:end] + h[1:end-1])) #α[k] is wrt h[k] and h[k-1]
-    d = @. (y[2:end] - y[1:end-1])/h #d[k] is dₖ₊₀.₅ in paper
-    yprime = @. (d[1:end-1] * d[2:end]) / (α*d[2:end] + (1-α)*d[1:end-1])
-
-    C0 = @. y[2:end-1] + h[1:end-1]*yprime/2
-    C1 = @. y[2:end-1] - h[2:end]*yprime/2
-
-    ([C0 ; C1[end]] .+ [C0[1] ; C1]) ./ 2
-end
-
 #alpha should be increasing, s decreasing
 #TODO off-by-one error, how to get non-0 tau at first layer
-function compute_tau_bezier(s, α)
-    τ = similar(α)
+"""
+TODO
+"""
+function compute_tau_bezier!(τ, s, α)
     τ[1] = 0
     C = fritsch_butland_C(s, α)
     for i in 2:length(α)
         τ[i] = τ[i-1] + (s[i-1] - s[i])/3 * (α[i] + α[i-1] + C[i-1])
     end
-    τ
+    ;
 end
 
+"""
+TODO
+"""
 function ray_transfer_integral_bezier(τ, S)
     @assert length(τ) == length(S)
     if length(τ) == 1
@@ -199,16 +161,18 @@ function ray_transfer_integral_bezier(τ, S)
 end
 
 """
-    _plane_parallel_approximate_transfer_integral(τ, m, b)
-
-The exact solution to \$\\int (m\\tau + b) E_2(\\tau)\$ d\\tau\$.
-
-The exponential integral function, expint, captures the integral over the disk of the star to 
-get the emergent astrophysical flux. You can verify it by substituting the variable of integration 
-in the exponential integal, t, with mu=1/t.
+TODO
 """
-function _plane_parallel_approximate_transfer_integral(τ, m, b)
-    1/6 * (τ*exponential_integral_2(τ)*(3b+2m*τ) - exp(-τ)*(3b + 2m*(τ+1)))
+function fritsch_butland_C(x, y)
+    h = diff(x) #h[k] = x[k+1] - x[k]
+    α = @. 1/3 * (1 + h[2:end]/(h[2:end] + h[1:end-1])) #α[k] is wrt h[k] and h[k-1]
+    d = @. (y[2:end] - y[1:end-1])/h #d[k] is dₖ₊₀.₅ in paper
+    yprime = @. (d[1:end-1] * d[2:end]) / (α*d[2:end] + (1-α)*d[1:end-1])
+
+    C0 = @. y[2:end-1] + h[1:end-1]*yprime/2
+    C1 = @. y[2:end-1] - h[2:end]*yprime/2
+
+    ([C0 ; C1[end]] .+ [C0[1] ; C1]) ./ 2
 end
 
 """
