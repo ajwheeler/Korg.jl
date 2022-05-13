@@ -4,9 +4,9 @@ include("Peach1970.jl")
     positive_ion_ff_absorption!(α_out::Vector{Real}, ν::Real, T::Real, number_densities::Dict, 
                                 ne::Real, departure_coefficients=Peach1970.departure_coefficients)
 
-Computes the free-free linear absorption coefficient (in cm⁻¹) for all species except H⁻ and He⁻.
-Uses provided departure coefficients when they available, and the uncorrected hydrogenic 
-approximation when they are not.
+Computes the linear absorption coefficient (in cm⁻¹) for all free-free interactions involving
+positively charged atomic species. Uses the provided departure coefficients when they are available,
+and the uncorrected hydrogenic approximation when they are not.
 
 # Arguments
 - `ν`: frequency in Hz
