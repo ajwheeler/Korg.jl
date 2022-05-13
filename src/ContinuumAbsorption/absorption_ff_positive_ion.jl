@@ -36,9 +36,11 @@ function positive_ion_ff_absorption!(α_out::AbstractVector{<:Real}, νs::Abstra
     #these are the freqs which are within the supported range
     idx = (c_cgs/_gauntff_λ_bounds.upper) .< νs .< (c_cgs/_gauntff_λ_bounds.lower)
 
+    #under the hydrogenic approximation, all species with a given net charge, Z, share the same
+    #absorption cross-section. To minimize the cost, accumulate the number densities of all species
+    #(without departure coefficients) that have Z=1 or Z=2 before calling hydrogenic_ff_absorption
     ndens_Z1 = 0.0
     ndens_Z2 = 0.0
-    ndens_Z3 = 0.0
 
     for (spec,ndens) in number_densities
         if spec.charge <= 0
