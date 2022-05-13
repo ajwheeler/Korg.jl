@@ -44,8 +44,6 @@ details.
 H_I_bf = bounds_checked_absorption(_H_I_bf; ν_bound = Interval(0, Inf),
                                    temp_bound = Interval(0, Inf))
 
-_H_I_ff(ν, T, nH_II, ne) = hydrogenic_ff_absorption(ν, T, 1, nH_II, ne)
-
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
 
