@@ -15,9 +15,9 @@ approximation when they are not.
 - `ne`: the number density of free electrons.
 - `departure_coefficients` (optional, defaults to [Peach1970](@ref)): 
    a dictionary mapping species to the departure coefficients for the ff process it participates in 
-   (e.g. C II maps to the C III ff departure coefficients--see note below).  Departure coefficients 
-   should be callables taking temperature and (photon energy / RydbergH / Zeff^2).  See 
-   [Peach1970](@ref) for details.
+   (e.g. `species"C II"` maps to the C III ff departure coefficients--see note below).  Departure
+   coefficients should be callables taking temperature and (photon energy / RydbergH / Zeff^2).  
+   See [Peach1970](@ref) for details.
 
 !!! note
     A free-free interaction is named as though the species interacting with the free electron had 
