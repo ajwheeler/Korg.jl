@@ -43,31 +43,6 @@ details.
 He_II_bf = bounds_checked_absorption(_He_II_bf; ν_bound = Interval(0, Inf),
                                      temp_bound = Interval(0, Inf))
 
-_He_II_ff(ν, T, nHe_III, ne) = hydrogenic_ff_absorption(ν, T, 2, nHe_III, ne)
-
-"""
-    He_II_ff(ν, T, nHe_III, ne; kwargs...)
-
-Compute the He II free-free linear absorption coefficient α.
-
-The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
-reaction:  `photon + e⁻ + He III -> e⁻ + He III`.
-
-# Arguments
-- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
-- `T`: temperature in K
-- `nH_III`: the number density of doubly-ionized Helium in cm⁻³.
-- `ne`: the number density of free electrons.
-
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
-
-# Notes
-This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
-details.
-"""
-He_II_ff = bounds_checked_absorption(_He_II_ff; ν_bound = λ_to_ν_bound(_gauntff_λ_bounds),
-                                     temp_bound = _gauntff_T_bounds)
-
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
 function ndens_state_He_I(n::Integer, nsdens_div_partition::Real, T::Real)

@@ -3,6 +3,8 @@ using StaticArrays: SA
 
 using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
 
+include("Stancil1994.jl")
+
 const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
 const _H⁻_ion_energy = 0.7552 # eV
 
@@ -39,31 +41,6 @@ details.
 """
 H_I_bf = bounds_checked_absorption(_H_I_bf; ν_bound = Interval(0, Inf),
                                    temp_bound = Interval(0, Inf))
-
-_H_I_ff(ν, T, nH_II, ne) = hydrogenic_ff_absorption(ν, T, 1, nH_II, ne)
-
-"""
-    H_I_ff(ν, T, nH_II, ne; kwargs...)
-
-Compute the H I free-free linear absorption coefficient α.
-
-The naming scheme for free-free absorption is counter-inutitive. This actually refers to the
-reaction:  `photon + e⁻ + H II -> e⁻ + H II`.
-
-# Arguments
-- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
-- `T`: temperature in K
-- `nH_II`: the number density of ionized Hydrogen in cm⁻³.
-- `ne`: the number density of free electrons.
-
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
-
-# Notes
-This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
-details.
-"""
-H_I_ff = bounds_checked_absorption(_H_I_ff; ν_bound = λ_to_ν_bound(_gauntff_λ_bounds),
-                                   temp_bound = _gauntff_T_bounds)
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
@@ -330,4 +307,3 @@ H2plus_bf_and_ff = bounds_checked_absorption(
     ν_bound = λ_to_ν_bound(closed_interval(7e-6, 2e-3)),
     temp_bound = closed_interval(3150, 25200)
 )
-

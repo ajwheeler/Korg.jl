@@ -1,3 +1,5 @@
+using Printf: @sprintf
+
 """
     assert_allclose(actual, reference; [rtol], [atol], [err_msg], [error_location_fmt])
 
@@ -35,31 +37,30 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
 
     # determine what the max error is (and possibly where it happended)
     diff = abs.(actual .- reference)
-    max_abs_diff_loc = argmax(diff)
-    max_abs_diff = diff[max_abs_diff_loc]
+    diffmax = argmax(diff) #this in an index
 
     relative_diff = diff ./ abs.(reference)
-    max_rel_error_magnitude_loc = argmax(relative_diff)
-    max_rel_error_magnitude = relative_diff[max_rel_error_magnitude_loc]
+    relmax = argmax(relative_diff) #this is an index
 
     # format the message
     lines = isnothing(err_msg) ? [] : [err_msg]
     push!(lines, "The arrays aren't consistent to within atol = $atol, rtol = $rtol")
 
     if (rtol != 0.0) || (rtol == atol == 0.0)
-        suffix = (common_layout) ? " at " * error_location_fmt(max_rel_error_magnitude_loc) : ""
-        push!(lines, string("Max Rel Diff Magnitude: ",
-                            isinf(max_rel_error_magnitude) ? "∞" : max_rel_error_magnitude,
-                            suffix))
+        err = @sprintf("Max Rel Diff:  %g = |%g - %g|/|%g|", 
+                       relative_diff[relmax], actual[relmax], reference[relmax], reference[relmax])
+        err *= (common_layout) ? " at " * error_location_fmt(relmax) : ""
+        push!(lines, err)
     end
 
     if (atol != 0.0) || (rtol == atol == 0.0)
-        suffix = (common_layout) ? " at " * error_location_fmt(max_abs_diff_loc) : ""
-        push!(lines, string("Max Abs Diff Magnitude: ", max_abs_diff, suffix))
+        err = @sprintf("Max Abs Diff: %g = |%g - %g|", 
+                       diff[diffmax], actual[diffmax], reference[diffmax])
+        err *= (common_layout) ? " at " * error_location_fmt(diffmax) : ""
+        push!(lines, err)
     end
 
     throw(ErrorException(join(lines, "\n")))
-    false
 end
 
 """

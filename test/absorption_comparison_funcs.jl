@@ -154,8 +154,10 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
         nH_II = nH_total * wII/(1 + wII)
 
         # compute the linear absorption coefficient  = dτ/ds = opacity*ρ
-        ff_linear_absorption_coef = Korg.ContinuumAbsorption.H_I_ff([ν], T, nH_II, nₑ)[1]
-        ff_linear_absorption_coef / (Pₑ * nH_I)
+        ff_linear_absorption_coef = [0.0]
+        Korg.ContinuumAbsorption.positive_ion_ff_absorption!(ff_linear_absorption_coef, [ν], T,
+                                                             Dict([Korg.species"H II"=>nH_II]), nₑ)
+        ff_linear_absorption_coef[1] / (Pₑ * nH_I)
     end
 
     bf_coef + ff_coef
