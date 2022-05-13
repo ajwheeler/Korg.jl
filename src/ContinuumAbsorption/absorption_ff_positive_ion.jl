@@ -22,10 +22,17 @@ and the uncorrected hydrogenic approximation when they are not.
 !!! note
     A free-free interaction is named as though the species interacting with the free electron had 
     one more bound electron (in other words it's named as though the free-electron and ion were 
-    bound together). The `Z` argument and `ni` values should be specified for the species that 
-    actually participates in the reaction. For example:
-    - Si I ff absorption: `ni` holds the number density of Si II, and `Z=1` (net charge of Si II)
-    - Si II ff absorption: `ni` holds the number density of Si III, and `Z=2` (net charge of Si III)
+    bound together). To make matters more confusing, some sources present the free-free linear 
+    absorption coefficient's formula in terms of the number density of the species in the 
+    interaction's name (by including the Saha equation in the formula).
+
+    To compute the absorption for a given free-free interaction, this function accesses elements 
+    from the dictionary arguments that are associated with the species that participates in the 
+    interaction. For example:
+    - Si I ff absorption: uses the number density of Si II (`number_densities[species"Si II"]`) and
+      checks `departure_coefficients[species"Si II"]` for departure coefficients.
+    - Si II ff absorption: uses the number density of Si III (`number_densities[species"Si III"]`)
+      and checks `departure_coefficients[species"Si III"]` for departure coefficients.
 """
 function positive_ion_ff_absorption!(α_out::AbstractVector{<:Real}, νs::AbstractVector{<:Real}, 
                                      T::Real, number_densities::Dict, ne::Real;
