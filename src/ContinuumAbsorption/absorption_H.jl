@@ -77,7 +77,7 @@ end
 function _Hminus_bf_cross_section(ν)
     if ν <= _H⁻_ion_ν
         0.0
-    else if ν < _min_H⁻_interp_ν
+    elseif ν < _min_H⁻_interp_ν
         #McLaughlin+ 2017 notes that for Eᵧ < 0.7678 eV, that they use σ = 460.8*(Eᵧ - E₀)^1.5 Mb, 
         #where E₀ is the ionization energy. This is indeed consistent with the table, but 460.8 is 
         #rounded up. We will use this same scaling, but in terms of frequency.
