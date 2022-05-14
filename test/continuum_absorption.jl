@@ -154,6 +154,23 @@ end
         @test all(calculated .≥ 0.0)
         @test assert_allclose(calculated, ref; rtol=0.03)
     end
+
+    @testset "extreme values" begin
+        #test frequencies outside of the range where tabulated values are available
+
+        #should return 0 when below the electron affinity (ionization energy)
+        ν_small =  Korg.c_cgs / (20_000 * 1e-8) #20,000 Å 
+        @test Korg.ContinuumAbsorption._Hminus_bf_cross_section(ν_small) == 0
+
+        #cross section should monotonically increase with increasing ν / decreasing λ as we go from
+        #the lowest energy with a non-0 cross section, through the region without tabulated values, 
+        #to the lowest tabulated value
+        νs = ((Korg.ContinuumAbsorption._H⁻_ion_energy / Korg.hplanck_eV) 
+              : 1e12 : 
+              (Korg.ContinuumAbsorption._min_H⁻_interp_ν + 2e13))
+        σs = Korg.ContinuumAbsorption._Hminus_bf_cross_section.(νs)
+        @test all(diff(σs) .> 0)
+    end
 end
 
 
