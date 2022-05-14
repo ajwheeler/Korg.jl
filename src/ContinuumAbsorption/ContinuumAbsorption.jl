@@ -7,10 +7,11 @@ include("../constants.jl") # I'm not thrilled to duplicate this, but I think it'
 # define helper functions
 include("bounds_checking.jl")
 include("hydrogenic_bf_ff.jl")
-include("stancil_tables.jl")
 
 include("absorption_H.jl")
 include("absorption_He.jl")
+
+include("absorption_ff_positive_ion.jl")
 include("scattering.jl")
 
 # the following are only imported for computing experimental metal bf continuum opacities
@@ -53,16 +54,18 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
 
     # Hydrogen continuum absorption
     H_I_bf(νs, T, nH_I_div_U; kwargs...)
-    H_I_ff(νs, T, number_densities[species"H_II"], nₑ; kwargs...)
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
     # He continuum absorption
     He_II_bf(νs, T, number_densities[species"H_II"]/partition_funcs[species"H_II"](log(T)); kwargs...)
-    He_II_ff(νs, T, number_densities[species"He_III"], nₑ; kwargs...)
     Heminus_ff(νs, T, number_densities[species"He_I"] / partition_funcs[species"He_I"](log(T)), nₑ;
                kwargs...)
+
+    # ff absorption where participating species are positive ions 
+    # i.e. H I ff is included but not H⁻ ff or He⁻ ff 
+    positive_ion_ff_absorption!(α, νs, T, number_densities, nₑ)
 
     # scattering
     α .+= electron_scattering(nₑ)

@@ -20,7 +20,7 @@ module Korg
     const equilibrium_constants = setup_equilibrium_constants()
 
     include("utils.jl")                                #functions to apply LSF, vac<->air wls, etc.
-    include("continuum_absorption/ContinuumAbsorption.jl")  #Define continuum absorption functions.
+    include("ContinuumAbsorption/ContinuumAbsorption.jl")   #Define continuum absorption functions.
     include("synthesize.jl")                                #solve radiative transfer equation
 
 end # module
