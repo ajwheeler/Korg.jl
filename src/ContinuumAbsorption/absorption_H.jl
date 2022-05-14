@@ -67,11 +67,27 @@ function _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
     0.25 * nHI_groundstate * ne * coef * β^1.5 * exp(ion_energy * β)
 end
 
-const _Hminus_bf_cross_section = let
+const _Hminus_bf_cross_section_interp, _min_H⁻_interp_ν = let
     fn = joinpath(_data_dir, "McLaughlin2017Hminusbf.h5")
     ν = h5read(fn, "nu")
     σ = h5read(fn, "sigma")
-    LinearInterpolation(ν, σ, extrapolation_bc=Throw())
+    LinearInterpolation(ν, σ, extrapolation_bc=Throw()), minimum(ν)
+end
+#returns the cross-section in units of cm² (excludes stimulated emission)
+function _Hminus_bf_cross_section(ν)
+    if ν <= _H⁻_ion_ν
+        0.0
+    else if ν < _min_H⁻_interp_ν
+        #McLaughlin+ 2017 notes that for Eᵧ < 0.7678 eV, that they use σ = 460.8*(Eᵧ - E₀)^1.5 Mb, 
+        #where E₀ is the ionization energy. This is indeed consistent with the table, but 460.8 is 
+        #rounded up. We will use this same scaling, but in terms of frequency.
+        _H⁻_ion_ν = _H⁻_ion_energy / hplanck_eV
+        _H⁻_low_ν_coef = (_Hminus_bf_cross_section_interp(_min_H⁻_interp_ν) / 
+                                (_min_H⁻_interp_ν - _H⁻_ion_ν)^1.5)
+        _H⁻_low_ν_coef * (ν - _H⁻_ion_ν)^1.5
+    else
+        _Hminus_bf_cross_section_interp(ν)
+    end
 end
 
 function _Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
@@ -133,7 +149,7 @@ In other words, the linear absorption coefficient is: ``\\alpha_\\nu = \\sigma_{
 """
 Hminus_bf = bounds_checked_absorption(
     _Hminus_bf;
-    ν_bound = closed_interval(1.8238892857120884e14, 2.417989242625068e19),
+    ν_bound = closed_interval(0.0, 2.417989242625068e19),
     temp_bound = Interval(0, Inf)
 )
 
