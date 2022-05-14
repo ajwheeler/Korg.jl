@@ -3,10 +3,8 @@ using HDF5: h5read
 
 using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
 
-include("Stancil1994.jl")
-
 const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
-const _H⁻_ion_energy = 0.7552 # eV
+const _H⁻_ion_energy = 0.754204 # [eV] used by McLaughlin+ 2017 H⁻ ff cross sections
 
 _H_I_bf(ν, T, nH_I_div_partition, ion_energy = _H_I_ion_energy, nmax_explicit_sum = 8,
         integrate_high_n = true) =
@@ -139,6 +137,7 @@ Hminus_bf = bounds_checked_absorption(
     temp_bound = Interval(0, Inf)
 )
 
+include("Stancil1994.jl") #used for H⁻ ff
 function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
     λ = c_cgs*1e8/ν # in Angstroms
 
