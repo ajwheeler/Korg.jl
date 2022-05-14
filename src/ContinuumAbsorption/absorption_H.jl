@@ -75,13 +75,13 @@ const _Hminus_bf_cross_section_interp, _min_H⁻_interp_ν = let
 end
 #returns the cross-section in units of cm² (excludes stimulated emission)
 function _Hminus_bf_cross_section(ν)
+    _H⁻_ion_ν = _H⁻_ion_energy / hplanck_eV
     if ν <= _H⁻_ion_ν
         0.0
     elseif ν < _min_H⁻_interp_ν
         #McLaughlin+ 2017 notes that for Eᵧ < 0.7678 eV, that they use σ = 460.8*(Eᵧ - E₀)^1.5 Mb, 
         #where E₀ is the ionization energy. This is indeed consistent with the table, but 460.8 is 
         #rounded up. We will use this same scaling, but in terms of frequency.
-        _H⁻_ion_ν = _H⁻_ion_energy / hplanck_eV
         _H⁻_low_ν_coef = (_Hminus_bf_cross_section_interp(_min_H⁻_interp_ν) / 
                                 (_min_H⁻_interp_ν - _H⁻_ion_ν)^1.5)
         _H⁻_low_ν_coef * (ν - _H⁻_ion_ν)^1.5
