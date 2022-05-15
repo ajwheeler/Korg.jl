@@ -5,7 +5,10 @@ include("absorption_comparison_funcs.jl")
 include("utilities.jl")
 
 #test Peach ff absorption
-include("ff.jl")
+include("positive_ff.jl")
+
+#test ff absorption involving neutral metals
+include("neutral_metal_ff.jl")
 
 function _bell_berrington_87_Hminus_ff_absorption_coef(ν, T)
     # Compute the quantity that Bell & Berrington (1987) refer to as the "absorption coefficient"
