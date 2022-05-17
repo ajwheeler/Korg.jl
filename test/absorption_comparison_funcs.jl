@@ -175,8 +175,7 @@ function Hminus_bf_coefficient(λ, T, Pₑ, ion_energy_H⁻ = 0.7552)
     partition_func = 2.0 # may want to include the temperature dependence of the partition function
     ν = (Korg.c_cgs*1e8)/λ
 
-    linear_absorb_coef = Korg.ContinuumAbsorption.Hminus_bf([ν], T, nH_I/partition_func, ne,
-                                                            ion_energy_H⁻)[1]
+    linear_absorb_coef = Korg.ContinuumAbsorption.Hminus_bf([ν], T, nH_I/partition_func, ne)[1]
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -273,14 +272,6 @@ const Gray05_opacity_form_funcs =
          "H2plus"     => (H2plus_coefficient,
                           closed_interval(3847.0, 25000.0),   "H₂⁺ ff and bf"),
          )
-
-# the absolute tolerances for values the opacity contributions from
-#    - H⁻ bound-free
-#    - H⁻ free-free
-#    - He⁻ free-free
-# There is a much larger discrepancy between the summed H I bf and ff opacity at large λ. But
-# unlike for H₂⁺, this could simply be a consequence of the different approximations that are used
-const Gray05_atols = Dict("a" => 0.05, "b" => 0.02, "c" => 0.04)
 
 # this function is defined to make tests easier
 function Gray05_comparison_vals(panel, opacity_func_name)

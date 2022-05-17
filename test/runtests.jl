@@ -368,8 +368,7 @@ end
 
         αs = zeros(length(wls))
         Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1e11, 1e13, 
-                                       Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 
-                                       Korg.hline_stark_profiles, 0.0)
+                                       Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0)
         @test αs_ref ≈ αs rtol=1e-5
     end
 end

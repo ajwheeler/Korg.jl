@@ -12,7 +12,7 @@ Additionally, in cases where actual and reference don't have equal values but do
 shape, the locations of the max errors are also printed.
 
 # Keywords
-- `rtol`: The desired relative tolerance
+- `rtol`: The desired relative tolerance.  Use 0 to skip relative comparison.
 - `atol`: The desired absolute tolerance
 - `err_msg`: An optional error message that can be printed when the arrays are not close
 - `error_location_fmt`: An optional keyword used to specify a function that creates a string 
@@ -64,7 +64,7 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
 end
 
 """
-    assert_allclose_grid(actual, reference, independent_vars; [rtol], [atol], [err_msg])
+    assert_allclose_grid(actual, reference, independent_vars; kwargs...)
 
 This function is a convenience wrapper around `assert_allclose` that provides slightly nicer error
 messages based on the independent variables generating the grid.  It requires that `actual` and
@@ -75,6 +75,8 @@ should be 2-tuple or 3-tuple:
 - `independent_vars[i][1]` should specify the name of the independent variable along the ith axis
 - `independent_vars[i][2]` should specify the values of the independent variable along the ith axis
 - `independent_vars[i][3]`, if present, should specify the units of the independent variable.
+
+For keyword arguments, see [`assert_allclose`](@ref).
 """
 function assert_allclose_grid(actual, reference, independent_vars; kwargs...)
     @assert length(independent_vars) == ndims(actual)

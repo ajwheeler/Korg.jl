@@ -107,7 +107,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=0.03)
     end
 end
 
@@ -115,12 +115,13 @@ end
     _Hminus_bf_cross_section_Gray(λ)
 
 Compute the H⁻ bound-free cross-section at a given wavelength (specified in Å). The cross-section 
-has units of megabarns per H⁻ particle and does NOT include a correction for stimulated emission.
+is converted to units of cm^2 per H⁻ particle and does NOT include a correction for stimulated 
+emission.
 
 This function uses the polynomial provided in equation 8.11 of Gray (2005), that fits the tabulated
 data from Wishart (1979). While Gray (2005) claims that the polynomial fits the data with 0.2%
 precision for 2250 Å ≤ λ ≤ 15000 Å, in practice we find that it fits the data to better than 0.25%
-precision.
+precision.  It fits the McLaughlin (2017) data (what Korg uses) within 3%.
 """
 function _Hminus_bf_cross_section_Gray(λ::Real)
     # we need to somehow factor out this bounds checking
@@ -134,89 +135,41 @@ function _Hminus_bf_cross_section_Gray(λ::Real)
     λ5 = λ*λ4
     λ6 = λ*λ5
 
-    αbf_H⁻ = (1.99654 - 1.18267e-5 * λ + 2.64243e-6 * λ2 - 4.40524e-10 * λ3 + 3.23992e-14 * λ4
-              - 1.39568e-18 * λ5 + 2.78701e-23 * λ6)
-    αbf_H⁻
+    1e-18 * (1.99654 - 1.18267e-5 * λ + 2.64243e-6 * λ2 - 4.40524e-10 * λ3 + 3.23992e-14 * λ4
+     - 1.39568e-18 * λ5 + 2.78701e-23 * λ6)
 end
-
-function check_Hminus_bf_values(target_precision = 0.002, verbose = true)
-    # compare the tabulated data from Wishart (1979) against the polynomial fits from Gray (2005)
-    
-    _bf_table = Korg.ContinuumAbsorption._Hminus_bf_table
-    _bf_λ_vals = view(_bf_table, :, 1)
-    _bf_α_vals = view(_bf_table, :, 2)
-
-    comp_λ_vals = view(_bf_λ_vals, 5:56)
-    comp_α_vals = view(_bf_α_vals, 5:56)
-    @assert comp_λ_vals[1] == 2250.0
-    @assert comp_λ_vals[end] == 15000.0
-
-    coefs = _Hminus_bf_cross_section_Gray.(comp_λ_vals)
-    precision = abs.(coefs .- comp_α_vals)./comp_α_vals
-    max_err, max_err_ind = findmax(precision)
-
-    if max_err < target_precision
-        return true
-    else
-        if verbose
-            println("There is a problem. The max error of polynomial should be: ",
-                    target_precision*100, "%.")
-            println("Max error is: ", 100 * max_err,
-                    "% at λ = ", comp_λ_vals[max_err_ind], " Å.")
-        end
-        return false
-    end
-end
-
 
 @testset "H⁻ bound-free absorption" begin
-    @test check_Hminus_bf_values(0.0025)
+    @testset "comparison to Gray" begin
+        # compare the tabulated data from McLaughlin (2017) to the polynomial fits from Gray (2005)
+        λs = 2250 : 1.0 : 15000
+        νs = Korg.c_cgs ./ (λs * 1e-8)
+        grayvals = _Hminus_bf_cross_section_Gray.(λs)
+        korgvals = Korg.ContinuumAbsorption._Hminus_bf_cross_section.(νs)
+        @test assert_allclose_grid(korgvals, grayvals, [("λ", λs, "Å")], rtol=0.02)
+    end
+
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["a", "b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_bf")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0.03)
     end
-    @testset "Extreme wavelengths" begin
-        # this tests the absorption function at wavelengths outside of the Wishart (1979) table
 
-        # choose arbitrary physical values:
-        nH_I = 3.0e16
-        nH_I_div_partition = nH_I / 2.0
-        ne = nH_I / 100.0
-        T = 7800.0
+    @testset "extreme values" begin
+        #test frequencies outside of the range where tabulated values are available
 
-        # determine the minimum and maximum λs in the table:
-        min_tabulated_λ = Korg.ContinuumAbsorption._Hminus_bf_table[1,1]
-        max_tabulated_λ = Korg.ContinuumAbsorption._Hminus_bf_table[end, 1]
-        # determine the ionization λ for H⁻:
-        ion_energy = Korg.ContinuumAbsorption._H⁻_ion_energy
-        Å_per_eV = 1e8 * (Korg.hplanck_eV * Korg.c_cgs)
-        max_λ_ionize = Å_per_eV/ion_energy
+        #should return 0 when below the electron affinity (ionization energy)
+        ν_small =  Korg.c_cgs / (20_000 * 1e-8) #20,000 Å 
+        @test Korg.ContinuumAbsorption._Hminus_bf_cross_section(ν_small) == 0
 
-        # now we are ready for the tests:
-
-        # first, check that a bounds error is thrown below min_tabulated_λ
-        @test_throws DomainError Korg.ContinuumAbsorption.Hminus_bf(
-            [Korg.c_cgs/(1e-8*0.5*min_tabulated_λ)], T, nH_I_div_partition, ne, ion_energy;
-            error_oobounds = true
-        )[1]
-
-        # next, check that the linear absorption coefficient between max_tabulated_λ and
-        # max_λ_ionize is between the absorption coefficient at max_tabulated_λ and 0
-        α_max_tabulated_λ = Korg.ContinuumAbsorption.Hminus_bf(
-            [Korg.c_cgs/(1e-8*max_tabulated_λ)], T, nH_I_div_partition, ne, ion_energy
-        )[1]
-
-        α_test = Korg.ContinuumAbsorption.Hminus_bf(
-            [Korg.c_cgs/(1e-8*0.5*(max_tabulated_λ+max_λ_ionize))], T, nH_I_div_partition, ne,
-            ion_energy
-        )[1]
-        @test (α_max_tabulated_λ > α_test) && (α_test > 0.0)
-
-        # finally, check that the linear absorption coefficient at λ > max_λ_ionize is zero
-        @test 0.0 == Korg.ContinuumAbsorption.Hminus_bf(
-            [Korg.c_cgs/(1e-8*2*max_λ_ionize)], T, nH_I_div_partition, ne, ion_energy
-        )[1]
+        #cross section should monotonically increase with increasing ν / decreasing λ as we go from
+        #the lowest energy with a non-0 cross section, through the region without tabulated values, 
+        #to the lowest tabulated value
+        νs = ((Korg.ContinuumAbsorption._H⁻_ion_energy / Korg.hplanck_eV) 
+              : 1e12 : 
+              (Korg.ContinuumAbsorption._min_H⁻_interp_ν + 2e13))
+        σs = Korg.ContinuumAbsorption._Hminus_bf_cross_section.(νs)
+        @test all(diff(σs) .> 0)
     end
 end
 
@@ -276,7 +229,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Heminus_ff")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=0.02)
     end
 end
 
@@ -326,7 +279,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H2plus")
         @test all(calculated .≥ 0.0)
-        @test all(abs.(calculated - ref) .≤ Gray_opac_compare.Gray05_atols[panel])
+        @test assert_allclose(calculated, ref; rtol=0, atol=0.02)
     end
 end
 
@@ -601,7 +554,7 @@ end
                                                                           ("d",38.5)]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
         @test all(calculated .≥ 0.0)
-        @test assert_allclose(calculated, ref; rtol = 0.0, atol = atol)
+        @test assert_allclose(calculated, ref; rtol=0, atol=atol)
     end
 end
 
