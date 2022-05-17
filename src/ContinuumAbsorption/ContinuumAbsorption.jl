@@ -69,15 +69,15 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     positive_ion_ff_absorption!(α, νs, T, number_densities, nₑ)
 
     # ff absorption where participating species are neutral metals
-    Ominus_ff(α, νs, T, get(number_densities, species"O_I", 0.0), nₑ)
+    Ominus_ff(νs, T, get(number_densities, species"O_I", 0.0), nₑ)
 
     # there is some minor cause for concern with these 2 sources: set the unit test for Nminus_ff
-    #Cminus_ff(α, νs, T, get(number_densities, species"C_I", 0.0), nₑ)
-    #Nminus_ff(α, νs, T, get(number_densities, species"N_I", 0.0), nₑ)
+    #Cminus_ff(νs, T, get(number_densities, species"C_I", 0.0), nₑ)
+    #Nminus_ff(νs, T, get(number_densities, species"N_I", 0.0), nₑ)
 
     # ff absorption where participating species are neutral molecules
-    H2minus_ff(α, νs, T, get(number_densities, species"H2_I", 0.0), nₑ)
-    COminus_ff(α, νs, T, get(number_densities, species"CO_I", 0.0), nₑ)
+    H2minus_ff(νs, T, get(number_densities, species"H2_I", 0.0), nₑ)
+    COminus_ff(νs, T, get(number_densities, species"CO_I", 0.0), nₑ)
 
     # scattering
     α .+= electron_scattering(nₑ)
