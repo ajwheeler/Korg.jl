@@ -13,8 +13,8 @@ using Interpolations: LinearInterpolation, Throw
 # -----------------------------------------------------------------------------------------
 
 """
-    _combined_john_neg_ion_absorption(ν, T, ndens_neutral, ne, small_wavelength_cross_section,
-                                      large_wavelength_cross_section)
+    _combined_john_neg_ion_absorption(ν, T, ndens_neutral, ne, short_wavelength_interp,
+                                      long_wavelength_interp)
 
 uses absorption data from John 1975, MNRAS, 172, 305 for 0.5 μm ≤ λ ≤ 10 μm and data from
 John 1975, MNRAS, 170, 5 for λ > 10 μm. Returns linear absorption coefficient (in cm⁻¹)
@@ -70,9 +70,7 @@ const _long_wavelength_ff_interps = let
          for (k,v) in table)
 end
 
-
-# load free-free absorption data from John 1975, MNRAS, 172, 305. This data is valid for
-# 0.5 μm ≤ λ ≤ 10 μm. Most of these tables share a common set of λ and T values.
+# Most John1975b tables share a common set of λ and T values.
 const _typical_john75b_wavelengths = SA[1.0e-3, 5.0e-4, 2.5e-4, 1.5e-4, 1.0e-4, 7.5e-5, 5.0e-5] #cm
 const _typical_john75b_T_vals = SA[100.0, 500.0, 1000.0, 2500.0, 5000.0, 7500.0, 10000.0, 12500.0,
                                    15000.0] #K
@@ -82,12 +80,10 @@ function _build_interpolator_john75b(λ_vals, T_vals, elements)
                         view(elements,size(elements)[1]:-1:1,:), extrapolation_bc=0)
 end
 
+# for testing only!  We have a better He- ff treatment.
 const _short_wavelength_Heminus_ff_interp = let
     # this comes from Table I of John 1975, MNRAS, 172, 305 and it holds He⁻ ff absorption
     # cross sections (including the correction for stimulated emission)
-    #
-    # we don't plan to use this, particular data (we have more modern data for He⁻ ff absorption),
-    # this is primarily for testing
     elements = SMatrix{7,9}(
         [106.0  44.1  34.1  23.5   17.3   14.2   12.2   10.9    9.78;
           33.1  10.8   8.16  5.78   4.30   3.54   3.04   2.72   2.44;
