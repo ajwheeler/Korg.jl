@@ -22,7 +22,7 @@ Returns a named tuple with keys:
 - `metallicity`, i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
    than He. It is overriden by `abundances`.
 - `abundances` is a `Dict` mapping atomic symbols to [``X``/H] abundances.  (Set 
-  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.  
+  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
 - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
 - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
   (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
