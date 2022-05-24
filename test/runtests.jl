@@ -17,7 +17,8 @@ import Dierckx
 end
 
 @testset "atomic data" begin 
-    @test Korg.Natoms == length(Korg.atomic_masses) == length(Korg.solar_abundances)
+    @test (Korg.Natoms == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 
+            == length(Korg.asplund_2020_solar_abundances))
     @test (Korg.get_mass(Korg.Formula("CO")) ≈ 
            Korg.get_mass(Korg.Formula("C")) + Korg.get_mass(Korg.Formula("O")))
     @test Korg.get_mass(Korg.Formula("C2")) ≈ 2Korg.get_mass(Korg.Formula("C"))
@@ -155,7 +156,7 @@ end
 
     @testset "molecular equilibrium" begin
         #solar abundances
-        abundances = Korg.get_absolute_abundances(0.0, Dict())
+        abundances = Korg.get_absolute_abundances(0.0, Dict(), Korg.asplund_2020_solar_abundances, true)
         nₜ = 1e15 
         nₑ = 1e-3 * nₜ #arbitrary
 
@@ -419,22 +420,28 @@ end
 @testset "synthesis" begin
 
     @testset "calculate absolute abundances" begin
-        @test_throws ArgumentError Korg.get_absolute_abundances(0.0, Dict("H"=>13))
+        @test_throws ArgumentError Korg.get_absolute_abundances(0.0, Dict("H"=>13), 
+                                                        Korg.asplund_2020_solar_abundances, true)
 
-        @testset for metallicity in [0.0, 1.0], A_X in [Dict(), Dict("C"=>9)]
-            nxnt = Korg.get_absolute_abundances(metallicity, A_X)
-
+        @testset for metallicity in [0.0, 0.5], abundances in [Dict(), Dict("C"=>1.1)], solar_relative in [true, false]
+            nx_nt = Korg.get_absolute_abundances(metallicity, abundances, 
+                                                Korg.asplund_2020_solar_abundances, solar_relative)
             #correct absolute abundances?
-            if "C" in keys(A_X)
-                @test log10(nxnt[6]/nxnt[1]) + 12 ≈ 9
+            if "C" in keys(abundances)
+                if solar_relative
+                    @test log10(nx_nt[6]/nx_nt[1]) + 12 ≈ Korg.asplund_2020_solar_abundances[6] + 1.1
+                else
+                    @test log10(nx_nt[6]/nx_nt[1]) + 12 ≈ 1.1
+                end
             end
-            @test log10(nxnt[2]/nxnt[1]) + 12 ≈ Korg.solar_abundances[2]
-            @test log10(nxnt[Korg.atomic_numbers["Ba"]]/nxnt[1]) + 12 ≈ 
-                Korg.solar_abundances[Korg.atomic_numbers["Ba"]] + metallicity
+            @test log10(nx_nt[2]/nx_nt[1]) + 12 ≈ Korg.asplund_2020_solar_abundances[2]
+            @test log10(nx_nt[Korg.atomic_numbers["Ba"]]/nx_nt[1]) + 12 ≈ 
+                Korg.asplund_2020_solar_abundances[Korg.atomic_numbers["Ba"]] + metallicity
 
             #normalized?
-            @test sum(nxnt) ≈ 1
+            @test sum(nx_nt) ≈ 1
         end
+
     end
 
     @testset "trapezoid rule" begin
