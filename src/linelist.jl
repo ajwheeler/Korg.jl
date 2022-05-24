@@ -34,7 +34,7 @@ struct Formula
         Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, i.e.
         "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
-    function Formula(code::AbstractString)
+    function Formula(code::S) where S <: Union{String, SubString}
         if code in atomic_symbols #quick-parse single elements
             return new([0, 0, atomic_numbers[code]]) 
         end
@@ -56,11 +56,10 @@ struct Formula
             end
         end
         #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
-        inds = filter(1:length(code)) do i
-            isdigit(code[i]) || isuppercase(code[i])
+        inds::Vector{Int} = findall(code) do c
+            isdigit(c) || isuppercase(c)
         end
-        push!(inds, length(code)+1)
-        subcode = map(1:(length(inds)-1)) do j
+        subcode::Vector{String} = map(1:(length(inds)-1)) do j
             code[inds[j]:inds[j+1]-1]
         end
 
