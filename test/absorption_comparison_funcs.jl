@@ -76,9 +76,7 @@ end
 
 # compute the ratio of the nₑ to n_H (the number density of all H I and H II)
 # this function could be reused in the future for testing solutions to coupled Saha equations
-function free_electrons_per_Hydrogen_particle(nₑ, T, abundances = Korg.solar_abundances,
-                                              ionization_energies = Korg.ionization_energies,
-                                              partition_funcs = Korg.partition_funcs)
+function free_electrons_per_Hydrogen_particle(nₑ, T, abundances=Korg.asplund_2020_solar_abundances)
     out = 0.0
     for element in 1:Korg.Natoms
         wII, wIII = Korg.saha_ion_weights(T, nₑ, element, Korg.ionization_energies, 

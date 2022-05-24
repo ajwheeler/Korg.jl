@@ -18,11 +18,20 @@ Returns a named tuple with keys:
 - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
   `air_wavelengths=true` this will not be the same as the input wavelenths.
 
-Optional arguments:
-- `metallicity`, i.e. [metals/H] is log_10 solar relative
-- `abundances` is a `Dict` mapping atomic symbols to ``A(X)`` format abundances, i.e. 
-   ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
-   These override `metallicity`.
+# Example
+to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to 
+0.5 dex less than the solar value except carbon:
+```
+atm = read_model_atmospher("path/to/atmosphere.mod")
+linelist = read_linelist("path/to/linelist.vald")
+solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Dict("C"=>0))
+```
+
+# Optional arguments:
+- `metallicity`, i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
+   than He. It is overriden by `abundances`.
+- `abundances` is a `Dict` mapping atomic symbols to [``X``/H] abundances.  (Set 
+  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
 - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
 - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
@@ -30,6 +39,14 @@ Optional arguments:
    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
 - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
+- `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
+  (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
+   ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
+   Note that abundances not specified default to the solar value, adjusted with `metallicity`, in
+   either case.
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
+  `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
@@ -73,6 +90,7 @@ end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
                     vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     hydrogen_lines=true, mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
+                    solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
@@ -90,7 +108,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     #discard lines far from the wavelength range being synthesized
     linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
 
-    abundances = get_absolute_abundances(metallicity, abundances)
+    abundances = get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
 
@@ -140,33 +158,42 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 end
 
 """
-    get_absolute_abundances(metallicity, A_X)
+    get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
 
-Calculate ``n_X/n_\\mathrm{total}`` for each element X given some specified abundances, ``A(X)``.  Use the 
-metallicity [``X``/H] to calculate those remaining from the solar values (except He).
+Calculate ``n_X/n_\\mathrm{total}`` for each element X given abundances in either [``X``/H] or 
+``A(X)`` form.  See [`synthesize`](@ref) for a detailed description of the arguments.
+
+arguments:
+- `metallicity`: the 
 """
-function get_absolute_abundances(metallicity, A_X::Dict) :: Vector{Number}
-    if "H" in keys(A_X)
+function get_absolute_abundances(metallicity::Real, abundances::Dict, 
+                                 solar_abundances::AbstractVector, solar_relative::Bool
+                                 )::Vector{Real}
+    if "H" in keys(abundances)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
                            * "\"abundances\" to implicitly set the amount of H"))
     end
 
     #populate dictionary of absolute abundaces
-    abundances = map(0x01:Natoms) do elem
-        if elem == 0x01 #hydrogen
-            1.0
-        elseif atomic_symbols[elem] in keys(A_X)
-            10^(A_X[atomic_symbols[elem]] - 12.0)
-        else
-            #I'm accessing the module global solar_abundances here, but it doesn't make sense to 
-            #make this an optional argument because this behavior can be completely overridden by 
-            #specifying all abundances explicitely.
-            Δ = (elem == 0x02 #= helium =#) ? 0.0 : metallicity
-            10^(solar_abundances[elem] + Δ - 12.0)
+    abundances = map(0x01:Natoms) do Z
+        #abundances is indexed by atomic symbol, solar_abundances by atomic number
+        elem = atomic_symbols[Z] 
+
+        A_X = if elem in keys(abundances) #if explicitely set
+            if solar_relative
+                abundances[elem] + solar_abundances[Z]
+            else
+                abundances[elem]
+            end
+        else #if not set, use solar value adjusted for metallicity
+            Δ = metallicity * (Z > 3) #only adjust for metals, not H or He
+            solar_abundances[Z] + Δ
         end
+
+        10^(A_X - 12)
     end
-    #now normalize so that sum(N_x/N_total) = 1
-    abundances ./= sum(abundances)
+    
+    abundances ./= sum(abundances) #normalize so that sum(N_x/N_total) = 1
     abundances
 end
 
