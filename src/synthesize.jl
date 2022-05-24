@@ -18,12 +18,27 @@ Returns a named tuple with keys:
 - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
   `air_wavelengths=true` this will not be the same as the input wavelenths.
 
-## Optional arguments:
+# Example
+to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to 
+0.5 dex less than the solar value except carbon:
+```
+atm = read_model_atmospher("path/to/atmosphere.mod")
+linelist = read_linelist("path/to/linelist.vald")
+solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Dict("C"=>0))
+```
+
+# Optional arguments:
 - `metallicity`, i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
    than He. It is overriden by `abundances`.
 - `abundances` is a `Dict` mapping atomic symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
 - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
+- `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
+   be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
+   wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
+   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
+   wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
+- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
 - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
   (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
    ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
@@ -32,12 +47,6 @@ Returns a named tuple with keys:
 - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
   use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
-- `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
-   be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
-   wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
-   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
-   wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
-- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
