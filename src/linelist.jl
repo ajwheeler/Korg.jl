@@ -34,7 +34,7 @@ struct Formula
         Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, i.e.
         "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
-    function Formula(code::S) where S <: Union{String, SubString}
+    function Formula(code::String) 
         if code in atomic_symbols #quick-parse single elements
             return new([0, 0, atomic_numbers[code]]) 
         end
@@ -42,13 +42,10 @@ struct Formula
         #handle numeric codes, e.g. 0801 -> OH
         if all(isdigit(c) for c in code)
             if length(code) <= 2
-                return Formula(parse(Int,code))
+                return Formula(parse(Int,code)) 
             elseif length(code) <= 4
-                if length(code) == 3  
-                    code = "0"*code
-                end
-                el1 = parse(Int, code[1:2])
-                el2 = parse(Int, code[3:4])
+                el1 = parse(Int, code[1:end-2]) #first digit
+                el2 = parse(Int, code[3:4])     #second digit
                 return new([0x00, min(el1, el2), max(el1, el2)])
             else
                 throw(ArgumentError("numeric codes for molecules with more than 4 chars like " * 
@@ -136,7 +133,8 @@ function Species(code::AbstractString)
     if length(toks) > 2
         throw(ArgumentError(code * " isn't a valid species code"))
     end
-    formula = Formula(toks[1])
+    #convert toks[1] from Substring to String.  Better for type stability in Formula
+    formula = Formula(String(toks[1])) 
     charge = if length(toks) == 1 || length(toks[2]) == 0
         0 #no charge specified -> assume neutral
     else
