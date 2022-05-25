@@ -56,6 +56,7 @@ struct Formula
         inds::Vector{Int} = findall(code) do c
             isdigit(c) || isuppercase(c)
         end
+        push!(inds, length(code)+1)
         subcode::Vector{String} = map(1:(length(inds)-1)) do j
             code[inds[j]:inds[j+1]-1]
         end
