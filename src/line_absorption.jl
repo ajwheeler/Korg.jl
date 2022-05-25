@@ -24,8 +24,8 @@ is chosen.
 - if `α_cntm` is not passed, defaults to `window_size`, which is 2e-7 (in cm, i.e. 20 Å) unless
   otherwise specified
 """
-function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ 
-                         ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
+function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ, 
+                          α_cntm; cutoff_threshold=1e-3, window_size=20.0*1e-8)
     if length(linelist) == 0
         return zeros(length(λs))
     end
@@ -58,12 +58,10 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, part
         #total wl-integrated absorption coefficient
         amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
 
-        if !isnothing(α_cntm)
-            ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
-            Δλ_D = maximum(inverse_gaussian_density.(ρ_crit, σ))
-            Δλ_L = maximum(inverse_lorentz_density.(ρ_crit, γ))
-            window_size = max(Δλ_D, Δλ_L)
-        end
+        ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
+        Δλ_D = maximum(inverse_gaussian_density.(ρ_crit, σ))
+        Δλ_L = maximum(inverse_lorentz_density.(ρ_crit, γ))
+        window_size = max(Δλ_D, Δλ_L)
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
         if lb >= ub
             continue
