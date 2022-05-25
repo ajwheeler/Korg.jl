@@ -88,7 +88,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0
     synthesize(atm, linelist, wls; kwargs...)
 end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
-                    vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict(), 
+                    vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict{String, Float64}(), 
                     line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
                     mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
                     solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
@@ -122,25 +122,26 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
     α_cntm = Vector(undef, length(atm.layers))     #vector of continuum-absorption interpolators
     α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
-    n_dicts = Vector(undef, length(atm.layers))    #vector of (species -> number density) Dicts
-    for (i, layer) in enumerate(atm.layers)
-        n_dicts[i] = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
-                                           layer.electron_number_density)
+    n_dicts = map(enumerate(atm.layers)) do (i, layer)
+        n_dict = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
+                                        layer.electron_number_density)
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp,
                                                          layer.electron_number_density,
-                                                         n_dicts[i], partition_funcs))
+                                                         n_dict, partition_funcs))
         α_cntm[i] = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm[i].(λs)
 
         α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, layer.electron_number_density,
-                                           n_dicts[i], partition_funcs)[1]
+                                           n_dict, partition_funcs)[1]
 
         if hydrogen_lines
             hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
-                                      n_dicts[i][species"H_I"], 
+                                      n_dict[species"H_I"], 
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5)
         end
+
+        n_dict
     end
 
     #put number densities in a dict of vectors, rather than a vector of dicts.
@@ -162,21 +163,17 @@ end
     get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
 
 Calculate ``n_X/n_\\mathrm{total}`` for each element X given abundances in either [``X``/H] or 
-``A(X)`` form.  See [`synthesize`](@ref) for a detailed description of the arguments.
-
-arguments:
-- `metallicity`: the 
+``A(X)`` form.  See [`synthesize`](@ref) for a detailed description of the arguments. Returns a 
+vector indexed by atomic number.
 """
-function get_absolute_abundances(metallicity::Real, abundances::Dict, 
-                                 solar_abundances::AbstractVector, solar_relative::Bool
-                                 )::Vector{Real}
+function get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
     if "H" in keys(abundances)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
                            * "\"abundances\" to implicitly set the amount of H"))
     end
 
-    #populate dictionary of absolute abundaces
-    abundances = map(0x01:Natoms) do Z
+    #populate dictionary of absolute abundaces/fractional number densities
+    abs_abundances = map(0x01:Natoms) do Z
         #abundances is indexed by atomic symbol, solar_abundances by atomic number
         elem = atomic_symbols[Z] 
 
@@ -194,8 +191,7 @@ function get_absolute_abundances(metallicity::Real, abundances::Dict,
         10^(A_X - 12)
     end
     
-    abundances ./= sum(abundances) #normalize so that sum(N_x/N_total) = 1
-    abundances
+    abs_abundances ./ sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
 end
 
 """
