@@ -305,8 +305,7 @@ to the values from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-c
 To use custom isotopic abundances, just pass `isotopic_abundances` as a dictionary mapping
 `(atomic number, atomic weight)` pairs to abundances between 0 and 1.
 """
-function read_linelist(fname::String; format="vald", isotopic_abundances::Dict=isotopic_abundances
-                      ) :: Vector{Line}
+function read_linelist(fname::String; format="vald", isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
     linelist = open(fname) do f
         if format == "kurucz"

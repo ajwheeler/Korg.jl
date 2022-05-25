@@ -120,17 +120,16 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                             metallicity, vmic, abundances[1])[1])
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
-    α_cntm = Vector(undef, length(atm.layers))     #vector of continuum-absorption interpolators
     α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
-    n_dicts = map(enumerate(atm.layers)) do (i, layer)
+    pairs = map(enumerate(atm.layers)) do (i, layer)
         n_dict = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
                                         layer.electron_number_density)
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp,
                                                          layer.electron_number_density,
                                                          n_dict, partition_funcs))
-        α_cntm[i] = LinearInterpolation(cntmλs, α_cntm_vals)
-        α[i, :] .= α_cntm[i].(λs)
+        α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
+        α[i, :] .= α_cntm_layer.(λs)
 
         α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, layer.electron_number_density,
                                            n_dict, partition_funcs)[1]
@@ -141,11 +140,13 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5)
         end
 
-        n_dict
+        n_dict, α_cntm_layer
     end
-
     #put number densities in a dict of vectors, rather than a vector of dicts.
+    n_dicts = first.(pairs)
     number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1])])
+    #vector of continuum-absorption interpolators
+    α_cntm = last.(pairs) 
 
     #add contribution of line absorption to α
     line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 

@@ -24,7 +24,7 @@ is chosen.
 - if `α_cntm` is not passed, defaults to `window_size`, which is 2e-7 (in cm, i.e. 20 Å) unless
   otherwise specified
 """
-function line_absorption!(α, linelist, λs, temp, nₑ, n_densities::Dict, partition_fns::Dict, ξ, 
+function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
                           α_cntm; cutoff_threshold=1e-3, window_size=20.0*1e-8)
     if length(linelist) == 0
         return zeros(length(λs))
