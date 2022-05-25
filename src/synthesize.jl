@@ -38,7 +38,7 @@ solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Di
    wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
-- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
+- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
 - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
   (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
    ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
@@ -88,8 +88,9 @@ function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0
     synthesize(atm, linelist, wls; kwargs...)
 end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
-                    vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
+                    vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict(), 
+                    line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
+                    mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
                     solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
