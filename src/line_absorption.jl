@@ -14,18 +14,13 @@ other arguments:
 - `n_densities`, a Dict mapping species to absolute number density [cm^-3].
 - `partition_fns`, a Dict containing the partition function of each species
 - `ξ` is the microturbulent velocity in cm/s (n.b. NOT km/s)
-
-The three keyword arguments specify how the size of the window over which each line is calculated 
-is chosen.  
-- If `α_cntm` is passed as a callable returning the continuum opacity as a function of 
-  wavelength, the line window will extend to 4 doppler widths or the wavelength at which the Lorentz
-  wings of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.  
-   `cutoff_threshold` defaults to 1e-3.  
-- if `α_cntm` is not passed, defaults to `window_size`, which is 2e-7 (in cm, i.e. 20 Å) unless
-  otherwise specified
+- `α_cntm` is as a callable returning the continuum opacity as a function of wavelength. The window 
+   within which a line is calculated will extend to the wavelength at which the Lorentz wings or 
+   Doppler core of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.  
+- `cuttoff_threshold` (optional, default: 1e-3): see `α_cntm`
 """
 function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
-                          α_cntm; cutoff_threshold=1e-3, window_size=20.0*1e-8)
+                          α_cntm; cutoff_threshold=1e-3)
     if length(linelist) == 0
         return zeros(length(λs))
     end

@@ -151,8 +151,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     #add contribution of line absorption to α
     line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
                      [layer.electron_number_density for layer in atm.layers], number_densities,
-                     partition_funcs, vmic*1e5, α_cntm, 
-                     cutoff_threshold=line_cutoff_threshold)
+                     partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
     flux = radiative_transfer(atm, α, source_fn, α5, mu_grid)
