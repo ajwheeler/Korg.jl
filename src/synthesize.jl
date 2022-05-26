@@ -38,7 +38,7 @@ solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Di
    wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
-- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`.
+- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
 - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
   (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
    ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
@@ -88,8 +88,9 @@ function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0
     synthesize(atm, linelist, wls; kwargs...)
 end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
-                    vmic::Real=1.0, abundances=Dict(), line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
+                    vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict{String, Float64}(), 
+                    line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
+                    mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
                     solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
@@ -119,37 +120,38 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                             metallicity, vmic, abundances[1])[1])
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
-    α_cntm = Vector(undef, length(atm.layers))     #vector of continuum-absorption interpolators
     α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
-    n_dicts = Vector(undef, length(atm.layers))    #vector of (species -> number density) Dicts
-    for (i, layer) in enumerate(atm.layers)
-        n_dicts[i] = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
-                                           layer.electron_number_density)
+    pairs = map(enumerate(atm.layers)) do (i, layer)
+        n_dict = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
+                                        layer.electron_number_density)
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp,
                                                          layer.electron_number_density,
-                                                         n_dicts[i], partition_funcs))
-        α_cntm[i] = LinearInterpolation(cntmλs, α_cntm_vals)
-        α[i, :] .= α_cntm[i].(λs)
+                                                         n_dict, partition_funcs))
+        α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
+        α[i, :] .= α_cntm_layer.(λs)
 
         α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, layer.electron_number_density,
-                                           n_dicts[i], partition_funcs)[1]
+                                           n_dict, partition_funcs)[1]
 
         if hydrogen_lines
             hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
-                                      n_dicts[i][species"H_I"], 
+                                      n_dict[species"H_I"], 
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5)
         end
-    end
 
+        n_dict, α_cntm_layer
+    end
     #put number densities in a dict of vectors, rather than a vector of dicts.
+    n_dicts = first.(pairs)
     number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1])])
+    #vector of continuum-absorption interpolators
+    α_cntm = last.(pairs) 
 
     #add contribution of line absorption to α
     line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
                      [layer.electron_number_density for layer in atm.layers], number_densities,
-                     partition_funcs, vmic*1e5; α_cntm=α_cntm, 
-                     cutoff_threshold=line_cutoff_threshold)
+                     partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
     flux = radiative_transfer(atm, α, source_fn, α5, mu_grid)
@@ -161,21 +163,17 @@ end
     get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
 
 Calculate ``n_X/n_\\mathrm{total}`` for each element X given abundances in either [``X``/H] or 
-``A(X)`` form.  See [`synthesize`](@ref) for a detailed description of the arguments.
-
-arguments:
-- `metallicity`: the 
+``A(X)`` form.  See [`synthesize`](@ref) for a detailed description of the arguments. Returns a 
+vector indexed by atomic number.
 """
-function get_absolute_abundances(metallicity::Real, abundances::Dict, 
-                                 solar_abundances::AbstractVector, solar_relative::Bool
-                                 )::Vector{Real}
+function get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
     if "H" in keys(abundances)
         throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
                            * "\"abundances\" to implicitly set the amount of H"))
     end
 
-    #populate dictionary of absolute abundaces
-    abundances = map(0x01:Natoms) do Z
+    #populate dictionary of absolute abundaces/fractional number densities
+    abs_abundances = map(0x01:Natoms) do Z
         #abundances is indexed by atomic symbol, solar_abundances by atomic number
         elem = atomic_symbols[Z] 
 
@@ -193,8 +191,7 @@ function get_absolute_abundances(metallicity::Real, abundances::Dict,
         10^(A_X - 12)
     end
     
-    abundances ./= sum(abundances) #normalize so that sum(N_x/N_total) = 1
-    abundances
+    abs_abundances ./ sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
 end
 
 """

@@ -41,7 +41,7 @@ const asplund_2009_solar_abundances = [
 
 
 #solar/meteoritic abundances per Asplund et al. A&A 653, A141 (2021)
-asplund_2020_solar_abundances = [
+const asplund_2020_solar_abundances = [
         12.00,  10.91, 0.96,  1.38,  2.70,  8.46,  7.83,  8.69,  4.40, 8.06,
          6.22,  7.55,  6.43,  7.51,  5.41,  7.12,  5.31,  6.38,  5.07, 6.30,
          3.14,  4.97,  3.90,  5.62,  5.42,  7.46,  4.94,  6.20,  4.18, 4.56,
@@ -54,7 +54,7 @@ asplund_2020_solar_abundances = [
         -5.00, -0.54]
 
 #solar abundances per Grevesse et al. Space Sci Rev (2007) 130: 105–114
-grevesse_2007_solar_abundances = [
+const grevesse_2007_solar_abundances = [
         12.00,  10.93,  1.10,  1.40,  2.79,  8.41,  7.80,  8.66,  4.48,  8.08,  
          6.33,   7.58,  6.47,  7.55,  5.45,  7.33,  5.28,  6.40,  5.12,  6.36,  
          3.17,   5.02,  4.00,  5.67,  5.39,  7.50,  4.92,  6.25,  4.21,  4.60,  

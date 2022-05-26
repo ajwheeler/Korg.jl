@@ -34,7 +34,7 @@ struct Formula
         Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, i.e.
         "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
-    function Formula(code::AbstractString)
+    function Formula(code::String) 
         if code in atomic_symbols #quick-parse single elements
             return new([0, 0, atomic_numbers[code]]) 
         end
@@ -44,11 +44,8 @@ struct Formula
             if length(code) <= 2
                 return Formula(parse(Int,code))
             elseif length(code) <= 4
-                if length(code) == 3  
-                    code = "0"*code
-                end
-                el1 = parse(Int, code[1:2])
-                el2 = parse(Int, code[3:4])
+                el1 = parse(Int, code[1:end-2]) #first digit
+                el2 = parse(Int, code[3:end])     #second digit
                 return new([0x00, min(el1, el2), max(el1, el2)])
             else
                 throw(ArgumentError("numeric codes for molecules with more than 4 chars like " * 
@@ -56,11 +53,11 @@ struct Formula
             end
         end
         #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
-        inds = filter(1:length(code)) do i
-            isdigit(code[i]) || isuppercase(code[i])
+        inds::Vector{Int} = findall(code) do c
+            isdigit(c) || isuppercase(c)
         end
         push!(inds, length(code)+1)
-        subcode = map(1:(length(inds)-1)) do j
+        subcode::Vector{String} = map(1:(length(inds)-1)) do j
             code[inds[j]:inds[j+1]-1]
         end
 
@@ -137,7 +134,8 @@ function Species(code::AbstractString)
     if length(toks) > 2
         throw(ArgumentError(code * " isn't a valid species code"))
     end
-    formula = Formula(toks[1])
+    #convert toks[1] from Substring to String.  Better for type stability in Formula
+    formula = Formula(String(toks[1])) 
     charge = if length(toks) == 1 || length(toks[2]) == 0
         0 #no charge specified -> assume neutral
     else
@@ -307,8 +305,7 @@ to the values from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-c
 To use custom isotopic abundances, just pass `isotopic_abundances` as a dictionary mapping
 `(atomic number, atomic weight)` pairs to abundances between 0 and 1.
 """
-function read_linelist(fname::String; format="vald", isotopic_abundances::Dict=isotopic_abundances
-                      ) :: Vector{Line}
+function read_linelist(fname::String; format="vald", isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
     linelist = open(fname) do f
         if format == "kurucz"
