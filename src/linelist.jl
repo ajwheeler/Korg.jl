@@ -42,7 +42,7 @@ struct Formula
         #handle numeric codes, e.g. 0801 -> OH
         if all(isdigit(c) for c in code)
             if length(code) <= 2
-                return Formula(parse(Int,code)) 
+                return Formula(parse(Int,code))
             elseif length(code) <= 4
                 el1 = parse(Int, code[1:end-2]) #first digit
                 el2 = parse(Int, code[3:end])     #second digit
