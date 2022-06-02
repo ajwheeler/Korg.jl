@@ -196,6 +196,8 @@ end
             @test Korg.species"0606"    == Korg.species"C2 I"
             @test Korg.species"606"     == Korg.species"C2 I"
             @test Korg.species"0608.00" == Korg.species"CO I"
+            @test Korg.species"812.0"   == Korg.species"MgO"
+            @test Korg.species"822.0"   == Korg.species"TiO"
             @test Korg.species"OOO"     == Korg.species"O3"
 
             @test_throws ArgumentError Korg.Species("06.05.04")

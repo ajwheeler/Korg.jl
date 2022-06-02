@@ -44,14 +44,15 @@ struct Formula
             if length(code) <= 2
                 return Formula(parse(Int,code))
             elseif length(code) <= 4
-                el1 = parse(Int, code[1:end-2]) #first digit
-                el2 = parse(Int, code[3:end])     #second digit
+                el1 = parse(Int, code[1:end-2])   #first digit
+                el2 = parse(Int, code[end-1:end]) #second digit
                 return new([0x00, min(el1, el2), max(el1, el2)])
             else
                 throw(ArgumentError("numeric codes for molecules with more than 4 chars like " * 
                                     "$(code) are not supported"))
             end
         end
+
         #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
         inds::Vector{Int} = findall(code) do c
             isdigit(c) || isuppercase(c)
