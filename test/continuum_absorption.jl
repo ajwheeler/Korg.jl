@@ -107,7 +107,7 @@ end
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_ff")
         @test all(calculated .≥ 0.0)
-        @test assert_allclose(calculated, ref; rtol=0, atol=0.03)
+        @test assert_allclose(calculated, ref; rtol=0, atol=0.04)
     end
 end
 
