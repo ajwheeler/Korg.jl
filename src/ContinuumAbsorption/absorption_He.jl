@@ -132,5 +132,5 @@ According to John (1994), improved calculations are unlikely to alter the tabula
 Heminus_ff = bounds_checked_absorption(
     _Heminus_ff,
     ν_bound = λ_to_ν_bound(closed_interval(5.063e-5, 1.518780e-03)),
-    temp_bound = closed_interval(2520, 10080)
+    temp_bound = closed_interval(1400, 10080)
 )
