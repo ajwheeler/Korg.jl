@@ -61,34 +61,46 @@ function ndens_state_He_I(n::Integer, nsdens_div_partition::Real, T::Real)
     nsdens_div_partition * g_n * exp(-energy_level/(kboltz_eV *T))
 end
 
+const _Heminus_ff_absorption_interp = let 
+    #OCR'd from John (1994) https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J
+    theta_ff_absorption_interp = [0.5,  0.6, 0.8,  1.0,  1.2,  1.4,  1.6,  1.8,  2.0,  2.8,  3.6]
+    lambda_ff_absorption_interp = 1e4 .* [0.5063, 0.5695, 0.6509, 0.7594, 0.9113, 1.1391, 1.5188, 
+                    1.8225, 2.2782, 3.0376, 3.6451, 4.5564, 6.0751, 9.1127, 11.390, 15.1878]
+    
+    ff_absorption = [
+        0.033	0.036	0.043	0.049	0.055	0.061	0.066	0.072	0.078	0.100	0.121
+        0.041	0.045	0.053	0.061	0.067	0.074	0.081	0.087	0.094	0.120	0.145
+        0.053	0.059	0.069	0.077	0.086	0.094	0.102	0.109	0.117	0.148	0.178
+        0.072	0.079	0.092	0.103	0.114	0.124	0.133	0.143	0.152	0.190	0.227
+        0.102	0.113	0.131	0.147	0.160	0.173	0.186	0.198	0.210	0.258	0.305
+        0.159	0.176	0.204	0.227	0.247	0.266	0.283	0.300	0.316	0.380	0.444
+        0.282	0.311	0.360	0.400	0.435	0.466	0.495	0.522	0.547	0.643	0.737
+        0.405	0.447	0.518	0.576	0.625	0.670	0.710	0.747	0.782	0.910	1.030
+        0.632	0.698	0.808	0.899	0.977	1.045	1.108	1.165	1.218	1.405	1.574
+        1.121	1.239	1.435	1.597	1.737	1.860	1.971	2.073	2.167	2.490	2.765
+        1.614	1.783	2.065	2.299	2.502	2.681	2.842	2.990	3.126	3.592	3.979
+        2.520	2.784	3.226	3.593	3.910	4.193	4.448	4.681	4.897	5.632	6.234
+        4.479	4.947	5.733	6.387	6.955	7.460	7.918	8.338	8.728	10.059	11.147
+        10.074	11.128	12.897	14.372	15.653	16.798	17.838	18.795	19.685	22.747	25.268
+        15.739	17.386	20.151	22.456	24.461	26.252	27.882	29.384	30.782	35.606	39.598
+        27.979	30.907	35.822	39.921	43.488	46.678	49.583	52.262	54.757	63.395	70.580 
+    ]
+    LinearInterpolation((lambda_ff_absorption_interp, theta_ff_absorption_interp), ff_absorption; 
+                         extrapolation_bc=Throw());
+end
+
+
 function _Heminus_ff(ν::Real, T::Real, nHe_I_div_partition::Real, ne::Real)
-
     λ = c_cgs * 1.0e8 / ν # Å
-    if !(5063.0 <= λ <= 151878.0)
-        throw(DomainError(λ, "The wavelength must lie in the interval [5063 Å, 151878 Å]"))
-    elseif !(2520.0 <= T <= 10080.0)
-        throw(DomainError(T, "The temperature must lie in the interval [2520 K, 10080 K]"))
-    end
-
     θ = 5040.0 / T
-    θ2 = θ * θ
-    θ3 = θ2 * θ
-    θ4 = θ3 * θ
 
-    c0 =   9.66736 - 71.76242*θ + 105.29576*θ2 - 56.49259*θ3 + 10.69206*θ4
-    c1 = -10.50614 + 48.28802*θ -  70.43363*θ2 + 37.80099*θ3 -  7.15445*θ4
-    c2 =   2.74020 - 10.62144*θ +  15.50518*θ2 -  8.33845*θ3 +  1.57960*θ4
-    c3 =  -0.19923 +  0.77485*θ -   1.13200*θ2 +  0.60994*θ3 -  0.11564*θ4
-
-    logλ = log10(λ)
-
-    # f includes contribution from stimulated emission
-    f = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
+    # K includes contribution from stimulated emission
+    K = 1e-26 * _Heminus_ff_absorption_interp(λ, θ) # [cm^4/dyn]
 
     Pe = ne*kboltz_cgs*T # partial pressure contributed by electrons
     nHe_I_gs = ndens_state_He_I(1, nHe_I_div_partition, T)
 
-    f * nHe_I_gs * Pe
+    K * nHe_I_gs * Pe
 end
 
 """
@@ -108,41 +120,14 @@ reaction:  `photon + e⁻ + He I -> e⁻ + He I.`
 For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
+This uses the tabulated values from 
+[John (1994)](https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract).  The quantity K is
+the same used by [Bell and Berrington (1987)](https://doi.org/10.1088/0022-3700/20/4/019).  See 
+[`Hminus_ff`](@ref) for an explanation.
 
-This follows equation 8.16 of Grey (2005) which provides a polynomial fit absorption to data
-tabulated in [John (1994)](https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract).
-According to that equation, the "continuous absorption coefficient per Hydrogen" is given by:
-```
-    f(He⁻_ff)*Pₑ*A(He) / (1 + Φ(He)/Pₑ)
-```
-in which
-- `log_10(f(He⁻_ff))` is the polynomial term (Grey actually uses the variable α in place of f)
-- A(He) is the number abundance of Helium particles relative to Hydrogen particles. For reference,
-  ```
-  A(He) = [n(He I) + n(He II) + n(He III)] / [n(H I) + n(H II)]
-  ```
-- Pₑ is the partial pressure contributed by electrons. For reference, `Pₑ = nₑ*kb * T`.
-- `1/(1 + Φ(He)/Pₑ)` comes from the Saha equation and expresses `n(He I) / [n(He I) + n(He II)]`.
-
-In the above expression, f(He⁻_ff)*Pₑ specifies the free-free atomic absorption coefficient per
-ground state He I atom. The expression seems to implicitly assume that
-- approximately all He I is in the ground state
-- `n(He I) / [n(He I) + n(He II)]` is roughly `n(He I) / [n(He I) + n(He II) + n(HeIII)]`
-(at least for the range of temperatures where f can be accurately computed).
-
-To convert the expression to opacity, Grey divided it by the product of the mean molecular weight
-and the Hydrogen mass. With that in mind, we can write the equation for linear absorption
-coefficient, α_ν, (removing the apparent assumptions) as `α_ν = f(He⁻_ff)*Pₑ*n(He I, n=1).`
-
-For 5063 Å ≤ λ ≤ 151878 Å and 2520 K ≤ T ≤ 10080 K, Gray (2005) claims that the polynomial fit the
-tabulated data at a precision of 1% or better. In practice, we found that it only fits the data to
-better than 3.1% (it's possible that for smaller λ the fit may be better). For reference, the
-tabulated data in these ranges of values consist of an irregularly spaced rectangular grid with 15
-λ values and 9 Temperature values. According to John (1994), improved calculations are unlikely to
-alter the tabulated data for λ > 1e4Å, "by more than about 2%." The errors introduced by the
-approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10%."
-
-An alternative approach using a fit to older data is provided in section 5.7 of Kurucz (1970).
+According to John (1994), improved calculations are unlikely to alter the tabulated data for 
+λ > 1e4Å, "by more than about 2%." The errors introduced by the approximations for 
+5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10%."
 """
 Heminus_ff = bounds_checked_absorption(
     _Heminus_ff,
