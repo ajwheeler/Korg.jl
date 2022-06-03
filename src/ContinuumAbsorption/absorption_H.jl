@@ -153,7 +153,6 @@ Hminus_bf = bounds_checked_absorption(
     temp_bound = Interval(0, Inf)
 )
 
-include("Stancil1994.jl") #used for H⁻ ff
 function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
     λ = c_cgs*1e8/ν # in Angstroms
 
@@ -228,6 +227,7 @@ Hminus_ff = bounds_checked_absorption(_Hminus_ff,
                                       ν_bound = λ_to_ν_bound(closed_interval(2.604e-5,1.13918e-3)),
                                       temp_bound = closed_interval(2520, 10080))
 
+include("Stancil1994.jl") #used for H2plus_bf_and_ff
 function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I::Real, nH_II::Real)
     λ = c_cgs*1e8/ν # in ångstroms
     β_eV = 1.0/(kboltz_eV * T)
