@@ -304,10 +304,8 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, species_
         else
             joinpath(@__DIR__, "data/TOPbase_cross_section_He_II.txt")
         end
-        Korg.ContinuumAbsorption.absorption_coef_bf_TOPBase(λ_vals.*1e-8, [T], [ndens_species],
-                                                            Korg.Species(species_name);
-                                                            extrapolation_bc = 0.0,
-                                                            cross_sec_file = cross_sec_file)[:, 1]
+        Korg.ContinuumAbsorption.cross_section_bf_TOPBase(Korg.Species(species_name), 
+                                                          λ_vals.*1e-8, [T])[:, 1] * ndens_species
     else
         ν_vals = (Korg.c_cgs*1e8)./λ_vals # Hz
         ndens_div_partition = ndens_species/Korg.partition_funcs[Korg.Species(species_name)](log(T))
