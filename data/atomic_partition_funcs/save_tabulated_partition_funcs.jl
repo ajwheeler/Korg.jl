@@ -8,7 +8,7 @@ println("downloading energy levels from NIST...")
 @time dfs = download_levels_from_NIST()
 
 U(logT, df) = sum(@. df.g * exp(-df.level/(Korg.kboltz_eV * 10^logT)))
-logTs = 0:0.01:5
+logTs = (0:0.01:5) * log(10) # convert from log_10 to natural log
 h5write("partition_funcs.h5", "logT_min", logTs[1])
 h5write("partition_funcs.h5", "logT_step", step(logTs))
 h5write("partition_funcs.h5", "logT_max", logTs[end])
