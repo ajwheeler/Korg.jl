@@ -6,4 +6,6 @@ The filenames have the format [efp].<atomic number>.<ionization number>.dat.
 "f" -> f values
 "p" -> photoionization cross-sections
 
-For example, "f26.02.dat" contains cross-section data for Fe II.
+For example, "p26.02.dat" contains cross-section data for Fe II.
+
+We only use the cross-section files.
