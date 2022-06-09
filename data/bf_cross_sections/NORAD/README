@@ -1,0 +1,6 @@
+These files are nearly identical in format to the ones in the sibling "TOPBase" directory. See that 
+README for details.
+
+Note that the electron number in each file is that of the _resultant_ state, i.e. it's 1 less than
+in the files in the "TOPBase" directory. Korg uses the filenames, which have been changed to match 
+the TOPBase files, and ignores this number.
