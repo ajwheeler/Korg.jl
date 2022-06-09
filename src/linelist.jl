@@ -90,8 +90,8 @@ function get_atoms(f::Formula)
     end
 end
 
-#pretty-print lines in REPL and jupyter notebooks
-function Base.show(io::IO, m::MIME"text/plain", f::Formula)
+# it's important that this produces something parsable by the constructor
+function Base.show(io::IO, f::Formula)
     print(io, *([atomic_symbols[i] for i in f.atoms if i != 0]...))
 end
 
@@ -156,9 +156,8 @@ macro species_str(s)
     Species(s)
 end
 
-#pretty-print lines in REPL and jupyter notebooks
-function Base.show(io::IO, m::MIME"text/plain", s::Species)
-    show(io, m, s.formula)
+function Base.show(io::IO, s::Species)
+    show(io, s.formula)
     print(io, " ", get_roman_numeral(s))
 end
 
@@ -214,7 +213,7 @@ struct Line{F}
     end
 end
 
-#pretty-print lines in REPL and jupyter notebooks
+# it's important that this produces something parsable by the constructor
 function Base.show(io::IO, m::MIME"text/plain", line::Line)
     show(io, m, line.species)
     print(io, " ", round(line.wl*1e8, digits=6), " Å")
