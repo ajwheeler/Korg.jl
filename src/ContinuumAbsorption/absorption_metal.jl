@@ -1,5 +1,5 @@
 using Base
-using Interpolations
+using Interpolations: LinearInterpolation, deduplicate_knots!
 
 """
 TODO
@@ -32,11 +32,23 @@ _FINAL_LINE =  "    0    0    0    0"
 const _species_with_problematic_subtables = (Species("He_I"), Species("C_I"), Species("C_II"),
                                              Species("Al_II"), Species("O_II"))
 
-function parse_TOPBase_cross_sections(filename)
+function parse_TOPBase_cross_sections(filename, norad_format=false)
     cross_sections = Dict{ElectronState, Any}()
     lines = readlines(filename)
 
-    i = 2 # the first line tells you which species the file corresponds to, skip to the second
+    #points to "current" line. This could be trivially rewritten to stream line-by-line from disk.
+    i = 1 
+
+    #skip the big header in norad formatted files
+    if norad_format
+        while (lines[i] != "-----------------------------------------------------------------------")
+            i += 1
+        end
+        i += 1
+    end
+
+    i += 1 # the first line tells you which species the file corresponds to, skip to the second
+
     while (i <= length(lines)) && (!startswith(lines[i], _FINAL_LINE))
         #parse the header specifying the state
         state = ElectronState(parse(UInt8, lines[i][4:5]), parse(UInt8, lines[i][9:10]),
@@ -50,15 +62,18 @@ function parse_TOPBase_cross_sections(filename)
         binding_energy = parse(Float32, lines[i+2][3:14])
 
         # map the electron state the cross-section interpolator in the cross_sections dict.
-        Es = Vector{Float32}(undef, npoints)
-        σs = Vector{Float32}(undef, npoints)
+        Es = Vector{Float64}(undef, npoints)
+        σs = Vector{Float64}(undef, npoints)
+
         i += 3 # Make i point at the first real line of the cross-sections vals
         for j in 1:npoints
             Es[j] = parse(Float32, lines[i+j-1][3:14]) 
             σs[j] = parse(Float32, lines[i+j-1][16:24])
         end
-        cross_sections[state] = binding_energy, CubicSpline(Es, σs)
+        deduplicate_knots!(Es, move_knots=true) # shift repeated E values to the next float 
+        itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
 
+        cross_sections[state] = binding_energy, itp
         i += npoints #move i to the next electron state
     end
 
@@ -68,8 +83,7 @@ end
 """
 TODO
 """
-function cross_section_bf_TOPBase(filename, U, λs, Ts)
-    cross_sections = parse_TOPBase_cross_sections(filename)
+function cross_section_bf_TOPBase(cross_sections, U, λs, Ts)
 
     # convert λ_vals to photon energies
     photon_energies = (hplanck_eV * c_cgs / RydbergH_eV) ./ λs
@@ -82,28 +96,43 @@ function cross_section_bf_TOPBase(filename, U, λs, Ts)
     # prepare the output array where results will be accumulated.  This the cross section obtained 
     # by averaging over electron states
     weighted_average = zeros(eltype(photon_energies), (length(photon_energies),length(Ts)))
+    total_weight = zeros(eltype(photon_energies), length(Ts))
 
     for (state, (binding_energy, cross_section_itp)) in pairs(cross_sections)
         #ion_energies are the energies with respect to the ionization energy of the species
         excitation_potential_ryd = binding_energy_ground - binding_energy
+        #println(state)
+        #println(excitation_potential_ryd)
 
         # g*exp(-βε)/U at each temperature
         weights = statistical_weight(state) .* exp.(-excitation_potential_ryd.*β_Ryd) ./ Us
+        if excitation_potential_ryd == 0
+            println(weights)
+        end
 
         #cross section for this state including stimulated emission term at each λ
-        σs = cross_section_itp.(photon_energies; oob_val=0.0) .* (1.0 .- exp.(-photon_energies.*β_Ryd'))
+        σs = cross_section_itp.(photon_energies) .* (1.0 .- exp.(-photon_energies.*β_Ryd'))
 
+        total_weight .+= weights
         weighted_average .+= σs .* weights'
-
     end
+
+    #@assert 0.9 .< total_weight .<= 1
+    println(total_weight)
+
     weighted_average * 1e-18 #megabarns -> cm^2
 end
 function cross_section_bf_TOPBase(spec::Species, λs, Ts)
-    #if (spec == species"Fe I") || (spec == species"Fe II")
-    dir = joinpath(_data_dir, "bf_cross_sections", "TOPBase")
     @assert !ismolecule(spec)
+
+    #use NORAD tables for iron, TOPBase for others
+    use_norad = (spec == species"Fe I") || (spec == species"Fe II")
+    dir = joinpath(_data_dir, "bf_cross_sections", use_norad ? "NORAD" : "TOPBase")
+
     Z = get_atoms(spec.formula)[1]
     n_electrons = Z - spec.charge
-    file_suffix = lpad(Z, 2, "0") * "." * lpad(n_electrons, 2, "0") * ".dat"
-    cross_section_bf_TOPBase(joinpath(dir, "p"*file_suffix), partition_funcs[spec], λs, Ts)
+    filename = joinpath(dir, "p" * lpad(Z, 2, "0") * "." * lpad(n_electrons, 2, "0") * ".dat")
+    cross_sections = parse_TOPBase_cross_sections(filename, use_norad)
+
+    cross_section_bf_TOPBase(cross_sections, partition_funcs[spec], λs, Ts)
 end
