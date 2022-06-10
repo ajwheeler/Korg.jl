@@ -7,14 +7,16 @@ include("download_energy_levels.jl")
 println("downloading energy levels from NIST...")
 @time dfs = download_levels_from_NIST()
 
-U(logT, df) = sum(@. df.g * exp(-df.level/(Korg.kboltz_eV * 10^logT)))
-logTs = (0:0.01:5) * log(10) # convert from log_10 to natural log
-h5write("partition_funcs.h5", "logT_min", logTs[1])
-h5write("partition_funcs.h5", "logT_step", step(logTs))
-h5write("partition_funcs.h5", "logT_max", logTs[end])
+U(lnT, df) = sum(@. df.g * exp(-df.level/(Korg.kboltz_eV * exp(lnT))))
+
+lnTs = (0:0.025:5) * log(10) # natural log of 1 to 10,000
+
+h5write("partition_funcs.h5", "logT_min", lnTs[1])
+h5write("partition_funcs.h5", "logT_step", step(lnTs))
+h5write("partition_funcs.h5", "logT_max", lnTs[end])
 
 for (spec, df) in dfs
-    Us = U.(logTs, Ref(df))
+    Us = U.(lnTs, Ref(df))
     h5write("partition_funcs.h5", string(spec), Us)
 end
 

@@ -105,7 +105,6 @@ function load_atomic_partition_functions(filename=joinpath(_data_dir, "atomic_pa
     logT_step = h5read(filename, "logT_step")
     logT_max = h5read(filename, "logT_max")
     logTs = logT_min : logT_step : logT_max
-    println(logTs)
 
     for elem in Korg.atomic_symbols, ionization in ["I", "II", "III"]
         if (elem == "H" && ionization != "I") || (elem == "He" && ionization == "III")
