@@ -52,17 +52,12 @@ function Base.show(io::IO, m::MIME"text/plain", atm::A) where A <: ModelAtmosphe
 end
 
 """
-    read_model_atmosphere(filename; truncate_at_10000K=true)
+    read_model_atmosphere(filename)
 
 Parse the provided model atmosphere file in MARCS ".mod" format.  Returns either a 
 `PlanarAtmosphere` or a `ShellAtmosphere`.
-
-When `truncate_at_10000K` is true, layers with temperatures greater than 10,000 Kelvin will be 
-elided.  These are typically at the deepest level, where optical depth is very large, and have 
-minimal impact on the surface spectrum.  They are ignored by default because Korg's default 
-partition and molecular equillibrium functions are tabulated only up to that tempurature.
 """
-function read_model_atmosphere(fname::AbstractString; truncate_at_10000K=true) :: ModelAtmosphere
+function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
     open(fname) do f
         #these files are small, so it's not a big deal to load them entirely into memory
         lines = collect(eachline(f)) 
@@ -90,19 +85,13 @@ function read_model_atmosphere(fname::AbstractString; truncate_at_10000K=true) :
 
         layers = map(zip(blockA, blockB)) do (lineA, lineB)
             nums = parse.(Float64, strip.(split(lineA * lineB)))
-            temp = nums[5]
+            temp = nums[5] # five digits doesn't let you go higher than our partition funcs top out.
             nₑ = nums[6]/(temp*kboltz_cgs) #electron number density
             n = nums[7]/(temp*kboltz_cgs)  #non-electron number density
             if planar
                 PlanarAtmosphereLayer(10^nums[3], -nums[4], temp, nₑ, n)
             else
                 ShellAtmosphereLayer(10^nums[3], -nums[4], temp, nₑ, n)
-            end
-        end
-
-        if truncate_at_10000K
-            filter!(layers) do layer
-                layer.temp < 10_000
             end
         end
 

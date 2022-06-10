@@ -86,7 +86,9 @@ function read_Barklem_Collet_table(fname; transform=identity)
     end
 
     map(data_pairs) do (species, vals)
-        species, CubicSpline(log.(temperatures), vals)
+        # We want to extrapolate the molecular partition funcs because they are only defined up to 
+        # 10,000 K. There won't be any molecules past that temperature anyway.
+        species, CubicSpline(log.(temperatures), vals; extrapolate=true)
     end |> Dict
 end
 
