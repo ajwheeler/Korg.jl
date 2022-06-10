@@ -212,12 +212,6 @@ function H2plus_coefficient(λ, T, Pₑ)
     nH_I = nH / (1 + wII)
     nH_II = nH * wII / (1 + wII)
 
-
-    # set the partition function to 2.0 in nH_I_div_partition so that n(H I, n=1) = n(H I) for this
-    # calculation, which is an assumption that Gray (2005) implicitly uses
-    nH_I_div_partition = nH_I/2.0
-    ρ = 1.0 # arbitrary value because we divide it out after
-
     ν = (Korg.c_cgs*1e8)/λ
     linear_absorb_coef = Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I, nH_II)[1]
     linear_absorb_coef / (Pₑ * nH_I)
