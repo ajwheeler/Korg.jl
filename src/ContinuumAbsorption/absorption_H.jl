@@ -155,7 +155,6 @@ Hminus_bf = bounds_checked_absorption(
 
 const _Hminus_ff_absorption_interp = let 
     # table from Bell & Berrington (1987) https://doi.org/10.1088/0022-3700/20/4/019 
-    # (pinched from MOOG source)
     theta_ff_absorption_interp = [0.5,  0.6, 0.8,  1.0,  1.2,  1.4,  1.6,  1.8,  2.0,  2.8,  3.6]
     lambda_ff_absorption_interp = [1823, 2278, 2604, 3038, 3645, 4557, 5063, 5696, 6510, 7595, 9113, 
                                   10126, 11392, 13019, 15189, 18227, 22784, 30378, 45567, 91134,
