@@ -214,8 +214,8 @@ struct Line{F}
 end
 
 # it's important that this produces something parsable by the constructor
-function Base.show(io::IO, m::MIME"text/plain", line::Line)
-    show(io, m, line.species)
+function Base.show(io::IO, line::Line)
+    show(io, line.species)
     print(io, " ", round(line.wl*1e8, digits=6), " Å")
 end
 
