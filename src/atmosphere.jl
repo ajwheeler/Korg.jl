@@ -85,7 +85,7 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
 
         layers = map(zip(blockA, blockB)) do (lineA, lineB)
             nums = parse.(Float64, strip.(split(lineA * lineB)))
-            temp = nums[5] # five digits doesn't let you go higher than our partition funcs top out.
+            temp = nums[5]
             nₑ = nums[6]/(temp*kboltz_cgs) #electron number density
             n = nums[7]/(temp*kboltz_cgs)  #non-electron number density
             if planar
