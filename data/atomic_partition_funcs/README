@@ -1,0 +1,6 @@
+download_energy_levels.jl defines a single function which grabs all the energy levels for all
+atomic species (up to doubly-ionized) from NIST.
+
+The script save_tabulated_partition_funcs.jl uses that function to grab the energy levels, then 
+calculates partition funcitons on a temperature grid up to 100,000 K and saves them in an HDF5 file.
+Korg interpolates this data for its default atomic partition functions.

@@ -35,17 +35,19 @@ struct CubicSpline{tType,uType,hType,zType,T}
     u::uType
     h::hType
     z::zType
-    CubicSpline(t,u,h,z) = new{typeof(t),typeof(u),typeof(h),typeof(z),eltype(u)}(t,u,h,z)
+    extrapolate::Bool
+    CubicSpline(t,u,h,z,extrapolate) = new{typeof(t),typeof(u),typeof(h),typeof(z),eltype(u)}(t,u,h,z,extrapolate)
 end
 
 """
-    CubicSpline(xs, ys)
+    CubicSpline(xs, ys; extrapolate=false)
 
 Construct a interpolant using `xs` and `ys` as the knot coordinates. Assumes `xs` is sorted. Apply 
-this object as a function to interpolate at any x value in the domain. If it is not within 
-[`xs[1]`, `xs[end]`] throws an error.
+this object as a function to interpolate at any x value in the domain. 
+If `extrapolate` is false, x values outside [`xs[1]`, `xs[end]`] throw errors, if `extrapolate` is
+true, the interpolant uses flat extrapolation, i.e. it returns the extreme value.
 """
-function CubicSpline(t,u)
+function CubicSpline(t,u; extrapolate=false)
     n = length(t) - 1
     h = vcat(0, map(k -> t[k+1] - t[k], 1:length(t)-1), 0)
     dl = h[2:n+1]
@@ -54,13 +56,21 @@ function CubicSpline(t,u)
     tA = LinearAlgebra.Tridiagonal(dl,d_tmp,du)
     d = map(i -> i == 1 || i == n + 1 ? 0 : 6(u[i+1] - u[i]) / h[i+1] - 6(u[i] - u[i-1]) / h[i], 1:n+1)
     z = tA\d
-    CubicSpline(t,u,h[1:n+1],z)
+    CubicSpline(t, u, h[1:n+1], z, extrapolate)
 end
 
 function (A::CubicSpline{<:AbstractVector{<:Number}})(t::Number)
     if !(A.t[1] <= t <= A.t[end])
-        throw(ArgumentError("Out-of-bounds value $(t) passed to interpolant. Must be between" * 
-                            " $(A.t[1]) and $(A.t[end])")) 
+        if A.extrapolate #flat extrapolation
+            if t < A.t[1]
+                return A.u[1]
+            else
+                return A.u[end]
+            end
+        else
+            throw(ArgumentError("Out-of-bounds value $(t) passed to interpolant. Must be between" * 
+                                " $(A.t[1]) and $(A.t[end])")) 
+        end
     end
     i = max(1, min(searchsortedlast(A.t, t), length(A.t) - 1))
     I = A.z[i] * (A.t[i+1] - t)^3 / (6A.h[i+1]) + A.z[i+1] * (t - A.t[i])^3 / (6A.h[i+1])

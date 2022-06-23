@@ -25,20 +25,18 @@ end
 """
     setup_partition_funcs()
 
-Returns a Dict holding the default (Barklem & Collet 2016) partition functions.
+Returns a Dict holding the default partition functions. These are custom for atoms and via Barklem
+& Collet 2016 for molecules.
 
 The partition function is linearly interpolated from values tabulated for the paper. The partition 
 functions can only be evaluated at temperatures between 1e-5 K and 1e4 K. The tabulated values were 
 NOT computed with a cutoff principle quantum number. This can lead to a couple percent error for 
 some neutral species in solar type stars (I think the problem becomes worse in hotter stars). See 
 the paper for more details.
-
-Note that the paper seems to suggest that we could actually use cubic interpolation. That should be
-revisited in the future.
 """
-function setup_partition_funcs(atoms=joinpath(_data_dir, "BarklemCollet2016-atomic_partition.dat"),
-                              mols=joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat"))
-    merge(read_partition_funcs.([atoms, mols])...)
+function setup_partition_funcs()
+    mol_path = joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat")
+    merge(read_Barklem_Collet_table(mol_path), load_atomic_partition_functions())
 end
 
 """
@@ -51,21 +49,17 @@ In equation 7 in this paper, m is the reduced mass, m₁m₂/(m₁ + m₂).  Thi
 re-deriving the equilibrium constants from the partition functions and dissolution constants 
 provided by the paper.
 """
-setup_equilibrium_constants() = read_partition_funcs(
+setup_equilibrium_constants() = read_Barklem_Collet_table(
                                  joinpath(_data_dir, "BarklemCollet2016-equilibrium_constants.dat"),
                                  transform=x->x+1) #convert from log(mks) to log(cgs)
 
 """
-    functon read_atomic_partition_funcs([transform=identity])
+    functon read_Barklem_Collet_table([transform=identity])
 
 Constructs a Dict holding tables containing partition function or equilibrium constant values across
 ln(temperature).
-
-The optional argument, `transform` is applied to each value. It is used to perform unit conversions,
-when loading equilibrium constants
-
 """
-function read_partition_funcs(fname; transform=identity)
+function read_Barklem_Collet_table(fname; transform=identity)
     temperatures = Vector{Float64}()
     data_pairs = Vector{Tuple{Species,Vector{Float64}}}()
     open(fname, "r") do f
@@ -87,6 +81,40 @@ function read_partition_funcs(fname; transform=identity)
     end
 
     map(data_pairs) do (species, vals)
-        species, CubicSpline(log.(temperatures), vals)
+        # We want to extrapolate the molecular partition funcs because they are only defined up to 
+        # 10,000 K. There won't be any molecules past that temperature anyway.
+        species, CubicSpline(log.(temperatures), vals; extrapolate=true)
     end |> Dict
+end
+
+
+"""
+    load_atomic_partition_functions()
+
+Loads saved tabulated values for atomic partition functions from disk. Returns a dictionary mapping
+species to interpolators over log(T).
+"""
+function load_atomic_partition_functions(filename=joinpath(_data_dir, "atomic_partition_funcs", 
+                                         "partition_funcs.h5"))
+    partition_funcs = Dict{Species, Any}()
+
+    logT_min = h5read(filename, "logT_min")
+    logT_step = h5read(filename, "logT_step")
+    logT_max = h5read(filename, "logT_max")
+    logTs = logT_min : logT_step : logT_max
+
+    for elem in Korg.atomic_symbols, ionization in ["I", "II", "III"]
+        if (elem == "H" && ionization != "I") || (elem == "He" && ionization == "III")
+            continue
+        end
+        spec = elem*" "*ionization
+        partition_funcs[Species(spec)] = CubicSpline(logTs, h5read(filename, spec))
+    end
+
+    #handle the cases with bare nuclei
+    all_ones = ones(length(logTs))
+    partition_funcs[species"H II"] = CubicSpline(logTs, all_ones)
+    partition_funcs[species"He III"] = CubicSpline(logTs, all_ones)
+
+    partition_funcs
 end
