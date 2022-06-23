@@ -25,16 +25,14 @@ end
 """
     setup_partition_funcs()
 
-Returns a Dict holding the default (Barklem & Collet 2016) partition functions.
+Returns a Dict holding the default partition functions. These are custom for atoms and via Barklem
+& Collet 2016 for molecules.
 
 The partition function is linearly interpolated from values tabulated for the paper. The partition 
 functions can only be evaluated at temperatures between 1e-5 K and 1e4 K. The tabulated values were 
 NOT computed with a cutoff principle quantum number. This can lead to a couple percent error for 
 some neutral species in solar type stars (I think the problem becomes worse in hotter stars). See 
 the paper for more details.
-
-Note that the paper seems to suggest that we could actually use cubic interpolation. That should be
-revisited in the future.
 """
 function setup_partition_funcs()
     mol_path = joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat")
@@ -60,9 +58,6 @@ setup_equilibrium_constants() = read_Barklem_Collet_table(
 
 Constructs a Dict holding tables containing partition function or equilibrium constant values across
 ln(temperature).
-
-The optional argument, `transform` is applied to each value. It is used to perform unit conversions,
-when loading equilibrium constants
 """
 function read_Barklem_Collet_table(fname; transform=identity)
     temperatures = Vector{Float64}()
