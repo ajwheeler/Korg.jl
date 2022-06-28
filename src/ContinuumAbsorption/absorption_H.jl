@@ -244,7 +244,9 @@ end
     H2plus_bf_and_ff(ν, T, nH_I_div_partition, n_HII; kwargs...)
 
 Compute the combined H₂⁺ bound-free and free-free linear absorption coefficient α using the tables 
-from [Stancil 1994](https://ui.adsabs.harvard.edu/abs/1994ApJ...430..360S/abstract).
+from [Stancil 1994](https://ui.adsabs.harvard.edu/abs/1994ApJ...430..360S/abstract). Note that 
+this refers to interactions between free-protons and neutral hydrogen, not electrons and doubly 
+ionized H2, i.e. the b-f interaction is photodissociation, not photoionization.
 
 # Arguments
 - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz

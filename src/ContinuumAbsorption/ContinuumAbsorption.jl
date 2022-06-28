@@ -59,7 +59,7 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
     # He continuum absorption
-    He_II_bf(νs, T, number_densities[species"H_II"]/partition_funcs[species"H_II"](log(T)); kwargs...)
+    He_II_bf(νs, T, number_densities[species"He_II"]/partition_funcs[species"He_II"](log(T)); kwargs...)
     Heminus_ff(νs, T, number_densities[species"He_I"] / partition_funcs[species"He_I"](log(T)), nₑ;
                kwargs...)
 
