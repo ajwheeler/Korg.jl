@@ -63,46 +63,48 @@ function _compare_against_table(ref_val_matrix, λ_vals_cm, T_vals, calc_func, t
 
 end
 
+"""
+This is taken from equation 8.13 of Gray (2005), which is a a polynomial fit against Table 1
+of Bell & Berrington (1987) [https://doi.org/10.1088/0022-3700/20/4/019] (the source Korg uses).
+The polynomial fits `f(H⁻)` in the range 2520 K ≤ T ≤ 10080 K and 2604 Å ≤ λ ≤ 113918 Å.
+According to Grey, the polynomial fit to the tabulated data typically has 1% precision. We find
+that at worst, the discrepancy never exceeds 2.25%.
+"""
+function _Hminus_ff_cross_section_Gray(λ, logθ, nₑ)
+    logλ = log10(λ)
+    log2λ = logλ * logλ
+    log3λ = log2λ * logλ
+    log4λ = log3λ * logλ
 
-function check_Hminus_ff_values(target_precision = 0.01, verbose = true)
-    # I tabulated this data from Bell & Berrington (1987)
-    # each row corresponds to a separate λ (in Å)
-    _ff_λ_vals = [151890, 113918, 91134, 45567, 30378, 22784, 18227, 15189, 13019, 11392, 10126,
-                  9113, 7595, 6510, 5696, 5063, 4557, 3645, 3038, 2604, 2278, 1823]
-    # each column corresponds to a separate θ value where θ = 5040/T
-    _ff_θ_vals = [0.5, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.8, 3.6]
-    _ff_T_vals = 5040.0./_ff_θ_vals
-    _ff_table = [75.1   90     118    144    168    191    212    234    253    325    388;
-                 42.3   50.6   66.4   80.8   94.5   107    120    131    142    183    219;
-                 27     32.4   42.6   51.9   60.7   68.9   76.8   84.2   91.4   117    140;
-                 6.79   8.16   10.7   13.1   15.3   17.4   19.4   21.2   23     29.5   35;
-                 3.04   3.65   4.8    5.86   6.86   7.79   8.67   9.5    10.3   13.2   15.6;
-                 1.73   2.08   2.74   3.37   3.9    4.5    5.01   5.5    5.95   7.59   9.06;
-                 1.11   1.34   1.77   2.17   2.53   2.87   3.2    3.51   3.8    4.92   5.97;
-                 0.781  0.94   1.24   1.52   1.78   2.02   2.26   2.48   2.69   3.52   4.31;
-                 0.579  0.699  0.924  1.13   1.33   1.51   1.69   1.86   2.02   2.67   3.31;
-                 0.448  0.539  0.711  0.871  1.02   1.16   1.29   1.43   1.57   2.09   2.6;
-                 0.358  0.432  0.572  0.702  0.825  0.943  1.06   1.17   1.28   1.73   2.17;
-                 0.293  0.354  0.468  0.576  0.677  0.777  0.874  0.969  1.06   1.45   1.83;
-                 0.208  0.25   0.332  0.409  0.484  0.557  0.63   0.702  0.774  1.06   1.36;
-                 0.154  0.188  0.249  0.309  0.367  0.424  0.482  0.539  0.597  0.83   1.07;
-                 0.121  0.146  0.195  0.241  0.288  0.334  0.381  0.428  0.475  0.667  0.861;
-                 0.0965 0.117  0.157  0.195  0.234  0.272  0.311  0.351  0.39   0.549  0.711;
-                 0.0791 0.0959 0.129  0.161  0.194  0.227  0.26   0.293  0.327  0.463  0.602;
-                 0.052  0.0633 0.0859 0.108  0.131  0.154  0.178  0.201  0.225  0.321  0.418;
-                 0.0364 0.0447 0.0616 0.0789 0.0966 0.114  0.132  0.15   0.169  0.243  0.318;
-                 0.0277 0.0342 0.0476 0.0615 0.076  0.0908 0.105  0.121  0.136  0.199  0.262;
-                 0.0228 0.028  0.0388 0.0499 0.0614 0.0732 0.0851 0.0972 0.11   0.16   0.211;
-                 0.0178 0.0222 0.0308 0.0402 0.0498 0.0596 0.0695 0.0795 0.0896 0.131  0.172]
+    f0 =  -2.2763 -   1.6850 * logλ +  0.76661 * log2λ -  0.053346 * log3λ
+    f1 = +15.2827 -   9.2846 * logλ +  1.99381 * log2λ -  0.142631 * log3λ
+    f2 = -197.789 + 190.266  * logλ - 67.9775  * log2λ + 10.6913   * log3λ - 0.625151 * log4λ
 
-    # only look at the subtable that might be relevant
-    _compare_against_table(view(_ff_table, 2:20, 1:9), view(_ff_λ_vals, 2:20) ./ 1e8,
-                           view(_ff_T_vals, 1:9), _bell_berrington_87_Hminus_ff_absorption_coef,
-                           target_precision, verbose)
+    Pe = Korg.kboltz_cgs * (5040 ./ (10^logθ)) * nₑ
+    1e-26 * Pe * 10.0^(f0 + f1 * logθ + f2 * (logθ * logθ))
 end
 
 @testset "H⁻ free-free absorption" begin
-    @test check_Hminus_ff_values(0.0225)
+    @testset "compare to Gray polynomial" begin
+        # these are from the  Bell & berrrington table, though we could use any reasonable vals
+        # we cut off vals outside support of polynomial approximation
+        # each row corresponds to a separate λ (in Å)
+        # each column corresponds to a separate θ value where θ = 5040/T
+        λ_vals = [9113, 7595, 6510, 5696, 5063, 4557, 3645, 3038, 2604]
+        ν_vals = Korg.c_cgs ./ (λ_vals * 1e-8)
+        θ_vals = [0.5, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8]
+        T_vals = 5040.0./θ_vals
+    
+        #assume nₑ = n(H I) = 1.0
+        α_ref = _Hminus_ff_cross_section_Gray.(λ_vals, log10.(θ_vals)', 1.0)
+        #use the unwrapped (not bounds-checked) version for easier broadcasting
+        n_H_I_div_U = 0.5
+        α_korg = Korg.ContinuumAbsorption._Hminus_ff.(ν_vals, T_vals', n_H_I_div_U, 1.0)
+    
+        #TODO why does this work?
+        @test assert_allclose_grid(α_korg, α_ref, [("λ", λ_vals, "Å"), ("T", T_vals, "K")]; rtol=0.0225)
+    end
+
     # we only have measurements for b and c
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"Hminus_ff")
@@ -173,57 +175,63 @@ end
     end
 end
 
+"""
+This follows equation 8.16 of Grey (2005) which provides a polynomial fit absorption to data
+tabulated in John (1994) [https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract] (the 
+source used by Korg).
 
-# gives the atomic absorption coefficient (or cross section)
-function check_Heminus_ff_absorption(target_precision, verbose = true)
+According to that equation, the "continuous absorption coefficient per Hydrogen" is given by:
+    f(He⁻_ff)*Pₑ*A(He) / (1 + Φ(He)/Pₑ)
+in which
+ - log_10(f(He⁻_ff)) is the polynomial term (Grey actually uses the variable α in place of f)
+ - A(He) is the number abundance of Helium particles relative to Hydrogen particles. For reference,
+       A(He) = [n(He I) + n(He II) + n(He III)] / [n(H I) + n(H II)]
+ - Pₑ is the partial pressure contributed by electrons, Pₑ = nₑkT.
+ - `1/(1 + Φ(He)/Pₑ)` comes from the Saha equation and expresses `n(He I) / [n(He I) + n(He II)]`.
+In the above expression, f(He⁻_ff)*Pₑ specifies the free-free atomic absorption coefficient per
+ground state He I atom.  This is what we return.
 
-    # taken from Table 2 of John (1994):
-    _Heminus_table =
-        [27.979 30.907 35.822 39.921 43.488 46.678 49.583 52.262 54.757 63.395 70.580;
-         15.739 17.386 20.151 22.456 24.461 26.252 27.882 29.384 30.782 35.606 39.598;
-         10.074 11.128 12.897 14.372 15.653 16.798 17.838 18.795 19.685 22.747 25.268;
-          4.479  4.947  5.733  6.387  6.955  7.460  7.918  8.338  8.728 10.059 11.147;
-          2.520  2.784  3.226  3.593  3.910  4.193  4.448  4.681  4.897  5.632  6.234;
-          1.614  1.783  2.065  2.299  2.502  2.681  2.842  2.990  3.126  3.592  3.979;
-          1.121  1.239  1.435  1.597  1.737  1.860  1.971  2.073  2.167  2.490  2.765;
-          0.632  0.698  0.808  0.899  0.977  1.045  1.108  1.165  1.218  1.405  1.574;
-          0.405  0.447  0.518  0.576  0.625  0.670  0.710  0.747  0.782  0.910  1.030;
-          0.282  0.311  0.360  0.400  0.435  0.466  0.495  0.522  0.547  0.643  0.737;
-          0.159  0.176  0.204  0.227  0.247  0.266  0.283  0.300  0.316  0.380  0.444;
-          0.102  0.113  0.131  0.147  0.160  0.173  0.186  0.198  0.210  0.258  0.305;
-          0.072  0.079  0.092  0.103  0.114  0.124  0.133  0.143  0.152  0.190  0.227;
-          0.053  0.059  0.069  0.077  0.086  0.094  0.102  0.109  0.117  0.148  0.178;
-          0.041  0.045  0.053  0.061  0.067  0.074  0.081  0.087  0.094  0.120  0.145;
-          0.033  0.036  0.043  0.049  0.055  0.061  0.066  0.072  0.078  0.100  0.121] .* 1e-26
+For 5063 Å ≤ λ ≤ 151878 Å and 2520 K ≤ T ≤ 10080 K, Gray (2005) claims that the polynomial fit the
+tabulated data at a precision of 1% or better. In practice, we found that it only fits the data to
+better than 3.1% (it's possible that for smaller λ the fit may be better). For reference, the
+tabulated data in these ranges of values consist of an irregularly spaced rectangular grid with 15
+λ values and 9 Temperature values. According to John (1994), improved calculations are unlikely to
+alter the tabulated data for λ > 1e4Å, "by more than about 2%." The errors introduced by the
+approximations for 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10%."
+"""
+function _Heminus_ff_cross_section_Gray(λ, θ, nₑ)
+    θ2 = θ * θ
+    θ3 = θ2 * θ
+    θ4 = θ3 * θ
 
-    _θ_vals_He⁻_ff_john94 = [0.5 0.6 0.8 1.0 1.2 1.4 1.6 1.8 2.0 2.8 3.6]
-    _λ_vals_He⁻_ff_john94 = [15.1878, 11.3909, 9.1127, 6.0751, 4.5564, 3.6451, 3.0376, 2.2782,
-                             1.8225,  1.5188, 1.1391, 0.9113, 0.7594, 0.6509, 0.5695, 0.5063] #μm
+    c0 =   9.66736 - 71.76242*θ + 105.29576*θ2 - 56.49259*θ3 + 10.69206*θ4
+    c1 = -10.50614 + 48.28802*θ -  70.43363*θ2 + 37.80099*θ3 -  7.15445*θ4
+    c2 =   2.74020 - 10.62144*θ +  15.50518*θ2 -  8.33845*θ3 +  1.57960*θ4
+    c3 =  -0.19923 +  0.77485*θ -   1.13200*θ2 +  0.60994*θ3 -  0.11564*θ4
 
-    T_vals = 5040.0 ./ _θ_vals_He⁻_ff_john94
-    ν_vals = (Korg.c_cgs*1e4) ./_λ_vals_He⁻_ff_john94
+    logλ = log10(λ)
 
-    # For the sake of easy comparisons, let's pick the following semi-realistic values:
-    nₑ = 1e13 # cm⁻³
-    nHe_I = 8.5e13 # cm⁻³
-    # for simplicity, assume that the He I partition function is always just equal to 1 and (thus
-    # the number density in the ground state is equal to the total number density of He I)
-    nHe_I_div_U, nHe_I_gs = nHe_I, nHe_I
+    # f includes contribution from stimulated emission
+    f = 1e-26*10.0^(c0 + c1 * logλ + c2 * (logλ * logλ) + c3 * (logλ * logλ * logλ))
 
-    # this includes the correction for stimulated emission
-    Pₑ = nₑ*Korg.kboltz_cgs.*T_vals
-    ref_linear_absorption_vals = _Heminus_table .* nHe_I .* Pₑ
-
-    # the extra handling in ν is necessary due to roundoff errors.
-    calc_func(ν,T) = Korg.ContinuumAbsorption.Heminus_ff(
-        [ifelse(ν == 5.921241516887221e14, prevfloat(ν), ν)], T, nHe_I_div_U, nₑ
-    )[1]
-    _compare_against_table(view(ref_linear_absorption_vals, :, 1:9), _λ_vals_He⁻_ff_john94 ./ 1e4,
-                           view(T_vals, 1:9), calc_func, target_precision, verbose)
+    Pe = Korg.kboltz_cgs * (5040.0 / θ) * nₑ
+    f * Pe
 end
 
 @testset "He⁻ free-free absorption" begin
-    @test check_Heminus_ff_absorption(0.031)
+    @testset "compare to Gray polynomial" begin
+        T_vals = 2520 : 100 : 10_080
+        λ_vals = 5063 : 1000 : 150_000 # Å
+        θ_vals = 5040.0 ./ T_vals
+        ν_vals = Korg.c_cgs ./ (λ_vals * 1e-8)
+    
+        #assume nₑ = n(He I) = 1
+        α_ref = _Heminus_ff_cross_section_Gray.(λ_vals, θ_vals', 1.0)
+        #use the unwrapped (not bounds-checked) version for easier broadcasting
+        α_korg = Korg.ContinuumAbsorption._Heminus_ff.(ν_vals, T_vals', 1.0, 1.0)
+    
+        @test assert_allclose_grid(α_korg, α_ref, [("λ", λ_vals, "Å"), ("T", T_vals, "K")]; rtol=0.05)
+    end
     # this really only amounts to a sanity check because the absolute tolerance is of the same
     # magnitude as the actual values
     @testset "Gray (2005) Fig 8.5$panel comparison" for panel in ["b", "c"]
