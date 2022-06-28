@@ -114,7 +114,7 @@ function cross_section_bf_TOPBase(cross_sections, U, λs, Ts)
         weighted_average .+= σs .* weights'
     end
 
-    @assert 0.9 .< total_weight .<= 1
+    @assert all(0.9 .< total_weight .<= 1)
 
     weighted_average * 1e-18 #megabarns -> cm^2
 end
