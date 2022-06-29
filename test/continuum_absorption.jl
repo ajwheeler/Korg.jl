@@ -101,7 +101,6 @@ end
         n_H_I_div_U = 0.5
         α_korg = Korg.ContinuumAbsorption._Hminus_ff.(ν_vals, T_vals', n_H_I_div_U, 1.0)
     
-        #TODO why does this work?
         @test assert_allclose_grid(α_korg, α_ref, [("λ", λ_vals, "Å"), ("T", T_vals, "K")]; rtol=0.0225)
     end
 
