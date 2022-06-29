@@ -236,7 +236,7 @@ refers to this, it implicitly assumes that `n(H I, n = 1) ≈ n(H I)`.  Note tha
 ```
  n(H I, n = 1) = n(H I)*gₙ₌₁/U(T)*exp(-Eₙ₌₁/(k*T)) = n(H I) * 2/U(T)*exp(0) = n(H I) * 2/U(T).
  ```
-Since U(T) ≈ 2 up to fairly large tempuratures, this is not unreasonable.
+Since U(T) ≈ 2 up to fairly large temperatures, this is not unreasonable.
 """
 Hminus_ff = bounds_checked_absorption(_Hminus_ff,
                                       ν_bound = λ_to_ν_bound(closed_interval(1823e-8,151890e-8)),
