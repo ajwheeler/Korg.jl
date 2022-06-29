@@ -153,32 +153,58 @@ Hminus_bf = bounds_checked_absorption(
     temp_bound = Interval(0, Inf)
 )
 
+const _Hminus_ff_absorption_interp = let 
+    # table from Bell & Berrington (1987) https://doi.org/10.1088/0022-3700/20/4/019 
+    theta_ff_absorption_interp = [0.5,  0.6, 0.8,  1.0,  1.2,  1.4,  1.6,  1.8,  2.0,  2.8,  3.6]
+    lambda_ff_absorption_interp = [1823, 2278, 2604, 3038, 3645, 4557, 5063, 5696, 6510, 7595, 9113, 
+                                  10126, 11392, 13019, 15189, 18227, 22784, 30378, 45567, 91134,
+                                  113918, 151890]
+    ff_absorption = [
+        .0178 .0222 .0308 .0402 .0498 .0596 .0695 .0795 .0896  .131  .172 
+        .0228 .0280 .0388 .0499 .0614 .0732 .0851 .0972  .110  .160  .211
+        .0277 .0342 .0476 .0615 .0760 .0908  .105  .121  .136  .199  .262
+        .0364 .0447 .0616 .0789 .0966  .114  .132  .150  .169  .243  .318
+        .0520 .0633 .0859  .108  .131  .154  .178  .201  .225  .321  .418
+        .0791 .0959  .129  .161  .194  .227  .260  .293  .327  .463  .602
+        .0965  .117  .157  .195  .234  .272  .311  .351  .390  .549  .711
+        .121  .146  .195  .241  .288  .334  .381  .428  .475  .667  .861
+        .154  .188  .249  .309  .367  .424  .482  .539  .597  .830  1.07
+        .208  .250  .332  .409  .484  .557  .630  .702  .774  1.06  1.36
+        .293  .354  .468  .576  .677  .777  .874  .969  1.06  1.45  1.83
+        .358  .432  .572  .702  .825  .943  1.06  1.17  1.28  1.73  2.17
+        .448  .539  .711  .871  1.02  1.16  1.29  1.43  1.57  2.09  2.60
+        .579  .699  .924  1.13  1.33  1.51  1.69  1.86  2.02  2.67  3.31
+        .781  .940  1.24  1.52  1.78  2.02  2.26  2.48  2.69  3.52  4.31
+        1.11  1.34  1.77  2.17  2.53  2.87  3.20  3.51  3.80  4.92  5.97
+        1.73  2.08  2.74  3.37  3.90  4.50  5.01  5.50  5.95  7.59  9.06
+        3.04  3.65  4.80  5.86  6.86  7.79  8.67  9.50  10.3  13.2  15.6
+        6.79  8.16  10.7  13.1  15.3  17.4  19.4  21.2  23.0  29.5  35.0
+        27.0  32.4  42.6  51.9  60.7  68.9  76.8  84.2  91.4  117.  140.
+        42.3  50.6  66.4  80.8  94.5  107.  120.  131.  142.  183.  219.
+        75.1  90.0  118.  144.  168.  191.  212.  234.  253.  325.  388.
+    ]
+    LinearInterpolation((lambda_ff_absorption_interp, theta_ff_absorption_interp), ff_absorption; 
+                         extrapolation_bc=Throw());
+end
+
 function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
     λ = c_cgs*1e8/ν # in Angstroms
+    θ = 5040.0/T
 
-    logλ = log10(λ)
-    log2λ = logλ * logλ
-    log3λ = log2λ * logλ
-    log4λ = log3λ * logλ
+    # K is the variable used for the quantity in the paper. It's units are cm^4/dyn
+    #The factor of 1e-26 is built in to the table.
+    K = 1e-26 * _Hminus_ff_absorption_interp(λ, θ) 
 
-    f0 =  -2.2763 -   1.6850 * logλ +  0.76661 * log2λ -  0.053346 * log3λ
-    f1 = +15.2827 -   9.2846 * logλ +  1.99381 * log2λ -  0.142631 * log3λ
-    f2 = -197.789 + 190.266  * logλ - 67.9775  * log2λ + 10.6913   * log3λ - 0.625151 * log4λ
-
-    logθ = log10(5040.0/T)
-    αff_H⁻ = 1e-26 * 10.0^(f0 + f1 * logθ + f2 * (logθ * logθ))
     # Pₑ * α_ff(H⁻) gives the absorption coefficient in units of cm² per ground state H I atom
     Pₑ = ne * kboltz_cgs * T
 
     # Account for the fact that n(H I, n=1) might be slightly smaller than the entire number
     # density of H I. There is only really a difference at the highest temperatures. For the
     # temperature range where this approximation is valid, less than 0.23% of all H I atoms are not
-    # in the ground state.
-
-    # this calculation could reduce to nHI_gs = 2.0*nH_I_div_partition
+    # in the ground state. This calculation could reduce to nHI_gs = 2.0*nH_I_div_partition
     nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
 
-    return αff_H⁻ * Pₑ * nHI_gs
+    return K * Pₑ * nHI_gs
 end
 
 """
@@ -198,34 +224,23 @@ reaction:  photon + e⁻ + H I -> e⁻ + H I.
 For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
-This is taken from equation 8.13 of Gray (2005). The equation uses a polynomial fig against Table 1
-of [Bell & Berrington's (1987)](https://doi.org/10.1088/0022-3700/20/4/019), which tabulates values
-for "the H⁻ absorption coefficient" (the values include the correction for stimulated emission). We
-denote this quantity as `f(H⁻)` (Grey instead denotes it with the variable, ``\\alpha_{ff}(H^-)``).
-The polynomial fits `f(H⁻)` in the range 2520 K ≤ T ≤ 10080 K and 2604 Å ≤ λ ≤ 113918 Å.
-According to Grey, the polynomial fit to the tabulated data typically has 1% precision. We find
-that at worst, the discrepancy never exceeds 2.25%.
+This is based on Table 1, in 
+[Bell & Berrington (1987)](https://doi.org/10.1088/0022-3700/20/4/019), which tabulates values
+for "the H⁻ absorption coefficient", K (including the correction for stimulated emission). This 
+quantity is in units of cm^4/dyn, and must be multiplied by the electron partial pressure and the 
+ground-state neutral hydrogen number density to obtain a linear absorption coefficent, α.
 
-Based on equations 8.13, 8.18, and 8.19 of Gray (2005), the free-free linear absorption coefficient
-of H⁻ is given by: `α = f(H⁻) * Pₑ * n(H I)`.
-
-Based on Section 5.3 from Kurucz (1970), I'm fairly confident that the "more correct" version of
-this equation should actually read `α = f(H⁻) * Pₑ * n(H I, n = 1)`, and that the form inferred
-from Gray (2005) implicitly assumes that `n(H I, n = 1) ≈ n(H I)`. In detail, the Boltzmann
-equation relates `n(H I, n = 1)` and `n(H I)` as:
+The stipulation that the hydrogen should be ground-state only is based on the beginning of Section 2
+in Bell and Berrington (1987), or alternately, Section 5.3 from Kurucz (1970).  When Gray (2005)
+refers to this, it implicitly assumes that `n(H I, n = 1) ≈ n(H I)`.  Note that 
 ```
  n(H I, n = 1) = n(H I)*gₙ₌₁/U(T)*exp(-Eₙ₌₁/(k*T)) = n(H I) * 2/U(T)*exp(0) = n(H I) * 2/U(T).
  ```
-Based on the values of the partition function in Table D.2 of Grey, this approximation seems fairly
-good. It only introduces a ≤0.5% overestimate in n(H I, n = 1) over the temperature range where the
-polynomial is valid.
-
-We also considered the polynomial fit in Section 5.3 from Kurucz (1970). Unfortunately, it seems
-to be wrong (it gives lots of negative numbers).
+Since U(T) ≈ 2 up to fairly large temperatures, this is not unreasonable.
 """
 Hminus_ff = bounds_checked_absorption(_Hminus_ff,
-                                      ν_bound = λ_to_ν_bound(closed_interval(2.604e-5,1.13918e-3)),
-                                      temp_bound = closed_interval(2520, 10080))
+                                      ν_bound = λ_to_ν_bound(closed_interval(1823e-8,151890e-8)),
+                                      temp_bound = closed_interval(1400, 10080))
 
 include("Stancil1994.jl") #used for H2plus_bf_and_ff
 function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I::Real, nH_II::Real)
