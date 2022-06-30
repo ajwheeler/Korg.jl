@@ -17,6 +17,22 @@ struct ElectronState
     end
 end
 
+function Base.show(io::IO, state::ElectronState)
+    orbital_letter = if state.L == 0
+        "S"
+    elseif state.L == 1
+        "P"
+    else
+        "DFGHIJKLMNO"[state.L - 1] #2->D, 3->F, etc.
+    end
+    parity_char = if state.P == 0
+        ""
+    else
+        "*"
+    end
+    print(io, state.spin_multiplicity, orbital_letter, parity_char, " (level ", state.iLV, ")")
+end
+
 """
 TODO
 """
@@ -55,7 +71,7 @@ function parse_TOPBase_cross_sections(filename, norad_format=false)
                               parse(UInt8, lines[i][14:15]), parse(UInt8, lines[i][19:20]))
 
         #the next line tells you how many points there are
-        # for example: "     479    489" indicates 489 points
+        # for example: "     479    489" indicates 489 points. (The "479" is an internal thing.)
         npoints = parse(Int, lines[i+1][9:14])
         # The line after that indicates the binding energy.
         # for example: "  1.000000E+00    0.0100" indicates that the binding energy is 1 Ryd.
@@ -67,7 +83,7 @@ function parse_TOPBase_cross_sections(filename, norad_format=false)
 
         i += 3 # Make i point at the first real line of the cross-sections vals
         for j in 1:npoints
-            Es[j] = parse(Float32, lines[i+j-1][3:14]) 
+            Es[j] = parse(Float32, lines[i+j-1][3:14])
             σs[j] = parse(Float32, lines[i+j-1][16:24])
         end
         deduplicate_knots!(Es, move_knots=true) # shift repeated E values to the next float 
@@ -84,8 +100,7 @@ end
 TODO
 """
 function cross_section_bf_TOPBase(cross_sections, U, λs, Ts)
-
-    # convert λ_vals to photon energies
+    # convert λ_vals to photon energies in Ryd
     photon_energies = (hplanck_eV * c_cgs / RydbergH_eV) ./ λs
 
     # precompute Temperature-dependent constant
@@ -96,13 +111,10 @@ function cross_section_bf_TOPBase(cross_sections, U, λs, Ts)
     # prepare the output array where results will be accumulated.  This the cross section obtained 
     # by averaging over electron states
     weighted_average = zeros(eltype(photon_energies), (length(photon_energies),length(Ts)))
-    total_weight = zeros(eltype(photon_energies), length(Ts))
 
     for (state, (binding_energy, cross_section_itp)) in pairs(cross_sections)
         #ion_energies are the energies with respect to the ionization energy of the species
         excitation_potential_ryd = binding_energy_ground - binding_energy
-        #println(state)
-        #println(excitation_potential_ryd)
 
         # g*exp(-βε)/U at each temperature
         weights = statistical_weight(state) .* exp.(-excitation_potential_ryd.*β_Ryd) ./ Us
@@ -110,20 +122,17 @@ function cross_section_bf_TOPBase(cross_sections, U, λs, Ts)
         #cross section for this state including stimulated emission term at each λ
         σs = cross_section_itp.(photon_energies) .* (1.0 .- exp.(-photon_energies.*β_Ryd'))
 
-        total_weight .+= weights
         weighted_average .+= σs .* weights'
     end
 
-    @assert all(0.9 .< total_weight .<= 1)
-
     weighted_average * 1e-18 #megabarns -> cm^2
 end
-function cross_section_bf_TOPBase(spec::Species, λs, Ts)
+function cross_section_bf_TOPBase(spec::Species, λs, Ts, data_dir)
     @assert !ismolecule(spec)
 
     #use NORAD tables for iron, TOPBase for others
     use_norad = (spec == species"Fe I") || (spec == species"Fe II")
-    dir = joinpath(_data_dir, "bf_cross_sections", use_norad ? "NORAD" : "TOPBase")
+    dir = joinpath(data_dir, use_norad ? "NORAD" : "TOPBase")
 
     Z = get_atoms(spec.formula)[1]
     n_electrons = Z - spec.charge
