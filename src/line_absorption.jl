@@ -241,30 +241,6 @@ function scaled_vdW(vdW::Tuple{F, F}, m, T) where F <: Real
     2 * (4/π)^(α/2) * gamma((4-α)/2) * v₀ * σ * (vbar/v₀)^(1-α)
 end
 
-
-function move_bounds(λs::AbstractRange, lb, ub, λ₀, window_size)
-    len = length(λs)
-    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
-    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 1, len)
-    lb,ub
-end
-#walk lb and ub to be window_size away from λ₀. assumes λs is sorted
-function move_bounds(λs, lb, ub, λ₀, window_size)
-    while lb+1 < length(λs) && λs[lb] < λ₀ - window_size
-        lb += 1
-    end
-    while lb > 1 && λs[lb-1] > λ₀ - window_size
-        lb -= 1
-    end
-    while ub < length(λs) && λs[ub+1] < λ₀ + window_size
-        ub += 1
-    end
-    while ub > 1 && λs[ub] > λ₀ + window_size
-        ub -= 1
-    end
-    lb, ub
-end
-
 """
     sigma_line(wl)
 
