@@ -14,9 +14,10 @@ include("absorption_He.jl")
 include("absorption_ff_positive_ion.jl")
 include("scattering.jl")
 
-# the following are only imported for computing experimental metal bf continuum opacities
-using ..Korg: partition_funcs, Species, ismolecule, get_atoms, _data_dir
-include("absorption_metal.jl")
+#TODO
+## the following are only imported for computing experimental metal bf continuum opacities
+#using ..Korg: partition_funcs, Species, ismolecule, get_atoms, _data_dir
+#include("absorption_metal.jl")
 
 export total_continuum_absorption
 
