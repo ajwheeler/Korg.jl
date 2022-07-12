@@ -53,7 +53,7 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
-    lb, ub = 0,0 #initialize window bounds
+    lb, ub = 1,1 #initialize window bounds
     for i in 1:length(wls)
         λ0 = wls[i]
         σ = λ0 / R / 2
