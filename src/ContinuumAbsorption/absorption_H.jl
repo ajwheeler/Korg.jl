@@ -100,7 +100,8 @@ end
 """
     Hminus_bf(ν, T, nH_I_div_partition, ne; kwargs...)
 
-Compute the H⁻ bound-free linear absorption coefficient α
+Compute the H⁻ bound-free linear absorption coefficient α,
+``\\alpha_\\nu = \\sigma_{bf}(H^-) n(H⁻) (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right))``
 
 # Arguments
 - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
@@ -108,37 +109,13 @@ Compute the H⁻ bound-free linear absorption coefficient α
 - `nH_I_div_partition`: the total number density of H I divided by its partition function.
 - `ne`: the electron number density
 
+This uses cross-sections from 
+[McLaughlin 2017](https://ui.adsabs.harvard.edu/abs/2017JPhB...50k4001M/abstract).
 For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 This function assumes that n(H⁻) ≪ n(H I) + n(H II). The number density of n(H⁻) isn't precomputed 
 as part of Korg's molecular equlibrium, it's computed here instead.
-
-This function is adapted from equation 8.12 from Grey (2005). That equation specifies the
-absorption coefficient per H I atom (uncorrected by stimulated emission) as:
-
-``8.316 \\times 10^{-10} \\sigma_{bf}(H^-) P_e \\theta^{2.5} 10^{(\\theta \\chi_{\\mathrm{H}^-})} U(H⁻,T)/ U(H I,T)``
-
-where:
-- ``\\sigma_{bf}(\\mathrm{H}^-)`` is the photo dissociation cross-section (Grey uses the variable
-  ``\\alpha_{bf}`` in place of ``\\sigma_{bf}``). We get this from 
-   [McLaughlin (2017)](https://ui.adsabs.harvard.edu/abs/2017JPhB...50k4001M/abstract).
-- ``\\chi_{\\mathrm{H}^-}`` is the ionization enrgy of H⁻.
-- θ = log10(e)/(k*T) or θ = 5040/T in units of eV⁻¹
-- U(H⁻,T) is the partition function of H⁻ at temperature T. This is always 1
-- U(H I,T) is the partition function of H I at temperature T. This is 2 at low to intermediate T.
-Eqn 8.12 of Grey (2005) implicitly assumes that (U(H⁻,T)/ U(H I,T)) is always equal to 0.5.
-
-This expression is simply a rewritten form of ``\\sigma_{bf}(H^-) n(H^-)/n(H I),`` where
-``n(H^-)/n(H I)`` has been replaced with the expanded form of the saha equation, in which
-n₀ = n(H⁻) and n₁ = n(H I).
-
-Equations 8.18 and 8.19 of Gray (2005), indicate that the H⁻ bound-free opacity (with the
-stimulated emission correction) is given by:
-
-``\\kappa_\\nu = \\sigma_{bf}(H^-) \\frac{n(H^-)}{n(H I)} (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right)) \\frac{n(H I)}{n(H I) + n(H II)} \\frac{n(H I) + n(H II)}{\\rho}``
-
-In other words, the linear absorption coefficient is: ``\\alpha_\\nu = \\sigma_{bf}(H^-) n(H⁻) (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right))``
 
 !!! note
     The McLaughlin tabulated values (downloaded as a text file) contained a stray line out of 
