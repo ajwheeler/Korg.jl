@@ -12,6 +12,7 @@ include("absorption_H.jl")
 include("absorption_He.jl")
 
 include("absorption_ff_positive_ion.jl")
+include("absorption_ff_neutral_metals_molecules.jl")
 include("scattering.jl")
 
 # the following are only imported for computing experimental metal bf continuum opacities
@@ -66,6 +67,17 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     # ff absorption where participating species are positive ions 
     # i.e. H I ff is included but not H⁻ ff or He⁻ ff 
     positive_ion_ff_absorption!(α, νs, T, number_densities, nₑ)
+
+    # ff absorption where participating species are neutral metals
+    Ominus_ff(νs, T, get(number_densities, species"O_I", 0.0), nₑ)
+
+    # there is some minor cause for concern with these 2 sources: set the unit test for Nminus_ff
+    #Cminus_ff(νs, T, get(number_densities, species"C_I", 0.0), nₑ)
+    #Nminus_ff(νs, T, get(number_densities, species"N_I", 0.0), nₑ)
+
+    # ff absorption where participating species are neutral molecules
+    H2minus_ff(νs, T, get(number_densities, species"H2_I", 0.0), nₑ)
+    COminus_ff(νs, T, get(number_densities, species"CO_I", 0.0), nₑ)
 
     # scattering
     α .+= electron_scattering(nₑ)
