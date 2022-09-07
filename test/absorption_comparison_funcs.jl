@@ -298,23 +298,18 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, species_
                                             use_OP_data = false)
     @assert species_name in ["H_I", "He_II"]
 
+    νs = Korg.c_cgs ./ (λ_vals * 1e-8)
     if use_OP_data
-        cross_sec_file = if species_name == "H_I"
-            joinpath(@__DIR__, "data/TOPbase_cross_section_H_I.txt")
-        else
-            joinpath(@__DIR__, "data/TOPbase_cross_section_He_II.txt")
-        end
-        Korg.ContinuumAbsorption.cross_section_bf_TOPBase(Korg.Species(species_name), 
-                                                          λ_vals.*1e-8, [T])[:, 1] * ndens_species
+        spec = Korg.Species(species_name)
+        exp.(Korg.ContinuumAbsorption.metal_bf_cross_sections[spec].(νs, log10(T)) .+ log(ndens_species) * 1e-18)
     else
-        ν_vals = (Korg.c_cgs*1e8)./λ_vals # Hz
         ndens_div_partition = ndens_species/Korg.partition_funcs[Korg.Species(species_name)](log(T))
-        κ_dflt_approach = if species_name == "H_I"
+        if species_name == "H_I"
             H_I_ion_energy = 13.598
-            Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, ndens_div_partition, H_I_ion_energy)
+            Korg.ContinuumAbsorption.H_I_bf(νs, T, ndens_div_partition, H_I_ion_energy)
         else
             He_II_ion_energy = 54.418
-            Korg.ContinuumAbsorption.He_II_bf(ν_vals, T, ndens_div_partition, He_II_ion_energy)
+            Korg.ContinuumAbsorption.He_II_bf(νs, T, ndens_div_partition, He_II_ion_energy)
         end
     end
 end

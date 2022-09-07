@@ -1,4 +1,5 @@
 using Korg, HDF5, Base
+using Statistics: mean
 
 include("NORAD_TOPBase_parsing_code.jl")
 
@@ -16,13 +17,15 @@ function save_bf_cross_section(f, spec, logTs, νs, ξ=2e5)
     λs = Korg.c_cgs ./ νs # the frequencecy grid is linear-enough in wavelength over the ~ 1 Å scale LSF 
 
     # convert to megabarns and cast to single precision
-    σs = Float32.(hcat(Korg.constant_R_LSF.(eachcol(σs), Ref(λs), Rs)...) .* 1e18)
+    σs = hcat(Korg.constant_R_LSF.(eachcol(σs), Ref(λs), Rs)...)
     mask = σs .< floatmin(Float32)
     σs[mask] .= 0
-    print(minimum(σs), " -- ", maximum(σs), " ($(sum(mask)) denormal) ")
+    print(spec)
+    println(" ", minimum(σs), " -- ", maximum(σs), " ($(mean(mask)) denormal)")
+    log_σs = Float32.(log.((σs)))
     
     # save in order of increasing freq / decreasing wl
-    f["cross-sections/"*string(spec), shuffle=(), deflate=9] = reverse(σs, dims=1)
+    f["cross-sections/"*string(spec), shuffle=(), deflate=6] = reverse(log_σs, dims=1)
 end
 
 logTs = 2:0.1:5
@@ -48,7 +51,6 @@ h5open(filename, "w") do f
                 continue # no such thing as H II 
             end
             spec = Korg.Species(Korg.atomic_symbols[Z] * " $ionization_number")
-            println(spec)
             save_bf_cross_section(f, spec, logTs, νs)
         end
     end

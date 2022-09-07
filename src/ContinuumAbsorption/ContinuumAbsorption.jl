@@ -1,6 +1,6 @@
 module ContinuumAbsorption
 
-using ..Korg: ionization_energies, @species_str, _data_dir # not sure that this is the best idea
+using ..Korg: ionization_energies, Species, @species_str, _data_dir # not sure that this is the best idea
 using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
@@ -12,12 +12,12 @@ include("absorption_H.jl")
 include("absorption_He.jl")
 
 include("absorption_ff_positive_ion.jl")
+#used for metal bf absorption
+using HDF5 
+using Interpolations: LinearInterpolation, Flat
+include("absorption_metals_bf.jl")
 include("scattering.jl")
 
-#TODO
-## the following are only imported for computing experimental metal bf continuum opacities
-#using ..Korg: partition_funcs, Species, ismolecule, get_atoms, _data_dir
-#include("absorption_metal.jl")
 
 export total_continuum_absorption
 
@@ -67,6 +67,9 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     # ff absorption where participating species are positive ions 
     # i.e. H I ff is included but not H⁻ ff or He⁻ ff 
     positive_ion_ff_absorption!(α, νs, T, number_densities, nₑ)
+
+    # bf absorption by metals from TOPBase and NORAD
+    metal_bf_absorption!(α, νs, T, number_densities)
 
     # scattering
     α .+= electron_scattering(nₑ)

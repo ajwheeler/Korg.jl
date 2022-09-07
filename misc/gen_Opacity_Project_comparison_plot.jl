@@ -27,7 +27,7 @@ function plot_hydrogenic_comparison(species_name, T = 7800.0, ndens_species = 3.
     hydrogenic_α_dflt = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species,
                                                                       species_name;
                                                                       use_OP_data = false)
-    _pos_value_extrema(arr) = extrema(filter(x->x>0, arr))
+    _pos_value_extrema(arr) = extrema(filter(x->x>=0, arr))
     ylims = extrema((_pos_value_extrema(hydrogenic_α_OP)...,
                      _pos_value_extrema(hydrogenic_α_dflt)...))
     if isnothing(p)
