@@ -2,7 +2,7 @@ using Korg, HDF5, Base
 using Statistics: mean
 using Interpolations
 
-include("NORAD_TOPBase_parsing_code.jl")
+include("NIST_NORAD_TOPBase_parsing_code.jl")
 
 """
 Returns cross section in megabarns summed from all electron configurations for a given species.
@@ -72,6 +72,7 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
 
         # g*exp(-βε)/U at each temperature
         weights = statistical_weight(state) .* exp.(-energy_level .* β) ./ Us
+        display(weights)
         total_weight += weights
 
         # stimulated emission is rare since it requires a free electron with the right energy
