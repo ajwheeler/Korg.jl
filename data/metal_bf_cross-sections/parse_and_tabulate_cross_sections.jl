@@ -33,11 +33,6 @@ function Base.show(io::IO, state::ElectronState)
     print(io, state.spin_multiplicity, orbital_letter, parity_char, " (level ", state.iLV, ")")
 end
 
-function statistical_weight(state::ElectronState)
-    state.spin_multiplicity * (2*state.L + 1)
-end
-
-
 const _FINAL_LINE =  "    0    0    0    0"
 
 # In a couple tables, there's a place where the photon energy is listed out of order. This seems to
@@ -120,7 +115,7 @@ function electron_state(term)
 end
 
 """
-This returns a dict of ElectronState => energy pairs.
+This returns a dict of ElectronState => (energy, g).
 """
 function parse_NIST_energy_levels(data_dir, spec)
     df = CSV.read(joinpath(data_dir , string(spec)*".csv"), DataFrame)
@@ -142,6 +137,7 @@ function parse_NIST_energy_levels(data_dir, spec)
             end
             )
     end
+    df.g = parse.(Int, first.(split.(df.J, '/'))) .+ 1 #numerator + 1, e.g. J=1/2 -> g=2
 
     #get the numbers which specify the state: 2S+1, L, π
     df.term_nos = electron_state.(df.Term)
@@ -160,9 +156,93 @@ function parse_NIST_energy_levels(data_dir, spec)
     #make sure the hacky term parsing worked
     @assert all(startswith.(string.(df.electron_state), df.Term))
 
-    e_levels = Dict{ElectronState, Float64}()
+    e_levels = Dict{ElectronState, Tuple{Float64, Int}}()
     for row in eachrow(df)
-        e_levels[row.electron_state] = row.level
+        e_levels[row.electron_state] = (row.level, row.g)
     end
     e_levels
+end
+
+"""
+Returns cross section in megabarns summed from all electron configurations for a given species.
+
+TODO
+"""
+function single_species_bf_cross_section(spec::Species, λs, Ts, data_dir)
+    #this method handles loading the correct files if you just specify the species
+    @assert !ismolecule(spec)
+
+    Z = get_atoms(spec.formula)[1]
+    n_electrons = Z - spec.charge
+
+    filename = "p" * lpad(Z, 2, "0") * "." * lpad(n_electrons, 2, "0") * ".dat"
+    #use NORAD tables when available, TOPBase otherwise
+    path, norad_format = if isfile(joinpath(data_dir, "bf_cross_sections", "NORAD", filename))
+        joinpath(data_dir, "bf_cross_sections", "NORAD", filename), true
+    else
+        joinpath(data_dir, "bf_cross_sections", "TOPBase", filename), false
+    end
+    cross_sections = parse_TOPBase_cross_sections(path, norad_format)
+
+    nist_levels = parse_NIST_energy_levels(joinpath(data_dir, "NIST_energy_levels"), spec)
+
+    Z = get_atoms(spec)[1]
+    ionization_energy = Korg.ionization_energies[Z][spec.charge + 1]
+
+    single_species_bf_cross_section(cross_sections, nist_levels, ionization_energy, 
+                             Korg.partition_funcs[spec], λs, Ts)
+end
+function single_species_bf_cross_section(cross_sections, energy_levels, ionization_energy, U, λs, Ts)
+    # convert λ_vals to photon energies in eV
+    photon_energies = (hplanck_eV * c_cgs) ./ λs
+
+    # precompute Temperature-dependent constant
+    Us = U.(log.(Ts))
+    β = 1.0 ./ (kboltz_eV .* Ts)
+    
+    #ionization_energy_topbase = maximum(E for (E, ) in values(cross_sections))
+    #display("ionization energy: $(ionization_energy) (NIST) $(ionization_energy_topbase) (theoretical)")
+
+    # prepare the output array where results will be accumulated.  This the cross section obtained 
+    # by summing over electron states
+    total_sigma = zeros(eltype(photon_energies), (length(photon_energies),length(Ts)))
+    total_weight = zeros(length(Ts))
+
+    for (state, (topbase_binding_energy, Es, σs)) in pairs(cross_sections)
+        #the topbase binding energies are not precise.  Use NIST empirical energy levels instead.
+        energy_level, g = if state in keys(energy_levels)
+            energy_levels[state]
+        else
+            #println("skipping $state")
+            continue
+        end
+
+        empirical_binding_energy = ionization_energy - energy_level #in eV
+        #display("binding energy: $(empirical_binding_energy) (NIST) $(topbase_binding_energy) (theoretical)")
+
+        # adjust Es (photon energies) to match empirical binding energy
+        Es .+= empirical_binding_energy - topbase_binding_energy
+        Interpolations.deduplicate_knots!(Es, move_knots=true) #shift repeat Es to the next float
+
+        σ_itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
+
+        #ion_energies are the energies with respect to the ionization energy of the species
+        #excitation_potential_ryd = ionization_energy - binding_energy
+
+        # g*exp(-βε)/U at each temperature
+        weights = g .* exp.(-energy_level .* β) ./ Us
+        if weights[1] > 0.1
+            println(state, " ", weights[1])
+        end
+        total_weight += weights
+
+        # stimulated emission is rare since it requires a free electron with the right energy
+        # the extra factor of nₑ makes it negligable?
+        #total_sigma .+= σ_itp.(photon_energies) .* (1.0 .- exp.(-photon_energies.*β_Ryd')) .* weights'
+        total_sigma .+= σ_itp.(photon_energies) .* weights'
+    end
+
+    display(total_weight)
+
+    total_sigma 
 end
