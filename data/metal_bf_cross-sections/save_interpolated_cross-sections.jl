@@ -50,7 +50,7 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
     total_weight = zeros(length(Ts))
 
     for (state, (topbase_binding_energy, Es, σs)) in pairs(cross_sections)
-        #the topbase binding energies are not precise.  Use NIST empiricle energy levels instead.
+        #the topbase binding energies are not precise.  Use NIST empirical energy levels instead.
         energy_level = if state in keys(energy_levels)
             energy_levels[state]
         else
@@ -58,11 +58,11 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
             continue
         end
 
-        empiricle_binding_energy = ionization_energy - energy_level #in eV
-        #display("binding energy: $(empiricle_binding_energy) (NIST) $(topbase_binding_energy) (theoretical)")
+        empirical_binding_energy = ionization_energy - energy_level #in eV
+        #display("binding energy: $(empirical_binding_energy) (NIST) $(topbase_binding_energy) (theoretical)")
 
-        # adjust Es (photon energies) to match empiricle binding energy
-        Es .+= empiricle_binding_energy - topbase_binding_energy
+        # adjust Es (photon energies) to match empirical binding energy
+        Es .+= empirical_binding_energy - topbase_binding_energy
         Interpolations.deduplicate_knots!(Es, move_knots=true) #shift repeat Es to the next float
 
         σ_itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
