@@ -2,6 +2,7 @@ using Base
 using Interpolations: LinearInterpolation, deduplicate_knots!
 using Korg: partition_funcs, Species, ismolecule, get_atoms, _data_dir, move_bounds, @species_str
 using Korg: hplanck_eV, c_cgs, RydbergH_eV, kboltz_eV # constants
+using CSV, DataFrames #for NIST energy level parsing
 
 struct ElectronState
     spin_multiplicity::UInt8 # 2S + 1
@@ -32,16 +33,13 @@ function Base.show(io::IO, state::ElectronState)
     print(io, state.spin_multiplicity, orbital_letter, parity_char, " (level ", state.iLV, ")")
 end
 
-"""
-TODO
-"""
 function statistical_weight(state::ElectronState)
     state.spin_multiplicity * (2*state.L + 1)
 end
 
-_FINAL_LINE =  "    0    0    0    0"
 
-# TODO
+const _FINAL_LINE =  "    0    0    0    0"
+
 # In a couple tables, there's a place where the photon energy is listed out of order. This seems to
 # be okay given that this is in a section of the table where the cross-section is zero.
 const _species_with_problematic_subtables = (Species("He_I"), Species("C_I"), Species("C_II"),
@@ -69,8 +67,10 @@ function parse_TOPBase_cross_sections(filename, norad_format=false)
         state = ElectronState(parse(UInt8, lines[i][4:5]), parse(UInt8, lines[i][9:10]),
                               parse(UInt8, lines[i][14:15]), parse(UInt8, lines[i][19:20]))
 
-        #the next line tells you how many points there are
-        # for example: "     479    489" indicates 489 points. (The "479" is an internal thing.)
+        #the next line tells you how many energies the cross-section is evaluated at
+        # for example: "     479    489" indicates 489 points. 
+        # (The "479" is an internal thing. I think it's the number of points calculated with the 
+        # R-matrix method directly, as opposed to being interpolated.)
         npoints = parse(Int, lines[i+1][9:14])
         # The line after that indicates the binding energy.
         # for example: "  1.000000E+00    0.0100" indicates that the binding energy is 1 Ryd.
@@ -86,57 +86,83 @@ function parse_TOPBase_cross_sections(filename, norad_format=false)
             σs[j] = parse(Float32, lines[i+j-1][16:24])
         end
         deduplicate_knots!(Es, move_knots=true) # shift repeated E values to the next float 
-        itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
+        #itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
 
-        cross_sections[state] = binding_energy, itp
+        cross_sections[state] = binding_energy * RydbergH_eV, Es * RydbergH_eV, σs
+
         i += npoints #move i to the next electron state
     end
 
     cross_sections
 end
 
+
 """
-TODO
+This returns spin_multiplicity, L, parity, but NOT an ElectronState.  We have to figure out the 
+order within each term for that.  It's used for parsing the NIST files.
 """
-function cross_section_bf(cross_sections, U, λs, Ts)
-    # convert λ_vals to photon energies in Ryd
-    photon_energies = (hplanck_eV * c_cgs / RydbergH_eV) ./ λs
+function electron_state(term)
+    L_numbers = Dict(['S', 'P', 'D', 'F', 'G', 'H', 'I', 'J'] .=> 0:7)
 
-    # precompute Temperature-dependent constant
-    Us = U.(log.(Ts))
-    β_Ryd = RydbergH_eV./(kboltz_eV .* Ts)
-    binding_energy_ground = maximum(E for (E, itp) in values(cross_sections))
+    has_prefex = !isdigit(term[1])
+    i = if has_prefex #the index of the char with the spin multiplicity
+        3
+    else
+        1
+    end
+    
+    spin_multiplicity = parse(Int, term[i])
+    L = L_numbers[term[i+1]]
+    
+    parity = term[end] == '*'
+    
+    spin_multiplicity, L, parity
+end
 
-    # prepare the output array where results will be accumulated.  This the cross section obtained 
-    # by averaging over electron states
-    weighted_average = zeros(eltype(photon_energies), (length(photon_energies),length(Ts)))
-
-    for (state, (binding_energy, cross_section_itp)) in pairs(cross_sections)
-        #ion_energies are the energies with respect to the ionization energy of the species
-        excitation_potential_ryd = binding_energy_ground - binding_energy
-
-        # g*exp(-βε)/U at each temperature
-        weights = statistical_weight(state) .* exp.(-excitation_potential_ryd.*β_Ryd) ./ Us
-
-        #cross section for this state including stimulated emission term at each λ
-        σs = cross_section_itp.(photon_energies) .* (1.0 .- exp.(-photon_energies.*β_Ryd'))
-
-        weighted_average .+= σs .* weights'
+"""
+This returns a dict of ElectronState => energy pairs.
+"""
+function parse_NIST_energy_levels(data_dir, spec)
+    df = CSV.read(joinpath(data_dir , string(spec)*".csv"), DataFrame)
+    rename!(df, "Level (eV)"=>"level")
+    select!(df, ["Configuration", "Term", "J", "level"])
+    for col in names(df)
+        df[!, col] = (x -> String(x[3:end-1])).(df[!, col])
+    end
+    
+    filter!(df) do row # remove uncertain levels and limits, and other weird stuff
+        ( (row.Term != "") && isdigit(row.Term[1]) && (!in('[', row.Term)) 
+            && (!in('?', row.Term)) && (!in('?', row.level)) )
+    end 
+    df.level = map(df.level) do l
+        parse(Float64, if l[1] == '['
+                l[2:end-1]
+            else
+                l
+            end
+            )
     end
 
-    weighted_average * 1e-18 #megabarns -> cm^2
-end
-function cross_section_bf(spec::Species, λs, Ts, data_dir)
-    @assert !ismolecule(spec)
+    #get the numbers which specify the state: 2S+1, L, π
+    df.term_nos = electron_state.(df.Term)
+    #now calculate iLV, the energy order of the states within each term
+    combine(groupby(df,:term_nos), sdf -> sort(sdf,:level), :term_nos => eachindex => :iLV)
+    #df.iLV .= 0
+    combine(groupby(df, :term_nos)) do sdf
+        sdf.iLV .= sortperm(sdf.level)
+    end
+    
+    df.electron_state = ElectronState.(first.(df.term_nos), 
+                                        (x->x[2]).(df.term_nos),
+                                        last.(df.term_nos),
+                                        df.iLV)
+    
+    #make sure the hacky term parsing worked
+    @assert all(startswith.(string.(df.electron_state), df.Term))
 
-    #use NORAD tables for iron, TOPBase for others
-    use_norad = (spec == species"Fe I") || (spec == species"Fe II")
-    dir = joinpath(data_dir, use_norad ? "NORAD" : "TOPBase")
-
-    Z = get_atoms(spec.formula)[1]
-    n_electrons = Z - spec.charge
-    filename = joinpath(dir, "p" * lpad(Z, 2, "0") * "." * lpad(n_electrons, 2, "0") * ".dat")
-    cross_sections = parse_TOPBase_cross_sections(filename, use_norad)
-
-    cross_section_bf(cross_sections, partition_funcs[spec], λs, Ts)
+    e_levels = Dict{ElectronState, Float64}()
+    for row in eachrow(df)
+        e_levels[row.electron_state] = row.level
+    end
+    e_levels
 end

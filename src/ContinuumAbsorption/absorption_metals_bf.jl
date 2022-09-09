@@ -36,7 +36,7 @@ function metal_bf_absorption!(α, νs, T, number_densities)
             end
             # cross-section interpolator
             σ_itp = metal_bf_cross_sections[spec]
-            α .+= exp.(log(number_densities[spec]) .+ σ_itp.(νs, log10(T))) #* 1e-18 #convert to cm^2 
+            α .+= exp.(log(number_densities[spec]) .+ σ_itp.(νs, log10(T))) * 1e-18 #convert to cm^2 
         end
     end
 
