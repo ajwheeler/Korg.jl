@@ -294,17 +294,17 @@ end # end the definition of the Gray_opac_compare module
 module OP_compare
 using Korg
 
-function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, species_name;
+function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, spec;
                                             use_OP_data = false)
-    @assert species_name in ["H_I", "He_II"]
+    @assert spec in Korg.Species.(["H I", "He II"])
 
     νs = Korg.c_cgs ./ (λ_vals * 1e-8)
     if use_OP_data
-        spec = Korg.Species(species_name)
-        exp.(Korg.ContinuumAbsorption.metal_bf_cross_sections[spec].(νs, log10(T)) .+ log(ndens_species) * 1e-18)
+        σ_itp = Korg.ContinuumAbsorption.metal_bf_cross_sections[spec]
+        exp.(log(ndens_species) .+ σ_itp.(νs, log10(T))) * 1e-18 #convert to cm^2 
     else
-        ndens_div_partition = ndens_species/Korg.partition_funcs[Korg.Species(species_name)](log(T))
-        if species_name == "H_I"
+        ndens_div_partition = ndens_species/Korg.partition_funcs[spec](log(T))
+        if spec == Korg.species"H I"
             H_I_ion_energy = 13.598
             Korg.ContinuumAbsorption.H_I_bf(νs, T, ndens_div_partition, H_I_ion_energy)
         else
@@ -314,33 +314,7 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, species_
     end
 end
 
-# the following functions could all be refactored so that they are more concise... (they could
-# honestly just be constants)
-
-function _dflt_λ_vals(species_name)
-    first, last = (species_name == "H_I") ? (80,80000) : (25, 40000)
-    map((λ) -> Float32(λ), first:1.0:last)
-end
-
-function _λ_comp_intervals(species_name)
-    # because the energy state data used by the Opacity Project is somewhat inaccurate (note the
-    # disagreement gets worse at higher energy levels), we can only make meaningful comparisons
-    # over specific wavelength intervals.
-
-    if species_name == "H_I"
-        [80.0       911.0;
-         1000.0     3645.0;
-         4000.0     8203.0;
-         9300.0     14579.0;
-         18000.0    22789.0]
-    else
-        [25.0       10.0^2.35;
-         10.0^2.37  10.0^2.95;
-         10.0^2.99  10.0^3.3;
-         10.0^3.37  10.0^3.55;
-         10.0^3.65  10.0^3.75]
-    end
-end
+_dflt_λ_vals = 500 : 1.0 : 30_000
 
 _hydrogenic_rtol(species_name) = (species_name == "H_I") ? 0.11 : 0.06
 end # end the definition of OP_compare module
