@@ -239,16 +239,17 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
         end
 
         empirical_binding_energy = ionization_energy - energy_level #in eV
-        #display("binding energy: $(empirical_binding_energy) (NIST) $(topbase_binding_energy) (theoretical)")
+
+        # remove bb energies
+        mask = Es .> topbase_binding_energy 
+        Es = Es[mask]
+        σs = σs[mask]
 
         # adjust Es (photon energies) to match empirical binding energy
         Es .+= empirical_binding_energy - topbase_binding_energy
         deduplicate_knots!(Es, move_knots=true) #shift repeat Es to the next float
 
         σ_itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
-
-        #ion_energies are the energies with respect to the ionization energy of the species
-        #excitation_potential_ryd = ionization_energy - binding_energy
 
         # g*exp(-βε)/U at each temperature
         weights = g .* exp.(-energy_level .* β) ./ Us
