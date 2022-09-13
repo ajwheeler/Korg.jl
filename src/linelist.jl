@@ -125,13 +125,19 @@ end
     Species(code::AbstractString)
 
 Parse the "species code" as it is often specified in linelists and return a the "astronomy" 
-notation. 01.00 → "H_I", 02.01 → "He_II", 02.1000 → "He_II", 0608 → "CO_I", etc.  
+notation. 01.00 → "H I", 02.01 → "He II", 02.1000 → "He II", 0608 → "CO I", etc.  
+
+TODO
+
 
 To parse at compile time, use the `species` string macro, i.e. `species"H I"`.
 """
 function Species(code::AbstractString)
     code = strip(code, ['0', ' '])
     toks = split(code, [' ', '.', '_'])
+    filter!(toks) do tok
+        tok != "" #TODO add tests
+    end
     if length(toks) > 2
         throw(ArgumentError(code * " isn't a valid species code"))
     end
@@ -174,12 +180,24 @@ struct Line{F}
     E_lower::F                #eV (also called the excitation potential)
     gamma_rad::F              #s^-1
     gamma_stark::F            #s^-1
-    vdW::Union{F, Tuple{F,F}} #either Γ_vdW [s^-1] per electron or (σ, α) from ABO theory
+    vdW::Union{F, Tuple{F,F}} #either γ_vdW [s^-1] per electron or (σ, α) from ABO theory
 
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F, 
              gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
              vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
+
+    Arguments:
+     - `wl`: wavelength, in cm
+     - `log_gf`: (log base 10) oscillator strength (unitless)
+     - `species`: the `Species` associated with the line
+     - `E_lower`: The energy (excitiation potential) of the lower energy level (eV)
+
+    Optional Arguments (these override default recipes):
+     - `gamma_rad`: Fundemental width
+     - `gamma_stark`: Stark broadening width at 10,000 K (s⁻¹)
+     - `vdW`: Either the van der Waals broadening width at 10,000 K (s⁻¹) or a `Tuple`, (σ, α) from
+       ABO theory.
 
     Construct a `Line`.  If any of `gamma_rad`, `gamma_stark`, or `vdW` are `missing`, guess them.
     `vdW` may be log(Γ_vdW) (assumed if negative), Γ_vdW (assumed if 0 < `vdW` < 1), or packed ABO 

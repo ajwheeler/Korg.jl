@@ -96,8 +96,8 @@ end
 This returns spin_multiplicity, L, parity, but NOT an ElectronState.  We have to figure out the 
 order within each term for that.  It's used for parsing the NIST files.
 """
-function electron_state(term)
-    L_numbers = Dict(['S', 'P', 'D', 'F', 'G', 'H', 'I', 'J'] .=> 0:7)
+function parse_term(term)
+    L_numbers = Dict((c for c in "SPDFGHIJKLMNOQRTUVWXYZ") .=> 0:21)
 
     has_prefex = !isdigit(term[1])
     i = if has_prefex #the index of the char with the spin multiplicity
@@ -115,35 +115,49 @@ function electron_state(term)
 end
 
 """
-This returns a dict of ElectronState => (energy, g).
+This returns a dict of ElectronState => (energy, g) for a single species.
 """
-function parse_NIST_energy_levels(data_dir, spec)
-    df = CSV.read(joinpath(data_dir , string(spec)*".csv"), DataFrame)
+function parse_NIST_energy_levels(path)
+    df = CSV.read(path, DataFrame)
     rename!(df, "Level (eV)"=>"level")
     select!(df, ["Configuration", "Term", "J", "level"])
     for col in names(df)
         df[!, col] = (x -> String(x[3:end-1])).(df[!, col])
     end
     
-    filter!(df) do row # remove uncertain levels and limits, and other weird stuff
-        ( (row.Term != "") && isdigit(row.Term[1]) && (!in('[', row.Term)) 
-            && (!in('?', row.Term)) && (!in('?', row.level)) )
+    for i in 1:size(df, 1) #strip off lower-case letter term prefixes
+        if (df.Term[i] != "") && (length(df.Term[i]) > 2) && islowercase(df.Term[i][1]) && (df.Term[i][2] == ' ')
+            df.Term[i] = df.Term[i][3:end]
+        end
+    end
+    # remove levels for various reasons
+    filter!(df) do row 
+        ( (row.Term != "")       # self-explanatory
+        && (row.J != "")         # self-explanatory
+        && (!in('o', row.J))     # to catch "1 or 2 or 3" etc.
+        && (row.level != " ")    # self-explanatory
+        && isdigit(row.Term[1])  # This is some  weird term notation that I can't figure out.
+        && (!in('[', row.Term))  # This is some  weird term notation that I can't figure out.
+        && (!in('?', row.Term))  # why bother
+        && any(isuppercase(c) for c in row.Term) # written with non-JK coupling scheme
+        && (!in(',', row.J))     # these just represent multiple levels(?). Annoying to parse.
+        && (!in('a', row.level)) # autoionizing
+        && !in('+', row.level))  # these have been observed but only relative energies are known
     end 
-    df.level = map(df.level) do l
-        parse(Float64, if l[1] == '['
-                l[2:end-1]
-            else
-                l
-            end
-            )
+    df.level = map(df.level) do l #parse energy level ignoring []'s and ?'s
+        if (l[1] == '[') || (l[1] == '(') #remove brackets
+            l = l[2:end-1]
+        end
+        if (l[end] == '?') #strip suffixes
+            l = l[1:end-1]
+        end
+        parse(Float64, l)
     end
     df.g = parse.(Int, first.(split.(df.J, '/'))) .+ 1 #numerator + 1, e.g. J=1/2 -> g=2
 
     #get the numbers which specify the state: 2S+1, L, π
-    df.term_nos = electron_state.(df.Term)
+    df.term_nos = parse_term.(df.Term)
     #now calculate iLV, the energy order of the states within each term
-    combine(groupby(df,:term_nos), sdf -> sort(sdf,:level), :term_nos => eachindex => :iLV)
-    #df.iLV .= 0
     combine(groupby(df, :term_nos)) do sdf
         sdf.iLV .= sortperm(sdf.level)
     end
@@ -154,7 +168,9 @@ function parse_NIST_energy_levels(data_dir, spec)
                                         df.iLV)
     
     #make sure the hacky term parsing worked
-    @assert all(startswith.(string.(df.electron_state), df.Term))
+    #inds = findall(.!startswith.(string.(df.electron_state), df.Term))
+    #display([df.electron_state[inds] df.Term[inds]])
+    #@assert all(startswith.(string.(df.electron_state), df.Term))
 
     e_levels = Dict{ElectronState, Tuple{Float64, Int}}()
     for row in eachrow(df)
@@ -184,7 +200,12 @@ function single_species_bf_cross_section(spec::Species, λs, Ts, data_dir)
     end
     cross_sections = parse_TOPBase_cross_sections(path, norad_format)
 
-    nist_levels = parse_NIST_energy_levels(joinpath(data_dir, "NIST_energy_levels"), spec)
+    nist_levels_path = joinpath(data_dir, "NIST_energy_levels", string(spec)*".csv")
+    nist_levels = if isfile(nist_levels_path)
+        parse_NIST_energy_levels(nist_levels_path)
+    else
+        throw(ArgumentError(nist_levels_path * " doesn't exist"))
+    end
 
     Z = get_atoms(spec)[1]
     ionization_energy = Korg.ionization_energies[Z][spec.charge + 1]
@@ -222,7 +243,7 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
 
         # adjust Es (photon energies) to match empirical binding energy
         Es .+= empirical_binding_energy - topbase_binding_energy
-        Interpolations.deduplicate_knots!(Es, move_knots=true) #shift repeat Es to the next float
+        deduplicate_knots!(Es, move_knots=true) #shift repeat Es to the next float
 
         σ_itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
 
@@ -231,9 +252,6 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
 
         # g*exp(-βε)/U at each temperature
         weights = g .* exp.(-energy_level .* β) ./ Us
-        if weights[1] > 0.1
-            println(state, " ", weights[1])
-        end
         total_weight += weights
 
         # stimulated emission is rare since it requires a free electron with the right energy
@@ -242,7 +260,7 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
         total_sigma .+= σ_itp.(photon_energies) .* weights'
     end
 
-    display(total_weight)
+    #display(total_weight)
 
     total_sigma 
 end
