@@ -1,4 +1,5 @@
 using Base
+using Statistics: mean
 using Interpolations: LinearInterpolation, deduplicate_knots!
 using Korg: partition_funcs, Species, ismolecule, get_atoms, _data_dir, move_bounds, @species_str
 using Korg: hplanck_eV, c_cgs, RydbergH_eV, kboltz_eV # constants
@@ -141,6 +142,7 @@ function parse_NIST_energy_levels(path)
             df.Term[i] = df.Term[i][3:end]
         end
     end
+
     # remove levels for various reasons
     filter!(df) do row 
         ( (row.Term != "")       # self-explanatory
@@ -155,7 +157,9 @@ function parse_NIST_energy_levels(path)
         && (!in('a', row.level)) # autoionizing
         && !in('+', row.level))  # these have been observed but only relative energies are known
     end 
-    df.level = map(df.level) do l #parse energy level ignoring []'s and ?'s
+    
+    #parse energy level ignoring []'s and ?'s
+    df.level = map(df.level) do l 
         if (l[1] == '[') || (l[1] == '(') #remove brackets
             l = l[2:end-1]
         end
@@ -165,8 +169,6 @@ function parse_NIST_energy_levels(path)
         parse(Float64, l)
     end
 
-
-    println(size(df, 1), " rows before reduction")
     #group and combine by unique configuration/term pair
     df.config_term = tuple.(df.Configuration, df.Term)
     #df.iLV .= 0
@@ -178,7 +180,6 @@ function parse_NIST_energy_levels(path)
                       :level => mean => :level,
                       :Term => first => :Term,
                       :Configuration => first => :Configuration)
-    println(size(df, 1), " rows after reduction")
 
     #get the numbers which specify the state: 2S+1, L, π
     df.term_nos = parse_term.(df.Term)
