@@ -48,11 +48,11 @@ h5open(filename, "w") do f
     f["nu_step"] = -step(νs)
     f["nu_max"] = νs[1]
 
-    #atomic_numbers = [6, 12, 13, 14, 26]
-    atomic_numbers = [1:14... ; 16:2:20... ; 26]
+    # C, Na, Mg, Al, Si, S, Ca, and Fe 
+    atomic_numbers = [6, 11, 12, 13, 14, 16, 20, 26]
     @time for Z in atomic_numbers
-        for ionization_number in [1, 2]
-        #for ionization_number in [1]
+        #for ionization_number in [1, 2]
+        for ionization_number in [1]
             if Z == 1 && ionization_number == 2
                 continue # no such thing as H II 
             end
