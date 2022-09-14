@@ -49,16 +49,12 @@ h5open(filename, "w") do f
     f["nu_max"] = νs[1]
 
     # C, Na, Mg, Al, Si, S, Ca, and Fe 
-    atomic_numbers = [6, 11, 12, 13, 14, 16, 20, 26]
+    # save H I and He II for testing
+    atomic_numbers = [1, 2, 6, 11, 12, 13, 14, 16, 20, 26]
     @time for Z in atomic_numbers
-        #for ionization_number in [1, 2]
-        for ionization_number in [1]
-            if Z == 1 && ionization_number == 2
-                continue # no such thing as H II 
-            end
-            spec = Korg.Species(Korg.atomic_symbols[Z] * " $ionization_number")
-            save_bf_cross_section(f, spec, logTs, νs)
-        end
+        ionization_number = Z == 2 ? 2 : 1
+        spec = Korg.Species(Korg.atomic_symbols[Z] * " $ionization_number")
+        save_bf_cross_section(f, spec, logTs, νs)
     end
 end
 ;

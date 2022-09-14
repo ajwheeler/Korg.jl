@@ -11,7 +11,7 @@ struct ElectronState
     P::UInt8                 # parity 0->even, 1->odd
     iLV::UInt8               # index of the level within its spectroscopic series 
     function ElectronState(spin_multiplicity, L, P, iLV)
-        @assert 1 <= spin_multiplicity <= 8 #TODO explain
+        @assert 1 <= spin_multiplicity <= 8 
         @assert P == 0 || P == 1            # parity must be either even or odd
         @assert iLV > 0                     # these are 1-indexed
         new(spin_multiplicity, L, P, iLV)
@@ -207,8 +207,8 @@ end
 
 """
 Returns cross section in megabarns summed from all electron configurations for a given species.
-
-TODO
+λs should be in cm, Ts in K.  data_dir should contain the local path to Korg_data 
+(https://github.com/ajwheeler/Korg_data).
 """
 function single_species_bf_cross_section(spec::Species, λs, Ts, data_dir)
     #this method handles loading the correct files if you just specify the species
@@ -267,7 +267,7 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
         empirical_binding_energy = ionization_energy - energy_level #in eV
 
         # remove bb energies
-        mask = Es .> topbase_binding_energy 
+        mask = Es .>= topbase_binding_energy 
         Es = Es[mask]
         σs = σs[mask]
 

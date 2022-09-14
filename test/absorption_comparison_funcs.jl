@@ -294,7 +294,7 @@ end # end the definition of the Gray_opac_compare module
 module OP_compare
 using Korg
 
-function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, spec;
+function calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec;
                                             use_OP_data = false)
     @assert spec in Korg.Species.(["H I", "He II"])
 
@@ -314,7 +314,13 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, spec;
     end
 end
 
-_dflt_λ_vals = 500 : 1.0 : 30_000
+function _dflt_λ_vals(spec)
+    if spec == Korg.species"H I"
+        500 : 1.0 : 5_000
+    else # He II
+        500 : 1.0 : 900 # cross-section is below Float32 min above ~912 Å
+    end
+end
 
-_hydrogenic_rtol(species_name) = (species_name == "H_I") ? 0.11 : 0.06
+_hydrogenic_rtol(species_name) = (species_name == "H_I") ? 0.12 : 0.30
 end # end the definition of OP_compare module

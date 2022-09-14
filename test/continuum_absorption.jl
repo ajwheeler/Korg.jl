@@ -559,30 +559,27 @@ end
 end
 
 
-@testset "TOPbase bound-free absorption" begin
+@testset "TOPbase/NORAD bound-free absorption" begin
     T = 7800.0 #K, this is fairly arbitrary
     ndens_species = 3.0e16 #cm⁻³, this is fairly arbitrary
 
-    @testset "$species_name comparison" for species_name in ["H_I", "He_II"]
-        λ_vals = OP_compare._dflt_λ_vals(species_name)
+    @testset "$spec comparison" for spec in Korg.Species.(["H_I", "He_II"])
+        λ_vals = OP_compare._dflt_λ_vals(spec)
 
-        # compute the absorption coefficients using the TOPbase data
+        # compute the absorption coefficients using the TOPbase/NORAD data
         hydrogenic_α_OP = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
-                                                                        species_name;
-                                                                        use_OP_data = true)
+                                                                        spec; use_OP_data = true)
         # compute the absorption coefficients using our function for hydrogenic atoms
         hydrogenic_α_dflt = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
-                                                                          species_name;
-                                                                          use_OP_data = false)
+                                                                          spec; use_OP_data = false)
 
-        λ_comp_intervals = OP_compare._λ_comp_intervals(species_name)
-        comp_ind = map(λ_vals) do λ
-            any(λ_comp_intervals[:, 1] .<= λ .<= λ_comp_intervals[:, 2])
-        end
-        @test assert_allclose_grid(hydrogenic_α_OP[comp_ind], hydrogenic_α_dflt[comp_ind],
-                                   [("λ", λ_vals[comp_ind], "Å"),];
-                                   rtol = OP_compare._hydrogenic_rtol(species_name), atol = 0.0,
-                                   err_msg = ("\n$(species_name) bf absorption coefficients " *
+        λ_comp_intervals = [(λ_vals[1], λ_vals[end])]
+        #comp_ind = map(λ_vals) do λ
+        #    any(λ_comp_intervals[:, 1] .<= λ .<= λ_comp_intervals[:, 2])
+        #end
+        @test assert_allclose_grid(hydrogenic_α_OP, hydrogenic_α_dflt, [("λ", λ_vals, "Å"),];
+                                   rtol = OP_compare._hydrogenic_rtol(spec), atol = 0.0,
+                                   err_msg = ("\n$(spec) bf absorption coefficients " *
                                               "computed using data from the opacity project are " *
                                               "inconsistent with the results computed for a " *
                                               "hydrogenic atom"))

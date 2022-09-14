@@ -8,7 +8,7 @@ using Plots, Korg
 include("../test/absorption_comparison_funcs.jl")
 
 function plot_hydrogenic_comparison(spec, T = 7800.0, ndens_species = 3.0e16; p = nothing)
-    λ_vals = OP_compare._dflt_λ_vals
+    λ_vals = 500 : 1.0 : 100_000
     hydrogenic_α_OP = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals,  T, ndens_species, spec;
                                                                     use_OP_data = true)
     hydrogenic_α_dflt = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec;
