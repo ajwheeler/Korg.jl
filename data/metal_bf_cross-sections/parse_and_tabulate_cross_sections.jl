@@ -121,10 +121,21 @@ function parse_NIST_energy_levels(path)
     df = CSV.read(path, DataFrame)
     rename!(df, "Level (eV)"=>"level")
     select!(df, ["Configuration", "Term", "J", "level"])
+
+    # strip off the =""
     for col in names(df)
         df[!, col] = (x -> String(x[3:end-1])).(df[!, col])
     end
     
+    #parse J, calculate g
+    Jmatch = match.(r"(\d+)(\/2)?", df.J)
+    df = df[.! isnothing.(Jmatch), :]
+    df.J = map(Jmatch[.! isnothing.(Jmatch)]) do m
+        denom = isnothing(m[2]) ? 1 : 2
+        parse(Int, m[1]) // denom
+    end
+    df.g = Int.(2df.J .+ 1)
+
     for i in 1:size(df, 1) #strip off lower-case letter term prefixes
         if (df.Term[i] != "") && (length(df.Term[i]) > 2) && islowercase(df.Term[i][1]) && (df.Term[i][2] == ' ')
             df.Term[i] = df.Term[i][3:end]
@@ -153,7 +164,21 @@ function parse_NIST_energy_levels(path)
         end
         parse(Float64, l)
     end
-    df.g = parse.(Int, first.(split.(df.J, '/'))) .+ 1 #numerator + 1, e.g. J=1/2 -> g=2
+
+
+    println(size(df, 1), " rows before reduction")
+    #group and combine by unique configuration/term pair
+    df.config_term = tuple.(df.Configuration, df.Term)
+    #df.iLV .= 0
+    gdf = groupby(df, :config_term)
+    for group in gdf
+        @assert all(group.Term .== group.Term[1])
+    end
+    df = combine(gdf, :g => sum => :g, 
+                      :level => mean => :level,
+                      :Term => first => :Term,
+                      :Configuration => first => :Configuration)
+    println(size(df, 1), " rows after reduction")
 
     #get the numbers which specify the state: 2S+1, L, π
     df.term_nos = parse_term.(df.Term)
