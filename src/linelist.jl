@@ -124,19 +124,32 @@ end
 """
     Species(code::AbstractString)
 
-Parse the "species code" as it is often specified in linelists and return a the "astronomy" 
-notation. 01.00 → "H I", 02.01 → "He II", 02.1000 → "He II", 0608 → "CO I", etc.  
+Parse the "species code" in many of the forms in which it is often specifieds and return an object 
+representing the sepcies.
 
-TODO
+# Examples
+ - "H I" -> H I
+ - "H 1" -> H I
+ - "H     1" -> H I
+ - "H_1" -> H I
+ - "H.I" -> H I
+ - "H 2" -> H II
+ - "H2" -> H₂
+ - "H" -> H I
+ - "01.00" → H I
+ - "02.01" → He II
+ - "02.1000" → He II
+ - "0608" → CO I
 
-
-To parse at compile time, use the `species` string macro, i.e. `species"H I"`.
+!!! note
+    To parse at compile time, use the `species` string macro, i.e. `species"H I"`.  This is 
+    important in hot inner loops.
 """
 function Species(code::AbstractString)
     code = strip(code, ['0', ' '])
     toks = split(code, [' ', '.', '_'])
     filter!(toks) do tok
-        tok != "" #TODO add tests
+        tok != ""
     end
     if length(toks) > 2
         throw(ArgumentError(code * " isn't a valid species code"))
