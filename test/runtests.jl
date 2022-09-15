@@ -2,6 +2,8 @@ using Korg, Test, HDF5
 
 include("cubic_splines.jl")
 
+@testset "Korg tests" begin
+
 @testset "atomic data" begin 
     @test (Korg.Natoms == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 
             == length(Korg.asplund_2020_solar_abundances))
@@ -430,3 +432,5 @@ end
         ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
     end
 end
+
+end #top-level testset
