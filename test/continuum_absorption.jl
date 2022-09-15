@@ -421,7 +421,7 @@ end
             Korg.ContinuumAbsorption.positive_ion_ff_absorption!(absorption_coef, ν_vals, T,
                                                      Dict([Korg.species"H II"=>nH_II]), nₑ)
             @test assert_allclose_grid(absorption_coef./nH_I, ref_absorption_coef, [("λ", λ_vals, "Å")];
-                                       rtol = 0.032, atol = 0)
+                                       rtol = 0.034, atol = 0)
             @test all(absorption_coef .≥ 0.0)
         end
     end
