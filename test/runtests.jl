@@ -160,8 +160,7 @@ include("statmech.jl")
 
             @test linelist[4].gamma_rad == linelist[1].gamma_rad
             @test linelist[4].gamma_stark == linelist[3].gamma_stark
-            #this is failing on windows (due to https://github.com/JuliaLang/julia/issues/43088 ?)
-            @test_skip linelist[4].vdW == 9.953360714197118e-8
+            @test linelist[4].vdW == 9.953360714197118e-8
 
             @test linelist[5].gamma_rad == linelist[1].gamma_rad
             @test linelist[5].gamma_stark == linelist[1].gamma_stark
