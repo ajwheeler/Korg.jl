@@ -516,7 +516,7 @@ end
 
             absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, nH_I/H_I_partition_val,
                                                               H_I_ion_energy) / nH_I
-            @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.004
+            @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.007
             @test all(absorption_coef .≥ 0.0)
         end
     end
@@ -558,7 +558,7 @@ end
 @testset "combined H I bf and ff absorption" begin
     @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
                                                                           ("c",0.125),
-                                                                          ("d",38.5)]
+                                                                          ("d",40.0)]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
         @test all(calculated .≥ 0.0)
         @test assert_allclose(calculated, ref; rtol=0, atol=atol)
