@@ -78,13 +78,12 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             α_ds_dr[k] = α[k, λ_ind] * ds_dr[k, μ_ind]
         end
         compute_tau_bezier!(view(τ_λ, 1:i), view(radii, 1:i), view(α, 1:i, λ_ind))
-        #if λ_ind == 1 && μ_ind == length(μ_surface_grid)
-        #    display([τ_ref[1:5:end] τ_λ[1:5:end]])
-        #    τ_λ .= τ_ref
-        #end
-        τ_λ .= τ_ref
-        #I[μ_ind, λ_ind] = ray_transfer_integral_bezier(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
-        I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
+        if λ_ind == 1 && μ_ind == length(μ_surface_grid)
+            display([τ_ref[1:5:end] τ_λ[1:5:end]])
+        end
+        τ_λ .= τ_ref ./ μ_surface_grid[μ_ind]
+        I[μ_ind, λ_ind] = ray_transfer_integral_bezier(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
+        #I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
         ##this branch could be factored out of this loop, which might speed things up.
         #if i < length(radii)
