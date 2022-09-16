@@ -81,23 +81,25 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         if λ_ind == 1 && μ_ind == length(μ_surface_grid)
             display([τ_λ τ_ref])
         end
-        #τ_λ .= τ_ref ./ μ_surface_grid[μ_ind]
         I[μ_ind, λ_ind] = ray_transfer_integral_bezier(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
         #I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
-        ##this branch could be factored out of this loop, which might speed things up.
-        #if i < length(radii)
-        #    #if the ray never leaves the model atmosphere, include the contribution from the 
-        #    #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
-        #    #This is less accurate than actually integrating to find τ, but the effect is small.
-        #    #This should probably by audited for off-by-one errors.  It's also inneficient.
-        #    τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
-        #    I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
-        #else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-        #    I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
-        #end
+        #this branch could be factored out of this loop, which might speed things up.
+        if i < length(radii)
+            #if the ray never leaves the model atmosphere, include the contribution from the 
+            #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
+            #This is less accurate than actually integrating to find τ, but the effect is small.
+            #This should probably by audited for off-by-one errors.  It's also inneficient.
+
+            #TODO USE BEZIER SCHEME!
+            τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
+            I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
+        else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
+            I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
+        end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
+    #TODO - do this better.  Using a 5x finer mu grid results in a few 0.01% change in flux
     F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
     I, F
 end
