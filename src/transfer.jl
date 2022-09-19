@@ -25,6 +25,10 @@ function radiative_transfer(atm::ShellAtmosphere, α, S, α_ref, mu_grid)
     photosphere_correction * spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)[2]
 end
 
+#TODO don't take tau ref here and in spherical transfer
+function planar_transfer(α, S, z, τ_ref)
+end
+
 """
     spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
 
@@ -36,22 +40,16 @@ Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intens
 shape (mu values × wavelengths), is the surface intensity as a function of μ.
 """
 function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
-    R, r0 = radii[1], radii[end] #lower bound of atmosphere
-
-    #precompute for use in transfer integral
-    log_τ_ref = log.(τ_ref) 
-    τ_ref_α_ref = τ_ref ./ α_ref
-
-    #general element type with which to preallocate arrays
+    #type with which to preallocate arrays (enables autodiff)
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
 
-    #geometric path-length correction (n_layers × n_μ)
+    # first calculate the wavelength-independent quantities:
+    #  - ds/dr, the geometric path-length factor (n_layers × n_μ)
+    #  - the index of the lowest atmospheric layer pierced by each ray
     ds_dr = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
-    #the index of the lowest atmospheric layer pierced by each ray
     lowest_layer_indices = Vector{Int}(undef, length(μ_surface_grid))
     for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
-        # impact parameter of ray
-        b = R * sqrt(1 - μ_surface^2)
+        b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
         
         #doing this with `findfirst` is messier at first and last index
         i = argmin(abs.(radii .- b)) 
@@ -63,38 +61,38 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         ds_dr[1:i, μ_ind] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
     end
 
-    #preallocations
+    # iterate over λ in the outer loop, μ in the inner loop, calculating τ(r), then I(surface)
     I = Matrix{el_type}(undef, length(μ_surface_grid), size(α, 2)) #surface intensity (n_μ × n_λ)
-    α_ds_dr = Vector{el_type}(undef, size(α, 1))  #integrand of τ integral , α (ds/dr)
+    α_ds_dr = Vector{el_type}(undef, size(α, 1))  #integrand of τ integral, α * ds/dr
     τ_λ = Vector{el_type}(undef, size(α, 1)) 
-    #iterate over λ in the outer loop, μ in the inner loop
     for λ_ind in 1:size(α, 2), μ_ind in 1:length(μ_surface_grid) 
         i = lowest_layer_indices[μ_ind]
-        if i <= 2
+        if i <= 2 #TODO ?
             I[μ_ind, λ_ind] = 0
             continue
         end
         for k in 1:i #I can't figure out how to write this as a fast one-liner
             α_ds_dr[k] = α[k, λ_ind] * ds_dr[k, μ_ind]
         end
-        compute_tau_bezier!(view(τ_λ, 1:i), view(radii, 1:i), α_ds_dr[1:i])
+        compute_tau_bezier!(view(τ_λ, 1:i), view(radii, 1:i), view(α_ds_dr,1:i))
         if λ_ind == 1 && μ_ind == length(μ_surface_grid)
             display([τ_λ τ_ref])
         end
-        I[μ_ind, λ_ind] = ray_transfer_integral_bezier(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
-        #I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
+        I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
-        #this branch could be factored out of this loop, which might speed things up.
+        # What happens at the lower boundery. Do we integrate through to the back of the star or 
+        # stop? This branch could be factored out of this loop, which might speed things up.
         if i < length(radii)
             #if the ray never leaves the model atmosphere, include the contribution from the 
             #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
             #This is less accurate than actually integrating to find τ, but the effect is small.
-            #This should probably by audited for off-by-one errors.  It's also inneficient.
 
+            #This should probably by audited for off-by-one errors.  It's also inneficient.
             #TODO USE BEZIER SCHEME!
-            τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
-            I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
-        else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
+            τ_prime = τ_λ[i] .+ cumsum(reverse(diff(view(τ_λ,1:i))))
+            I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, view(S,1:i-1,λ_ind))
+        else 
+            # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
             I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
         end
     end
@@ -102,33 +100,6 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     #TODO - do this better.  Using a 5x finer mu grid results in a few 0.01% change in flux
     F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
     I, F
-end
-
-
-"""
-    ray_transfer_integral(τ, S)
-
-Compute exactly the solution to the transfer integral obtained be linearly interpolating the source 
-function, `S` across optical depths `τ`, without approximating the factor of exp(-τ).
-
-This breaks the integral into the sum of integrals of the form 
-\$\\int (m\\tau + b) \\exp(-\\tau)\$ d\\tau\$ , 
-which is equal to
-\$ -\\exp(-\\tau) (m*\\tau + b + m)\$.
-"""
-function ray_transfer_integral(τ, S)
-    if length(τ) == 1
-        return 0.0
-    end
-    I = 0.0
-    next_exp_negτ = exp(-τ[1])
-    for i in 1:length(τ)-1
-        @inbounds m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
-        cur_exp_negτ = next_exp_negτ
-        @inbounds next_exp_negτ = exp(-τ[i+1])
-        @inbounds I += (-next_exp_negτ * (S[i+1] + m) + cur_exp_negτ * (S[i] + m))
-    end
-    I
 end
 
 #alpha should be increasing, s decreasing
@@ -148,7 +119,7 @@ end
 """
 TODO
 """
-function ray_transfer_integral_bezier(τ, S)
+function ray_transfer_integral(τ, S)
     @assert length(τ) == length(S)
     if length(τ) == 1
         return 0.0
@@ -191,21 +162,6 @@ function trapezoid_rule(xs, fs)
     Δs = diff(xs)
     weights = [0 ; Δs] + [Δs ; 0]
     sum(0.5 * weights .* fs)
-end
-
-"""
-    cumulative_trapezoid_rule!(out, xs, fs, [len=length(xs)])
-
-Approximate the closed integral of f(x) from the first element of `xs` to each element of `xs` 
-(up to `len`) with the trapezoid rule, given f values `fs`. 
-
-Assigns to the preallocated vector `out`.
-"""
-function cumulative_trapezoid_rule!(out, xs, fs, len=length(xs))
-    out[1] = 0.0
-    for i in 2:len
-        out[i] = out[i-1] + 0.5*(fs[i]+fs[i-1])*(xs[i]-xs[i-1])
-    end
 end
 
 """
