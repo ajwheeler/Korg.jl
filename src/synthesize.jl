@@ -90,7 +90,7 @@ end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
                     vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict{String, Float64}(), 
                     line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
-                    mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
+                    mu_grid=20, line_cutoff_threshold=1e-3,
                     solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)

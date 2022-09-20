@@ -42,7 +42,7 @@ Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intens
 shape (mu values × wavelengths), is the surface intensity as a function of μ.
 """
 function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
-    μ_surface_grid, mu_weights = gausslegendre(length(μ_surface_grid))
+    μ_surface_grid, mu_weights = gausslegendre(μ_surface_grid)
     μ_surface_grid = @. μ_surface_grid/2 + 0.5
     mu_weights ./= 2
 
@@ -62,8 +62,8 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         if radii[i] < b
             i -= 1
         end
-        lowest_layer_indices[μ_ind] = i
 
+        lowest_layer_indices[μ_ind] = i
         l[1:i, μ_ind] = @. sqrt(radii[1:i]^2 - b^2)
     end
 
@@ -78,26 +78,26 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         end
         compute_tau_bezier!(view(τ_λ, 1:i), view(l, 1:i, μ_ind), view(α, 1:i, λ_ind))
         #if λ_ind == 1 && μ_ind == length(μ_surface_grid)
-        #    #display([τ_λ τ_ref])
-        #    #display([s[1:i, μ_ind] radii[1:i]])
-        #    #display([α_ds_dr[1:i] α[1:i, μ_ind]])
+        #    display([τ_λ τ_ref])
         #end
         I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
-        # What happens at the lower boundery. Do we integrate through to the back of the star or 
-        # stop? This branch could be factored out of this loop, which might speed things up.
-        if 3 < i < length(radii) #TODO lower bound?
-            #if the ray never leaves the model atmosphere, include the contribution from the 
-            #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
-            #This is less accurate than actually integrating to find τ, but the effect is small.
+        # At the lower boundary, we either integrate through to the back of the star or stop. 
+        # This could be factored out of this loop, which might speed things up.
+        if i < length(radii)
+            # if the ray never leaves the model atmosphere, include the contribution from the 
+            # other side of the star.
+            
+            # TODO audit for off by 1
+            # TODO preallocate? (make τ_λ one bigger to hold reversed tau)
+            l_prime = [l[i, μ_ind] ; -view(l, i:-1:1, μ_ind)]
+            α_prime = [α[i, λ_ind] ; view(α, i:-1:1, λ_ind)]
+            τ_prime = similar(α_prime)
+            compute_tau_bezier!(τ_prime, l_prime, α_prime)
+            τ_prime .+= τ_λ[i]
 
-            #This should probably by audited for off-by-one errors.  It's also inneficient.
-            #TODO USE BEZIER SCHEME!
-
-            τ0 = τ_λ[i]
-            compute_tau_bezier!(τ_λ[1:i], -view(l, i:-1:1, μ_ind), view(α, i:-1:1, λ_ind))
-            τ_λ[1:i] .+= τ0
-            I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_λ, 2:i), view(S,i-1:-1:1,λ_ind))
+            S_prime = [S[i, λ_ind] ; view(S,i:-1:1,λ_ind)]
+            I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, S_prime)
         else 
             # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
             I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
