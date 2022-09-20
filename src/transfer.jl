@@ -1,3 +1,5 @@
+using FastGaussQuadrature: gausslegendre
+
 """
     radiative_transfer(atm::ModelAtmosphere, α, S, α_ref, mu_grid)
 
@@ -40,6 +42,10 @@ Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intens
 shape (mu values × wavelengths), is the surface intensity as a function of μ.
 """
 function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
+    μ_surface_grid, mu_weights = gausslegendre(length(μ_surface_grid))
+    μ_surface_grid = @. μ_surface_grid/2 + 0.5
+    mu_weights ./= 2
+
     #type with which to preallocate arrays (enables autodiff)
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
 
@@ -47,6 +53,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     #  - ds/dr, the geometric path-length factor (n_layers × n_μ)
     #  - the index of the lowest atmospheric layer pierced by each ray
     ds_dr = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
+    ds = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
     lowest_layer_indices = Vector{Int}(undef, length(μ_surface_grid))
     for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
         b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
@@ -59,6 +66,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         lowest_layer_indices[μ_ind] = i
 
         ds_dr[1:i, μ_ind] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
+        #TODO try calculating ds directly
     end
 
     # iterate over λ in the outer loop, μ in the inner loop, calculating τ(r), then I(surface)
@@ -75,9 +83,9 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             α_ds_dr[k] = α[k, λ_ind] * ds_dr[k, μ_ind]
         end
         compute_tau_bezier!(view(τ_λ, 1:i), view(radii, 1:i), view(α_ds_dr,1:i))
-        if λ_ind == 1 && μ_ind == length(μ_surface_grid)
-            display([τ_λ τ_ref])
-        end
+        #if λ_ind == 1 && μ_ind == length(μ_surface_grid)
+        #    display([τ_λ τ_ref])
+        #end
         I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
         # What happens at the lower boundery. Do we integrate through to the back of the star or 
@@ -89,8 +97,8 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
 
             #This should probably by audited for off-by-one errors.  It's also inneficient.
             #TODO USE BEZIER SCHEME!
-            τ_prime = τ_λ[i] .+ cumsum(reverse(diff(view(τ_λ,1:i))))
-            I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, view(S,1:i-1,λ_ind))
+            #τ_prime = τ_λ[i] .+ cumsum(reverse(diff(view(τ_λ,1:i))))
+            #I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, view(S,1:i-1,λ_ind))
         else 
             # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
             I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
@@ -98,7 +106,11 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     end
     #calculate 2π∫μIdμ to get astrophysical flux
     #TODO - do this better.  Using a 5x finer mu grid results in a few 0.01% change in flux
-    F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
+    #F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
+    println(size(mu_weights))
+    println(size(I))
+    println(size(I' * mu_weights))
+    F = 2π * (I' * (mu_weights .* μ_surface_grid))
     I, F
 end
 
