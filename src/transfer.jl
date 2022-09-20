@@ -50,10 +50,9 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
 
     # first calculate the wavelength-independent quantities:
-    #  - ds/dr, the geometric path-length factor (n_layers × n_μ)
+    #  - l, the coordinate along the ray
     #  - the index of the lowest atmospheric layer pierced by each ray
-    ds_dr = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
-    ds = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
+    l = Matrix{el_type}(undef, size(α, 1), length(μ_surface_grid))
     lowest_layer_indices = Vector{Int}(undef, length(μ_surface_grid))
     for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
         b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
@@ -65,13 +64,11 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         end
         lowest_layer_indices[μ_ind] = i
 
-        ds_dr[1:i, μ_ind] = @. radii[1:i] ./ sqrt(radii[1:i]^2 - b^2) 
-        #TODO try calculating ds directly
+        l[1:i, μ_ind] = @. sqrt(radii[1:i]^2 - b^2)
     end
 
     # iterate over λ in the outer loop, μ in the inner loop, calculating τ(r), then I(surface)
     I = Matrix{el_type}(undef, length(μ_surface_grid), size(α, 2)) #surface intensity (n_μ × n_λ)
-    α_ds_dr = Vector{el_type}(undef, size(α, 1))  #integrand of τ integral, α * ds/dr
     τ_λ = Vector{el_type}(undef, size(α, 1)) 
     for λ_ind in 1:size(α, 2), μ_ind in 1:length(μ_surface_grid) 
         i = lowest_layer_indices[μ_ind]
@@ -79,26 +76,28 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             I[μ_ind, λ_ind] = 0
             continue
         end
-        for k in 1:i #I can't figure out how to write this as a fast one-liner
-            α_ds_dr[k] = α[k, λ_ind] * ds_dr[k, μ_ind]
-        end
-        compute_tau_bezier!(view(τ_λ, 1:i), view(radii, 1:i), view(α_ds_dr,1:i))
+        compute_tau_bezier!(view(τ_λ, 1:i), view(l, 1:i, μ_ind), view(α, 1:i, λ_ind))
         #if λ_ind == 1 && μ_ind == length(μ_surface_grid)
-        #    display([τ_λ τ_ref])
+        #    #display([τ_λ τ_ref])
+        #    #display([s[1:i, μ_ind] radii[1:i]])
+        #    #display([α_ds_dr[1:i] α[1:i, μ_ind]])
         #end
         I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
         # What happens at the lower boundery. Do we integrate through to the back of the star or 
         # stop? This branch could be factored out of this loop, which might speed things up.
-        if i < length(radii)
+        if 3 < i < length(radii) #TODO lower bound?
             #if the ray never leaves the model atmosphere, include the contribution from the 
             #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
             #This is less accurate than actually integrating to find τ, but the effect is small.
 
             #This should probably by audited for off-by-one errors.  It's also inneficient.
             #TODO USE BEZIER SCHEME!
-            #τ_prime = τ_λ[i] .+ cumsum(reverse(diff(view(τ_λ,1:i))))
-            #I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, view(S,1:i-1,λ_ind))
+
+            τ0 = τ_λ[i]
+            compute_tau_bezier!(τ_λ[1:i], -view(l, i:-1:1, μ_ind), view(α, i:-1:1, λ_ind))
+            τ_λ[1:i] .+= τ0
+            I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_λ, 2:i), view(S,i-1:-1:1,λ_ind))
         else 
             # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
             I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
@@ -107,9 +106,9 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
     #calculate 2π∫μIdμ to get astrophysical flux
     #TODO - do this better.  Using a 5x finer mu grid results in a few 0.01% change in flux
     #F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
-    println(size(mu_weights))
-    println(size(I))
-    println(size(I' * mu_weights))
+    #println(size(mu_weights))
+    #println(size(I))
+    #println(size(I' * mu_weights))
     F = 2π * (I' * (mu_weights .* μ_surface_grid))
     I, F
 end
@@ -133,7 +132,7 @@ TODO
 """
 function ray_transfer_integral(τ, S)
     @assert length(τ) == length(S)
-    if length(τ) == 1
+    if length(τ) <= 1 #TODO?
         return 0.0
     end
     I = 0.0
