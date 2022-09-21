@@ -24,7 +24,9 @@ function radiative_transfer(atm::ShellAtmosphere, α, S, α_ref, mu_grid)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2 
     #discard I, take F only
-    photosphere_correction * spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)[2]
+    #photosphere_correction * spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)[2]
+    I, F = spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)
+    photosphere_correction .* F, I
 end
 
 #TODO don't take tau ref here and in spherical transfer
@@ -77,10 +79,47 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             continue
         end
         compute_tau_bezier!(view(τ_λ, 1:i), view(l, 1:i, μ_ind), view(α, 1:i, λ_ind))
-        #if λ_ind == 1 && μ_ind == length(μ_surface_grid)
-        #    display([τ_λ τ_ref])
-        #end
         I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
+
+        #debugging output
+#        if λ_ind == 860 && μ_ind == 44#length(μ_surface_grid)
+#            crazy_layer = 33#findfirst(τ_λ .< 0)
+#            println("τ[$(crazy_layer)] =  $(τ_λ[crazy_layer])")
+#            C = fritsch_butland_C(l[1:i, μ_ind], α[1:i, λ_ind])
+#            println(C[crazy_layer-2:crazy_layer+1])
+#            println(τ_λ[crazy_layer-2:crazy_layer+1])
+#            println("C's < 0? : ", sum(C .< 0))
+#
+# 
+#            C2 = let x=l[1:i, μ_ind], y=α[1:i, λ_ind]
+#                println(issorted(y))
+#                println(findfirst(diff(y) .< 0))
+#                #println(minimum(x), " ", maximum(x))
+#                h = diff(x) #h[k] = x[k+1] - x[k]
+#                this_α = @. 1/3 * (1 + h[2:end]/(h[2:end] + h[1:end-1])) #α[k] is wrt h[k] and h[k-1]
+#                d = @. (y[2:end] - y[1:end-1])/h #d[k] is dₖ₊₀.₅ in paper
+#                yprime = @. (d[1:end-1] * d[2:end]) / (this_α*d[2:end] + (1-this_α)*d[1:end-1])
+#
+#                C0 = @. y[2:end-1] + h[1:end-1]*yprime/2
+#                C1 = @. y[2:end-1] - h[2:end]*yprime/2
+#            
+#                println("α ", this_α[crazy_layer-2:crazy_layer+1])
+#                println("d ", d[crazy_layer-2:crazy_layer+1])
+#                denominator = @. (this_α*d[2:end] + (1-this_α)*d[1:end-1])
+#                denominatorA = @. (this_α*d[2:end])
+#                denominatorB = @. ((1-this_α)*d[1:end-1])
+#                println("denom ", denominator[crazy_layer-2:crazy_layer+1])
+#                println("term 1 ", denominatorA[crazy_layer-2:crazy_layer+1])
+#                println("term 2 ", denominatorB[crazy_layer-2:crazy_layer+1])
+#                
+#                println("y prime ", yprime[crazy_layer-2:crazy_layer+1])
+#                ([C0 ; C1[end]] .+ [C0[1] ; C1]) ./ 2
+#            end
+#            println("which one? ", findfirst(C .< 0))
+#            @assert(C ≈ C2)
+#
+#            #println(I[μ_ind, λ_ind])
+#        end
 
         # At the lower boundary, we either integrate through to the back of the star or stop. 
         # This could be factored out of this loop, which might speed things up.
@@ -97,6 +136,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             τ_prime .+= τ_λ[i]
 
             S_prime = [S[i, λ_ind] ; view(S,i:-1:1,λ_ind)]
+
             I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, S_prime)
         else 
             # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
@@ -104,11 +144,6 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
-    #TODO - do this better.  Using a 5x finer mu grid results in a few 0.01% change in flux
-    #F = 2π * [Korg.trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
-    #println(size(mu_weights))
-    #println(size(I))
-    #println(size(I' * mu_weights))
     F = 2π * (I' * (mu_weights .* μ_surface_grid))
     I, F
 end
@@ -121,6 +156,7 @@ TODO
 function compute_tau_bezier!(τ, s, α)
     τ[1] = 0
     C = fritsch_butland_C(s, α)
+    clamp!(C, 1/2 * minimum(α), 2 * maximum(α)) # TODO needed for numerical stability?
     for i in 2:length(α)
         τ[i] = τ[i-1] + (s[i-1] - s[i])/3 * (α[i] + α[i-1] + C[i-1])
     end
@@ -146,7 +182,7 @@ function ray_transfer_integral(τ, S)
     
         I = I*exp(-δ) + α*S[k] + β*S[k+1] + γ*C[k]
     end
-    I
+    I * exp(-τ[1]) #the second term isn't in the paper but it's necessary if τ[1] != 0
 end
 
 """

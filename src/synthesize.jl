@@ -156,7 +156,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
     flux = radiative_transfer(atm, α, source_fn, α5, mu_grid)
 
-    (flux=flux, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
+    (flux=flux[1], I=flux[2], alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
 end
 
 """
