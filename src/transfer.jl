@@ -81,54 +81,13 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         compute_tau_bezier!(view(τ_λ, 1:i), view(l, 1:i, μ_ind), view(α, 1:i, λ_ind))
         I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
-        #debugging output
-#        if λ_ind == 860 && μ_ind == 44#length(μ_surface_grid)
-#            crazy_layer = 33#findfirst(τ_λ .< 0)
-#            println("τ[$(crazy_layer)] =  $(τ_λ[crazy_layer])")
-#            C = fritsch_butland_C(l[1:i, μ_ind], α[1:i, λ_ind])
-#            println(C[crazy_layer-2:crazy_layer+1])
-#            println(τ_λ[crazy_layer-2:crazy_layer+1])
-#            println("C's < 0? : ", sum(C .< 0))
-#
-# 
-#            C2 = let x=l[1:i, μ_ind], y=α[1:i, λ_ind]
-#                println(issorted(y))
-#                println(findfirst(diff(y) .< 0))
-#                #println(minimum(x), " ", maximum(x))
-#                h = diff(x) #h[k] = x[k+1] - x[k]
-#                this_α = @. 1/3 * (1 + h[2:end]/(h[2:end] + h[1:end-1])) #α[k] is wrt h[k] and h[k-1]
-#                d = @. (y[2:end] - y[1:end-1])/h #d[k] is dₖ₊₀.₅ in paper
-#                yprime = @. (d[1:end-1] * d[2:end]) / (this_α*d[2:end] + (1-this_α)*d[1:end-1])
-#
-#                C0 = @. y[2:end-1] + h[1:end-1]*yprime/2
-#                C1 = @. y[2:end-1] - h[2:end]*yprime/2
-#            
-#                println("α ", this_α[crazy_layer-2:crazy_layer+1])
-#                println("d ", d[crazy_layer-2:crazy_layer+1])
-#                denominator = @. (this_α*d[2:end] + (1-this_α)*d[1:end-1])
-#                denominatorA = @. (this_α*d[2:end])
-#                denominatorB = @. ((1-this_α)*d[1:end-1])
-#                println("denom ", denominator[crazy_layer-2:crazy_layer+1])
-#                println("term 1 ", denominatorA[crazy_layer-2:crazy_layer+1])
-#                println("term 2 ", denominatorB[crazy_layer-2:crazy_layer+1])
-#                
-#                println("y prime ", yprime[crazy_layer-2:crazy_layer+1])
-#                ([C0 ; C1[end]] .+ [C0[1] ; C1]) ./ 2
-#            end
-#            println("which one? ", findfirst(C .< 0))
-#            @assert(C ≈ C2)
-#
-#            #println(I[μ_ind, λ_ind])
-#        end
-
         # At the lower boundary, we either integrate through to the back of the star or stop. 
         # This could be factored out of this loop, which might speed things up.
         if i < length(radii)
             # if the ray never leaves the model atmosphere, include the contribution from the 
             # other side of the star.
             
-            # TODO audit for off by 1
-            # TODO preallocate? (make τ_λ one bigger to hold reversed tau)
+            # could preallocate for efficiency (make τ_λ one bigger to hold reversed tau)
             l_prime = [l[i, μ_ind] ; -view(l, i:-1:1, μ_ind)]
             α_prime = [α[i, λ_ind] ; view(α, i:-1:1, λ_ind)]
             τ_prime = similar(α_prime)
