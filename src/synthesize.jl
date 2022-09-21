@@ -53,8 +53,9 @@ solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Di
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
   calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
-- `mu_grid`: the range of (surface) μ values at which to calculate the surface flux when doing 
-   transfer in spherical geometry (when `atm` is a `ShellAtmosphere`).
+- `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
+   transfer in spherical geometry (when `atm` is a `ShellAtmosphere`). 20 points is sufficient for
+   accuracy at the 10^-3 level.
 - `line_cutoff_threshold` (default: `1e-3`): the fraction of the continuum absorption coefficient 
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
@@ -90,7 +91,7 @@ end
 function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
                     vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict{String, Float64}(), 
                     line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
-                    mu_grid=20, line_cutoff_threshold=1e-3,
+                    n_mu_points=20, line_cutoff_threshold=1e-3,
                     solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
@@ -154,9 +155,9 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                      partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
-    flux = radiative_transfer(atm, α, source_fn, α5, mu_grid)
+    flux, intensity = radiative_transfer(atm, α, source_fn, n_mu_points)
 
-    (flux=flux[1], I=flux[2], alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
+    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
 end
 
 """

@@ -1,7 +1,7 @@
 using FastGaussQuadrature: gausslegendre
 
 """
-    radiative_transfer(atm::ModelAtmosphere, α, S, α_ref, mu_grid)
+    radiative_transfer(atm::ModelAtmosphere, α, S, n_μ_points)
 
 Returns the astrophysical flux at each wavelength.
 
@@ -9,28 +9,47 @@ inputs:
 - `atm`: the model atmosphere.
 - `α`: a matrix (atmospheric layers × wavelengths) containing the absoprtion coefficient
 - `S`: the source fuction as a matrix of the same shape.
-- `α_ref`: the continuum absoprtion coefficient at the reference wavelength (5000 Å). Used to 
    rescale the total absorption to match the model atmosphere. This value should be calculated by 
    Korg.
-- `mu_grid`: (required if atm is a [`ShellAtmosphere`](@ref)) the values of μ at which to calculate 
-   the surface intensity, which is integrated to obtain the astrophysical flux.
+- `n_μ_points`: the number of quadrature points to use when integrating over I_surface(μ) to obtain 
+   the astrophysical flux.
 """
-function radiative_transfer(atm::PlanarAtmosphere, α, S, α_ref, mu_grid=nothing; bezier=false)
-    τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
-    planar_transfer(α, S, τ5, α_ref)
+function radiative_transfer(atm::PlanarAtmosphere, α, S, n_μ_points)
+    zs = [l.z for l in atm.layers]
+    planar_transfer(α, S, zs, n_μ_points)
 end
-function radiative_transfer(atm::ShellAtmosphere, α, S, α_ref, mu_grid)
-    τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
+function radiative_transfer(atm::ShellAtmosphere, α, S, n_μ_points)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2 
-    #discard I, take F only
-    #photosphere_correction * spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)[2]
-    I, F = spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)
+    F, I = spherical_transfer(α, S, radii, n_μ_points)
     photosphere_correction .* F, I
 end
 
-#TODO don't take tau ref here and in spherical transfer
-function planar_transfer(α, S, z, τ_ref)
+"""
+TODO
+"""
+function planar_transfer(α, S, z, n_μ_points)
+    μ_grid, μ_weights = generate_mu_grid(n_μ_points)
+
+    #type with which to preallocate arrays (enables autodiff)
+    el_type = typeof(promote(z[1], α[1], S[1], μ_grid[1])[1])
+
+    # iterate over λ in the outer loop, μ in the inner loop, calculating τ(r), then I(surface)
+    I = Matrix{el_type}(undef, length(μ_grid), size(α, 2)) #surface intensity (n_μ × n_λ)
+    τ_λ = Vector{el_type}(undef, size(α, 1)) 
+    for λ_ind in 1:size(α, 2), μ_ind in eachindex(μ_grid) 
+        μ = μ_grid[μ_ind]
+
+        compute_tau_bezier!(τ_λ, z ./ μ, view(α, :, λ_ind))
+        I[μ_ind, λ_ind] = ray_transfer_integral(τ_λ, view(S, :, λ_ind))
+
+        # assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
+        I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
+    end
+
+    #calculate 2π∫μIdμ to get astrophysical flux
+    F = 2π * (I' * (μ_weights .* μ_grid))
+    F, I
 end
 
 """
@@ -43,10 +62,8 @@ explantion of the arguments. Note that `radii` should be in decreasing order.
 Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intensity`, a matrix of 
 shape (mu values × wavelengths), is the surface intensity as a function of μ.
 """
-function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
-    μ_surface_grid, mu_weights = gausslegendre(μ_surface_grid)
-    μ_surface_grid = @. μ_surface_grid/2 + 0.5
-    mu_weights ./= 2
+function spherical_transfer(α, S, radii, n_μ_points)
+    μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points)
 
     #type with which to preallocate arrays (enables autodiff)
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
@@ -93,26 +110,31 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
             τ_prime = similar(α_prime)
             compute_tau_bezier!(τ_prime, l_prime, α_prime)
             τ_prime .+= τ_λ[i]
-
             S_prime = [S[i, λ_ind] ; view(S,i:-1:1,λ_ind)]
-
             I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, S_prime)
         else 
             # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
             I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
         end
     end
+
     #calculate 2π∫μIdμ to get astrophysical flux
-    F = 2π * (I' * (mu_weights .* μ_surface_grid))
-    I, F
+    F = 2π * (I' * (μ_weights .* μ_surface_grid))
+    F, I
 end
 
-#alpha should be increasing, s decreasing
-#TODO off-by-one error, how to get non-0 tau at first layer
+function generate_mu_grid(n_points)
+    μ_grid, μ_weights = gausslegendre(n_points)
+    μ_grid = @. μ_grid/2 + 0.5
+    μ_weights ./= 2
+    μ_grid, μ_weights
+end
+
 """
 TODO
 """
 function compute_tau_bezier!(τ, s, α)
+    #TODO off-by-one error, how to get non-0 tau at first layer
     τ[1] = 0
     C = fritsch_butland_C(s, α)
     clamp!(C, 1/2 * minimum(α), 2 * maximum(α)) # TODO needed for numerical stability?
@@ -157,17 +179,6 @@ function fritsch_butland_C(x, y)
     C1 = @. y[2:end-1] - h[2:end]*yprime/2
 
     ([C0 ; C1[end]] .+ [C0[1] ; C1]) ./ 2
-end
-
-"""
-    trapezoid_rule(xs, fs)
-
-Approximate the integral f(x) with the trapezoid rule over x-values `xs` given f(x) values `fs`.
-"""
-function trapezoid_rule(xs, fs)
-    Δs = diff(xs)
-    weights = [0 ; Δs] + [Δs ; 0]
-    sum(0.5 * weights .* fs)
 end
 
 """
