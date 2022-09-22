@@ -123,6 +123,9 @@ function spherical_transfer(α, S, radii, n_μ_points)
     F, I
 end
 
+"""
+TODO
+"""
 function generate_mu_grid(n_points)
     μ_grid, μ_weights = gausslegendre(n_points)
     μ_grid = @. μ_grid/2 + 0.5
