@@ -67,6 +67,8 @@ solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Di
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
+- `use_legacy_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
+   testing purposes only.
 """
 function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0.01
                     ; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4, kwargs...)
@@ -93,6 +95,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                     line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
                     n_mu_points=20, line_cutoff_threshold=1e-3,
                     solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
+                    use_legacy_radiative_transfer=false,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
@@ -132,8 +135,10 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
         α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer.(λs)
 
-        α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, layer.electron_number_density,
-                                           n_dict, partition_funcs)[1]
+        if use_legacy_radiative_transfer
+            α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
+                               layer.electron_number_density, n_dict, partition_funcs)[1]
+        end
 
         if hydrogen_lines
             hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
@@ -155,7 +160,11 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                      partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
-    flux, intensity = radiative_transfer(atm, α, source_fn, n_mu_points)
+    flux, intensity = if use_legacy_radiative_transfer
+        MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+    else
+         radiative_transfer(atm, α, source_fn, n_mu_points)
+    end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
 end
