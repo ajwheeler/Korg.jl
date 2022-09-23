@@ -1,6 +1,6 @@
 module ContinuumAbsorption
 
-using ..Korg: ionization_energies, @species_str, _data_dir # not sure that this is the best idea
+using ..Korg: ionization_energies, Species, @species_str, _data_dir # not sure that this is the best idea
 using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
@@ -12,11 +12,12 @@ include("absorption_H.jl")
 include("absorption_He.jl")
 
 include("absorption_ff_positive_ion.jl")
+#used for metal bf absorption
+using HDF5 
+using Interpolations: LinearInterpolation, Flat
+include("absorption_metals_bf.jl")
 include("scattering.jl")
 
-# the following are only imported for computing experimental metal bf continuum opacities
-using ..Korg: partition_funcs, Species, Formula, ismolecule, get_roman_numeral
-include("absorption_metal.jl")
 
 export total_continuum_absorption
 
@@ -58,7 +59,7 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
-    # He continuum absorption
+    # He continuum absorption isn't actually important, but here we are
     He_II_bf(νs, T, number_densities[species"He_II"]/partition_funcs[species"He_II"](log(T)); kwargs...)
     Heminus_ff(νs, T, number_densities[species"He_I"] / partition_funcs[species"He_I"](log(T)), nₑ;
                kwargs...)
@@ -66,6 +67,9 @@ function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, numbe
     # ff absorption where participating species are positive ions 
     # i.e. H I ff is included but not H⁻ ff or He⁻ ff 
     positive_ion_ff_absorption!(α, νs, T, number_densities, nₑ)
+
+    # bf absorption by metals from TOPBase and NORAD
+    metal_bf_absorption!(α, νs, T, number_densities)
 
     # scattering
     α .+= electron_scattering(nₑ)

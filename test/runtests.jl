@@ -102,6 +102,14 @@ include("statmech.jl")
             @test Korg.species"812.0"   == Korg.species"MgO"
             @test Korg.species"822.0"   == Korg.species"TiO"
             @test Korg.species"OOO"     == Korg.species"O3"
+            @test Korg.species"H 1" == Korg.species"H I"
+            @test Korg.species"H     1" == Korg.species"H I"
+            @test Korg.species"H_1" == Korg.species"H I"
+            @test Korg.species"H.I" == Korg.species"H I"
+            @test Korg.species"H I" == Korg.species"H I"
+            @test Korg.species"H 2" == Korg.species"H II"
+            @test Korg.species"H2" == Korg.species"HH I"
+            @test Korg.species"H" == Korg.species"H I"
 
             @test_throws ArgumentError Korg.Species("06.05.04")
             @test_throws Exception Korg.Species("99.01")

@@ -4,6 +4,36 @@ using Interpolations: LinearInterpolation, Flat
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
 """
+    move_bounds(λs, lb, ub, λ₀, window_size)
+
+Using `lb` and `ub` as initial guesses, return the indices of `λs` corresponding to 
+`λ₀`` ± `window_size`.  If `λs` is an `AbstractRange`, then compute them directly.  Assumes `λs` is 
+sorted.
+"""
+function move_bounds(λs::AbstractRange, lb, ub, λ₀, window_size)
+    len = length(λs)
+    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
+    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 1, len)
+    lb,ub
+end
+function move_bounds(λs, lb, ub, λ₀, window_size)
+    #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
+    while lb+1 < length(λs) && λs[lb] < λ₀ - window_size
+        lb += 1
+    end
+    while lb > 1 && λs[lb-1] > λ₀ - window_size
+        lb -= 1
+    end
+    while ub < length(λs) && λs[ub+1] < λ₀ + window_size
+        ub += 1
+    end
+    while ub > 1 && λs[ub] > λ₀ + window_size
+        ub -= 1
+    end
+    lb, ub
+end
+
+"""
     constant_R_LSF(flux, wls, R)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
@@ -23,13 +53,14 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
+    lb, ub = 1,1 #initialize window bounds
     for i in 1:length(wls)
         λ0 = wls[i]
         σ = λ0 / R / 2
-        mask = λ0 - 4σ .< wls .< λ0 + 4σ
-        ϕ = normal_pdf.(wls[mask] .- λ0, σ)
+        lb, ub = move_bounds(wls, lb, ub, λ0, σ)
+        ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
         normalization_factor[i] = 1 ./ sum(ϕ)
-        convF[mask] += flux[i]*ϕ
+        convF[lb:ub] += flux[i]*ϕ
     end
     convF .* normalization_factor
 end
