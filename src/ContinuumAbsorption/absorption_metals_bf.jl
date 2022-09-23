@@ -20,7 +20,7 @@ Adds to α the contributions of bf metal opacities.  Uses precomputed tables fro
 [TOPBase](http://cdsweb.u-strasbg.fr/topbase/topbase.html) for Li, Be, B, C, N, O, F, Ne, Na, Mg, 
 Al, Si, S, Ar, and Ca. Uses tables from 
 [NORAD](https://www.astronomy.ohio-state.edu/nahar.1/nahar_radiativeatomicdata/index.html) for 
-Fe.  For these elements, tables have been procomputed for the neutral and singly ionized species 
+Fe.  For these elements, tables have been precomputed for the neutral and singly ionized species 
 assuming and LTE distribution of energy levels.  See `Korg/data/metal_bf_cross-sections/` for the
 scripts which generate the tables.
 
