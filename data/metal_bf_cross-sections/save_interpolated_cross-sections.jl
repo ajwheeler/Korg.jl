@@ -4,7 +4,7 @@ using Interpolations
 
 include("parse_and_tabulate_cross_sections.jl")
 
-function save_bf_cross_section(f, spec, logTs, νs, ξ=2e5)
+function save_bf_cross_section(f, spec, logTs, νs, ξ)
     @assert issorted(νs, rev=true) # should be decreasing freq
     
     Ts = 10 .^ logTs
@@ -37,7 +37,7 @@ wl_hi = 30_050 * 1e-8
 
 # descending freq, ascending wl
 νs = Korg.c_cgs / wl_lo : -1e11 : Korg.c_cgs / wl_hi
-
+ξ = 2e5 #microturbulence in cm/s
 
 filename = OUT_FILE
 h5open(filename, "w") do f
@@ -47,6 +47,7 @@ h5open(filename, "w") do f
     f["nu_min"] = νs[end]
     f["nu_step"] = -step(νs)
     f["nu_max"] = νs[1]
+    f["microturbulence"] = ξ
 
     # C, Na, Mg, Al, Si, S, Ca, and Fe 
     # save H I and He II for testing
@@ -54,7 +55,7 @@ h5open(filename, "w") do f
     @time for Z in atomic_numbers
         ionization_number = Z == 2 ? 2 : 1
         spec = Korg.Species(Korg.atomic_symbols[Z] * " $ionization_number")
-        save_bf_cross_section(f, spec, logTs, νs)
+        save_bf_cross_section(f, spec, logTs, νs, ξ)
     end
 end
 ;

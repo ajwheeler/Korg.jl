@@ -281,10 +281,8 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
         weights = g .* exp.(-energy_level .* β) ./ Us
         total_weight += weights
 
-        # stimulated emission is rare since it requires a free electron with the right energy
-        # the extra factor of nₑ makes it negligable?
-        #total_sigma .+= σ_itp.(photon_energies) .* (1.0 .- exp.(-photon_energies.*β_Ryd')) .* weights'
-        total_sigma .+= σ_itp.(photon_energies) .* weights'
+        # sum contributions from energy levels and adjust for stimulated recombination
+        @. total_sigma += σ_itp(photon_energies) * (1.0 - exp(-photon_energies * β')) * weights'
     end
 
     #display(total_weight)
