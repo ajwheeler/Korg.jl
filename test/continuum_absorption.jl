@@ -574,9 +574,6 @@ end
                                                                           spec; use_OP_data = false)
 
         λ_comp_intervals = [(λ_vals[1], λ_vals[end])]
-        #comp_ind = map(λ_vals) do λ
-        #    any(λ_comp_intervals[:, 1] .<= λ .<= λ_comp_intervals[:, 2])
-        #end
         @test assert_allclose_grid(hydrogenic_α_OP, hydrogenic_α_dflt, [("λ", λ_vals, "Å"),];
                                    rtol = OP_compare._hydrogenic_rtol(spec), atol = 0.0,
                                    err_msg = ("\n$(spec) bf absorption coefficients " *
