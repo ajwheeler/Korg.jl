@@ -14,9 +14,9 @@ inputs:
 - `n_μ_points`: the number of quadrature points to use when integrating over I_surface(μ) to obtain 
    the astrophysical flux.
 """
-function radiative_transfer(atm::PlanarAtmosphere, α, S, n_μ_points)
+function radiative_transfer(atm::PlanarAtmosphere, α, S, n_μ_points; α5=nothing)
     zs = [l.z for l in atm.layers]
-    planar_transfer(α, S, zs, n_μ_points)
+    planar_transfer(α, S, zs, n_μ_points, [l.tau_5000 for l in atm.layers], α5)
 end
 function radiative_transfer(atm::ShellAtmosphere, α, S, n_μ_points)
     radii = [atm.R + l.z for l in atm.layers]
@@ -28,11 +28,22 @@ end
 """
 TODO
 """
-function planar_transfer(α, S, z, n_μ_points)
+function planar_transfer(α, S, z, n_μ_points, τ5, α5)
     μ_grid, μ_weights = generate_mu_grid(n_μ_points)
 
     #type with which to preallocate arrays (enables autodiff)
     el_type = typeof(promote(z[1], α[1], S[1], μ_grid[1])[1])
+
+    #calculate adjustment
+    korg_τ5 = Vector{el_type}(undef, size(α, 1))
+    compute_tau_bezier!(korg_τ5, z, α5)
+    spline_τ5 = Vector{el_type}(undef, size(α, 1))
+    compute_tau_spline!(spline_τ5, z, α5)
+    analytic_spline_τ5 = Vector{el_type}(undef, size(α, 1))
+    compute_tau_spline_analytic!(analytic_spline_τ5, z, α5)
+    #correction = τ5 ./ korg_τ5
+    #display(correction)
+    display([τ5 korg_τ5 spline_τ5 analytic_spline_τ5])
 
     # iterate over λ in the outer loop, μ in the inner loop, calculating τ(r), then I(surface)
     I = Matrix{el_type}(undef, length(μ_grid), size(α, 2)) #surface intensity (n_μ × n_λ)
@@ -41,6 +52,9 @@ function planar_transfer(α, S, z, n_μ_points)
         μ = μ_grid[μ_ind]
 
         compute_tau_bezier!(τ_λ, z ./ μ, view(α, :, λ_ind))
+        #compute_tau_spline_analytic!(τ_λ, z ./ μ, view(α, :, λ_ind))
+        #τ_λ .*= correction
+        #τ_λ = τ5 ./ μ
         I[μ_ind, λ_ind] = ray_transfer_integral(τ_λ, view(S, :, λ_ind))
 
         # assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
@@ -48,7 +62,7 @@ function planar_transfer(α, S, z, n_μ_points)
     end
 
     #calculate 2π∫μIdμ to get astrophysical flux
-    F = 2π * (I' * (μ_weights .* μ_grid))
+    F = 2π * (I' * (μ_weights .* μ_grid)) 
     F, I
 end
 
@@ -138,13 +152,21 @@ TODO
 """
 function compute_tau_bezier!(τ, s, α)
     #TODO off-by-one error, how to get non-0 tau at first layer
-    τ[1] = 0
+    τ[1] = 1e-5 #TODO
     C = fritsch_butland_C(s, α)
     clamp!(C, 1/2 * minimum(α), 2 * maximum(α)) # TODO needed for numerical stability?
     for i in 2:length(α)
         τ[i] = τ[i-1] + (s[i-1] - s[i])/3 * (α[i] + α[i-1] + C[i-1])
     end
     ;
+end
+
+function compute_tau_spline_analytic!(τ, s, α)
+    s = -s
+    α_itp = CubicSplines.CubicSpline(s, α; extrapolate=true)
+    τ .= map(s) do layer_s
+        CubicSplines.integral(α_itp, s[1], layer_s)
+    end
 end
 
 """

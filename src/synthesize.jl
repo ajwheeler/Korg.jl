@@ -135,7 +135,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
         α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer.(λs)
 
-        if use_legacy_radiative_transfer
+        if true#use_legacy_radiative_transfer
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
                                layer.electron_number_density, n_dict, partition_funcs)[1]
         end
@@ -163,7 +163,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     flux, intensity = if use_legacy_radiative_transfer
         MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
     else
-         radiative_transfer(atm, α, source_fn, n_mu_points)
+         radiative_transfer(atm, α, source_fn, n_mu_points; α5=α5)
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
