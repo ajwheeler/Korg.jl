@@ -105,7 +105,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
         throw(ArgumentError("λs must be in increasing order."))
     end
 
-    #TODO add checks on A_X
+    if A_X[1] != 12
+        throw(ArgumentError("A(H) must be 12."))
+    end
 
     abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
