@@ -2,7 +2,7 @@ using Interpolations: LinearInterpolation
 import ..ContinuumAbsorption: total_continuum_absorption
 
 """
-    synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; metallicity=0, abundances=Dict(), vmic=0, ... )
+    synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
 
 Compute a synthetic spectrum.
 
@@ -84,9 +84,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_s
     synthesize(atm, linelist, A_X, wls; kwargs...)
 end
 function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; 
-                    vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict{String, Float64}(), 
-                    line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
-                    mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
+                    vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
+                    hydrogen_lines=true, mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
@@ -115,7 +114,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
 
     #float-like type general to handle dual numbers
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
-                            metallicity, vmic, abundances[1])[1])
+                            vmic, abs_abundances[1])[1])
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
     α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
@@ -158,12 +157,19 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
 end
 
 """
-TODO
+    construct_abundances(metallicity, abundances)
 
-- `metallicity`, i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
-   than He. It is overriden by `abundances`.
+Returns a 92 element vector containing abundances in ``A(X)`` (``\\log(X/H) + 12``) format for 
+elements from hydrogen to uranium.
+
+# Arguments
+You can provide either or both of:
+- `metallicity` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
+   than He. It is overriden by `abundances`.  
 - `abundances` is a `Dict` mapping atomic symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
+
+# Keyword arguments
 - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
   (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
    ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
@@ -173,8 +179,8 @@ TODO
   use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function construct_abundances(metallicity::Real=0.0, 
-                              abundances::Dict{Int, <:Real}=Dict{String, Float64}();
+function construct_abundances(metallicity::Real, 
+                              abundances::Dict{<:Integer, <:Real}=Dict{Int, Float64}();
                               solar_abundances=asplund_2020_solar_abundances, solar_relative=true)
     if 1 in keys(abundances)
         silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
@@ -185,12 +191,12 @@ function construct_abundances(metallicity::Real=0.0,
     #populate A(X) vector
     A_X = map(0x01:Natoms) do Z
         if Z == 1 #handle hydrogen
-            solar_relative * 12 #0 if solar_relative, 12 if not
+            convert(valtype(abundances), solar_relative * 12) #0 if solar_relative, 12 if not
         elseif Z in keys(abundances) #if explicitely set
             if solar_relative
-                abundances[elem] + solar_abundances[Z]
+                abundances[Z] + solar_abundances[Z]
             else
-                abundances[elem]
+                abundances[Z]
             end
         else #if not set, use solar value adjusted for metallicity
             Δ = metallicity * (Z >= 3) #only adjust for metals, not H or He
@@ -198,13 +204,13 @@ function construct_abundances(metallicity::Real=0.0,
         end
     end
 end
-#handle case  where metallicity isn't specified
-construct_abundances(abundances::Dict; kwargs...) = construct_abundances(0, abundances; kwargs...)
 #handle case where abundnace dict uses atomic symbols
-function construct_abundances(metallicity::Real=0.0, abundances::Dict{Int, <:Real}=Dict(); kwargs...)
-    abundances = Dict(metalicity, [Korg.atomic_numbers[el] => A for (el, A) in abundances])
+function construct_abundances(metallicity::Real, abundances::Dict{String, <:Real}; kwargs...)
+    abundances = Dict([Korg.atomic_numbers[el] => A for (el, A) in abundances])
     construct_abundances(metallicity, abundances)
 end
+# handle case  where metallicity isn't specified
+construct_abundances(abundances::Dict; kwargs...) = construct_abundances(0, abundances; kwargs...)
 
 """
     blackbody(T, λ)
