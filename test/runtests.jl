@@ -331,29 +331,29 @@ end
 
 @testset "synthesis" begin
 
-    @testset "calculate absolute abundances" begin
-        @test_throws ArgumentError Korg.get_absolute_abundances(0.0, Dict("H"=>13), 
-                                                        Korg.asplund_2020_solar_abundances, true)
+    @testset "abundances" begin
+        @test_throws ArgumentError construct_abundances(0.0, Dict("H"=>13))
+        @test (construct_abundances() 
+                == construct_abundances(0)
+                == construct_abundances(Dict{String, Float64}())
+                == construct_abundances(Dict{Int, Float64}()))
 
         @testset for metallicity in [0.0, 0.5], abundances in [Dict(), Dict("C"=>1.1)], solar_relative in [true, false]
-            nx_nt = Korg.get_absolute_abundances(metallicity, abundances, 
-                                                Korg.asplund_2020_solar_abundances, solar_relative)
+            A_X = construct_abundances(metallicity, abundances; 
+                                       solar_abundances=Korg.asplund_2020_solar_abundances,
+                                       solar_relative=solar_relative)
+
             #correct absolute abundances?
             if "C" in keys(abundances)
                 if solar_relative
-                    @test log10(nx_nt[6]/nx_nt[1]) + 12 ≈ Korg.asplund_2020_solar_abundances[6] + 1.1
+                    @test A_X[6] ≈ Korg.asplund_2020_solar_abundances[6] + 1.1
                 else
-                    @test log10(nx_nt[6]/nx_nt[1]) + 12 ≈ 1.1
+                    @test A_X[6] ≈ 1.1
                 end
             end
-            @test log10(nx_nt[2]/nx_nt[1]) + 12 ≈ Korg.asplund_2020_solar_abundances[2]
-            @test log10(nx_nt[Korg.atomic_numbers["Ba"]]/nx_nt[1]) + 12 ≈ 
-                Korg.asplund_2020_solar_abundances[Korg.atomic_numbers["Ba"]] + metallicity
-
-            #normalized?
-            @test sum(nx_nt) ≈ 1
+            @test A_X[7:end] ≈ Korg.asplund_2020_solar_abundances[7:end] .+ metallicity
+            @test A_X[1:2] == Korg.asplund_2020_solar_abundances[1:2]
         end
-
     end
 
     @testset "trapezoid rule" begin
@@ -418,23 +418,24 @@ end
 @testset "synthesize wavelength handling" begin
     atm = read_model_atmosphere("data/sun.mod")
     wls = 15000:0.01:15500
-    @test synthesize(atm, [], 15000, 15500).wavelengths ≈ wls
-    @test synthesize(atm, [], 15000, 15500; air_wavelengths=true).wavelengths ≈ Korg.air_to_vacuum.(wls)
-    @test_throws ArgumentError synthesize(atm, [], 15000, 15500; air_wavelengths=true, 
+    A_X = construct_abundances()
+    @test synthesize(atm, [], A_X, 15000, 15500).wavelengths ≈ wls
+    @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈ Korg.air_to_vacuum.(wls)
+    @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true, 
                                           wavelength_conversion_warn_threshold=1e-20)
-    @test_throws ArgumentError synthesize(atm, [], 2000, 8000, air_wavelengths=true)
+    @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
 end
 
 @testset "autodiff" begin
     using ForwardDiff
 
+    linelist = read_linelist("data/linelists/5000-5005.vald")
+    wls = 6564:0.01:6565
     for atm_file in ["data/sun.mod",
              "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"]
         atm = read_model_atmosphere(atm_file)
-        linelist = read_linelist("data/linelists/5000-5005.vald")
-        wls = 6564:0.01:6565
-        flux(p) = synthesize(atm, linelist, wls; metallicity=p[1], abundances=Dict(["Ni"=>p[2]]), 
-                             vmic=p[3]).flux
+        flux(p) = synthesize(atm, linelist, construct_abundances(p[1], Dict("Ni"=>p[2])), 
+                             wls; vmic=p[3]).flux
         #make sure this works.
         ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
     end

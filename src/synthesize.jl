@@ -166,7 +166,7 @@ elements from hydrogen to uranium.
 You can provide either or both of:
 - `metallicity` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
    than He. It is overriden by `abundances`.  
-- `abundances` is a `Dict` mapping atomic symbols to [``X``/H] abundances.  (Set 
+- `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
 
 # Keyword arguments
@@ -179,35 +179,49 @@ You can provide either or both of:
   use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function construct_abundances(metallicity::Real, 
-                              abundances::Dict{<:Integer, <:Real}=Dict{Int, Float64}();
+function construct_abundances(metallicity::Real=0.0, abundances::Dict=Dict();
                               solar_abundances=asplund_2020_solar_abundances, solar_relative=true)
-    if 1 in keys(abundances)
+    if (1 in keys(abundances)) || ("H" in keys(abundances))
         silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
         throw(ArgumentError("$silly_abundance set, but $silly_abundance = $silly_value by " *
                             "definition. Adjust \"metallicity\" and \"abundances\" to implicitly " *
                             "set the amount of H"))
     end
+    clean_abundances = Dict()
+    # make sure the keys of abundances are valid, and comvert them to Z if they are strings
+    for (el, abund) in abundances
+        if el isa AbstractString
+            if ! (el in keys(Korg.atomic_numbers))
+                throw(ArgumentError("$el isn't a valid atomic symbol."))
+            elseif Korg.atomic_numbers[el] in keys(abundances)
+                throw(ArgumentError("The abundances of $el was specified by both atomic number and atomic symbol."))
+            end
+            clean_abundances[Korg.atomic_numbers[el]] =  abund
+        elseif el isa AbstractString
+            if ! (1 < el < 92)
+                throw(ArgumentError("Z = $el is not a supported atomic number."))
+            end
+            clean_abundances[el] = abund
+        else
+            throw(ArgumentError("$el isn't a valid element. Keys of the abundances dict should be strings or integers."))
+        end
+    end
+
     #populate A(X) vector
-    A_X = map(0x01:Natoms) do Z
+    map(1:Natoms) do Z
         if Z == 1 #handle hydrogen
-            convert(valtype(abundances), solar_relative * 12) #0 if solar_relative, 12 if not
-        elseif Z in keys(abundances) #if explicitely set
+            12.0
+        elseif Z in keys(clean_abundances) #if explicitely set
             if solar_relative
-                abundances[Z] + solar_abundances[Z]
+                clean_abundances[Z] + solar_abundances[Z]
             else
-                abundances[Z]
+                clean_abundances[Z]
             end
         else #if not set, use solar value adjusted for metallicity
             Δ = metallicity * (Z >= 3) #only adjust for metals, not H or He
             solar_abundances[Z] + Δ
         end
     end
-end
-#handle case where abundnace dict uses atomic symbols
-function construct_abundances(metallicity::Real, abundances::Dict{String, <:Real}; kwargs...)
-    abundances = Dict([Korg.atomic_numbers[el] => A for (el, A) in abundances])
-    construct_abundances(metallicity, abundances)
 end
 # handle case  where metallicity isn't specified
 construct_abundances(abundances::Dict; kwargs...) = construct_abundances(0, abundances; kwargs...)
