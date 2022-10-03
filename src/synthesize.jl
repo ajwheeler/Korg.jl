@@ -170,6 +170,7 @@ You can provide either or both of:
    than He. It is overriden by `abundances`, on a per-element basis.  
 - `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
+  This is the only way to specify an abundance of He that is non-solar.
 
 # Keyword arguments
 - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
