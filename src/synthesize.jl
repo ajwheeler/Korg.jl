@@ -167,7 +167,7 @@ elements from hydrogen to uranium.
 # Arguments
 You can provide either or both of:
 - `metallicity` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
-   than He. It is overriden by `abundances`.  
+   than He. It is overriden by `abundances`, on a per-element basis.  
 - `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
 
