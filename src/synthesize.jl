@@ -159,7 +159,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
 end
 
 """
-    construct_abundances(metallicity, abundances)
+    construct_abundances(metallicity, abundances; kwargs... )
 
 Returns a 92 element vector containing abundances in ``A(X)`` (``\\log(X/H) + 12``) format for 
 elements from hydrogen to uranium.
