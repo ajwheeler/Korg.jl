@@ -182,7 +182,7 @@ You can provide either or both of:
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
 function construct_abundances(metallicity::Real=0.0, abundances::Dict=Dict();
-                              solar_abundances=asplund_2020_solar_abundances, solar_relative=true)
+                              solar_relative=true, solar_abundances=asplund_2020_solar_abundances)
     if (1 in keys(abundances)) || ("H" in keys(abundances))
         silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
         throw(ArgumentError("$silly_abundance set, but $silly_abundance = $silly_value by " *
