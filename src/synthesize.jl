@@ -190,7 +190,7 @@ function construct_abundances(metallicity::Real=0.0, abundances::Dict=Dict();
                             "set the amount of H"))
     end
     clean_abundances = Dict()
-    # make sure the keys of abundances are valid, and comvert them to Z if they are strings
+    # make sure the keys of abundances are valid, and convert them to Z if they are strings
     for (el, abund) in abundances
         if el isa AbstractString
             if ! (el in keys(Korg.atomic_numbers))
