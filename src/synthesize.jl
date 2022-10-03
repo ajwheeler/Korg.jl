@@ -95,7 +95,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
     cntmλs = (λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step)
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
 
-    #sort the lines if necessary and 
+    #sort the lines if necessary
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
     #discard lines far from the wavelength range being synthesized
     linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
