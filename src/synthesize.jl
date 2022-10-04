@@ -161,7 +161,7 @@ end
 """
     construct_abundances(metallicity, abundances; kwargs... )
 
-Returns a 92 element vector containing abundances in ``A(X)`` (``\\log(X/H) + 12``) format for 
+Returns a 92 element vector containing abundances in ``A(X)`` (``\\log_{10}(X/H) + 12``) format for
 elements from hydrogen to uranium.
 
 # Arguments
