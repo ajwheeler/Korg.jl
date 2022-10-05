@@ -128,6 +128,62 @@ const _hline_stark_profiles = let
     end
 end
 
+"""
+    TODO
+
+TODO use/locate this in statmech?
+
+calculate the partition function of neutral hydrogen using the occupation probability formalism
+from Hummer and Mihalas 1988.  They introduce corections, w, to the occupation fraction of each
+energy level, which can be used to compute a corrected partition function.  Their final 
+expression for w is in equation 4.71.  K, the QM correction used in defined in equation 4.24.
+
+Note that H&M's "N"s are numbers (not number densities), and their "V" is volume.  These quantities 
+apear only in the form N/V, so we use the number densities instead.
+
+This is based partially on Paul Barklem and Kjell Eriksson's 
+[WCALC fortran routine](https://github.com/barklem/hlinop/blob/master/hbop.f) 
+(part of HBOP.f), which is used by (at least) Turbospectrum and SME.
+TODO - species & assumptinos about ions
+"""
+function hummer_mihalas_U_H(T, df, nh, nhe, ne)
+    # for each level calculate the corection, w, and add the term to U
+    # the expression for w comes from Hummer and Mihalas 1988 equation 4.71 
+    U = 0.0
+    for level in eachrow(df)
+        # contribution to w from neutral species (neutral H and He, in this implementation)
+        # effective quantum numer of the H energy level
+        n_eff = sqrt(Korg.RydbergH_eV / (Korg.RydbergH_eV - level.level)) # times Z, which is 1 for hydrogen
+        #this is sqrt<r^2> assuming l=0.  I'm unclear why this is the approximation barklem uses.
+        r_level = sqrt(5/2*n_eff^4 + 1/2*n_eff^2)*Korg.bohr_radius_cgs 
+        # how do I reproduce this helium radius?
+        neutral_term = nh * (r_level + sqrt(3)*Korg.bohr_radius_cgs)^3 + nhe * (r_level + 1.02Korg.bohr_radius_cgs)^3
+        
+        #RIH = sqrt(2.5*level.n^4 + 0.5*level.n^2)*Korg.bohr_radius_cgs # why defined this way?
+        #X1=RIH + 1.73*Korg.bohr_radius_cgs
+        #X2=RIH + 1.02*Korg.bohr_radius_cgs
+        #neutral_term = nh*X1^3 + nhe*X2^3
+        
+        # contributions to w from ions (these are assumed to be all singly ionized, so n_ion = n_e)
+        # K is a  QM correction defined in H&M '88 equation 4.24
+        K = if level.n > 3
+            n = level.n # effective principal quantum number
+            # WCALC drops the final factor, which is nearly within 1% of unity for all n
+            16/3 * (n/(n+1))^2 * ((n + 7/6)/(n^2 + n + 1/2))
+        else
+            1.0
+        end
+        χ = (Korg.RydbergH_eV - level.level) * Korg.eV_to_cgs # binding energy
+        e = Korg.electron_charge_cgs
+        charged_term = 16 * ((e^2)/(χ * sqrt(K)))^3 * ne
+        
+        w = exp(-4π/3 * (neutral_term + charged_term))
+        
+        U += w * level.g*exp(-level.level / (Korg.kboltz_eV * T))
+    end
+    U
+end
+
 #used in hydrogen_line_absorption
 _zero2epsilon(x) = x + (x == 0) * floatmin()
 
