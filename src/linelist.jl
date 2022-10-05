@@ -185,6 +185,15 @@ get_mass(s::Species) = get_mass(s.formula)
 get_atoms(s::Species) = get_atoms(s.formula)
 get_roman_numeral(s::Species) = get(roman_numerals,s.charge+1, string(s.charge+1))
 
+"""
+    all_atomic_species()
+
+Returns an iterator that runs over all atomic species supported by Korg.
+"""
+all_atomic_species() = (Korg.Species(Korg.Formula(Z), charge) 
+                        for Z in 1:Korg.Natoms, charge in 0:2 if charge <= Z)
+
+
 #This type represents an individual line.
 struct Line{F} 
     wl::F                     #cm
