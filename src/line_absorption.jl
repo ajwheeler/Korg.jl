@@ -58,7 +58,7 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         Δλ_L = maximum(inverse_lorentz_density.(ρ_crit, γ))
         window_size = max(Δλ_D, Δλ_L)
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
-        if lb >= ub
+        if lb > ub
             continue
         end
 
