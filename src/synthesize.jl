@@ -107,7 +107,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     end
 
     #discard lines far from the wavelength range being synthesized
-    linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
+    linelist = filter(l-> λs[1] - line_buffer <= l.wl <= λs[end] + line_buffer, linelist)
 
     abundances = get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
     MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
