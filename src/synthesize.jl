@@ -163,7 +163,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
     flux, intensity = if use_legacy_radiative_transfer
         MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
     else
-         radiative_transfer(atm, α, source_fn, n_mu_points; α5=α5)
+         radiative_transfer(atm, α, source_fn, n_mu_points)#; α5=α5)
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)

@@ -35,15 +35,13 @@ function planar_transfer(α, S, z, n_μ_points, τ5, α5)
     el_type = typeof(promote(z[1], α[1], S[1], μ_grid[1])[1])
 
     #calculate adjustment
-    korg_τ5 = Vector{el_type}(undef, size(α, 1))
-    compute_tau_bezier!(korg_τ5, z, α5)
-    spline_τ5 = Vector{el_type}(undef, size(α, 1))
-    compute_tau_spline!(spline_τ5, z, α5)
-    analytic_spline_τ5 = Vector{el_type}(undef, size(α, 1))
-    compute_tau_spline_analytic!(analytic_spline_τ5, z, α5)
-    #correction = τ5 ./ korg_τ5
+    #korg_τ5 = Vector{el_type}(undef, size(α, 1))
+    #compute_tau_bezier!(korg_τ5, z, α5)
+    #analytic_spline_τ5 = Vector{el_type}(undef, size(α, 1))
+    #compute_tau_spline_analytic!(analytic_spline_τ5, z, α5)
+    ##correction = τ5 ./ korg_τ5
     #display(correction)
-    display([τ5 korg_τ5 spline_τ5 analytic_spline_τ5])
+    #display([τ5 korg_τ5 spline_τ5 analytic_spline_τ5])
 
     # iterate over λ in the outer loop, μ in the inner loop, calculating τ(r), then I(surface)
     I = Matrix{el_type}(undef, length(μ_grid), size(α, 2)) #surface intensity (n_μ × n_λ)
