@@ -1,9 +1,11 @@
 # this file is separate from the script which calculates and saves partition functions because 
 # it's sometimes handy to include this file to download energy levels for ad-hoc analysis 
 
+# the is a more sophisticated parser for NIST energy level data in data/metal_bf_cross-sections
+
 using Korg, Downloads, CSV, DataFrames
 
-function download_levels_from_NIST()
+function download_levels_from_NIST(elems=Korg.atomic_symbols)
     dfs = Dict()
     for spec in Korg.all_atomic_species()
         if spec in Korg.Species.(["H II", "He III"])
