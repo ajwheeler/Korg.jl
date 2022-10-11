@@ -49,8 +49,8 @@ function planar_transfer(α, S, z, n_μ_points, τ5, α5)
     for λ_ind in 1:size(α, 2), μ_ind in eachindex(μ_grid) 
         μ = μ_grid[μ_ind]
 
-        compute_tau_bezier!(τ_λ, z ./ μ, view(α, :, λ_ind))
-        #compute_tau_spline_analytic!(τ_λ, z ./ μ, view(α, :, λ_ind))
+        #compute_tau_bezier!(τ_λ, z ./ μ, view(α, :, λ_ind))
+        compute_tau_spline_analytic!(τ_λ, z ./ μ, view(α, :, λ_ind))
         #τ_λ .*= correction
         #τ_λ = τ5 ./ μ
         I[μ_ind, λ_ind] = ray_transfer_integral(τ_λ, view(S, :, λ_ind))
@@ -107,7 +107,9 @@ function spherical_transfer(α, S, radii, n_μ_points)
             I[μ_ind, λ_ind] = 0
             continue
         end
-        compute_tau_bezier!(view(τ_λ, 1:i), view(l, 1:i, μ_ind), view(α, 1:i, λ_ind))
+        #compute_tau_bezier!(view(τ_λ, 1:i), view(l, 1:i, μ_ind), view(α, 1:i, λ_ind))
+        compute_tau_spline_analytic!(view(τ_λ, 1:i), view(l, 1:i, μ_ind), view(α, 1:i, λ_ind))
+        @assert issorted(τ_λ[1:i])
         I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ, 1:i), view(S, 1:i, λ_ind))
 
         # At the lower boundary, we either integrate through to the back of the star or stop. 
@@ -120,7 +122,8 @@ function spherical_transfer(α, S, radii, n_μ_points)
             l_prime = [l[i, μ_ind] ; -view(l, i:-1:1, μ_ind)]
             α_prime = [α[i, λ_ind] ; view(α, i:-1:1, λ_ind)]
             τ_prime = similar(α_prime)
-            compute_tau_bezier!(τ_prime, l_prime, α_prime)
+            #compute_tau_bezier!(τ_prime, l_prime, α_prime)
+            compute_tau_spline_analytic!(τ_prime, l_prime, α_prime)
             τ_prime .+= τ_λ[i]
             S_prime = [S[i, λ_ind] ; view(S,i:-1:1,λ_ind)]
             I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, S_prime)
