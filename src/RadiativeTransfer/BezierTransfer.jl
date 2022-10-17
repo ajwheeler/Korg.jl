@@ -154,10 +154,11 @@ is the method proposed in
 but the 
 """
 function compute_tau_bezier!(τ, s, α)
-    #TODO off-by-one error, how to get non-0 tau at first layer
-    τ[1] = 1e-5 #TODO
+    # how to get non-0 tau at first layer?
+    τ[1] = 1e-5 
     C = fritsch_butland_C(s, α)
-    clamp!(C, 1/2 * minimum(α), 2 * maximum(α)) # TODO needed for numerical stability?
+    # needed for numerical stability.  Threre is likely a smarter way to do this.
+    clamp!(C, 1/2 * minimum(α), 2 * maximum(α))
     for i in 2:length(α)
         τ[i] = τ[i-1] + (s[i-1] - s[i])/3 * (α[i] + α[i-1] + C[i-1])
     end
@@ -185,7 +186,7 @@ Given τ and S along a ray (at a particular wavelength), compute the intensity a
 """
 function ray_transfer_integral(τ, S)
     @assert length(τ) == length(S)
-    if length(τ) <= 1 #TODO?
+    if length(τ) <= 1 
         return 0.0
     end
     I = 0.0
