@@ -1,5 +1,6 @@
 using Interpolations: LinearInterpolation
-import ..ContinuumAbsorption: total_continuum_absorption
+import .ContinuumAbsorption: total_continuum_absorption
+using .RadiativeTransfer
 
 """
     synthesize(atm, linelist, λ_start, λ_stop, [λ_step=0.01]; metallicity=0, abundances=Dict(), vmic=0, ... )
@@ -67,7 +68,7 @@ solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Di
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
-- `use_legacy_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
+- `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
 """
 function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0.01
@@ -95,7 +96,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                     line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
                     n_mu_points=20, line_cutoff_threshold=1e-3,
                     solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
-                    use_legacy_radiative_transfer=false,
+                    bezier_radiative_transfer=false,
                     ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
@@ -119,12 +120,14 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
 
-    #float-like type general to handle dual numbers
+    # float-like type general to handle dual numbers
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
                             metallicity, vmic, abundances[1])[1])
-    #the absorption coefficient, α, for each wavelength and atmospheric layer
+    # the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
-    α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
+    # each layer's absorption at reference λ (5000 Å)
+    # This isn't used with bezier radiative transfer.
+    α5 = Vector{α_type}(undef, length(atm.layers)) 
     pairs = map(enumerate(atm.layers)) do (i, layer)
         n_dict = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
                                         layer.electron_number_density)
@@ -135,7 +138,7 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
         α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer.(λs)
 
-        if true#use_legacy_radiative_transfer
+        if ! bezier_radiative_transfer
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
                                layer.electron_number_density, n_dict, partition_funcs)[1]
         end
@@ -160,10 +163,10 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
                      partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
-    flux, intensity = if use_legacy_radiative_transfer
-        MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+    flux, intensity = if bezier_radiative_transfer
+        RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
-         radiative_transfer(atm, α, source_fn, n_mu_points)#; α5=α5)
+        RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)

@@ -1,8 +1,9 @@
-#=
-This module contains the radiative transfer implementation used by Korg in versions 0.8 and earlier.
-=#
+"""
+Korg's default radiative transfer implementation. See also: [`BezierTransfer`](@ref)
+"""
 module MoogStyleTransfer 
-using Korg: PlanarAtmosphere, ShellAtmosphere
+using ..RadiativeTransfer: generate_mu_grid
+using ...Korg: PlanarAtmosphere, ShellAtmosphere
     
 """
     radiative_transfer(atm::ModelAtmosphere, α, S, α_ref, mu_grid)
@@ -27,11 +28,10 @@ function radiative_transfer(atm::ShellAtmosphere, α, S, α_ref, n_mu_points)
     τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2
-    mu_grid = 0 : 1/(n_mu_points - 1) : 1
     #discard I, take F only
-    photosphere_correction * spherical_transfer(α, S, τ5, α_ref, radii, mu_grid)[1], nothing
+    F, I = spherical_transfer(α, S, τ5, α_ref, radii, n_mu_points)
+    photosphere_correction * F, I
 end
-
 
 """
     planar_transfer(α, S, τ_ref, α_ref)
@@ -60,7 +60,9 @@ explantion of the arguments. Note that `radii` should be in decreasing order.
 Returns `(flux, intensity)`, where `flux` is the astrophysical flux, and `intensity`, a matrix of 
 shape (mu values × wavelengths), is the surface intensity as a function of μ.
 """
-function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
+function spherical_transfer(α, S, τ_ref, α_ref, radii, n_μ_points)
+    μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points)
+
     R, r0 = radii[1], radii[end] #lower bound of atmosphere
 
     #precompute for use in transfer integral
@@ -115,7 +117,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, μ_surface_grid)
         end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
-    F = 2π * [trapezoid_rule(μ_surface_grid, μ_surface_grid .* I) for I in eachcol(I)]
+    F = 2π * (I' * (μ_weights .* μ_surface_grid))
     F, I
 end
 
@@ -173,17 +175,6 @@ in the exponential integal, t, with mu=1/t.
 """
 function _plane_parallel_approximate_transfer_integral(τ, m, b)
     1/6 * (τ*exponential_integral_2(τ)*(3b+2m*τ) - exp(-τ)*(3b + 2m*(τ+1)))
-end
-
-"""
-    trapezoid_rule(xs, fs)
-
-Approximate the integral f(x) with the trapezoid rule over x-values `xs` given f(x) values `fs`.
-"""
-function trapezoid_rule(xs, fs)
-    Δs = diff(xs)
-    weights = [0 ; Δs] + [Δs ; 0]
-    sum(0.5 * weights .* fs)
 end
 
 """

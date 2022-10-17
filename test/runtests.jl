@@ -5,7 +5,7 @@ using Korg, Test, HDF5
 include("utilities.jl") # assert_allclose and assert_allclose_grid
 
 include("cubic_splines.jl")
-include("moog_style_transfer.jl")
+include("transfer.jl")
 
 @testset "atomic data" begin 
     @test (Korg.Natoms == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 

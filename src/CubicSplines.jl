@@ -79,22 +79,21 @@ function (A::CubicSpline{<:AbstractVector{<:Number}})(t::Number)
     I + C + D
 end
 
-function integral(A::CubicSpline, t1::Number, t2::Number) 
+function cumulative_integral!(out, A::CubicSpline, t1, t2)
     # the index less than or equal to t1
-    idx1 = max(1+0, min(searchsortedlast(A.t, t1), length(A.t) - 1))
+    idx1 = max(1, min(searchsortedlast(A.t, t1), length(A.t) - 1))
     # the index less than t2
-    idx2 = max(2+0, min(searchsortedlast(A.t, t2), length(A.t) - 1))
+    idx2 = max(2, min(searchsortedlast(A.t, t2), length(A.t) - 1))
     if A.t[idx2] == t2
         idx2 -= 1
     end
 
-    total = zero(eltype(A.u))
+    out[1] = zero(eltype(A.u))
     for idx in idx1:idx2
         lt1 = idx == idx1 ? t1 : A.t[idx]
         lt2 = idx == idx2 ? t2 : A.t[idx+1]
-        total += _integral(A, idx, lt2)-_integral(A, idx, lt1)
+        out[idx+1] = out[idx] + _integral(A, idx, lt2)-_integral(A, idx, lt1)
     end
-    total
 end
 
 function _integral(A::CubicSpline{<:AbstractVector{<:Number}}, idx::Number, t::Number)
