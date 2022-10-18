@@ -140,7 +140,8 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 
         if ! bezier_radiative_transfer
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
-                               layer.electron_number_density, n_dict, partition_funcs)[1]
+                                               layer.electron_number_density, n_dict,
+                                               partition_funcs)[1]
         end
 
         if hydrogen_lines
