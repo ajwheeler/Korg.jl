@@ -79,6 +79,13 @@ function (A::CubicSpline{<:AbstractVector{<:Number}})(t::Number)
     I + C + D
 end
 
+"""
+    cumulative_integral!(out, A, t1, t2)
+
+Given a curve described by the spine, A, Calculates the integral from t1 to t for all t = t1, t2, and 
+all spline knots in between.  So if `t1` is `A.t[1]` and `t2` is `A.t[end]`, `out` should have the 
+same length as `A.t`.
+"""
 function cumulative_integral!(out, A::CubicSpline, t1, t2)
     # the index less than or equal to t1
     idx1 = max(1, min(searchsortedlast(A.t, t1), length(A.t) - 1))
