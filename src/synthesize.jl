@@ -3,14 +3,21 @@ import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
 
 """
-    synthesize(atm, linelist, λ_start, λ_stop, [λ_step=0.01]; metallicity=0, abundances=Dict(), vmic=0, ... )
+    synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
 
-Solve the transfer equation in the model atmosphere `atm` with the transitions in `linelist` at the 
-from `λ_start` to `λ_stop` in steps of `λ_step` (all Å) to get the resultant astrophysical flux at 
-each wavelength.  An `AbstractRange` can also be probvided directly in place of `λ_start`, `λ_stop`,
-and `λ_step`.
+Compute a synthetic spectrum.
 
-Returns a named tuple with keys:
+# Arguments
+- `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
+- `linelist`: A vector of [`Line]`(@ref)s (see [`read_linelist`](@ref))
+- `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
+  uranium.  (see [`format_A_X`](@ref))
+- `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
+- `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
+- `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
+
+# Returns 
+A named tuple with keys:
 - `flux`: the output spectrum
 - `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
    size (layers x wavelengths)
@@ -21,18 +28,15 @@ Returns a named tuple with keys:
 
 # Example
 to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to 
-0.5 dex less than the solar value except carbon:
+0.5 dex less than the solar value except carbon, except carbon, which we set to [C/H]=-0.25:
 ```
-atm = read_model_atmospher("path/to/atmosphere.mod")
+atm = read_model_atmosphere("path/to/atmosphere.mod")
 linelist = read_linelist("path/to/linelist.vald")
-solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Dict("C"=>0))
+A_X = format_A_X(-0.5, Dict("C" => -0.25))
+solution = synthesize(atm, linelist, A_X, 5000, 5100)
 ```
 
 # Optional arguments:
-- `metallicity`, i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
-   than He. It is overriden by `abundances`.
-- `abundances` is a `Dict` mapping atomic symbols to [``X``/H] abundances.  (Set 
-  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
 - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
 - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
@@ -40,14 +44,6 @@ solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Di
    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
 - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
-- `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
-  (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
-   ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
-   Note that abundances not specified default to the solar value, adjusted with `metallicity`, in
-   either case.
-- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
-  use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
-  `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelenth range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
@@ -71,7 +67,7 @@ solution = synthesize(atm, linelist, 5000, 5100; metallicity=-0.5, abundances=Di
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
 """
-function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0.01
+function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01
                     ; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4, kwargs...)
     wls = if air_wavelengths
         len = Int(round((λ_stop - λ_start)/λ_step))+1
@@ -89,41 +85,43 @@ function synthesize(atm::ModelAtmosphere, linelist, λ_start, λ_stop, λ_step=0
     else
         StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)
     end
-    synthesize(atm, linelist, wls; kwargs...)
+    synthesize(atm, linelist, A_X, wls; kwargs...)
 end
-function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallicity::Real=0.0, 
-                    vmic::Real=1.0, abundances::Dict{String, <:Real}=Dict{String, Float64}(), 
-                    line_buffer::Real=10.0, cntm_step::Real=1.0, hydrogen_lines=true, 
-                    n_mu_points=20, line_cutoff_threshold=1e-3,
-                    solar_abundances=asplund_2020_solar_abundances, solar_relative=true,
-                    bezier_radiative_transfer=false,
-                    ionization_energies=ionization_energies, 
+function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; 
+                    vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
+                    hydrogen_lines=true, n_mu_points=20, line_cutoff_threshold=1e-3,
+                    bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
     line_buffer *= 1e-8
     cntmλs = (λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step)
+    sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
 
-    #sort the lines if necessary and check that λs is sorted
+    #sort the lines if necessary
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
+    #discard lines far from the wavelength range being synthesized
+    linelist = filter(l-> λs[1] - line_buffer <= l.wl <= λs[end] + line_buffer, linelist)
+    
+    #check that λs is sorted
     if step(λs) < 0
         throw(ArgumentError("λs must be in increasing order."))
     end
 
-    #discard lines far from the wavelength range being synthesized
-    linelist = filter(l-> λs[1] - line_buffer <= l.wl <= λs[end] + line_buffer, linelist)
+    if length(A_X) != Natoms || (A_X[1] != 12)
+        throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
+    end
 
-    abundances = get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
-    MEQs = molecular_equilibrium_equations(abundances, ionization_energies, partition_funcs, 
+    abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
+    abs_abundances ./= sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
+    MEQs = molecular_equilibrium_equations(abs_abundances, ionization_energies, partition_funcs, 
                                            equilibrium_constants)
 
-    sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
-
-    # float-like type general to handle dual numbers
+    #float-like type general to handle dual numbers
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
-                            metallicity, vmic, abundances[1])[1])
-    # the absorption coefficient, α, for each wavelength and atmospheric layer
+                            vmic, abs_abundances[1])[1])
+    #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
     # each layer's absorption at reference λ (5000 Å)
     # This isn't used with bezier radiative transfer.
@@ -174,39 +172,75 @@ function synthesize(atm::ModelAtmosphere, linelist, λs::AbstractRange; metallic
 end
 
 """
-    get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
+    format_A_X(metallicity, abundances; kwargs... )
 
-Calculate ``n_X/n_\\mathrm{total}`` for each element X given abundances in either [``X``/H] or 
-``A(X)`` form.  See [`synthesize`](@ref) for a detailed description of the arguments. Returns a 
-vector indexed by atomic number.
+Returns a 92 element vector containing abundances in ``A(X)`` (``\\log_{10}(X/H) + 12``) format for
+elements from hydrogen to uranium.
+
+# Arguments
+You can provide either or both of:
+- `metallicity` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
+   than He. It is overriden by `abundances`, on a per-element basis.  
+- `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
+  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
+  This is the only way to specify an abundance of He that is non-solar.
+
+# Keyword arguments
+- `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
+  (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
+   ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
+   Note that abundances not specified default to the solar value, adjusted with `metallicity`, in
+   either case.
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
+  `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function get_absolute_abundances(metallicity, abundances, solar_abundances, solar_relative)
-    if "H" in keys(abundances)
-        throw(ArgumentError("A(H) set, but A(H) = 12 by definition. Adjust \"metallicity\" and "
-                           * "\"abundances\" to implicitly set the amount of H"))
+function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
+                              solar_relative=true, solar_abundances=asplund_2020_solar_abundances)
+    if (1 in keys(abundances)) || ("H" in keys(abundances))
+        silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
+        throw(ArgumentError("$silly_abundance set, but $silly_abundance = $silly_value by " *
+                            "definition. Adjust \"metallicity\" and \"abundances\" to implicitly " *
+                            "set the amount of H"))
+    end
+    clean_abundances = Dict()
+    # make sure the keys of abundances are valid, and convert them to Z if they are strings
+    for (el, abund) in abundances
+        if el isa AbstractString
+            if ! (el in keys(Korg.atomic_numbers))
+                throw(ArgumentError("$el isn't a valid atomic symbol."))
+            elseif Korg.atomic_numbers[el] in keys(abundances)
+                throw(ArgumentError("The abundances of $el was specified by both atomic number and atomic symbol."))
+            end
+            clean_abundances[Korg.atomic_numbers[el]] =  abund
+        elseif el isa AbstractString
+            if ! (1 < el < 92)
+                throw(ArgumentError("Z = $el is not a supported atomic number."))
+            end
+            clean_abundances[el] = abund
+        else
+            throw(ArgumentError("$el isn't a valid element. Keys of the abundances dict should be strings or integers."))
+        end
     end
 
-    #populate dictionary of absolute abundaces/fractional number densities
-    abs_abundances = map(0x01:Natoms) do Z
-        #abundances is indexed by atomic symbol, solar_abundances by atomic number
-        elem = atomic_symbols[Z] 
-
-        A_X = if elem in keys(abundances) #if explicitely set
+    #populate A(X) vector
+    map(1:Natoms) do Z
+        if Z == 1 #handle hydrogen
+            12.0
+        elseif Z in keys(clean_abundances) #if explicitely set
             if solar_relative
-                abundances[elem] + solar_abundances[Z]
+                clean_abundances[Z] + solar_abundances[Z]
             else
-                abundances[elem]
+                clean_abundances[Z]
             end
         else #if not set, use solar value adjusted for metallicity
-            Δ = metallicity * (Z > 3) #only adjust for metals, not H or He
+            Δ = metallicity * (Z >= 3) #only adjust for metals, not H or He
             solar_abundances[Z] + Δ
         end
-
-        10^(A_X - 12)
     end
-    
-    abs_abundances ./ sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
 end
+# handle case  where metallicity isn't specified
+format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
 
 """
     blackbody(T, λ)

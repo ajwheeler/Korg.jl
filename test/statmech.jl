@@ -48,13 +48,15 @@ end
 
     @testset "molecular equilibrium" begin
         #solar abundances
-        abundances = Korg.get_absolute_abundances(0.0, Dict(), Korg.asplund_2020_solar_abundances, true)
+        nX_ntot = @. 10^(Korg.asplund_2009_solar_abundances - 12)
+        nX_ntot ./= sum(nX_ntot)
+
         nₜ = 1e15 
         nₑ = 1e-3 * nₜ #arbitrary
 
-        MEQs = Korg.molecular_equilibrium_equations(abundances, Korg.ionization_energies, 
-                                                       Korg.partition_funcs, 
-                                                       Korg.equilibrium_constants)
+        MEQs = Korg.molecular_equilibrium_equations(nX_ntot, Korg.ionization_energies, 
+                                                    Korg.partition_funcs, 
+                                                    Korg.equilibrium_constants)
         @test MEQs.atoms == 0x01:Korg.Natoms
 
         n = Korg.molecular_equilibrium(MEQs, 5700.0, nₜ, nₑ)
@@ -72,7 +74,7 @@ end
                 0.0
             end
         end |> sum
-        @test total_C ≈ abundances[Korg.atomic_numbers["C"]] * nₜ
+        @test total_C ≈ nX_ntot[Korg.atomic_numbers["C"]] * nₜ
     end
 
     @testset "compare to Barklem and Collet partiion functions" begin
