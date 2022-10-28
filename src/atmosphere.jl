@@ -1,8 +1,8 @@
 abstract type ModelAtmosphere end
 
 struct PlanarAtmosphereLayer{F}
-    tau_5000::F                #dimensionless
-    z::F                       #g
+    tau_5000::F                #dimensionless (used for legacy radiative transfer)
+    z::F                       #cm
     temp::F                    #K
     electron_number_density::F #cm^-3
     number_density::F          #cm^-3
@@ -13,7 +13,7 @@ struct PlanarAtmosphere{F} <: ModelAtmosphere
 end
 
 struct ShellAtmosphereLayer{F}
-    tau_5000::F                #dimensionless
+    tau_5000::F                #dimensionless (used for legacy radiative transfer)
     z::F                       #cm
     temp::F                    #K
     electron_number_density::F #cm^-3

@@ -1,5 +1,6 @@
 using Interpolations: LinearInterpolation
-import ..ContinuumAbsorption: total_continuum_absorption
+import .ContinuumAbsorption: total_continuum_absorption
+using .RadiativeTransfer
 
 """
     synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
@@ -49,8 +50,9 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
   calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
-- `mu_grid`: the range of (surface) μ values at which to calculate the surface flux when doing 
-   transfer in spherical geometry (when `atm` is a `ShellAtmosphere`).
+- `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
+   transfer in spherical geometry (when `atm` is a `ShellAtmosphere`). 20 points is sufficient for
+   accuracy at the 10^-3 level.
 - `line_cutoff_threshold` (default: `1e-3`): the fraction of the continuum absorption coefficient 
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
@@ -62,6 +64,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
    molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
+- `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
+   testing purposes only.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01
                     ; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4, kwargs...)
@@ -85,8 +89,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_s
 end
 function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, mu_grid=0:0.05:1, line_cutoff_threshold=1e-3,
-                    ionization_energies=ionization_energies, 
+                    hydrogen_lines=true, n_mu_points=20, line_cutoff_threshold=1e-3,
+                    bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
@@ -119,7 +123,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
                             vmic, abs_abundances[1])[1])
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(λs))
-    α5 = Vector{α_type}(undef, length(atm.layers)) #each layer's absorption at reference λ (5000 Å)
+    # each layer's absorption at reference λ (5000 Å)
+    # This isn't used with bezier radiative transfer.
+    α5 = Vector{α_type}(undef, length(atm.layers)) 
     pairs = map(enumerate(atm.layers)) do (i, layer)
         n_dict = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
                                         layer.electron_number_density)
@@ -130,8 +136,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
         α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer.(λs)
 
-        α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, layer.electron_number_density,
-                                           n_dict, partition_funcs)[1]
+        if ! bezier_radiative_transfer
+            α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
+                                               layer.electron_number_density, n_dict,
+                                               partition_funcs)[1]
+        end
 
         if hydrogen_lines
             hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
@@ -153,9 +162,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
                      partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
-    flux = radiative_transfer(atm, α, source_fn, α5, mu_grid)
+    flux, intensity = if bezier_radiative_transfer
+        RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
+    else
+        RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+    end
 
-    (flux=flux, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
+    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
 end
 
 """

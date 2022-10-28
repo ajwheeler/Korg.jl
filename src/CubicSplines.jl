@@ -79,4 +79,41 @@ function (A::CubicSpline{<:AbstractVector{<:Number}})(t::Number)
     I + C + D
 end
 
+"""
+    cumulative_integral!(out, A, t1, t2)
+
+Given a curve described by the spine, A, Calculates the integral from t1 to t for all t = t1, t2, and 
+all spline knots in between.  So if `t1` is `A.t[1]` and `t2` is `A.t[end]`, `out` should have the 
+same length as `A.t`.
+"""
+function cumulative_integral!(out, A::CubicSpline, t1, t2)
+    # the index less than or equal to t1
+    idx1 = max(1, min(searchsortedlast(A.t, t1), length(A.t) - 1))
+    # the index less than t2
+    idx2 = max(2, min(searchsortedlast(A.t, t2), length(A.t) - 1))
+    if A.t[idx2] == t2
+        idx2 -= 1
+    end
+
+    out[1] = zero(eltype(A.u))
+    for idx in idx1:idx2
+        lt1 = idx == idx1 ? t1 : A.t[idx]
+        lt2 = idx == idx2 ? t2 : A.t[idx+1]
+        out[idx+1] = out[idx] + _integral(A, idx, lt2)-_integral(A, idx, lt1)
+    end
+end
+
+function _integral(A::CubicSpline{<:AbstractVector{<:Number}}, idx::Number, t::Number)
+  t1 = A.t[idx]
+  t2 = A.t[idx+1]
+  u1 = A.u[idx]
+  u2 = A.u[idx+1]
+  z1 = A.z[idx]
+  z2 = A.z[idx+1]
+  h2 = A.h[idx+1]
+  (t^4*(-z1 + z2)/(24*h2) + t^3*(-t1*z2 + t2*z1)/(6*h2) +
+  t^2*(h2^2*z1 - h2^2*z2 + 3*t1^2*z2 - 3*t2^2*z1 - 6*u1 + 6*u2)/(12*h2) +
+  t*(h2^2*t1*z2 - h2^2*t2*z1 - t1^3*z2 - 6*t1*u2 + t2^3*z1 + 6*t2*u1)/(6*h2))
+end
+
 end #module

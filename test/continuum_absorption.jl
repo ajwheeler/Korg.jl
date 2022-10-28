@@ -2,7 +2,6 @@ using Interpolations: bounds
 
 #helper stuff
 include("absorption_comparison_funcs.jl")
-include("utilities.jl")
 
 #test Peach ff absorption
 include("ff.jl")
