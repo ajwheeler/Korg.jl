@@ -426,6 +426,22 @@ end
     @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
 end
 
+@testset "line buffer" begin
+    #strong line at 4999 Å
+    line1 = Korg.Line(4999e-8, 1.0, Korg.species"Na I", 0.0)
+    #strong line at 4997 Å
+    line2 = Korg.Line(4997e-8, 1.0, Korg.species"Na I", 0.0)
+    atm = read_model_atmosphere("data/sun.mod")
+
+    #use a 2 Å line buffer so only line1 in included
+    sol_no_lines = synthesize(atm, [], 5000, 5000; line_buffer=2.0) #synthesize at 5000 Å only
+    sol_one_lines = synthesize(atm, [line1], 5000, 5000; line_buffer=2.0) 
+    sol_two_lines = synthesize(atm, [line1, line2], 5000, 5000; line_buffer=2.0) 
+
+    @test sol_no_lines.flux != sol_one_lines.flux
+    @test sol_two_lines.flux == sol_one_lines.flux
+end
+
 @testset "autodiff" begin
     using ForwardDiff
 

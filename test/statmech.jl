@@ -76,5 +76,23 @@ end
         end |> sum
         @test total_C ≈ nX_ntot[Korg.atomic_numbers["C"]] * nₜ
     end
+
+    @testset "compare to Barklem and Collet partiion functions" begin
+        logTs = 1:0.01:4 #B&C partition functions are only defined up to 10,000 K
+        BC_Us = Korg.read_Barklem_Collet_table("data/BarklemCollet2016-atomic_partition.dat");
+        Ts = 10 .^ logTs
+
+        # I'm only comparing the first 10 neutal species because of unexplained weirdness with the 
+        # B&C numbers.
+        @testset for spec in Korg.Species.(Korg.atomic_symbols[1:10] .* " I")
+            BC_U = BC_Us[spec].(logTs * log(10))
+            korg_U = Korg.partition_funcs[spec].(logTs * log(10))
+
+            # we can't get closer than 2% because NIST has changed some things
+            # (There may also be edge-case energy levels that are weird in some way that are only 
+            # included in one calculation, but I think this effect is small.)
+            @test assert_allclose_grid(korg_U, BC_U, [("T", Ts, "K")]; rtol=0.02)
+        end
+    end
 end
 

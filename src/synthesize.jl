@@ -98,7 +98,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
     #sort the lines if necessary
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
     #discard lines far from the wavelength range being synthesized
-    linelist = filter(l-> λs[1] - line_buffer*1e-8 <= l.wl <= λs[end] + line_buffer*1e-8, linelist)
+    linelist = filter(l-> λs[1] - line_buffer <= l.wl <= λs[end] + line_buffer, linelist)
     
     #check that λs is sorted
     if step(λs) < 0
