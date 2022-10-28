@@ -10,7 +10,7 @@ Compute a synthetic spectrum.
 - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
 - `linelist`: A vector of [`Line]`(@ref)s (see [`read_linelist`](@ref))
 - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
-  uranium.  (see [`construct_abundances`](@ref))
+  uranium.  (see [`format_A_X`](@ref))
 - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
 - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
 - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
@@ -31,7 +31,7 @@ to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances 
 ```
 atm = read_model_atmosphere("path/to/atmosphere.mod")
 linelist = read_linelist("path/to/linelist.vald")
-A_X = construct_abundances(-0.5, Dict("C" => -0.25))
+A_X = format_A_X(-0.5, Dict("C" => -0.25))
 solution = synthesize(atm, linelist, A_X, 5000, 5100)
 ```
 
@@ -159,7 +159,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
 end
 
 """
-    construct_abundances(metallicity, abundances; kwargs... )
+    format_A_X(metallicity, abundances; kwargs... )
 
 Returns a 92 element vector containing abundances in ``A(X)`` (``\\log_{10}(X/H) + 12``) format for
 elements from hydrogen to uranium.
@@ -182,7 +182,7 @@ You can provide either or both of:
   use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function construct_abundances(metallicity::Real=0.0, abundances::Dict=Dict();
+function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
                               solar_relative=true, solar_abundances=asplund_2020_solar_abundances)
     if (1 in keys(abundances)) || ("H" in keys(abundances))
         silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
@@ -227,7 +227,7 @@ function construct_abundances(metallicity::Real=0.0, abundances::Dict=Dict();
     end
 end
 # handle case  where metallicity isn't specified
-construct_abundances(abundances::Dict; kwargs...) = construct_abundances(0, abundances; kwargs...)
+format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
 
 """
     blackbody(T, λ)

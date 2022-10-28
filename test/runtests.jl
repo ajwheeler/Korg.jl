@@ -332,14 +332,14 @@ end
 @testset "synthesis" begin
 
     @testset "abundances" begin
-        @test_throws ArgumentError construct_abundances(0.0, Dict("H"=>13))
-        @test (construct_abundances() 
-                == construct_abundances(0)
-                == construct_abundances(Dict{String, Float64}())
-                == construct_abundances(Dict{Int, Float64}()))
+        @test_throws ArgumentError format_A_X(0.0, Dict("H"=>13))
+        @test (format_A_X() 
+                == format_A_X(0)
+                == format_A_X(Dict{String, Float64}())
+                == format_A_X(Dict{Int, Float64}()))
 
         @testset for metallicity in [0.0, 0.5], abundances in [Dict(), Dict("C"=>1.1)], solar_relative in [true, false]
-            A_X = construct_abundances(metallicity, abundances; 
+            A_X = format_A_X(metallicity, abundances; 
                                        solar_abundances=Korg.asplund_2020_solar_abundances,
                                        solar_relative=solar_relative)
 
@@ -418,7 +418,7 @@ end
 @testset "synthesize wavelength handling" begin
     atm = read_model_atmosphere("data/sun.mod")
     wls = 15000:0.01:15500
-    A_X = construct_abundances()
+    A_X = format_A_X()
     @test synthesize(atm, [], A_X, 15000, 15500).wavelengths ≈ wls
     @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈ Korg.air_to_vacuum.(wls)
     @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true, 
@@ -434,7 +434,7 @@ end
     for atm_file in ["data/sun.mod",
              "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"]
         atm = read_model_atmosphere(atm_file)
-        flux(p) = synthesize(atm, linelist, construct_abundances(p[1], Dict("Ni"=>p[2])), 
+        flux(p) = synthesize(atm, linelist, format_A_X(p[1], Dict("Ni"=>p[2])), 
                              wls; vmic=p[3]).flux
         #make sure this works.
         ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])

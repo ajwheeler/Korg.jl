@@ -13,7 +13,7 @@ These functions are exported, so if you do `using Korg`, you can call them unqua
 synthesize
 read_linelist
 read_model_atmosphere
-construct_abundances
+format_A_X
 ```
 
 # Secondary functions
