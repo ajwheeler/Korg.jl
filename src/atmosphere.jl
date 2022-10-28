@@ -80,18 +80,21 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
         if isnothing(header)
             throw(ArgumentError("Can't parse .mod file: can't find header."))
         end
-        blockA = lines[header+1:header+nlayers]
-        blockB = lines[header+nlayers+2 : header+1+2nlayers]
 
-        layers = map(zip(blockA, blockB)) do (lineA, lineB)
-            nums = parse.(Float64, strip.(split(lineA * lineB)))
-            temp = nums[5]
-            nₑ = nums[6]/(temp*kboltz_cgs) #electron number density
-            n = nums[7]/(temp*kboltz_cgs)  #non-electron number density
+        layers = map(lines[header+1:header+nlayers]) do line 
+            logτ5 = parse(Float64, line[11:17])
+            depth = parse(Float64, line[19:28])
+            temp = parse(Float64, line[30:36])
+            Pₑ = parse(Float64, line[39:48])
+            P = parse(Float64, line[51:60])
+
+            nₑ = Pₑ / (temp*kboltz_cgs) # electron number density
+            n = P / (temp*kboltz_cgs)   # non-electron number density
+
             if planar
-                PlanarAtmosphereLayer(10^nums[3], -nums[4], temp, nₑ, n)
+                PlanarAtmosphereLayer(10^logτ5, -depth, temp, nₑ, n)
             else
-                ShellAtmosphereLayer(10^nums[3], -nums[4], temp, nₑ, n)
+                ShellAtmosphereLayer(10^logτ5, -depth, temp, nₑ, n)
             end
         end
 
