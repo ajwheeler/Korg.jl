@@ -98,6 +98,8 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
+            x = abs.(x) #don't allow negativew number densities
+
             #LHS: total number of atoms, RHS: first through third ionization states
             F .= atom_number_densities .- ion_factors .* x
             for m in molecules
@@ -142,14 +144,14 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
     end
 
     #numerically solve for equlibrium.
-    sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=200, store_trace=true, ftol=nₜ*1e-12,
+    sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=1_000, store_trace=true, ftol=nₜ*1e-12,
                   autodiff=:forward)
     if !sol.f_converged
-        error("Molecular equlibrium unconverged", sol, "\n", sol.trace)
+        error("Molecular equlibrium unconverged. (`", sol, "\n", sol.trace)
     end
 
     #start with the neutral atomic species
-    number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> sol.zero)
+    number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> abs.(sol.zero))
     #now the ionized atomic species
     for a in MEQs.atoms
         wII, wIII = saha_ion_weights(T, nₑ, a, MEQs.ionization_energies, MEQs.partition_fns)
