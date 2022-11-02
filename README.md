@@ -3,6 +3,8 @@
 
 1D LTE stellar spectral synthesis for FGK stars in pure Julia.
 
+[Code paper](https://arxiv.org/abs/2211.00029)
+
 [Tutorial](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/Tutorial.ipynb)
 
 [Documentation](https://ajwheeler.github.io/Korg.jl/stable/)
