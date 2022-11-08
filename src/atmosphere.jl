@@ -90,7 +90,7 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
             depth = parse(Float64, line[19:28])
             temp = parse(Float64, line[30:36])
             Pₑ = parse(Float64, line[39:48])
-            P = parse(Float64, line[51:60])
+            P = parse(Float64, line[50:60])
 
             nₑ = Pₑ / (temp*kboltz_cgs) # electron number density
             n = P / (temp*kboltz_cgs)   # non-electron number density
