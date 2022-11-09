@@ -57,7 +57,7 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
     for i in 1:length(wls)
         λ0 = wls[i]
         σ = λ0 / R / 2
-        lb, ub = move_bounds(wls, lb, ub, λ0, σ)
+        lb, ub = move_bounds(wls, lb, ub, λ0, 3σ)
         ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
         normalization_factor[i] = 1 ./ sum(ϕ)
         @. convF[lb:ub] += flux[i]*ϕ
