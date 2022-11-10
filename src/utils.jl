@@ -62,7 +62,7 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
         normalization_factor[i] = 1 ./ sum(ϕ)
         @. convF[lb:ub] += flux[i]*ϕ
     end
-    convF * normalization_factor
+    convF .* normalization_factor
 end
 
 """
