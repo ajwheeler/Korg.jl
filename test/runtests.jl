@@ -367,11 +367,18 @@ end
     flux[500] = 5.0
 
     convF = Korg.constant_R_LSF(flux, wls, R)
+    convF_4sigma = Korg.constant_R_LSF(flux, wls, R; window_size=4)
+
     #normalized?
     @test sum(flux) ≈ sum(convF)
+    @test sum(flux) ≈ sum(convF_4sigma)
 
     #preserves line center?
     @test argmax(convF) == 500
+    @test argmax(convF_4sigma) == 500
+
+    #make sure the window_size argument is doing something
+    @test !(convF ≈ convF_4sigma)
 end
 
 @testset "air <--> vacuum" begin
