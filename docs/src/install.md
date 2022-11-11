@@ -3,6 +3,11 @@ Install Julia by downloading a binary from [the website](https://julialang.org/d
 See also [the platform specific instructions](https://julialang.org/downloads/platform/), especially
 if you would like to use Julia from the command line.  
 
+!!! warning
+    The latest versions of Korg support Julia 1.7 and greater, so make sure you are not using an 
+    older version.  (Versions can be installed alongside eachother, and the 1.X versions are 
+    backwards compatible.)
+
 ## 2. Install Korg
 
 1. Lauch a julia session (either by launching the app, or typing `julia` on the command line if you have that set up).
@@ -27,7 +32,7 @@ julia> Pkg.add("Korg")
     for details.
 
 ## 3. (Optional) setup `PyJulia`.
-If you would like to use Korg from Python, you can use 
+We recommend using Korg from Julia, but if you would like to use Korg from Python, you can use 
 [`PyJulia`](https://pyjulia.readthedocs.io/en/latest/index.html).  Their documentation has [detailed 
 installation notes](https://pyjulia.readthedocs.io/en/latest/installation.html), but here's the 
 short version: 
