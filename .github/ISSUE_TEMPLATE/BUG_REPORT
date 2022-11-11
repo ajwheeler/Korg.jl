@@ -20,7 +20,7 @@ body:
     id: julia_version
     attributes:
       label: Which version of Julia are you running?
-      description: You can check this by entering `julia -v` at your command line. We recommend Julia version 1.8 or higher, but please continue to submit your report because we want to make sure Korg works with all versions of Julia.
+      description: You can check this by entering `julia -v` at your command line. We always recommend using the [current stable release](https://julialang.org/downloads/) of Julia, but please continue to submit your report because we want to make sure Korg works with all versions of Julia.
       value:
     validations:
       required: true
