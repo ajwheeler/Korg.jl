@@ -4,8 +4,6 @@ about: File a bug report
 title: ''
 labels: ["bug", "triage"]
 assignees: ''
-
----
 body:
   - type: markdown
     attributes:
