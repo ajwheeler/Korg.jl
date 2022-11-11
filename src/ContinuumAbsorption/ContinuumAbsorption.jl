@@ -43,9 +43,9 @@ The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
     For efficiency reasons, `νs` must be sorted. While this function technically supports any 
     sorted `AbstractVector`, it is most effient when passed an  `AbstractRange`.
 """
-function total_continuum_absorption(νs::AbstractVector{F}, T::F, nₑ::F, number_densities::Dict,
-                                    partition_funcs::Dict; error_oobounds = false) where F <: Real
-    α = zeros(promote_type(F, valtype(number_densities)), length(νs))
+function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partition_funcs::Dict;
+                                    error_oobounds = false)
+    α = zeros(promote_type(eltype(νs), typeof(T), typeof(nₑ), valtype(number_densities)), length(νs))
 
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
 
