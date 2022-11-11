@@ -10,8 +10,9 @@ Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `line
 `λs` [cm^-1]. 
 
 other arguments:
-- `temp` the temerature in K
-- `n_densities`, a Dict mapping species to absolute number density [cm^-3].
+- `temp` the temerature in K (at multiply layers, if you like)
+- `n_densities`, a Dict mapping species to absolute number density [cm^-3] (as a vector, if temp is
+   a vector).
 - `partition_fns`, a Dict containing the partition function of each species
 - `ξ` is the microturbulent velocity in cm/s (n.b. NOT km/s)
 - `α_cntm` is as a callable returning the continuum opacity as a function of wavelength. The window 
@@ -30,6 +31,12 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
     lb = 1
     ub = 1
     β = @. 1/(kboltz_eV * temp)
+
+    # precompute number density / partition function for each species in the linelist
+    n_div_Z = map(collect(Set([l.species for l in linelist]))) do spec
+        spec => @. (n_densities[spec] / partition_fns[spec](log(temp)))
+    end |> Dict
+
     for line in linelist
         m = get_mass(line.species)
         
@@ -47,11 +54,12 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         γ = @. Γ * line.wl^2 / c_cgs
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
-        levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)) /
-                             partition_fns[line.species](log(temp)))
+        #levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)) / partition_fns[line.species](log(temp)))
+        levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)))
 
         #total wl-integrated absorption coefficient
-        amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
+        #amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
+        amplitude = @. 10.0^line.log_gf*sigma_line(line.wl)*levels_factor*n_div_Z[line.species]
 
         ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
         Δλ_D = maximum(inverse_gaussian_density.(ρ_crit, σ))
