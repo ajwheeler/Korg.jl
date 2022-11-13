@@ -285,7 +285,7 @@ include("statmech.jl")
         αs = zeros(length(wls))
         Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1e11, 1e13, 
                                        Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0)
-        @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; rtol=1e-3)
+        @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; atol=1e-8)
     end
 end
 
