@@ -154,13 +154,11 @@ Arguments:
 - `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
    are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
    doppler profile.
-- `stark_window_size`: the max distance from each line center [cm] at which to calculate the stark
-   broadening profile
-- `self_window_size`: the max distance from each line center [cm] at which to calculate the line 
+- `window_size`: the max distance from each line center [cm] at which to calculate the stark
+   and self broadening profiles
    absorption for Hα-Hγ (those dominated by self-broadening).
 """
-function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ; 
-                                   stark_window_size=3e-7, self_window_size=1e-6)
+function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ; window_size=3e-6)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
     #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
@@ -199,7 +197,7 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ;
             Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
             Δλ_L = Γ * λ₀^2 / c_cgs
 
-            lb, ub = move_bounds(λs, 0, 0, λ₀, self_window_size)
+            lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)
             if lb == ub
                 continue
             end
@@ -207,7 +205,7 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ;
         end
 
         #use Stehle+ 1999 Stark-broadened profiles
-        lb, ub = move_bounds(λs, 0, 0, λ₀, stark_window_size)
+        lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)
         if lb == ub
             continue
         end
