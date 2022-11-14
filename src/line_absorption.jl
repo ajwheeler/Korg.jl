@@ -212,9 +212,6 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_siz
         ν₀ = c_cgs / (λ₀)
         scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
         dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
-        # the stark profiles are saved in arrays with NaNs, where Stehlé & Hutcheon don't compute 
-        # values
-        dIdν[isnan.(dIdν)] .= 0 
         @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
 end
