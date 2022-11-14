@@ -50,6 +50,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
   calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
+- `hydrogen_line_window_size` (default: 150): the mamximum distance (in Å) from each hydrogen line 
+   center at which to calculate its contribution to the total absorption coefficient.
 - `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
    transfer in spherical geometry (when `atm` is a `ShellAtmosphere`). 20 points is sufficient for
    accuracy at the 10^-3 level.
@@ -89,9 +91,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_s
 end
 function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, n_mu_points=20, line_cutoff_threshold=1e-3,
-                    bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
-                    partition_funcs=partition_funcs, equilibrium_constants=equilibrium_constants)
+                    hydrogen_lines=true, hydrogen_line_window_size=150, n_mu_points=20, 
+                    line_cutoff_threshold=1e-3, bezier_radiative_transfer=false, 
+                    ionization_energies=ionization_energies, partition_funcs=partition_funcs, 
+                    equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
@@ -145,7 +148,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
         if hydrogen_lines
             hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
                                       n_dict[species"H_I"], 
-                                      partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5)
+                                      partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
+                                      window_size=hydrogen_line_window_size*1e-8)
         end
 
         n_dict, α_cntm_layer
@@ -159,7 +163,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
     #add contribution of line absorption to α
     line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
                      [layer.electron_number_density for layer in atm.layers], number_densities,
-                     partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
+                     partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold,
+                     )
 
     source_fn = blackbody.((l->l.temp).(atm.layers), λs')
     flux, intensity = if bezier_radiative_transfer
