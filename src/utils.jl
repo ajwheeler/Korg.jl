@@ -58,7 +58,7 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=3) where F 
     lb, ub = 1,1 #initialize window bounds
     for i in 1:length(wls)
         λ0 = wls[i]
-        σ = λ0 / R / 2sqrt(2log(2)) # convert Δλ = λ0/R (FWHM) to sigma
+        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
         lb, ub = move_bounds(wls, lb, ub, λ0, window_size*σ)
         ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
         normalization_factor[i] = 1 ./ sum(ϕ)
