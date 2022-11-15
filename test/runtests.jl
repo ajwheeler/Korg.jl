@@ -284,8 +284,8 @@ include("statmech.jl")
 
         αs = zeros(length(wls))
         Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1e11, 1e13, 
-                                       Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0)
-        @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; rtol=1e-3)
+                                       Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
+        @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; atol=1e-8)
     end
 end
 
@@ -367,11 +367,18 @@ end
     flux[500] = 5.0
 
     convF = Korg.constant_R_LSF(flux, wls, R)
+    convF_4sigma = Korg.constant_R_LSF(flux, wls, R; window_size=4)
+
     #normalized?
     @test sum(flux) ≈ sum(convF)
+    @test sum(flux) ≈ sum(convF_4sigma)
 
     #preserves line center?
     @test argmax(convF) == 500
+    @test argmax(convF_4sigma) == 500
+
+    #make sure the window_size argument is doing something
+    @test !(convF ≈ convF_4sigma)
 end
 
 @testset "air <--> vacuum" begin

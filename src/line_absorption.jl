@@ -102,8 +102,7 @@ function inverse_lorentz_density(ρ, γ)
 end
 
 #load Stark broadening profiles from disk
-const _hline_stark_profiles = let 
-    fname=joinpath(_data_dir, "Stehle-Hutchson-hydrogen-profiles.h5")
+function _load_stark_profiles(fname)
     h5open(fname, "r") do fid
         map(keys(fid)) do transition
             temps = read(fid[transition], "temps")
@@ -127,15 +126,16 @@ const _hline_stark_profiles = let
         end
     end
 end
+_hline_stark_profiles = _load_stark_profiles(joinpath(_data_dir, 
+                                                      "Stehle-Hutchson-hydrogen-profiles.h5"))
 
 #used in hydrogen_line_absorption
 _zero2epsilon(x) = x + (x == 0) * floatmin()
 
 """
-    hydrogen_line_absorption(λs, T, nₑ, nH_I, UH_I, hline_stark_profiles, ξ; 
-                                  stark_window_size=3e-7, self_window_size=1e-6)
+    hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size)
 
-Calculate contribution to the the absorption coefficient, α, from hydrogen lines in units of cm^-1,
+Calculate contribution to the the absorption coefficient, αs, from hydrogen lines in units of cm^-1,
 at wavelengths `λs`. 
 
 Uses profiles from [Stehlé & Hutcheon (1999)](https://ui.adsabs.harvard.edu/abs/1999A%26AS..140...93S/abstract),
@@ -150,23 +150,27 @@ Arguments:
 - `nₑ`: electron number density [cm^-3]
 - `nH_I`: neutral hydrogen number density [cm^-3]
 - `UH_I`: the value of the neutral hydrogen partition function
-- `hline_stark_profiles`: (returned by setup_hline_stark_profiles`)
 - `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
    are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
    doppler profile.
-- `stark_window_size`: the max distance from each line center [cm] at which to calculate the stark
-   broadening profile
-- `self_window_size`: the max distance from each line center [cm] at which to calculate the line 
+- `window_size`: the max distance from each line center [cm] at which to calculate the stark
+   and self broadening profiles
    absorption for Hα-Hγ (those dominated by self-broadening).
+
+Keyword arguments:
+- `stark_profiles` (default: `Korg._hline_stark_profiles`): tables from which to interpolate Stark 
+   profiles
 """
-function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ; 
-                                   stark_window_size=3e-7, self_window_size=1e-6)
+function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size; 
+                                   stark_profiles=_hline_stark_profiles)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
+    Hmass = get_mass(Formula("H"))
+
     #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
     #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2/3)
-    for line in _hline_stark_profiles
+    for line in stark_profiles
         if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
             continue #transitions to high levels are omitted for high nₑ and T
         end
@@ -178,9 +182,11 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ;
         levels_factor = (exp(-β*Elo) - exp(-β*Eup)) / UH_I
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        #compute profile with either self or stark broadening
-        Hmass = get_mass(Formula("H"))
-
+        lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)
+        if lb == ub
+            continue
+        end
+         
         #if it's Halpha, Hbeta, or Hgamma, add the resonant broadening to the absorption vector
         if line.lower == 2 && line.upper in [3, 4, 5]
             #ABO params and line center
@@ -199,19 +205,10 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ;
             Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
             Δλ_L = Γ * λ₀^2 / c_cgs
 
-            lb, ub = move_bounds(λs, 0, 0, λ₀, self_window_size)
-            if lb == ub
-                continue
-            end
             @inbounds view(αs,lb:ub) .+= line_profile.(λ₀, 1.0/Δλ_D, Δλ_L, amplitude, view(λs, lb:ub))
         end
 
-        #use Stehle+ 1999 Stark-broadened profiles
-        lb, ub = move_bounds(λs, 0, 0, λ₀, stark_window_size)
-        if lb == ub
-            continue
-        end
-            
+        # Stehle+ 1999 Stark-broadened profiles
         ν₀ = c_cgs / (λ₀)
         scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
         dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))

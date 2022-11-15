@@ -34,10 +34,12 @@ function move_bounds(λs, lb, ub, λ₀, window_size)
 end
 
 """
-    constant_R_LSF(flux, wls, R)
+    constant_R_LSF(flux, wls, R; window_size=3)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
-vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda.``
+vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
+``\\Delta\\lambda`` is the LSF FWHM.  The `window_size` argument specifies how far out to extend
+the convolution kernel in standard deviations.
 
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
 the region you are going to compare.
@@ -49,18 +51,18 @@ the region you are going to compare.
        It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
        otherwise desired) grid.
 """
-function constant_R_LSF(flux::AbstractVector{F}, wls, R) where F <: Real
+function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=3) where F <: Real
     #ideas - require wls to be a range object? Use erf to account for grid edges?
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
     lb, ub = 1,1 #initialize window bounds
     for i in 1:length(wls)
         λ0 = wls[i]
-        σ = λ0 / R / 2
-        lb, ub = move_bounds(wls, lb, ub, λ0, σ)
+        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
+        lb, ub = move_bounds(wls, lb, ub, λ0, window_size*σ)
         ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
         normalization_factor[i] = 1 ./ sum(ϕ)
-        convF[lb:ub] += flux[i]*ϕ
+        @. convF[lb:ub] += flux[i]*ϕ
     end
     convF .* normalization_factor
 end
