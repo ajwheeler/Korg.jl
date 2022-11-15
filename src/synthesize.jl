@@ -149,7 +149,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
             hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
                                       n_dict[species"H_I"], 
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
-                                      window_size=hydrogen_line_window_size*1e-8)
+                                      hydrogen_line_window_size*1e-8)
         end
 
         n_dict, α_cntm_layer
