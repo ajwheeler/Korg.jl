@@ -108,15 +108,18 @@ function _load_stark_profiles(fname)
             temps = read(fid[transition], "temps")
             nes = read(fid[transition], "electron_number_densities")
             delta_nu_over_F0 = read(fid[transition], "delta_nu_over_F0")
-            
-            siz = length(delta_nu_over_F0)
             P = read(fid[transition], "profile")
+
+            logP = log.(P)
+            # clipping these to finite numbers avoid nans when interpolating
+            # -700 is slightly larger than log(-floatmax())
+            logP[logP .== -Inf] .= -700 
             
             (temps=temps, 
              electron_number_densities=nes,
              #flat BCs to allow wls very close to the line center
-             profile=LinearInterpolation((temps, nes, [floatmin() ; log.(delta_nu_over_F0[2:end])]), 
-                                         log.(P); extrapolation_bc=Flat()),
+             profile=LinearInterpolation((temps, nes, [-floatmax() ; log.(delta_nu_over_F0[2:end])]), 
+                                         logP; extrapolation_bc=Flat()),
              lower = HDF5.read_attribute(fid[transition], "lower"),
              upper = HDF5.read_attribute(fid[transition], "upper"),
              Kalpha = HDF5.read_attribute(fid[transition], "Kalpha"),
@@ -126,7 +129,7 @@ function _load_stark_profiles(fname)
         end
     end
 end
-_hline_stark_profiles = _load_stark_profiles(joinpath(_data_dir, 
+const _hline_stark_profiles = _load_stark_profiles(joinpath(_data_dir, 
                                                       "Stehle-Hutchson-hydrogen-profiles.h5"))
 
 #used in hydrogen_line_absorption
