@@ -112,6 +112,7 @@ function _load_stark_profiles(fname)
 
             logP = log.(P)
             # clipping these to finite numbers avoid nans when interpolating
+            # -700 is slightly larger than log(-floatmax())
             logP[logP .== -Inf] .= -700 
             
             (temps=temps, 
