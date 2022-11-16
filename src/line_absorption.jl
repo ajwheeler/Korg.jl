@@ -108,14 +108,12 @@ function _load_stark_profiles(fname)
             temps = read(fid[transition], "temps")
             nes = read(fid[transition], "electron_number_densities")
             delta_nu_over_F0 = read(fid[transition], "delta_nu_over_F0")
-            
-            siz = length(delta_nu_over_F0)
             P = read(fid[transition], "profile")
             
             (temps=temps, 
              electron_number_densities=nes,
              #flat BCs to allow wls very close to the line center
-             profile=LinearInterpolation((temps, nes, [floatmin() ; log.(delta_nu_over_F0[2:end])]), 
+             profile=LinearInterpolation((temps, nes, [-floatmax() ; log.(delta_nu_over_F0[2:end])]), 
                                          log.(P); extrapolation_bc=Flat()),
              lower = HDF5.read_attribute(fid[transition], "lower"),
              upper = HDF5.read_attribute(fid[transition], "upper"),
@@ -212,6 +210,8 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_siz
         ν₀ = c_cgs / (λ₀)
         scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
         dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
+        # interpolating between -Infs can lead to NaNs which should be 0
+        dIdν[isnan.(dIdν)] .= 0
         @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
 end
