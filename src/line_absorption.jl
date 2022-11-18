@@ -299,7 +299,7 @@ end
 end
 
 """
-    voigt(α, v)
+    voigt_hjerting(α, v)
 
 The [Hjerting function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions), ``H``, 
 somtimes called the Voigt-Hjerting function. ``H`` is defined as
