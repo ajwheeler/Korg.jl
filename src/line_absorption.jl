@@ -33,18 +33,19 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
     for line in linelist
         m = get_mass(line.species)
         
-        #doppler-broadening parameter
-        σ = doppler_width.(line.wl, temp, m, ξ)
+        # doppler-broadening width, √2 * σ
+        Δλ_D = doppler_width.(line.wl, temp, m, ξ)
 
-        #get all damping params from linelist.  There may be better sources for this.
+        # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
+        # angular, not cyclical frequency (ω, not ν).
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
             Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
                       n_densities[species"H_I"] .* [scaled_vdW(line.vdW, m, T) for T in temp])
         end
-        #calculate the lorentz broadenign parameter in in wavelength. Doing this involves an 
-        #implicit aproximation that λ(ν) is linear over the line window.
-        γ = @. Γ * line.wl^2 / c_cgs
+        # calculate the lorentz broadenign parameter in in wavelength. Doing this involves an 
+        # implicit aproximation that λ(ν) is linear over the line window.
+        Δλ_L = @. Γ * line.wl^2 / c_cgs
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
         levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)) /
@@ -54,16 +55,16 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
 
         ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
-        Δλ_D = maximum(inverse_gaussian_density.(ρ_crit, σ))
-        Δλ_L = maximum(inverse_lorentz_density.(ρ_crit, γ))
-        window_size = max(Δλ_D, Δλ_L)
+        dopper_line_window = maximum(inverse_gaussian_density.(ρ_crit, Δλ_D))
+        lorentz_line_window = maximum(inverse_lorentz_density.(ρ_crit, Δλ_L))
+        window_size = max(dopper_line_window, lorentz_line_window)
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
         if lb > ub
             continue
         end
 
-        invσ = 1.0./σ
-        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, invσ, γ, amplitude, view(λs, lb:ub)')
+        invΔλ_D = 1.0./Δλ_D
+        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, amplitude, view(λs, lb:ub)')
     end
 end
 
@@ -219,15 +220,26 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_siz
     end
 end
 
-"the width of the doppler-broadening profile"
+"""
+    doppler_width(λ₀ T, m, ξ)
+
+The "width" of the doppler-broadening profile.  In standard spectroscopy texts, this is not the 
+stardard deviation of the single-dimension velocity distribution, but σ√2.
+"""
 doppler_width(λ₀, T, m, ξ) = λ₀ * sqrt(2kboltz_cgs*T / m + ξ^2) / c_cgs
 
 "the stark broadening gamma scaled acording to its temperature dependence"
 scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)
              
 """
-the vdW broadening gamma scaled acording to its temperature dependence, using either simple scaling 
-or ABO
+    scaled_vdW(vdW, m, T)
+
+The vdW broadening gamma scaled acording to its temperature dependence, using either simple scaling 
+or ABO. See Anstee & O'Mara (1995) or https://www.astro.uu.se/~barklem/howto.html for the definition
+of the ABO γ. 
+
+`vdW` should be either `γ_vdW` evaluated at 10,000 K, or tuple containing the ABO params `(σ, α)`. 
+The species mass, `m`, is ignored in the former case.
 """
 scaled_vdW(vdW::Real, m, T, T₀=10_000) = vdW * (T/T₀)^0.3
 function scaled_vdW(vdW::Tuple{F, F}, m, T) where F <: Real
@@ -268,7 +280,7 @@ function line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L::Real, line_amplitude
 end
 function _line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L_invΔλ_D_div_4π::Real, 
                        amplitude_invΔλ_D_div_sqrt_π::Real, λ::Real)
-    voigt(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
+    voigt_hjerting(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
 end
 
 @inline function harris_series(v) # assume v < 5
@@ -289,10 +301,21 @@ end
 """
     voigt(α, v)
 
-The [voigt function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions), ``H``.
-Approximation from Hunger 1965.
+The [Hjerting function](https://en.wikipedia.org/wiki/Voigt_profile#Voigt_functions), ``H``, 
+somtimes called the Voigt-Hjerting function. ``H`` is defined as
+`H(α, v) = ∫^∞_∞ exp(-y^2) / ((u-y)^2 + α^2) dy`
+(see e.g. the unnumbered equation after Gray equation 11.47).  It is equal to the ratio of the 
+absorption coefficient to the value of the absorption coefficient obtained at the line center with 
+only Doppler broadening.
+
+If `x = λ-λ₀`, `Δλ_D = σ√2` is the Doppler width, and `Δλ_L = 4πγ` is the Lorentz width,
+```
+voigt(x|Δλ_D, Δλ_L) = H(Δλ_L/(4πΔλ_D), x/Δλ_D) / (Δλ_D√π)
+                    = H(γ/(σ√2), x/(σ√2)) / (σ√(2π))
+```
+Approximation from [Hunger 1965](https://ui.adsabs.harvard.edu/abs/1956ZA.....39...36H/abstract).
 """
-function voigt(α, v)
+function voigt_hjerting(α, v)
     v2 = v*v
     if α <= 0.2 && (v >= 5)
         invv2 = (1/v2)
