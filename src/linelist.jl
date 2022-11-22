@@ -220,6 +220,8 @@ struct Line{F}
      - `gamma_stark`: Stark broadening width at 10,000 K (s⁻¹)
      - `vdW`: Either the van der Waals broadening width at 10,000 K (s⁻¹) or a `Tuple`, (σ, α) from
        ABO theory.
+    Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
+    profile.
 
     Construct a `Line`.  If any of `gamma_rad`, `gamma_stark`, or `vdW` are `missing`, guess them.
     `vdW` may be log(Γ_vdW) (assumed if negative), Γ_vdW (assumed if 0 < `vdW` < 1), or packed ABO 
@@ -280,7 +282,8 @@ Stark broadening, evaluated at 10,000 K.
 Used for atomic lines with no vdW and stark broadening info in the linelist.
 
 Returns `(γ_stark`, `log10(γ_vdW))` in Hz, where these are the per-perturber quantities.
-For autoionizing lines (those for which E_upper > χ), Returns 0.0 for γ_vdW.
+For autoionizing lines (those for which E_upper > χ), Returns 0.0 for γ_vdW. Note the the "gamma" 
+values here are FWHM, not HWHM, of the Lorenztian component of the line profile. 
 
 In the calculation of `n*²`, uses the approximation that
 ``\\overbar{r^2} = 5/2 {n^*}^4 / Z^2``

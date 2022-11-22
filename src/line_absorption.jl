@@ -33,8 +33,8 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
     for line in linelist
         m = get_mass(line.species)
         
-        # doppler-broadening width, √2 * σ
-        Δλ_D = doppler_width.(line.wl, temp, m, ξ)
+        # doppler-broadening width, σ (NOT √[2]σ)
+        σ = doppler_width.(line.wl, temp, m, ξ)
 
         # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
         # angular, not cyclical frequency (ω, not ν).
@@ -43,9 +43,11 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
             Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
                       n_densities[species"H_I"] .* [scaled_vdW(line.vdW, m, T) for T in temp])
         end
-        # calculate the lorentz broadenign parameter in in wavelength. Doing this involves an 
+        # calculate the lorentz broadening parameter in in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.
-        Δλ_L = @. Γ * line.wl^2 / c_cgs
+        # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
+        # and the last factor of 1/2 is for FWHM vs HWHM
+        γ = @. Γ * line.wl^2 / (c_cgs * 4π)
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
         levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)) /
@@ -55,16 +57,15 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
 
         ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
-        dopper_line_window = maximum(inverse_gaussian_density.(ρ_crit, Δλ_D))
-        lorentz_line_window = maximum(inverse_lorentz_density.(ρ_crit, Δλ_L))
+        dopper_line_window = maximum(inverse_gaussian_density.(ρ_crit, σ))
+        lorentz_line_window = maximum(inverse_lorentz_density.(ρ_crit, γ))
         window_size = max(dopper_line_window, lorentz_line_window)
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
         if lb > ub
             continue
         end
 
-        invΔλ_D = 1.0./Δλ_D
-        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, invΔλ_D, Δλ_L, amplitude, view(λs, lb:ub)')
+        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
     end
 end
 
@@ -191,10 +192,11 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_siz
             continue
         end
          
-        #if it's Halpha, Hbeta, or Hgamma, add the resonant broadening to the absorption vector
+        # if it's Halpha, Hbeta, or Hgamma, add the resonant broadening to the absorption vector
+        # use the Barklem+ 2000 p-d approximation
         if line.lower == 2 && line.upper in [3, 4, 5]
             #ABO params and line center
-            λ₀, σ, α = if line.upper == 3
+            λ₀, σABO, αABO = if line.upper == 3
                 6.56460998e-5, 1180.0, 0.677
             elseif line.upper == 4
                 4.8626810200000004e-5, 2320.0, 0.455
@@ -202,14 +204,13 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_siz
                 4.34168232e-5, 4208.0, 0.380
             end
 
-            #use Barklem+ 2000 p-d approximation for resonant broadening of first 3 balmer lines
-            #λ₀ may not be the most appropriate choice here?
-            Δλ_D = doppler_width(λ₀, T, Hmass, ξ)
+            Γ = scaled_vdW((σABO*bohr_radius_cgs^2, αABO), Hmass, T) * nH_I
+            # convert to HWHM wavelength units. (see comment in line_absorption! for explanation)
+            γ = Γ * λ₀^2 / (c_cgs * 4π) 
 
-            Γ = scaled_vdW((σ*bohr_radius_cgs^2, α), Hmass, T) * nH_I
-            Δλ_L = Γ * λ₀^2 / c_cgs
+            σ = doppler_width(λ₀, T, Hmass, ξ)
 
-            @inbounds view(αs,lb:ub) .+= line_profile.(λ₀, 1.0/Δλ_D, Δλ_L, amplitude, view(λs, lb:ub))
+            @inbounds view(αs,lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude, view(λs, lb:ub))
         end
 
         # Stehle+ 1999 Stark-broadened profiles
@@ -223,10 +224,10 @@ end
 """
     doppler_width(λ₀ T, m, ξ)
 
-The "width" of the doppler-broadening profile.  In standard spectroscopy texts, this is not the 
-stardard deviation of the single-dimension velocity distribution, but σ√2.
+The standard deviation of of the doppler-broadening profile.  In standard spectroscopy texts, the 
+Doppler width often refers to σ√2, but this is σ
 """
-doppler_width(λ₀, T, m, ξ) = λ₀ * sqrt(2kboltz_cgs*T / m + ξ^2) / c_cgs
+doppler_width(λ₀, T, m, ξ) = λ₀ * sqrt(kboltz_cgs*T / m + (ξ^2)/2) / c_cgs
 
 "the stark broadening gamma scaled acording to its temperature dependence"
 scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)
@@ -270,17 +271,15 @@ function sigma_line(λ::Real)
 end
 
 """
-    line_profile(λ₀, invΔλ_D, Δλ_L, line_amplitude, λ)
+    line_profile(λ₀, σ, γ, amplitude, λ)
 
-A voigt profile centered on λ₀ with Doppler width 1/`invΔλ_D` and Lorentz width `Δλ_L` 
-evaluated at `λ` (cm).  Note that this returns values in units of cm^-1.
+A voigt profile centered on λ₀ with Doppler width σ (NOT √[2] σ, as the "Doppler width" is often 
+defined) and Lorentz HWHM γ evaluated at `λ` (cm).  Returns values in units of cm^-1.
 """
-function line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L::Real, line_amplitude::Real, λ::Real)
-    _line_profile(λ₀, invΔλ_D, Δλ_L*invΔλ_D/(4π), line_amplitude*invΔλ_D/sqrt(π), λ)
-end
-function _line_profile(λ₀::Real, invΔλ_D::Real, Δλ_L_invΔλ_D_div_4π::Real, 
-                       amplitude_invΔλ_D_div_sqrt_π::Real, λ::Real)
-    voigt_hjerting(Δλ_L_invΔλ_D_div_4π, abs(λ-λ₀) * invΔλ_D) * amplitude_invΔλ_D_div_sqrt_π
+function line_profile(λ₀::Real, σ::Real, γ::Real, amplitude::Real, λ::Real)
+    inv_σsqrt2 = 1/(σ*sqrt(2))
+    scaling = inv_σsqrt2 / sqrt(π) * amplitude
+    voigt_hjerting(γ*inv_σsqrt2, abs(λ-λ₀)*inv_σsqrt2) * scaling
 end
 
 @inline function harris_series(v) # assume v < 5

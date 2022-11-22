@@ -55,7 +55,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
    transfer in spherical geometry (when `atm` is a `ShellAtmosphere`). 20 points is sufficient for
    accuracy at the 10^-3 level.
-- `line_cutoff_threshold` (default: `1e-3`): the fraction of the continuum absorption coefficient 
+- `line_cutoff_threshold` (default: `3e-4`): the fraction of the continuum absorption coefficient 
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
    The default value should effect final spectra below the 10^-3 level.
@@ -70,7 +70,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    testing purposes only.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01
-                    ; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4, kwargs...)
+                    ; air_wavelengths=false, wavelength_conversion_warn_threshold=3e-4, kwargs...)
     wls = if air_wavelengths
         len = Int(round((λ_stop - λ_start)/λ_step))+1
         vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
@@ -92,7 +92,7 @@ end
 function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     hydrogen_lines=true, hydrogen_line_window_size=150, n_mu_points=20, 
-                    line_cutoff_threshold=1e-3, bezier_radiative_transfer=false, 
+                    line_cutoff_threshold=1e-4, bezier_radiative_transfer=false, 
                     ionization_energies=ionization_energies, partition_funcs=partition_funcs, 
                     equilibrium_constants=equilibrium_constants)
     #work in cm
