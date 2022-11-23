@@ -219,7 +219,7 @@ function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
             elseif el != "H"
                 clean_abundances[Korg.atomic_numbers[el]] =  abund
             end
-        else
+        elseif el isa Integer
             if ! (1 <= el < 92)
                 throw(ArgumentError("Z = $el is not a supported atomic number."))
             elseif el > 1
