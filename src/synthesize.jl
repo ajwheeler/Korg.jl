@@ -202,7 +202,7 @@ You can provide either or both of:
 """
 function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
                               solar_relative=true, solar_abundances=asplund_2020_solar_abundances)
-    if (1 in keys(abundances)) || ("H" in keys(abundances))
+    if (((1 in keys(abundances)) && (abundances[1] != 0)) || (("H" in keys(abundances)) && (abundances["H"] != 12)))
         silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
         throw(ArgumentError("$silly_abundance set, but $silly_abundance = $silly_value by " *
                             "definition. Adjust \"metallicity\" and \"abundances\" to implicitly " *
@@ -216,13 +216,15 @@ function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
                 throw(ArgumentError("$el isn't a valid atomic symbol."))
             elseif Korg.atomic_numbers[el] in keys(abundances)
                 throw(ArgumentError("The abundances of $el was specified by both atomic number and atomic symbol."))
+            elseif el != "H"
+                clean_abundances[Korg.atomic_numbers[el]] =  abund
             end
-            clean_abundances[Korg.atomic_numbers[el]] =  abund
-        elseif el isa AbstractString
-            if ! (1 < el < 92)
+        else
+            if ! (1 <= el < 92)
                 throw(ArgumentError("Z = $el is not a supported atomic number."))
+            elseif el > 1
+                clean_abundances[el] = abund
             end
-            clean_abundances[el] = abund
         else
             throw(ArgumentError("$el isn't a valid element. Keys of the abundances dict should be strings or integers."))
         end
