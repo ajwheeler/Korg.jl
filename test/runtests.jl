@@ -255,14 +255,16 @@ include("statmech.jl")
 
     @testset "line profile" begin
         Δ = 0.01
-        wls = (4955 : Δ : 5045) * 1e-8
+        wls = (4750 : Δ : 5250) * 1e-8
         Δ *= 1e-8
         amplitude = 7.0
-        for σ in [1e-7, 1e-8, 1e-9], γ in [1e-8, 1e-9]
+        for σ in [1e-7, 1e-8, 1e-9], γ in [3e-8, 3e-9, 3e-10]
             ϕ = Korg.line_profile.(5e-5, σ, γ, amplitude, wls)
-            @test issorted(ϕ[1 : Int(ceil(end/2))])
-            @test issorted(ϕ[Int(ceil(end/2)) : end], rev=true)
-            @test 0.99 < sum(ϕ .* Δ)/amplitude < 1
+            # the profile isn't perfectly monotonic because the approximation has "seams" at v=5
+            # this allows for slight nonmonotonicity
+            @test all(diff(ϕ[1:Int(ceil(end/2))]) .> -1e-3*maximum(ϕ))
+            @test all(diff(ϕ[Int(ceil(end/2)) : end]) .< 1e-3*maximum(ϕ))
+            @test 0.98 < sum(ϕ .* Δ)/amplitude < 1
         end
     end
 
