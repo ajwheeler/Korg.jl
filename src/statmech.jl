@@ -98,8 +98,7 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            #x = abs.(x) #don't allow negative number densities
-            x = exp.(x) #don't allow negative number densities
+            x = abs.(x) #don't allow negative number densities
 
             #LHS: total number of atoms, RHS: first through third ionization states
             F .= atom_number_densities .- ion_factors .* x
@@ -140,8 +139,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
         x0 = map(MEQs.atoms) do atom
             wII, wIII =  saha_ion_weights(T, nₑ, atom, MEQs.ionization_energies, 
                                                   MEQs.partition_fns)
-            #nₜ*MEQs.absolute_abundances[atom] / (1 + wII + wIII)
-            log(nₜ*MEQs.absolute_abundances[atom] / (1 + wII + wIII))
+            nₜ*MEQs.absolute_abundances[atom] / (1 + wII + wIII)
         end
     end
 
@@ -152,9 +150,9 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
         error("Molecular equlibrium unconverged. (`", sol, "\n", sol.trace)
     end
 
-    #start with the neutral atomic species
-    #number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> abs.(sol.zero))
-    number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> exp.(sol.zero))
+    # start with the neutral atomic species.  Only the absolute value of sol.zero is
+    # necessarilly correct.
+    number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> abs.(sol.zero))
     #now the ionized atomic species
     for a in MEQs.atoms
         wII, wIII = saha_ion_weights(T, nₑ, a, MEQs.ionization_energies, MEQs.partition_fns)
