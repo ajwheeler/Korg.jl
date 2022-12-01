@@ -57,9 +57,9 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
 
         ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
-        dopper_line_window = maximum(inverse_gaussian_density.(ρ_crit, σ))
+        doppler_line_window = maximum(inverse_gaussian_density.(ρ_crit, σ))
         lorentz_line_window = maximum(inverse_lorentz_density.(ρ_crit, γ))
-        window_size = max(dopper_line_window, lorentz_line_window)
+        window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
         if lb > ub
             continue
