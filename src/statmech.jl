@@ -147,7 +147,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
     sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=1_000, store_trace=true, ftol=nₜ*1e-12,
                   autodiff=:forward)
     if !sol.f_converged
-        error("Molecular equlibrium unconverged. (`", sol)
+        error("Molecular equlibrium unconverged. \n", sol)
     end
 
     # start with the neutral atomic species.  Only the absolute value of sol.zero is
