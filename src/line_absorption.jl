@@ -227,7 +227,7 @@ end
 The standard deviation of of the doppler-broadening profile.  In standard spectroscopy texts, the 
 Doppler width often refers to σ√2, but this is σ
 """
-doppler_width(λ₀, T, m, ξ) = λ₀ * sqrt(kboltz_cgs*T / m + (ξ^2)/2) / c_cgs
+doppler_width(λ₀, T, m, ξ) = λ₀ * sqrt(kboltz_cgs*T / m + 0.5*(ξ^2)) * (1/c_cgs)
 
 "the stark broadening gamma scaled acording to its temperature dependence"
 scaled_stark(γstark, T; T₀=10_000) = γstark * (T/T₀)^(1/6)
