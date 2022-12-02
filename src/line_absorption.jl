@@ -278,8 +278,7 @@ defined) and Lorentz HWHM γ evaluated at `λ` (cm).  Returns values in units of
 """
 function line_profile(λ₀::Real, σ::Real, γ::Real, amplitude::Real, λ::Real)
     inv_σsqrt2 = 1/(σ*sqrt(2))
-    inv_sqrtπ = 1.0 / sqrt(π)
-    scaling = inv_σsqrt2 * inv_sqrtπ * amplitude
+    scaling = inv_σsqrt2 / sqrt(π) * amplitude
     voigt_hjerting(γ*inv_σsqrt2, abs(λ-λ₀)*inv_σsqrt2) * scaling
 end
 
