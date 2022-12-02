@@ -1,34 +1,6 @@
 using Interpolations: LinearInterpolation, Throw
 using StaticArrays: SA
 
-# define the hydrogenic continuum absorption
-
-"""
-    ndens_state_hydrogenic(n, nsdens_div_partition, ion_energy, T)
-
-Calculates the LTE number density (in cm^-3) of a hydrogenic species at a given energy level.
-
-# Arguments
-- `n::Integer`: The quantum number of the state
-- `nsdens_div_partition`: The total (including all states) number density of the current 
-ionization species (in cm^-3) divided by the species's partition function.
-- `ion_energy`: The minimum energy (in eV) required to ionize the species (from the ground 
-state). This can be estimated as Z²*ion_energy of hydrogen or Z²*Rydberg_H.
-- `T`: Temperature
-
-# Note
-This assumes that all hydrogenic species have a statistical weight of gₙ = 2*n².
-
-This was taken from equation (5.4) of Kurucz (1970) (although this comes directly from the 
-boltzmann equation).
-"""
-function ndens_state_hydrogenic(n::Integer, nsdens_div_partition::Real, T::Real, ion_energy::Real)
-    n2 = n*n
-    g_n = 2.0*n2
-    energy_level = ion_energy - ion_energy/n2
-    nsdens_div_partition * g_n * exp(-energy_level/(kboltz_eV *T))
-end
-
 _eVtoHz(energy) = energy/hplanck_eV
 _HztoeV(freq) = freq*hplanck_eV
 
@@ -175,7 +147,11 @@ function hydrogenic_bf_absorption(ν::Real, T::Real, Z::Integer, nsdens_div_part
     # lowest energy levels (i.e. all energy levels where n <= nmax_explicit_sum)
     partial_sum = 0.0
     for n = 1 : nmax_explicit_sum
-        ndens_state = ndens_state_hydrogenic(n, nsdens_div_partition, T, ion_energy)
+        # calculate the LTE number density of H I atoms in the n=n state
+        g_n = 2.0*n^2
+        energy_level = ion_energy - ion_energy/n^2
+        ndens_state = nsdens_div_partition * g_n * exp(-energy_level/(kboltz_eV *T))
+
         hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ionization_freq)
         partial_sum += ndens_state * hydrogenic_bf_cross_section
     end
