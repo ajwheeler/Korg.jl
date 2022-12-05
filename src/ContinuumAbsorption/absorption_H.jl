@@ -48,9 +48,8 @@ the saha equation where the "ground state" is H⁻ and the "first ionization sta
 partition function of H⁻ is 1 at all temperatures.
 """
 function _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
-    # The value of _H_I_ion_energy energy doesn't matter at all becasue the exponential evaluates
-    # to 1 for n = 1
-    nHI_groundstate = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
+    # the Boltzmann factor is unity for the ground state, and the degeneracy, g, is 2.
+    nHI_groundstate = 2 * nH_I_div_partition
 
     # should should probably factor this out
     if T < 1000
@@ -178,8 +177,9 @@ function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
     # Account for the fact that n(H I, n=1) might be slightly smaller than the entire number
     # density of H I. There is only really a difference at the highest temperatures. For the
     # temperature range where this approximation is valid, less than 0.23% of all H I atoms are not
-    # in the ground state. This calculation could reduce to nHI_gs = 2.0*nH_I_div_partition
-    nHI_gs = ndens_state_hydrogenic(1, nH_I_div_partition, T, _H_I_ion_energy)
+    # in the ground state. The Boltzmann factor is unity and the degeneracy is 2 for the ground 
+    # state.
+    nHI_gs = 2 * nH_I_div_partition
 
     return K * Pₑ * nHI_gs
 end
