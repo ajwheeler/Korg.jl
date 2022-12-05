@@ -16,6 +16,7 @@ module Korg
     include("RadiativeTransfer/RadiativeTransfer.jl")        # radiative transfer formal solution
     include("utils.jl")                                # functions to apply LSF, vac<->air wls, etc.
     include("ContinuumAbsorption/ContinuumAbsorption.jl")   # Define continuum absorption functions.
+    include("hydrogen_bound_absorption.jl")  #TODO
     include("synthesize.jl")                                # top-level API
 
 end # module

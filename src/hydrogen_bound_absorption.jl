@@ -1,10 +1,11 @@
-function hydrogen_bound_absorption(T, number_density, nH, nHe, ne; n_max=30)
+function hydrogen_bound_absorption(ν, T, number_density, nH, nHe, ne; n_max=30)
     E_levels = map(1:n_max) do n
         Rydberg_H - Rydberg_H/n^2
     end
     ws = map(zip(1:n_max, E_levels)) do (n, E_level)
         hummer_mihalas_w(T, number_density, E_level, nH, nHe, ne)
     end
+    # these include the degeneracy, g, and the occupation correction, w
     boltzmann_factors = map(zip(1:n, E_levels, ws)) do (n, E_level, w)
         E_level = Rydberg_H - Rydberg_H/n^2
         g = 2n^2
@@ -12,7 +13,29 @@ function hydrogen_bound_absorption(T, number_density, nH, nHe, ne; n_max=30)
     end
      
     # value of the modified partition function 
-    U = sum(boltzmann_factors)
+    invU = 1 / sum(boltzmann_factors)
+
+    ionization_freq = RydbergH_eV / hplanck_eV
+
+    partial_sum = 0.0
+    for n = 1 : n_max
+        ndens_state = boltzmann_factors[n] * invU
+        hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ionization_freq)
+        partial_sum += ndens_state * hydrogenic_bf_cross_section
+    end
+    partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))
+end
+
+function disolved_fraction(n, ν)
+    # if the photon energy is greater than the ionization energy of the unperturbed atom with its
+    # electron having primary quantum number n, the dissolved fraction is unity
+    if hplanck_eV * ν > RydbergH_eV/n^2
+        1.0
+    else # otherwise there is still some bf absorption because of level dissolution
+        # TODO understand this better. This is different from some the n_eff in hummer_mihalas_w?
+        n_eff = 1 / sqrt(1/n^2 - hplanck*ν/RydbergH_eV)
+        w_star = hummer_mihalas_w(T, n_eff, )
+    end
 end
 
 """
@@ -40,41 +63,39 @@ formalism from Hubeny+ 1994 is turned off by default because I haven't closely c
 difference effects the charged_term only, and temerature is only used when 
 `use_hubeny_generalization` is set to `true`.
 """
-function hummer_mihalas_w(T, n, E_level, nH, nHe, ne; use_hubeny_generalization=false)
-        # contribution to w from neutral species (neutral H and He, in this implementation)
-        # effective quantum numer of the H energy level
-        n_eff = sqrt(Korg.RydbergH_eV / (Korg.RydbergH_eV - E_level)) # times Z, which is 1 for hydrogen
-        #this is sqrt<r^2> assuming l=0.  I'm unclear why this is the approximation barklem uses.
-        r_level = sqrt(5/2*n_eff^4 + 1/2*n_eff^2)*Korg.bohr_radius_cgs 
-        # how do I reproduce this helium radius?
-        neutral_term = nH * (r_level + sqrt(3)*Korg.bohr_radius_cgs)^3 + nHe * (r_level + 1.02Korg.bohr_radius_cgs)^3
+function hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=false)
+    # contribution to w from neutral species (neutral H and He, in this implementation)
+    # this is sqrt<r^2> assuming l=0.  I'm unclear why this is the approximation barklem uses.
+    r_level = sqrt(5/2*n_eff^4 + 1/2*n_eff^2)*Korg.bohr_radius_cgs 
+    # how do I reproduce this helium radius?
+    neutral_term = nH * (r_level + sqrt(3)*Korg.bohr_radius_cgs)^3 + nHe * (r_level + 1.02Korg.bohr_radius_cgs)^3
         
-        # contributions to w from ions (these are assumed to be all singly ionized, so n_ion = n_e)
-        # K is a  QM correction defined in H&M '88 equation 4.24
-        K = if n > 3
-            # WCALC drops the final factor, which is nearly within 1% of unity for all n
-            16/3 * (n/(n+1))^2 * ((n + 7/6)/(n^2 + n + 1/2))
+    # contributions to w from ions (these are assumed to be all singly ionized, so n_ion = n_e)
+    # K is a  QM correction defined in H&M '88 equation 4.24
+    K = if n_eff > 3
+        # WCALC drops the final factor, which is nearly within 1% of unity for all n
+        16/3 * (n_eff/(n_eff+1))^2 * ((n_eff + 7/6)/(n_eff^2 + n_eff + 1/2))
+    else
+        1.0
+    end
+    χ = Korg.RydbergH_eV / n_eff^2 * Korg.eV_to_cgs # binding energy
+    e = Korg.electron_charge_cgs
+    charged_term = if use_hubeny_generalization
+        # this is a straight line-by-line port from HBOP. Review and rewrite if used.
+        if (ne > 10) && (T > 10) 
+            A = 0.09 * exp(0.16667*log(ne)) / sqrt(T)
+            X = exp(3.15*log(1+A))
+            BETAC = 8.3e14 * exp(-0.66667*log(ne)) * K / n_eff^4
+            F = 0.1402*X*BETAC^3 / (1+0.1285*X*BETAC*sqrt(BETAC))
+            log(F/(1+F)) / (-4π/3)
         else
-            1.0
+            0
         end
-        χ = (Korg.RydbergH_eV - E_level) * Korg.eV_to_cgs # binding energy
-        e = Korg.electron_charge_cgs
-        charged_term = if use_hubeny_generalization
-            # this is a straight line-by-line port from HBOP. Review and rewrite if used.
-            if (ne > 10) && (T > 10) 
-                A = 0.09 * exp(0.16667*log(ne)) / sqrt(T)
-                X = exp(3.15*log(1+A))
-                BETAC = 8.3e14 * exp(-0.66667*log(ne)) * K / n^4
-                F = 0.1402*X*BETAC^3 / (1+0.1285*X*BETAC*sqrt(BETAC))
-                log(F/(1+F)) / (-4π/3)
-            else
-                0
-            end
-        else
-            16 * ((e^2)/(χ * sqrt(K)))^3 * ne
-        end
+    else
+        16 * ((e^2)/(χ * sqrt(K)))^3 * ne
+    end
         
-        exp(-4π/3 * (neutral_term + charged_term))
+    exp(-4π/3 * (neutral_term + charged_term))
 end
 
 
@@ -97,7 +118,8 @@ function hummer_mihalas_U_H(T, nH, nHe, ne; use_hubeny_generalization=false)
     # the expression for w comes from Hummer and Mihalas 1988 equation 4.71 
     U = 0.0
     for (E, g, n) in zip(hydrogen_energy_levels, hydrogen_energy_level_degeneracies, hydrogen_energy_level_n)
-        w = hummer_mihalas_w(T, n, E, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+        n_eff = sqrt(Korg.RydbergH_eV / (Korg.RydbergH_eV - E)) # times Z, which is 1 for hydrogen
+        w = hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
         U += w * g*exp(-E / (Korg.kboltz_eV * T))
     end
     U
