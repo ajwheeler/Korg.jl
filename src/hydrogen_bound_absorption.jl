@@ -1,13 +1,16 @@
-function hydrogen_bound_absorption(ν, T, number_density, nH, nHe, ne; n_max=30)
+#TODO broadcast over ν
+function hydrogen_bound_absorption(ν, T, nH, nHe, ne; 
+                                   n_max=30, use_hubeny_generalization=false)
+    #TODO collapse some of these maps
     E_levels = map(1:n_max) do n
-        Rydberg_H - Rydberg_H/n^2
+        RydbergH_eV - RydbergH_eV/n^2
     end
     ws = map(zip(1:n_max, E_levels)) do (n, E_level)
-        hummer_mihalas_w(T, number_density, E_level, nH, nHe, ne)
+        hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
     end
+
     # these include the degeneracy, g, and the occupation correction, w
-    boltzmann_factors = map(zip(1:n, E_levels, ws)) do (n, E_level, w)
-        E_level = Rydberg_H - Rydberg_H/n^2
+    boltzmann_factors = map(zip(1:n_max, E_levels, ws)) do (n, E_level, w)
         g = 2n^2
         w * g * exp(-E_level / (kboltz_eV * T))
     end
@@ -18,24 +21,24 @@ function hydrogen_bound_absorption(ν, T, number_density, nH, nHe, ne; n_max=30)
     ionization_freq = RydbergH_eV / hplanck_eV
 
     partial_sum = 0.0
-    for n = 1 : n_max
+    for n = 1 : n_max # iterate over energy levels
         ndens_state = boltzmann_factors[n] * invU
-        hydrogenic_bf_cross_section = _hydrogenic_bf_cross_section(Z, n, ν, ionization_freq)
-        partial_sum += ndens_state * hydrogenic_bf_cross_section
-    end
-    partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))
-end
+        hydrogenic_bf_cross_section = ContinuumAbsorption._hydrogenic_bf_cross_section(1, n, ν, ionization_freq)
 
-function disolved_fraction(n, ν)
-    # if the photon energy is greater than the ionization energy of the unperturbed atom with its
-    # electron having primary quantum number n, the dissolved fraction is unity
-    if hplanck_eV * ν > RydbergH_eV/n^2
-        1.0
-    else # otherwise there is still some bf absorption because of level dissolution
-        # TODO understand this better. This is different from some the n_eff in hummer_mihalas_w?
-        n_eff = 1 / sqrt(1/n^2 - hplanck*ν/RydbergH_eV)
-        w_star = hummer_mihalas_w(T, n_eff, )
+        # if the photon energy is greater than the ionization energy of the unperturbed atom with its
+        # electron having primary quantum number n, the dissolved fraction is unity
+        dissolved_fraction = if hplanck_eV * ν > RydbergH_eV/n^2
+            1.0
+        else # otherwise there is still some bf absorption because of level dissolution
+            ## this is the effective quantum number associated with the energy of the nth level plus 
+            ## that of the photon, i.e. the upper level
+            n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
+            w_upper = hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+            1 - w_upper
+        end
+        partial_sum += ndens_state * hydrogenic_bf_cross_section * dissolved_fraction
     end
+    nH * partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))
 end
 
 """
