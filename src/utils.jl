@@ -84,7 +84,6 @@ function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0
     lb = 1
     ub = 1
     moving_quantile = map(wls[inds]) do λ
-        #move_bounds is defined in line_opacity.jl
         lb, ub = move_bounds(wls, lb, ub, λ, bandwidth)
         quantile(flux[lb:ub], q)
     end
