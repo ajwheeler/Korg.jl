@@ -163,15 +163,13 @@ planar_grid = h5read(atmosphere_archive, "planar/grid")
 planar_nodes = [h5read(atmosphere_archive, "planar/grid_values/$i") for i in 1:5]
 spherical_exists = h5read(atmosphere_archive, "spherical/exists")
 spherical_grid = h5read(atmosphere_archive, "spherical/grid")
-R_grid = h5read(atmosphere_archive, "spherical/R_grid")
 spherical_nodes = [h5read(atmosphere_archive, "spherical/grid_values/$i") for i in 1:5]
 
 function interpolate_marcs(Teff, logg, metallicity=0, alpha=0, carbon=0;
         spherical=logg < 3.5,
         nodes=(spherical ? spherical_nodes : planar_nodes),
         exists=(spherical ? spherical_exists : planar_exists),
-        grid=(spherical ? spherical_grid : planar_grid),
-        R_grid=(spherical ? R_grid : nothing))
+        grid=(spherical ? spherical_grid : planar_grid))
 
     #TODO calculate R using M = 1
     
@@ -187,11 +185,6 @@ function interpolate_marcs(Teff, logg, metallicity=0, alpha=0, carbon=0;
     dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
     structure_type = typeof(promote(Teff, logg, metallicity, alpha, carbon)[1])
     structure = Array{structure_type}(undef, (56, 5, dims...))
-    if spherical
-        R = Array{structure_type}(undef, dims)
-    else
-        R = [0]
-    end
      
     #put bounding atmospheres in 2^n cube
     for I in CartesianIndices(dims)
@@ -206,7 +199,6 @@ function interpolate_marcs(Teff, logg, metallicity=0, alpha=0, carbon=0;
         end
         
         structure[:, :, local_inds...] .= grid[:, :, atm_inds...]
-        spherical && (R[local_inds...] = R_grid[atm_inds...])
     end
 
     for i in 1:length(params) #loop over Teff, logg, etc.
@@ -228,23 +220,22 @@ function interpolate_marcs(Teff, logg, metallicity=0, alpha=0, carbon=0;
         for structure_ind in 1:5 #TODO fix
             structure[:, structure_ind, inds1...] = (1-x)*structure[:, structure_ind, inds1...] + x*structure[:, structure_ind, inds2...]
         end
-        if spherical
-            R[inds1...] = (1-x)*R[inds1...] + x*R[inds2...]
-        end
     end
-    
-    Float64.(structure[:, :, ones(Int, length(params))...]), Float64(R[1])
-end
-
-function assemble_atm((m, R))
-    m, R = Float64.(m), Float64(R)
-    if R == 0
-        PlanarAtmosphere(PlanarAtmosphereLayer.(m[:, 4], sinh.(m[:, 5]), m[:, 1],
-                                                          exp.(m[:, 2]), exp.(m[:, 3])))
+   
+    atm_quants = Float64.(structure[:, :, ones(Int, length(params))...])
+    if spherical
+        R = sqrt(Korg.G_cgs * Korg.solar_mass_cgs / 10^(logg)) 
+        ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[:, 4], 
+                                              sinh.(atm_quants[:, 5]), 
+                                              atm_quants[:, 1],
+                                              exp.(atm_quants[:, 2]), 
+                                              exp.(atm_quants[:, 3])))
     else
-        ShellAtmosphere(ShellAtmosphereLayer.(m[:, 4], sinh.(m[:, 5]), m[:, 1],
-                                                        exp.(m[:, 2]), exp.(m[:, 3])), R)
+        PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[:, 4], 
+                                               sinh.(atm_quants[:, 5]), 
+                                               atm_quants[:, 1],
+                                               exp.(atm_quants[:, 2]), 
+                                               exp.(atm_quants[:, 3])))
     end
 end
-
-end
+end #module
