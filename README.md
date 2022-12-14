@@ -14,7 +14,7 @@
 using Korg, PyPlot
 lines = read_linelist("linelist.vald", format="vald")
 atm = read_model_atmosphere("s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
-synthesize(atm, lines, format_A_X(0), 5000, 5030);
+sol = synthesize(atm, lines, format_A_X(0), 5000, 5030);
 
 figure(figsize=(12, 4))
 plot(sol.wavelengths, sol.flux, "k-")
