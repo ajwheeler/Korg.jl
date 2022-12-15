@@ -153,27 +153,53 @@ end
 
 module InterpolateSDSSMARCS 
 using HDF5: h5read
-using ..Korg: PlanarAtmosphere, PlanarAtmosphereLayer, ShellAtmosphere, ShellAtmosphereLayer
+using ..Korg: G_cgs, solar_mass_cgs, PlanarAtmosphere, PlanarAtmosphereLayer, ShellAtmosphere, ShellAtmosphereLayer, grevesse_2007_solar_abundances
+export interpolate_marcs
 
-atmosphere_archive = "../../korg_files/atmospheres/SDSS_MARCS_atmospheres.h5"
+#atmosphere_archive = joinpath(homedir(), ".korg", "SDSS_MARCS_atmospheres.h5")
+atmosphere_archive = "~/Dropbox/korg_file/playground/SDSS_MARCS_atmospheres.h5"
+
+#if !isfile(atmosphere_archive)
+#    @info "Downloading the SDSS MARCS model atmosphere grid to $(atmosphere_archive). This can take a minute."
+#    download_atmosphere_archive()
+#end
 
 #load from file
-planar_exists = h5read(atmosphere_archive, "planar/exists")
-planar_grid = h5read(atmosphere_archive, "planar/grid")
-planar_nodes = [h5read(atmosphere_archive, "planar/grid_values/$i") for i in 1:5]
-spherical_exists = h5read(atmosphere_archive, "spherical/exists")
-spherical_grid = h5read(atmosphere_archive, "spherical/grid")
-spherical_nodes = [h5read(atmosphere_archive, "spherical/grid_values/$i") for i in 1:5]
+const exists = h5read(atmosphere_archive, "exists")
+const grid = h5read(atmosphere_archive, "grid")
+const nodes = [h5read(atmosphere_archive, "grid_values/$i") for i in 1:5]
 
-function interpolate_marcs(Teff, logg, metallicity=0, alpha=0, carbon=0;
-        spherical=logg < 3.5,
-        nodes=(spherical ? spherical_nodes : planar_nodes),
-        exists=(spherical ? spherical_exists : planar_exists),
-        grid=(spherical ? spherical_grid : planar_grid))
+#"""
+#    download_atmosphere_archive()
+#
+#Download the data used by [`interpolate_marcs`](@ref).  This will happen automatically, but you can 
+#call this function manually to download afresh is something gets messed up.  The archive is saved in 
+#`.korg/SDSS_MARCS_atmospheres.h5`
+#"""
+#function download_atmosphere_archive()
+#end
 
-    #TODO calculate R using M = 1
+"""
+    interpolate_marcs(Teff, logg, Fe_H=0, alpha_H=0, C_H=0)
+    interpolate_marcs(Teff, logg, A_X)
+
+Returns a model atmosphere obtained by interpolating the 
+[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
+If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref) and accepted by 
+[`synthesize`](@ref).) is provided instead of `Fe_H`, `alpha_H`, and `C_H`, the solar-relative 
+ratios will be reconstructed assuming Grevesse+ 2007 solar abundances, with Mg determining the alpha
+ratio.
+"""
+function interpolate_marcs(Teff, logg, A_X)
+    Fe_H = A_X[26] - grevesse_2007_solar_abundances[26], A[X]
+    alpha_H = A_X[12] - grevesse_2007_solar_abundances[12] #TODO
+    C_H = mean(A_X[6] - grevesse_2007_solar_abundances[6], A[X])
+    interpolate_marcs(Teff, logg, Fe_H, alpha_H, C_H)
+end
+function interpolate_marcs(Teff, logg, Fe_H=0, alpha_H=0, C_H=0;
+        spherical=logg < 3.5, nodes=nodes, grid=grid, exists=exists)
     
-    params = [Teff, logg, metallicity, alpha, carbon]
+    params = [Teff, logg, Fe_H, alpha_H, C_H]
     
     upper_vertex = map(zip(params, nodes)) do (p, p_nodes)
         @assert p_nodes[1] <= p <= p_nodes[end]
@@ -183,7 +209,7 @@ function interpolate_marcs(Teff, logg, metallicity=0, alpha=0, carbon=0;
     
     # allocate 2^n cube for each quantity
     dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
-    structure_type = typeof(promote(Teff, logg, metallicity, alpha, carbon)[1])
+    structure_type = typeof(promote(Teff, logg, Fe_H, alpha_H, C_H)[1])
     structure = Array{structure_type}(undef, (56, 5, dims...))
      
     #put bounding atmospheres in 2^n cube
@@ -224,12 +250,12 @@ function interpolate_marcs(Teff, logg, metallicity=0, alpha=0, carbon=0;
    
     atm_quants = Float64.(structure[:, :, ones(Int, length(params))...])
     if spherical
-        R = sqrt(Korg.G_cgs * Korg.solar_mass_cgs / 10^(logg)) 
+        R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
         ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[:, 4], 
                                               sinh.(atm_quants[:, 5]), 
                                               atm_quants[:, 1],
                                               exp.(atm_quants[:, 2]), 
-                                              exp.(atm_quants[:, 3])))
+                                              exp.(atm_quants[:, 3])), R)
     else
         PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[:, 4], 
                                                sinh.(atm_quants[:, 5]), 
