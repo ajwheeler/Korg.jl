@@ -58,35 +58,35 @@ end
 This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
 memory-efficient order.
 """
-tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
+get_tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
 """
    zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
 
 This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
 memory-efficient order.
 """
-zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
+get_zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
 """
    temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
 
 This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
 memory-efficient order.
 """
-temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
+get_temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
 """
    electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density for l in atm.layers]
 
 This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
 memory-efficient order.
 """
-electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density for l in atm.layers]
+get_electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density for l in atm.layers]
 """
     number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
 
 This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
 memory-efficient order.
 """
-number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
+get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
 
 """
     read_model_atmosphere(filename)
