@@ -1,5 +1,0 @@
-This directory contained pre-processed cross-sections from TOPBase and NORAD.  Running the command
-julia save_interpolated_cross-sections.jl path/to/Korg_data
-produces the file bf_cross-sections.h5, which is used by Korg.
-
-To keep package size down, Korg_data is in a separate repo, here: https://github.com/ajwheeler/Korg_data
