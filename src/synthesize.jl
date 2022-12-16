@@ -156,7 +156,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
     end
     #put number densities in a dict of vectors, rather than a vector of dicts.
     n_dicts = first.(pairs)
-    number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1])])
+    number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1]) 
+                             if spec != species"H III"])
     #vector of continuum-absorption interpolators
     α_cntm = last.(pairs) 
 

@@ -310,6 +310,13 @@ end
         @test atm.layers[1].temp == 4066.8
         @test atm.layers[1].electron_number_density ≈ 3.769664452210607e10
         @test atm.layers[1].number_density ≈ 4.75509171357701e14
+
+        # just make sure these don't error
+        Korg.get_tau_5000s(atm)
+        Korg.get_zs(atm)
+        Korg.get_temps(atm)
+        Korg.get_electron_number_densities(atm)
+        Korg.get_number_densities(atm)
     end
     @testset "spherical atmosphere" begin
         atm = Korg.read_model_atmosphere(

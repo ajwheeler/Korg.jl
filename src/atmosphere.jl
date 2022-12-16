@@ -51,6 +51,43 @@ function Base.show(io::IO, m::MIME"text/plain", atm::A) where A <: ModelAtmosphe
     print(io, "$(A) with $(length(atm.layers)) layers")
 end
 
+#TODO add tests
+"""   
+    tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
+
+This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
+memory-efficient order.
+"""
+get_tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
+"""
+   zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
+
+This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
+memory-efficient order.
+"""
+get_zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
+"""
+   temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
+
+This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
+memory-efficient order.
+"""
+get_temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
+"""
+   electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density for l in atm.layers]
+
+This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
+memory-efficient order.
+"""
+get_electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density for l in atm.layers]
+"""
+    number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
+
+This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a 
+memory-efficient order.
+"""
+get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
+
 """
     read_model_atmosphere(filename)
 
@@ -89,11 +126,15 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
             logτ5 = parse(Float64, line[11:17])
             depth = parse(Float64, line[19:28])
             temp = parse(Float64, line[30:36])
-            Pₑ = parse(Float64, line[39:48])
-            P = parse(Float64, line[51:60])
+            Pe = parse(Float64, line[39:48])
+            Pg = parse(Float64, line[49:60])
 
-            nₑ = Pₑ / (temp*kboltz_cgs) # electron number density
-            n = P / (temp*kboltz_cgs)   # non-electron number density
+            # round negative pressures to 0
+            Pe = Pe * (Pe > 0)
+            Pg = Pg * (Pg > 0)
+
+            nₑ = Pe / (temp*kboltz_cgs) # electron number density
+            n = Pg/ (temp*kboltz_cgs)   # non-electron number density
 
             if planar
                 PlanarAtmosphereLayer(10^logτ5, -depth, temp, nₑ, n)
