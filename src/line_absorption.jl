@@ -54,11 +54,9 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         γ = @. Γ * line.wl^2 / c_cgs
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
-        #levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)) / partition_fns[line.species](log(temp)))
         levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)))
 
         #total wl-integrated absorption coefficient
-        #amplitude = @. 10.0^line.log_gf*n_densities[line.species]*sigma_line(line.wl)*levels_factor
         amplitude = @. 10.0^line.log_gf*sigma_line(line.wl)*levels_factor*n_div_Z[line.species]
 
         ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
