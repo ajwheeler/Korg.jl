@@ -51,7 +51,6 @@ function Base.show(io::IO, m::MIME"text/plain", atm::A) where A <: ModelAtmosphe
     print(io, "$(A) with $(length(atm.layers)) layers")
 end
 
-#TODO add tests
 """   
     tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
 
@@ -151,54 +150,63 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
      end
 end
 
-module InterpolateSDSSMARCS 
-using HDF5: h5read
-using ..Korg: G_cgs, solar_mass_cgs, PlanarAtmosphere, PlanarAtmosphereLayer, ShellAtmosphere, ShellAtmosphereLayer, grevesse_2007_solar_abundances
-export interpolate_marcs
-
-#atmosphere_archive = joinpath(homedir(), ".korg", "SDSS_MARCS_atmospheres.h5")
-atmosphere_archive = "~/Dropbox/korg_file/playground/SDSS_MARCS_atmospheres.h5"
-
+# preliminary code to facility auto-downloading.  May be deleted in the future.
+#
 #if !isfile(atmosphere_archive)
 #    @info "Downloading the SDSS MARCS model atmosphere grid to $(atmosphere_archive). This can take a minute."
 #    download_atmosphere_archive()
 #end
-
-#load from file
-const exists = h5read(atmosphere_archive, "exists")
-const grid = h5read(atmosphere_archive, "grid")
-const nodes = [h5read(atmosphere_archive, "grid_values/$i") for i in 1:5]
-
+#
 #"""
 #    download_atmosphere_archive()
 #
 #Download the data used by [`interpolate_marcs`](@ref).  This will happen automatically, but you can 
 #call this function manually to download afresh is something gets messed up.  The archive is saved in 
-#`.korg/SDSS_MARCS_atmospheres.h5`
+#`.korg/SDSS_MARCS_atmospheres.h5` . The archive is repacked version of the 
+#[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
 #"""
 #function download_atmosphere_archive()
 #end
 
 """
-    interpolate_marcs(Teff, logg, Fe_H=0, alpha_H=0, C_H=0)
-    interpolate_marcs(Teff, logg, A_X)
+    read_atmosphere_archive(path="~/.korg/SDSS_MARCS_atmospheres.h5")
 
-Returns a model atmosphere obtained by interpolating the 
-[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
+    !!! note
+        Atmosphere interpolation is in beta.  Use with caution.
+"""
+function read_atmosphere_archive(path=joinpath(homedir(), ".korg", "SDSS_MARCS_atmospheres.h5"))
+    exists = h5read(path, "exists")
+    grid = h5read(path, "grid")
+    nodes = [h5read(path, "grid_values/$i") for i in 1:5]
+    nodes, exists, grid
+end
+
+"""
+    interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_H=0, C_H=0)
+    interpolate_marcs(archive, Teff, logg, A_X)
+
+Returns a model atmosphere obtained by interpolating the atmosphere grid `archive`.
 If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref) and accepted by 
 [`synthesize`](@ref).) is provided instead of `Fe_H`, `alpha_H`, and `C_H`, the solar-relative 
 ratios will be reconstructed assuming Grevesse+ 2007 solar abundances, with Mg determining the alpha
 ratio.
+
+# keyword arguments
+- `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
+  default true when `logg` < 3.5.
+
+!!! note
+    Atmosphere interpolation is in beta.  Use with caution.
 """
-function interpolate_marcs(Teff, logg, A_X)
+function interpolate_marcs(archive, Teff, logg, A_X::Vector; kwargs...)
     Fe_H = A_X[26] - grevesse_2007_solar_abundances[26], A[X]
     alpha_H = A_X[12] - grevesse_2007_solar_abundances[12] #TODO
     C_H = mean(A_X[6] - grevesse_2007_solar_abundances[6], A[X])
-    interpolate_marcs(Teff, logg, Fe_H, alpha_H, C_H)
+    interpolate_marcs(Teff, logg, Fe_H, alpha_H, C_H; kwargs...)
 end
-function interpolate_marcs(Teff, logg, Fe_H=0, alpha_H=0, C_H=0;
-        spherical=logg < 3.5, nodes=nodes, grid=grid, exists=exists)
-    
+function interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_H=0, C_H=0;
+        spherical=logg < 3.5)
+    nodes, exists, grid = archive
     params = [Teff, logg, Fe_H, alpha_H, C_H]
     
     upper_vertex = map(zip(params, nodes)) do (p, p_nodes)
@@ -264,4 +272,3 @@ function interpolate_marcs(Teff, logg, Fe_H=0, alpha_H=0, C_H=0;
                                                exp.(atm_quants[:, 3])))
     end
 end
-end #module
