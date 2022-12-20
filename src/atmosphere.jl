@@ -200,14 +200,14 @@ ratio.
 """
 function interpolate_marcs(archive, Teff, logg, A_X::Vector; kwargs...)
     Fe_H = A_X[26] - grevesse_2007_solar_abundances[26], A[X]
-    alpha_H = A_X[12] - grevesse_2007_solar_abundances[12] #TODO
-    C_H = mean(A_X[6] - grevesse_2007_solar_abundances[6], A[X])
-    interpolate_marcs(Teff, logg, Fe_H, alpha_H, C_H; kwargs...)
+    alpha_Fe = A_X[12]/A_X[26] - grevesse_2007_solar_abundances[12]/grevesse_2007_solar_abundances[26]
+    C_Fe = A_X[6]/A_x[26] - grevesse_2007_solar_abundances[6]/grevesse_2007_solar_abundances[26]
+    interpolate_marcs(Teff, logg, Fe_H, alpha_Fe, C_Fe; kwargs...)
 end
-function interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_H=0, C_H=0;
+function interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0;
         spherical=logg < 3.5)
     nodes, exists, grid = archive
-    params = [Teff, logg, Fe_H, alpha_H, C_H]
+    params = [Teff, logg, Fe_H, alpha_Fe, C_Fe]
     
     upper_vertex = map(zip(params, nodes)) do (p, p_nodes)
         @assert p_nodes[1] <= p <= p_nodes[end]
