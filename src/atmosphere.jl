@@ -182,12 +182,12 @@ function read_atmosphere_archive(path=joinpath(homedir(), ".korg", "SDSS_MARCS_a
 end
 
 """
-    interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_H=0, C_H=0)
+    interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0)
     interpolate_marcs(archive, Teff, logg, A_X)
 
-Returns a model atmosphere obtained by interpolating the atmosphere grid `archive`.
+Returns a model atmosphere obtained by interpolating the atmosphere grid `archive`. 
 If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref) and accepted by 
-[`synthesize`](@ref).) is provided instead of `Fe_H`, `alpha_H`, and `C_H`, the solar-relative 
+[`synthesize`](@ref)) is provided instead of `Fe_H`, `alpha_Fe`, and `C_Fe`, the solar-relative 
 ratios will be reconstructed assuming Grevesse+ 2007 solar abundances, with Mg determining the alpha
 ratio.
 
@@ -217,7 +217,7 @@ function interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0;
     
     # allocate 2^n cube for each quantity
     dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
-    structure_type = typeof(promote(Teff, logg, Fe_H, alpha_H, C_H)[1])
+    structure_type = typeof(promote(Teff, logg, Fe_H, alpha_Fe, C_Fe)[1])
     structure = Array{structure_type}(undef, (56, 5, dims...))
      
     #put bounding atmospheres in 2^n cube
