@@ -37,9 +37,9 @@ function hydrogen_bound_absorption(ν, T, nH, nHe, ne, invU_H;
             frac = 1 - hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
             if taper && n==1
                 redcut = hplanck_eV * c_cgs / (RydbergH_eV * (1/n^2 - 1/(n+1)^2))
-                λ = Korg.c_cgs / ν
+                λ = c_cgs / ν
                 if λ > redcut
-                    frac *= exp(-(Korg.c_cgs/ν - redcut)*1e6)
+                    frac *= exp(-(c_cgs/ν - redcut)*1e6)
                 end
             end
             frac
@@ -47,11 +47,11 @@ function hydrogen_bound_absorption(ν, T, nH, nHe, ne, invU_H;
 
         cross_section = 0
         for (state, (Ebind, sigmas)) in cross_sections
-            if n == Int(round(sqrt(Korg.RydbergH_eV/Ebind)))
+            if n == Int(round(sqrt(RydbergH_eV/Ebind)))
                 Elow = sigmas.itp.knots[1][1]
-                println(round(hplanck_eV * c_cgs / Elow * 1e8))
+                #println(round(hplanck_eV * c_cgs / Elow * 1e8))
                 g = 2*(2*state.L + 1)
-                cross_section += g * sigmas(Korg.hplanck_eV*ν)
+                cross_section += g * sigmas(hplanck_eV*ν)
             end
         end
 
@@ -89,9 +89,9 @@ difference effects the charged_term only, and temerature is only used when
 function hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=false)
     # contribution to w from neutral species (neutral H and He, in this implementation)
     # this is sqrt<r^2> assuming l=0.  I'm unclear why this is the approximation barklem uses.
-    r_level = sqrt(5/2*n_eff^4 + 1/2*n_eff^2)*Korg.bohr_radius_cgs 
+    r_level = sqrt(5/2*n_eff^4 + 1/2*n_eff^2)*bohr_radius_cgs 
     # how do I reproduce this helium radius?
-    neutral_term = nH * (r_level + sqrt(3)*Korg.bohr_radius_cgs)^3 + nHe * (r_level + 1.02Korg.bohr_radius_cgs)^3
+    neutral_term = nH * (r_level + sqrt(3)*bohr_radius_cgs)^3 + nHe * (r_level + 1.02bohr_radius_cgs)^3
         
     # contributions to w from ions (these are assumed to be all singly ionized, so n_ion = n_e)
     # K is a  QM correction defined in H&M '88 equation 4.24
@@ -101,8 +101,8 @@ function hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=false
     else
         1.0
     end
-    χ = Korg.RydbergH_eV / n_eff^2 * Korg.eV_to_cgs # binding energy
-    e = Korg.electron_charge_cgs
+    χ = RydbergH_eV / n_eff^2 * eV_to_cgs # binding energy
+    e = electron_charge_cgs
     charged_term = if use_hubeny_generalization
         # this is a straight line-by-line port from HBOP. Review and rewrite if used.
         if (ne > 10) && (T > 10) 
@@ -141,9 +141,9 @@ function hummer_mihalas_U_H(T, nH, nHe, ne; use_hubeny_generalization=false)
     # the expression for w comes from Hummer and Mihalas 1988 equation 4.71 
     U = 0.0
     for (E, g, n) in zip(hydrogen_energy_levels, hydrogen_energy_level_degeneracies, hydrogen_energy_level_n)
-        n_eff = sqrt(Korg.RydbergH_eV / (Korg.RydbergH_eV - E)) # times Z, which is 1 for hydrogen
+        n_eff = sqrt(RydbergH_eV / (RydbergH_eV - E)) # times Z, which is 1 for hydrogen
         w = hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
-        U += w * g*exp(-E / (Korg.kboltz_eV * T))
+        U += w * g*exp(-E / (kboltz_eV * T))
     end
     U
 end

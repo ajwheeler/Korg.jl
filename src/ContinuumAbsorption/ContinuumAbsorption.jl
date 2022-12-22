@@ -57,7 +57,7 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
     # Hydrogen continuum absorption
     #H_I_bf(νs, T, nH_I_div_U; kwargs...)
     α += hydrogen_bound_absorption.(νs, T, nH_I, number_densities[species"He II"], nₑ, 
-                                    1/partition_funcs[species"H I"](log(T)))
+                                    1/partition_funcs[species"H I"](log(T)); taper=true)
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
