@@ -8,6 +8,7 @@ include("../constants.jl") # I'm not thrilled to duplicate this, but I think it'
 include("bounds_checking.jl")
 include("hydrogenic_bf_ff.jl")
 
+include("hydrogen_bound_absorption.jl")
 include("absorption_H.jl")
 include("absorption_He.jl")
 
@@ -54,7 +55,9 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
     nH_I_div_U = nH_I / partition_funcs[species"H_I"](log(T))
 
     # Hydrogen continuum absorption
-    H_I_bf(νs, T, nH_I_div_U; kwargs...)
+    #H_I_bf(νs, T, nH_I_div_U; kwargs...)
+    α += hydrogen_bound_absorption.(νs, T, nH_I, number_densities[species"He II"], nₑ, 
+                                    1/partition_funcs[species"H I"](log(T)))
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)

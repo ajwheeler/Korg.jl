@@ -1,6 +1,16 @@
+using Interpolations: LinearInterpolation, Flat
+
+include("../../data/bf_cross-sections/parse_and_tabulate_cross_sections.jl")
+
+cross_sections = parse_TOPBase_cross_sections("../../Korg_data/bf_cross_sections/TOPBase/p01.01.dat")
+for state in keys(cross_sections)
+    Ebind, Es, sigmas = cross_sections[state]
+    cross_sections[state] = (Ebind, LinearInterpolation(Es, sigmas, extrapolation_bc=Flat()))
+end
+
 #TODO broadcast over ν
-function hydrogen_bound_absorption(ν, T, nH, nHe, ne; 
-                                   n_max=30, use_hubeny_generalization=false)
+function hydrogen_bound_absorption(ν, T, nH, nHe, ne, invU_H; 
+                                   n_max=30, use_hubeny_generalization=false, taper=true)
     #TODO collapse some of these maps
     E_levels = map(1:n_max) do n
         RydbergH_eV - RydbergH_eV/n^2
@@ -9,36 +19,46 @@ function hydrogen_bound_absorption(ν, T, nH, nHe, ne;
         hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
     end
 
-    # these include the degeneracy, g, and the occupation correction, w
-    boltzmann_factors = map(zip(1:n_max, E_levels, ws)) do (n, E_level, w)
-        g = 2n^2
-        w * g * exp(-E_level / (kboltz_eV * T))
-    end
-     
-    # value of the modified partition function 
-    invU = 1 / sum(boltzmann_factors)
-
-    ionization_freq = RydbergH_eV / hplanck_eV
-
     partial_sum = 0.0
-    for n = 1 : n_max # iterate over energy levels
-        ndens_state = boltzmann_factors[n] * invU
-        hydrogenic_bf_cross_section = ContinuumAbsorption._hydrogenic_bf_cross_section(1, n, ν, ionization_freq)
+    for n = 1 : 4 # iterate over energy levels
+        #the degeneracy is not included here
+        ndens_state = ws[n] * exp(-E_levels[n] / (kboltz_eV * T))
 
+        # TODO this is different from TS and Hillier
         # if the photon energy is greater than the ionization energy of the unperturbed atom with its
         # electron having primary quantum number n, the dissolved fraction is unity
         dissolved_fraction = if hplanck_eV * ν > RydbergH_eV/n^2
             1.0
-        else # otherwise there is still some bf absorption because of level dissolution
-            ## this is the effective quantum number associated with the energy of the nth level plus 
-            ## that of the photon, i.e. the upper level
+        else
+            # otherwise there is still some bf absorption because of level dissolution
+            # this is the effective quantum number associated with the energy of the nth level plus 
+            # that of the photon, i.e. the upper level
             n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
-            w_upper = hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
-            1 - w_upper
+            frac = 1 - hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+            if taper && n==1
+                redcut = hplanck_eV * c_cgs / (RydbergH_eV * (1/n^2 - 1/(n+1)^2))
+                λ = Korg.c_cgs / ν
+                if λ > redcut
+                    frac *= exp(-(Korg.c_cgs/ν - redcut)*1e6)
+                end
+            end
+            frac
         end
-        partial_sum += ndens_state * hydrogenic_bf_cross_section * dissolved_fraction
+
+        cross_section = 0
+        for (state, (Ebind, sigmas)) in cross_sections
+            if n == Int(round(sqrt(Korg.RydbergH_eV/Ebind)))
+                Elow = sigmas.itp.knots[1][1]
+                println(round(hplanck_eV * c_cgs / Elow * 1e8))
+                g = 2*(2*state.L + 1)
+                cross_section += g * sigmas(Korg.hplanck_eV*ν)
+            end
+        end
+
+        partial_sum += ndens_state * cross_section * dissolved_fraction
     end
-    nH * partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T)))
+    #factor of 10^-18 converts cross-sections from megabarns to cm^2
+    nH * invU_H * partial_sum * (1.0 - exp(-hplanck_eV * ν / (kboltz_eV * T))) * 1e-18
 end
 
 """
