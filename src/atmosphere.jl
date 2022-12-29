@@ -1,3 +1,7 @@
+# used when downloading model atmosphere archive
+using ProgressMeter: Progress, update!, finish!
+using Downloads: download
+ 
 abstract type ModelAtmosphere end
 
 struct PlanarAtmosphereLayer{F}
@@ -150,35 +154,74 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
      end
 end
 
-# preliminary code to facility auto-downloading.  May be deleted in the future.
-#
-#if !isfile(atmosphere_archive)
-#    @info "Downloading the SDSS MARCS model atmosphere grid to $(atmosphere_archive). This can take a minute."
-#    download_atmosphere_archive()
-#end
-#
-#"""
-#    download_atmosphere_archive()
-#
-#Download the data used by [`interpolate_marcs`](@ref).  This will happen automatically, but you can 
-#call this function manually to download afresh is something gets messed up.  The archive is saved in 
-#`.korg/SDSS_MARCS_atmospheres.h5` . The archive is repacked version of the 
-#[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
-#"""
-#function download_atmosphere_archive()
-#end
+global atmosphere_archive = nothing 
+
+function _korg_data_dir()
+    if "KORG_DATA_DIR" in keys(ENV)
+        joinpath(ENV["KORG_DATA_DIR"])
+    else
+        joinpath(homedir(), ".korg")
+    end
+end
 
 """
-    read_atmosphere_archive(path="~/.korg/SDSS_MARCS_atmospheres.h5")
-
-    !!! note
-        Atmosphere interpolation is in beta.  Use with caution.
+Loads the model atmosphere grid used for interpolation into module-global memory.  It's not loaded 
+at import time because it's large, and model atmosphere interpolation isn't always needed. This
+is called automatically when running `interpolate_marcs`.
 """
-function read_atmosphere_archive(path=joinpath(homedir(), ".korg", "SDSS_MARCS_atmospheres.h5"))
+function _load_atmosphere_archive()
+    path = joinpath(_korg_data_dir(), "SDSS_MARCS_atmospheres.h5")
+    if !isfile(path)
+        msg = """
+        Could not find the model atmosphere archive.  If this is the first time you are running 
+        interpolate_marcs, you will need to download the archive by running 
+
+            Korg.download_atmosphere_archive()
+
+        This will download the ~350 MB archive file and place it in ~/.korg/  If you would like 
+        to store it somewhere else, you can specify a location with the KORG_DATA_DIR environment 
+        variable.
+        """
+        throw(ErrorException(msg))
+    end
+
     exists = h5read(path, "exists")
     grid = h5read(path, "grid")
     nodes = [h5read(path, "grid_values/$i") for i in 1:5]
-    nodes, exists, grid
+    global atmosphere_archive = (nodes, exists, grid)
+end
+
+"""
+    download_atmosphere_archive()
+
+Download the data used by [`interpolate_marcs`](@ref), a repacked version of the 
+[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
+By default, the archive is stored at `.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set 
+with the `KORG_DATA_DIR` environment variable.
+"""
+function download_atmosphere_archive(url="https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres.h5")
+    prog = Progress(100, output=stdout, desc="Downloading model atmosphere archive: ")
+    finished = false
+    function update_progress(total, now)
+        # deal with initial total and downloaded sizes being indeterminate
+        if now == 0 || isinf(now) || isinf(total) 
+            now, total = 0,1 
+        end
+        # Downloads will call this function a few times with now==total, but we only want to
+        # update the progress bar once, to avoid duplicates bars.
+        if finished == false
+            update!(prog, Int(floor(now/total * 100)))
+        end
+        if now == total
+            finished = true
+        end
+    end
+    data_dir = _korg_data_dir()
+    if !isdir(data_dir)
+        @info "creating $data_dir"
+        mkdir(data_dir)
+    end
+    download(url, joinpath(data_dir, "SDSS_MARCS_atmospheres.h5"), progress=update_progress);
 end
 
 """
@@ -191,22 +234,37 @@ If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@r
 ratios will be reconstructed assuming Grevesse+ 2007 solar abundances, with Mg determining the alpha
 ratio.
 
+The model atmosphere grid is a repacked version of the 
+[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
+Before you use `interpolate_marcs` for the first time, you will have to download the grid with by 
+running `download_atmosphere_archive()`.
+By default, the archive is stored at `.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set 
+with the `KORG_DATA_DIR` environment variable.
+
 # keyword arguments
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
   default true when `logg` < 3.5.
+- `archive`: The atmosphere archive to use. For testing purposes.
 
 !!! note
-    Atmosphere interpolation is in beta.  Use with caution.
+    Atmosphere interpolation is in beta.  Use with caution as it may be innacurate.
+
 """
-function interpolate_marcs(archive, Teff, logg, A_X::Vector; kwargs...)
+function interpolate_marcs(Teff, logg, A_X::Vector; kwargs...)
     Fe_H = A_X[26] - grevesse_2007_solar_abundances[26], A[X]
     alpha_Fe = A_X[12]/A_X[26] - grevesse_2007_solar_abundances[12]/grevesse_2007_solar_abundances[26]
     C_Fe = A_X[6]/A_x[26] - grevesse_2007_solar_abundances[6]/grevesse_2007_solar_abundances[26]
     interpolate_marcs(Teff, logg, Fe_H, alpha_Fe, C_Fe; kwargs...)
 end
-function interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0;
-        spherical=logg < 3.5)
+function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=logg < 3.5, 
+                           archive=atmosphere_archive)
+    if isnothing(archive)
+        # the atmosphere archive is pretty large, so keep it out of memory unless it's used.
+        @info "loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session."
+        archive = _load_atmosphere_archive()
+    end
     nodes, exists, grid = archive
+
     params = [Teff, logg, Fe_H, alpha_Fe, C_Fe]
     
     upper_vertex = map(zip(params, nodes)) do (p, p_nodes)
@@ -228,7 +286,7 @@ function interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0;
         atm_inds .+= upper_vertex .- 2
 
         if !exists[atm_inds...] #return nothing if any required nodes don't exist
-            println(getindex.(nodes, atm_inds), " doesn't exist") 
+            @info str(getindex.(nodes, atm_inds), " doesn't exist") 
             return 
         end
         
