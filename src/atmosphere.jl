@@ -266,9 +266,12 @@ function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=log
     nodes, exists, grid = archive
 
     params = [Teff, logg, Fe_H, alpha_Fe, C_Fe]
+    param_names = ["Teff", "log(g)", "[Fe/H]", "[alpha/Fe]", "[C/Fe]"]
     
-    upper_vertex = map(zip(params, nodes)) do (p, p_nodes)
-        @assert p_nodes[1] <= p <= p_nodes[end]
+    upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
+        if !(p_nodes[1] <= p <= p_nodes[end])
+            throw(ArgumentError("Can't interpolate atmosphere grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])"))
+        end
         findfirst(p .<= p_nodes)
     end
     isexact = params .== getindex.(nodes, upper_vertex) #which params are on grid points?
@@ -314,7 +317,7 @@ function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=log
         end
     end
    
-    atm_quants = Float64.(structure[:, :, ones(Int, length(params))...])
+    atm_quants = (structure[:, :, ones(Int, length(params))...])
     if spherical
         R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
         ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[:, 4], 
