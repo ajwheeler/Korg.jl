@@ -154,8 +154,14 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
      end
 end
 
+# this isn't a const because the model atmosphere doesn't get loaded into memory until 
+# interpolate_marcs is called for the first time
 global atmosphere_archive = nothing 
 
+"""
+Returns the local where Korg's large (too big for git) data files are stored.  At present, this is
+only the model atmosphere archive used by [`interpolate_marcs`](@ref).
+"""
 function _korg_data_dir()
     if "KORG_DATA_DIR" in keys(ENV)
         joinpath(ENV["KORG_DATA_DIR"])
@@ -178,7 +184,7 @@ function _load_atmosphere_archive()
 
             Korg.download_atmosphere_archive()
 
-        This will download the ~350 MB archive file and place it in ~/.korg/  If you would like 
+        This will download the ~370 MB archive file and place it in ~/.korg/  If you would like 
         to store it somewhere else, you can specify a location with the KORG_DATA_DIR environment 
         variable.
         """
