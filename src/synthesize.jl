@@ -63,8 +63,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
    to data from Barklem & Collet 2016, `Korg.partition_funcs`.
-- `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to their 
-   molecular equilbrium constants in partial pressure form.  Defaults to data from 
+- `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to the base-10
+   log of their molecular equilbrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.equilibrium_constants`.
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
