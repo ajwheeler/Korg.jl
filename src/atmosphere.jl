@@ -252,7 +252,7 @@ with the `KORG_DATA_DIR` environment variable.
   default true when `logg` < 3.5.
 - `archive`: The atmosphere archive to use. For testing purposes.
 
-!!! note
+!!! warning
     Atmosphere interpolation is in beta.  Use with caution as it may be inaccurate.
 
 """
