@@ -253,7 +253,7 @@ with the `KORG_DATA_DIR` environment variable.
 - `archive`: The atmosphere archive to use. For testing purposes.
 
 !!! note
-    Atmosphere interpolation is in beta.  Use with caution as it may be innacurate.
+    Atmosphere interpolation is in beta.  Use with caution as it may be inaccurate.
 
 """
 function interpolate_marcs(Teff, logg, A_X::Vector; kwargs...)
