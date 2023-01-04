@@ -1,7 +1,5 @@
-# API
-
 This page docuements the Korg API for users of the package. Low-level functions that only people 
-digging into the internals of Korg will be interested in can be found on the 
+digging into the internals of Korg will be interested in can be found in the 
 [Developer documentation](@ref).
 
 # Top-level functions

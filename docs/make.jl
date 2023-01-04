@@ -6,9 +6,11 @@ makedocs(sitename="Korg",
          modules=[Korg],
          pages=[
                 "Quickstart" => "index.md"
-                "Function Reference" => "API.md"
-                "Developer Documentation" => "devdocs.md"
                 "Install" => "install.md"
+                "high-level API" => "API.md"
+                "FAQ" => "FAQ.md"
+                "Changelog" => "changelog.md"
+                "Developer Documentation" => "devdocs.md"
                ],
         authors="Adam Wheeler and Matthew Abruzzo",
         format=Documenter.HTML(assets=["assets/favicon.ico"])
