@@ -6,6 +6,7 @@ include("utilities.jl") # assert_allclose and assert_allclose_grid
 
 include("cubic_splines.jl")
 include("transfer.jl")
+include("species.jl")
 
 @testset "atomic data" begin 
     @test (Korg.Natoms == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 
@@ -92,44 +93,6 @@ include("statmech.jl")
 
 @testset "lines" begin
     @testset "linelists" begin 
-        @testset "species codes" begin
-            @test Korg.species"01.00"   == Korg.species"H"
-            @test Korg.species"101.0"   == Korg.species"H2 I"
-            @test Korg.species"01.0000" == Korg.species"H I"
-            @test Korg.species"02.01"   == Korg.species"He II"
-            @test Korg.species"02.1000" == Korg.species"He II"
-            @test Korg.species"0608"    == Korg.species"CO"
-            @test Korg.species"0606"    == Korg.species"C2 I"
-            @test Korg.species"606"     == Korg.species"C2 I"
-            @test Korg.species"0608.00" == Korg.species"CO I"
-            @test Korg.species"812.0"   == Korg.species"MgO"
-            @test Korg.species"822.0"   == Korg.species"TiO"
-            @test Korg.species"OOO"     == Korg.species"O3"
-            @test Korg.species"H 1" == Korg.species"H I"
-            @test Korg.species"H     1" == Korg.species"H I"
-            @test Korg.species"H_1" == Korg.species"H I"
-            @test Korg.species"H.I" == Korg.species"H I"
-            @test Korg.species"H I" == Korg.species"H I"
-            @test Korg.species"H 2" == Korg.species"H II"
-            @test Korg.species"H2" == Korg.species"HH I"
-            @test Korg.species"H" == Korg.species"H I"
-
-            @test_throws ArgumentError Korg.Species("06.05.04")
-            @test_throws Exception Korg.Species("99.01")
-        end
-
-        @testset "distinguish atoms from molecules" begin
-            @test Korg.ismolecule(Korg.Formula("H2"))
-            @test Korg.ismolecule(Korg.Formula("CO"))
-            @test !Korg.ismolecule(Korg.Formula("H"))
-            @test !Korg.ismolecule(Korg.Formula("Li"))
-        end
-
-        @testset "break molecules into atoms" begin
-            @test Korg.get_atoms(Korg.Formula("CO")) == [0x06, 0x08]
-            @test Korg.get_atoms(Korg.Formula("C2")) == [0x06, 0x06]
-            @test Korg.get_atoms(Korg.Formula("MgO")) == [0x08, 0x0c]
-        end
 
         @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
                                                           format="abc")

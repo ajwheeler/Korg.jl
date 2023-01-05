@@ -7,6 +7,7 @@ module Korg
     include("constants.jl")                # physical constants
     include("atomic_data.jl")              # symbols and atomic weights
     include("isotopic_abundances.jl")      # self-explanatory
+    include("species.jl")                  # types for chemical formulae and species
     include("linelist.jl")                 # parse linelists, define Line type
     include("line_absorption.jl")          # opacity, line profile, voigt function
     include("read_statmech_quantities.jl") # approximate Us, Ks, chis
