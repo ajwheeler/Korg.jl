@@ -6,7 +6,8 @@ const MAX_ATOMS_PER_MOLECULE = 6
 Represents an atom or molecule, irespective of its charge.
 """
 struct Formula
-    # supports up to five-atom molecules.  Unlike tuples SVectors support sorting.
+    # Support molecules with up to MAX_ATOMS_PER_MOLECULE atoms. 
+    # Unlike tuples, SVectors support sorting, which is why we use them here.
     atoms::SVector{6, UInt8}
 
     function Formula(Z::Integer) 
