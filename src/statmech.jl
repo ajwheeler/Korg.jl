@@ -103,11 +103,12 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
             #LHS: total number of atoms, RHS: first through third ionization states
             F .= atom_number_densities .- ion_factors .* x
             for m in molecules
-                el1, el2 = get_atoms(m.formula)
-                nₘ = x[el1] * x[el2] * kboltz_cgs * T / 10^equilibrium_constants[m](log(T))
+                els = get_atoms(m.formula)
+                n_mol = prod(x[el] for el in els) * kboltz_cgs * T / 10^equilibrium_constants[m](log(T))
                 #RHS: subtract atoms which are part of mollecules
-                F[el1] -= nₘ
-                F[el2] -= nₘ
+                for el in els
+                    F[el] -= n_mol
+                end
             end
         end
     end
