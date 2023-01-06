@@ -187,10 +187,8 @@ include("statmech.jl")
             end
 
             #make sure the default isotopic abundances sum to 1.
-            isotopes = keys(Korg.isotopic_abundances)
-            for Z in sort(collect(Set(first.(isotopes))))
-                isos = filter(==(Z) ∘ first, isotopes)                                               
-                @assert sum([Korg.isotopic_abundances[iso] for iso in isos]) ≈ 1                       
+            for (Z, isotopes) in Korg.isotopic_abundances
+                @test sum(values(isotopes)) ≈ 1
             end
         end
 

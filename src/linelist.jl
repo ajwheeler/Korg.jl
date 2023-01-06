@@ -283,7 +283,7 @@ function parse_vald_linelist(f, isotopic_abundances)
             #add up the adjustments to log(gf) from isotopic abundances (zero if no info is present)
             log_probs = map(findall(regexp, ref)) do r
                 m = match(regexp, ref[r])
-                log10(isotopic_abundances[atomic_numbers[m["elem"]], parse(Int64, m["isotope"])])
+                log10(isotopic_abundances[atomic_numbers[m["elem"]]][parse(Int64, m["isotope"])])
             end
             sum([0 ; log_probs])
         end
