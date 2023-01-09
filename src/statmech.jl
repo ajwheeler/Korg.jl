@@ -49,6 +49,29 @@ function translational_U(m, T)
      (2π*m*k*T/h^2)^1.5
 end
 
+
+"""
+TODO
+nK NOT pK!
+"""
+function get_molecular_equlibrium_constant(m::Species, T, partition_funcs, equilibrium_constants)
+    @assert ismolecule(m)
+    if m in keys(equilibrium_constants)
+        10^equilibrium_constants[m](log(T)) / (kboltz_cgs*T)
+    else
+        @assert m == species"H2O" # TODO generalize
+        D0 = 5.182 # eV (from Luo 2007)
+        UH = partition_funcs[species"H"](log(T))
+        UO = partition_funcs[species"O"](log(T))
+        UH2O = partition_funcs[species"H2O"](log(T))
+        mH = get_mass(species"H")
+        mO = get_mass(species"O")
+        mH2O = get_mass(species"H2O")
+        translational_U_factor = (2π*kboltz_cgs*T/hplanck_cgs^2)^1.5
+        translational_U_factor^2 * (mH^2*mO/mH2O)^1.5 * UH^2*UO/UH2O * exp(-D0/(kboltz_eV*T))
+    end
+end
+
 """
     molecular_equilibrium_equations(absolute_abundances, ironization_energies, partiation_fns, equilibrium_constants)
 
@@ -85,27 +108,34 @@ dissolution energy.
 function molecular_equilibrium_equations(absolute_abundances, ionization_energies, partition_fns, 
                                          equilibrium_constants)
     atoms = 0x01:Natoms
-    molecules = keys(equilibrium_constants)
+    molecules = collect(filter(ismolecule, keys(partition_funcs)))
 
     #the residuals of the molecular equilibrium equations parametrized by T, electron number density
     #and number densities of each element [cm^-3]
     function system(T, nₜ, nₑ)
         atom_number_densities = nₜ .* absolute_abundances
+
+        # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
         ion_factors = map(atoms) do elem
             wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
             (1 + wII + wIII)
         end
+        # precalculate equilibrium coefficients
+        Ks = get_molecular_equlibrium_constant.(molecules, T, Ref(partition_funcs), Ref(equilibrium_constants))
+
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            x = abs.(x) #don't allow negative number densities
+            # Don't allow negative number densities.  This is a trick to bound the possible values 
+            # of x. Taking the log was less performant in tests.
+            x = abs.(x) 
 
-            #LHS: total number of atoms, RHS: first through third ionization states
+            # LHS: total number of atoms, RHS: first through third ionization states
             F .= atom_number_densities .- ion_factors .* x
-            for m in molecules
+            for (m, K) in zip(molecules, Ks)
                 els = get_atoms(m.formula)
-                n_mol = prod(x[el] for el in els) * kboltz_cgs * T / 10^equilibrium_constants[m](log(T))
-                #RHS: subtract atoms which are part of mollecules
+                n_mol = prod(x[el] for el in els) / K
+                # RHS: atoms which are part of molecules
                 for el in els
                     F[el] -= n_mol
                 end
@@ -162,12 +192,9 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
     end
     #now the molecules
     for m in MEQs.molecules 
-        el1, el2 = get_atoms(m.formula)
-        n₁ = number_densities[Species(Formula(el1), 0)]
-        n₂ = number_densities[Species(Formula(el2), 0)]
-        logK = MEQs.equilibrium_constants[m]
-        #add 1 to logK to conver to to cgs from mks
-        number_densities[m] = n₁ * n₂ * kboltz_cgs * T / 10^logK(log(T))
+        els = get_atoms(m.formula)
+        K = get_molecular_equlibrium_constant(m, T, partition_funcs, equilibrium_constants)
+        number_densities[m] = prod(number_densities[Species(Formula(el), 0)] for el in els) / K
     end
 
     number_densities

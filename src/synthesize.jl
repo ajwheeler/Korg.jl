@@ -93,7 +93,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     hydrogen_lines=true, hydrogen_line_window_size=150, n_mu_points=20, 
                     line_cutoff_threshold=3e-4, bezier_radiative_transfer=false, 
-                    ionization_energies=ionization_energies, partition_funcs=partition_funcs, 
+                    ionization_energies=ionization_energies, partition_funcs=partition_funcs,
                     equilibrium_constants=equilibrium_constants)
     #work in cm
     λs = λs * 1e-8

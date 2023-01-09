@@ -1,4 +1,5 @@
 using ..CubicSplines: CubicSpline
+using HDF5
 
 """
     setup_ionization_energies([filename])
@@ -36,7 +37,17 @@ the paper for more details.
 """
 function setup_partition_funcs()
     mol_path = joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat")
-    merge(read_Barklem_Collet_table(mol_path), load_atomic_partition_functions())
+    Us = merge(read_Barklem_Collet_table(mol_path), load_atomic_partition_functions())
+    Us[species"H2O"] = water_U_data()
+    Us
+end
+
+# TODO
+function water_U_data()
+    Ts, Us = h5open(joinpath(_data_dir, "polyatomic_partition_funcs", "polyatomic_partition_funcs.h5")) do f
+        read(f["HHO I"]["temp"]), read(f["HHO I"]["partition_function"])
+    end
+    CubicSpline(log.(Ts), Us)
 end
 
 """
