@@ -60,7 +60,7 @@ function get_molecular_equlibrium_constant(m::Species, T, partition_funcs, equil
         10^equilibrium_constants[m](log(T)) / (kboltz_cgs*T)
     else
         @assert m == species"H2O" # TODO generalize
-        D0 = 5.182 # eV (from Luo 2007)
+        D00 = 9.629 # eV (from Luo 2007), summed energies of removing each H atom
         UH = partition_funcs[species"H"](log(T))
         UO = partition_funcs[species"O"](log(T))
         UH2O = partition_funcs[species"H2O"](log(T))
@@ -68,7 +68,7 @@ function get_molecular_equlibrium_constant(m::Species, T, partition_funcs, equil
         mO = get_mass(species"O")
         mH2O = get_mass(species"H2O")
         translational_U_factor = (2π*kboltz_cgs*T/hplanck_cgs^2)^1.5
-        translational_U_factor^2 * (mH^2*mO/mH2O)^1.5 * UH^2*UO/UH2O * exp(-D0/(kboltz_eV*T))
+        translational_U_factor^2 * (mH^2*mO/mH2O)^1.5 * UH^2*UO/UH2O * exp(-D00/(kboltz_eV*T))
     end
 end
 
