@@ -30,8 +30,8 @@ struct Formula
     """
         Formula(code::String)
 
-        Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, 
-        i.e. "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
+    Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, 
+    i.e. "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
     function Formula(code::String) 
         if code in atomic_symbols #quick-parse single elements
@@ -108,7 +108,6 @@ function get_mass(f::Formula)
     sum(atomic_masses[a] for a in get_atoms(f))
 end
 
-const roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 """
 Represents an atom or molecule (a `Formula`) with a particular number of electrons (regardless of 
 their configuration).
@@ -116,6 +115,13 @@ their configuration).
 struct Species
     formula::Formula
     charge::Int
+
+    function Species(f::Formula, charge::Int)
+        if charge < -1
+            throw(ArgumentError("Can't construct a species with charge < -1: $(f) with charge $charge"))
+        end
+        new(f, charge)
+    end
 end
 
 """
@@ -143,11 +149,24 @@ representing the sepcies.
     important in hot inner loops.
 """
 function Species(code::AbstractString)
-    code = strip(code, ['0', ' '])
-    toks = split(code, [' ', '.', '_'])
-    filter!(toks) do tok
-        tok != ""
+    code = strip(code, ['0', ' ']) # leading 0s are safe to remove
+
+    # if the species ends in "+" or "-", convert it to a numerical charge. Remember, the ionization 
+    # number is the charge+1, so for us "H 0" is H⁻ and "H 2" in H⁺.
+    if code[end] == '+'
+        code = code[1:end-1] * " 2"
+    elseif code[end] == '-'
+        code = code[1:end-1] * " 0"
     end
+
+    # these are the valid separators between the atomic number part of a species code and the 
+    # charge-containing part.  For example, "01.01" parses the same as "01 01", but "01,01" fails.
+    # Or, "C 2" parses the same at "C.2".  "-"s can't be separators as they can be minus signs.
+    toks = split(code, [' ', '.', '_']) 
+    # this allows for leading, trailing, and repeat separators.  "01.01" parses the same as 
+    # ".01..01.".
+    filter!(!=(""), toks) 
+
     if length(toks) > 2
         throw(ArgumentError(code * " isn't a valid species code"))
     end
@@ -156,9 +175,10 @@ function Species(code::AbstractString)
     charge = if length(toks) == 1 || length(toks[2]) == 0
         0 #no charge specified -> assume neutral
     else
+        # first check if the "charge tag" is a roman numeral.  If it's not, parse it as an Int.
         charge = findfirst(toks[2] .== roman_numerals)
         charge = (charge isa Int ? charge : parse(Int, toks[2]))
-        #if this is a MOOG-style numeric code, the charge is correct, otherwise subtract 1
+        # if this is a MOOG-style numeric code, the charge is correct, otherwise subtract 1
         if tryparse(Float64, code) === nothing 
             charge -= 1
         end
@@ -172,15 +192,25 @@ macro species_str(s)
     Species(s)
 end
 
+const roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 function Base.show(io::IO, s::Species)
     show(io, s.formula)
-    print(io, " ", get_roman_numeral(s))
+    if ismolecule(s) && s.charge == 1
+        print(io, "+")
+    elseif ismolecule(s) && s.charge == 0
+        # no charge tag for neutral molecules
+    elseif 0 <= s.charge <= length(roman_numerals)-1
+        print(io, " ", roman_numerals[s.charge+1])
+    elseif s.charge == -1
+        print(io, "-")
+    else
+        print(io," ", s.charge)
+    end
 end
 
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
 get_atoms(s::Species) = get_atoms(s.formula)
-get_roman_numeral(s::Species) = get(roman_numerals,s.charge+1, string(s.charge+1))
 
 """
     all_atomic_species()

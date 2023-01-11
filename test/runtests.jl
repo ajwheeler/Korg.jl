@@ -2,8 +2,10 @@ using Korg, Test, HDF5
 
 @testset "Korg tests" begin
 
-include("utilities.jl") # assert_allclose and assert_allclose_grid
+# tools for testing: assert_allclose and assert_allclose_grid
+include("utilities.jl") 
 
+# tests for specific parts of the code broken out into their own files
 include("cubic_splines.jl")
 include("transfer.jl")
 include("species.jl")
@@ -24,7 +26,6 @@ end
 end
 
 function _test_contained_slice(vals::AbstractVector, interval::Korg.Interval)
-
     idx = Korg.contained_slice(vals, interval)
     first_ind, last_ind = first(idx), last(idx)
 
@@ -46,7 +47,6 @@ function _test_contained_slice(vals::AbstractVector, interval::Korg.Interval)
 end
 
 @testset "Interval" begin
-
     # first make sure that the following cases are caught by the constructor:
     @test_throws AssertionError Korg.Interval(5,5)
     @test_throws AssertionError Korg.Interval(3,2)
