@@ -134,13 +134,13 @@ their configuration).
 """
 struct Species
     formula::Formula
-    charge::Int
+    charge::Int16
 
-    function Species(f::Formula, charge::Int)
+    function Species(f::Formula, charge::Integer)
         if charge < -1
             throw(ArgumentError("Can't construct a species with charge < -1: $(f) with charge $charge"))
         end
-        new(f, charge)
+        new(f, Int16(charge))
     end
 end
 
