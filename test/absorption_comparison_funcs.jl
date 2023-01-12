@@ -80,7 +80,7 @@ function free_electrons_per_Hydrogen_particle(nₑ, T, abundances=Korg.asplund_2
     out = 0.0
     for element in 1:Korg.Natoms
         wII, wIII = Korg.saha_ion_weights(T, nₑ, element, Korg.ionization_energies, 
-                                          Korg.partition_funcs)
+                                          Korg.default_partition_funcs)
 
         nₑ_per_ndens_species = wII/(1 + wII + wIII) + 2wIII/(1 + wII + wIII)
         abundance = 10.0^(abundances[element]-12.0)
@@ -208,7 +208,7 @@ function H2plus_coefficient(λ, T, Pₑ)
     nH = ne/ne_div_nH
 
     wII, wIII = Korg.saha_ion_weights(T, ne, 0x01, Korg.ionization_energies, 
-                                         Korg.partition_funcs)
+                                         Korg.default_partition_funcs)
     nH_I = nH / (1 + wII)
     nH_II = nH * wII / (1 + wII)
 
@@ -303,7 +303,7 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec;
         σ_itp = Korg.ContinuumAbsorption.metal_bf_cross_sections[spec]
         exp.(log(ndens_species) .+ σ_itp.(νs, log10(T))) * 1e-18 #convert to cm^2 
     else
-        ndens_div_partition = ndens_species/Korg.partition_funcs[spec](log(T))
+        ndens_div_partition = ndens_species/Korg.default_partition_funcs[spec](log(T))
         if spec == Korg.species"H I"
             H_I_ion_energy = 13.598
             Korg.ContinuumAbsorption.H_I_bf(νs, T, ndens_div_partition, H_I_ion_energy)
