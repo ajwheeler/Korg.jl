@@ -52,7 +52,8 @@ end
 """
     get_nK(mol, T, log_equilibrium_constants)
 
-TODO
+Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilbrium constants in partial
+pressure form, return the equilibrium constant in number density form, i.e. `nK = n(A)n(B)/n(AB)`.
 """
 function get_nK(mol, T, log_equilibrium_constants) 
     10^log_equilibrium_constants[mol](log(T)) / (kboltz_cgs*T)^(n_atoms(mol) - 1)
