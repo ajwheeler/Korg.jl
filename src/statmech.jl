@@ -49,29 +49,6 @@ function translational_U(m, T)
      (2π*m*k*T/h^2)^1.5
 end
 
-
-"""
-TODO
-nK NOT pK!
-"""
-function get_molecular_equlibrium_constant(m::Species, T, partition_funcs, equilibrium_constants)
-    @assert ismolecule(m)
-    if m in keys(equilibrium_constants)
-        10^equilibrium_constants[m](log(T)) / (kboltz_cgs*T)^(n_atoms(m)-1)
-    else
-        @assert m == species"H2O" # TODO generalize
-        D00 = 9.629 # eV (from Luo 2007), summed energies of removing each H atom
-        UH = partition_funcs[species"H"](log(T))
-        UO = partition_funcs[species"O"](log(T))
-        UH2O = partition_funcs[species"H2O"](log(T))
-        mH = get_mass(species"H")
-        mO = get_mass(species"O")
-        mH2O = get_mass(species"H2O")
-        translational_U_factor = (2π*kboltz_cgs*T/hplanck_cgs^2)^1.5
-        translational_U_factor^2 * (mH^2*mO/mH2O)^1.5 * UH^2*UO/UH2O * exp(-D00/(kboltz_eV*T))
-    end
-end
-
 """
     molecular_equilibrium_equations(absolute_abundances, ironization_energies, partiation_fns, equilibrium_constants)
 
