@@ -14,12 +14,6 @@ module Korg
     include("statmech.jl")                 # statistical mechanics, molecular equilibrium
     include("atmosphere.jl")               # parse model atmospheres
     include("RadiativeTransfer/RadiativeTransfer.jl")        # radiative transfer formal solution
-
-    #load data when the package is imported. 
-    const ionization_energies = setup_ionization_energies()
-    const partition_funcs = setup_partition_funcs()
-    const equilibrium_constants = setup_equilibrium_constants()
-
     include("utils.jl")                                # functions to apply LSF, vac<->air wls, etc.
     include("ContinuumAbsorption/ContinuumAbsorption.jl")   # Define continuum absorption functions.
     include("synthesize.jl")                                # top-level API

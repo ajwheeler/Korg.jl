@@ -78,12 +78,32 @@ struct Formula
     end
 end
 
+"""
+    get_atoms(x)
+
+Returns a array view containing the atomic number of each atom that makes up the formula or species 
+x.  E.g. `get_atoms(Korg.species"H2O")` yields [1, 1, 8].
+"""
 function get_atoms(f::Formula) 
     i = findlast(f.atoms .== 0)
     if isnothing(i)
         view(f.atoms, 1:MAX_ATOMS_PER_MOLECULE)
     else
         view(f.atoms, i+1:MAX_ATOMS_PER_MOLECULE)
+    end
+end
+
+"""
+    n_atoms(x)
+
+The number of atoms in the Korg.Species or Korg.Formula x.
+"""
+function n_atoms(f::Formula)
+    i = findlast(f.atoms .== 0)
+    if isnothing(i)
+        MAX_ATOMS_PER_MOLECULE
+    else
+        MAX_ATOMS_PER_MOLECULE - i
     end
 end
 
@@ -178,7 +198,7 @@ function Species(code::AbstractString)
         # first check if the "charge tag" is a roman numeral.  If it's not, parse it as an Int.
         charge = findfirst(toks[2] .== roman_numerals)
         charge = (charge isa Int ? charge : parse(Int, toks[2]))
-        # if this is a MOOG-style numeric code, the charge is correct, otherwise subtract 1
+        # if this is a Kurucz-style numeric code, the charge is correct, otherwise subtract 1
         if tryparse(Float64, code) === nothing 
             charge -= 1
         end
@@ -211,6 +231,7 @@ end
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
 get_atoms(s::Species) = get_atoms(s.formula)
+n_atoms(s::Species) = n_atoms(s.formula)
 
 """
     all_atomic_species()

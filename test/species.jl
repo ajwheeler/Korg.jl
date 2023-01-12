@@ -41,6 +41,12 @@
         @test_throws ArgumentError Korg.Species("C2 -2")
     end
 
+    @testset "couting atoms" begin
+        for spec in Korg.Species.(["H2O", "H II", "C2-", "HHHH"])
+            @test Korg.n_atoms(spec) == length(Korg.get_atoms(spec))
+        end
+    end
+
     @testset "distinguish atoms from molecules" begin
         @test Korg.ismolecule(Korg.Formula("H2"))
         @test Korg.ismolecule(Korg.Formula("CO"))

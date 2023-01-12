@@ -1,5 +1,5 @@
 using ..CubicSplines: CubicSpline
-using HDF5
+using HDF5, CSV
 
 """
     setup_ionization_energies([filename])
@@ -24,51 +24,70 @@ function setup_ionization_energies(fname=joinpath(_data_dir,
 end
 
 """
-    setup_partition_funcs()
+    setup_partition_funcs_and_equilibrium_constants()
 
-Returns a Dict holding the default partition functions. These are custom for atoms and via Barklem
-& Collet 2016 for molecules.
+Returns two dictionaries. One holding the default patition functions, and one holding the default
+equilibrium constants.
 
-The partition function is linearly interpolated from values tabulated for the paper. The partition 
-functions can only be evaluated at temperatures between 1e-5 K and 1e4 K. The tabulated values were 
-NOT computed with a cutoff principle quantum number. This can lead to a couple percent error for 
-some neutral species in solar type stars (I think the problem becomes worse in hotter stars). See 
-the paper for more details.
+# Default partition functions
+The partition functions are custom (calculated from NIST levels) for atoms, from via Barklem & 
+Collet 2016 for diatomic molecules, and from [exomol](https://exomol.com) for polyatomic molecules.
+For each molecule, we include only the most abundant isotopologue.
+
+Note than none of these parition functions include plasma effects, e.g. via the Mihalas Hummer 
+Daeppen occupation probability formalism. They are for isolated species.
+This can lead to a couple percent error for neutral alkalis and to greater errors for hydrogen in 
+some atmospheres, particularly those of hot stars.
+
+# Default equilibrium constants
+Molecules have equilibrium constants in addition to patition functions.  For the diatomics, these 
+are provided by Barklem and Collet, which extensively discusses the dissociation energies.  For 
+polyatomics, we calculate these ourselves, using atomization energies calculated from the enthalpies 
+of formation at 0K from [NIST's CCCDB](https://cccbdb.nist.gov/hf0k.asp).
+
+Korg's equilbrum constants are in terms of partial pressures, since that's what Barklem and Collet 
+provide.
 """
-function setup_partition_funcs()
-    mol_path = joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat")
-    Us = merge(read_Barklem_Collet_table(mol_path), load_atomic_partition_functions())
-    Us[species"H2O"] = water_U_data()
-    Us
+function setup_partition_funcs_and_equilibrium_constants()
+    mol_U_path = joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat")
+    partition_funcs = merge(read_Barklem_Collet_table(mol_U_path), 
+                           load_atomic_partition_functions(),
+                           load_exomol_partition_functions())
+
+    BC_Ks = read_Barklem_Collet_table(joinpath(_data_dir, "BarklemCollet2016-equilibrium_constants.dat"),
+                                      transform=x->x+1) #convert from log(mks) to log(cgs)
+
+    # equlibrium constants for polyatomics (done here because the partition functions are used)
+    atomization_Es = CSV.File(joinpath(_data_dir, "polyatomic_partition_funcs", "atomization_energies.csv"))
+    polyatomic_Ks = map(zip(Korg.Species.(atomization_Es.spec), atomization_Es.energy)) do (spec, D00)
+        D00 *= 0.01036 # convert from kJ/mol to eV
+        # closure mapping logT to K. The let block means that default paritition functions will be 
+        # used even when different ones are passed to synthesize.  This is the desired behavior, 
+        # since the equilibrium_constants should be overridden by passing them explicitly.
+        logK = let parition_funcs = partition_funcs 
+            logT -> begin
+                Zs = get_atoms(spec)
+                Us_ratio = (prod([partition_funcs[Species(Formula(Z), 0)](logT) for Z in Zs])
+                            / partition_funcs[spec](logT))
+                masses_ratio = prod([atomic_masses[Z] for Z in Zs]) / get_mass(spec)
+                T = exp(logT)
+                translational_U_factor = (2π*kboltz_cgs*T/hplanck_cgs^2)^1.5
+                K = translational_U_factor^(length(Zs)-1) * masses_ratio^1.5 * Us_ratio * exp(-D00/(kboltz_eV*T))
+                log10(K * (kboltz_cgs*T)^(length(Zs)-1))
+            end
+        end
+        spec => logK
+    end |> Dict
+    equilibrium_constants = merge(BC_Ks, polyatomic_Ks)
+    
+    partition_funcs, equilibrium_constants
 end
 
-# TODO
-function water_U_data()
-    Ts, Us = h5open(joinpath(_data_dir, "polyatomic_partition_funcs", "polyatomic_partition_funcs.h5")) do f
-        read(f["HHO I"]["temp"]), read(f["HHO I"]["partition_function"])
-    end
-    CubicSpline(log.(Ts), Us)
-end
-
 """
-    setup_equilibrium_constants()
-
-Returns a Dict holding the default (Barklem & Collet 2016) log equilibrium constants, which are in
-pressure units.
-
-In equation 7 in this paper, m is the reduced mass, m₁m₂/(m₁ + m₂).  This can be verified by 
-re-deriving the equilibrium constants from the partition functions and dissolution constants 
-provided by the paper.
-"""
-setup_equilibrium_constants() = read_Barklem_Collet_table(
-                                 joinpath(_data_dir, "BarklemCollet2016-equilibrium_constants.dat"),
-                                 transform=x->x+1) #convert from log(mks) to log(cgs)
-
-"""
-    functon read_Barklem_Collet_table([transform=identity])
+    functon read_Barklem_Collet_table(;transform=identity)
 
 Constructs a Dict holding tables containing partition function or equilibrium constant values across
-ln(temperature).
+ln(temperature).  Applies transform (which you can use to, e.g. change units) to each example.
 """
 function read_Barklem_Collet_table(fname; transform=identity)
     temperatures = Vector{Float64}()
@@ -82,7 +101,7 @@ function read_Barklem_Collet_table(fname; transform=identity)
             else # add entries to the dictionary
                 row_entries = split(strip(line))
                 species_code = popfirst!(row_entries)
-                #ignore deuterium and ionized molecules
+                # ignore deuterium and ionized molecules
                 if species_code[1:2] != "D_" && species_code[end] != '+' && species_code[end] != '-' 
                     push!(data_pairs, (Species(species_code), 
                                        transform.(parse.(Float64, row_entries))))
@@ -119,6 +138,7 @@ function load_atomic_partition_functions(filename=joinpath(_data_dir, "atomic_pa
             continue
         end
         spec = elem*" "*ionization
+        # this is flat "extrapolation", not linear or cubic
         partition_funcs[Species(spec)] = CubicSpline(logTs, h5read(filename, spec))
     end
 
@@ -129,3 +149,23 @@ function load_atomic_partition_functions(filename=joinpath(_data_dir, "atomic_pa
 
     partition_funcs
 end
+
+"""
+    load_exomol_partition_functions()
+
+Loads the exomol partition funcstions for polyatomic molecules from the HDF5 archive. Returns a 
+dictionary mapping species to interpolators over log(T).
+"""
+function load_exomol_partition_functions()
+    h5open(joinpath(_data_dir, "polyatomic_partition_funcs", "polyatomic_partition_funcs.h5")) do f
+        map(f) do group
+            spec = Korg.Species(HDF5.name(group)[2:end]) # cut off leading '/'
+            Ts, Us = read(group["temp"]), read(group["partition_function"])
+            spec, CubicSpline(log.(Ts), Us, extrapolate=true)
+        end |> Dict
+    end
+end
+
+#load data when the package is imported. 
+const ionization_energies = setup_ionization_energies()
+const default_partition_funcs, default_log_equilibrium_constants = setup_partition_funcs_and_equilibrium_constants()

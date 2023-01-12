@@ -57,7 +57,7 @@ nK NOT pK!
 function get_molecular_equlibrium_constant(m::Species, T, partition_funcs, equilibrium_constants)
     @assert ismolecule(m)
     if m in keys(equilibrium_constants)
-        10^equilibrium_constants[m](log(T)) / (kboltz_cgs*T)
+        10^equilibrium_constants[m](log(T)) / (kboltz_cgs*T)^(n_atoms(m)-1)
     else
         @assert m == species"H2O" # TODO generalize
         D00 = 9.629 # eV (from Luo 2007), summed energies of removing each H atom
@@ -108,7 +108,7 @@ dissolution energy.
 function molecular_equilibrium_equations(absolute_abundances, ionization_energies, partition_fns, 
                                          equilibrium_constants)
     atoms = 0x01:Natoms
-    molecules = collect(filter(ismolecule, keys(partition_funcs)))
+    molecules = collect(keys(equilibrium_constants))
 
     #the residuals of the molecular equilibrium equations parametrized by T, electron number density
     #and number densities of each element [cm^-3]
@@ -120,8 +120,11 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
             wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
             (1 + wII + wIII)
         end
-        # precalculate equilibrium coefficients
-        Ks = get_molecular_equlibrium_constant.(molecules, T, Ref(partition_funcs), Ref(equilibrium_constants))
+        # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
+        # pressure, unlike those in equilibrium_constants.
+        Ks = map(molecules) do mol
+            10^equilibrium_constants[mol](log(T)) / (kboltz_cgs*T)^(n_atoms(mol) - 1)
+        end
 
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
@@ -193,7 +196,7 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
     #now the molecules
     for m in MEQs.molecules 
         els = get_atoms(m.formula)
-        K = get_molecular_equlibrium_constant(m, T, partition_funcs, equilibrium_constants)
+        K = get_molecular_equlibrium_constant(m, T, MEQs.partition_fns, MEQs.equilibrium_constants)
         number_densities[m] = prod(number_densities[Species(Formula(el), 0)] for el in els) / K
     end
 
