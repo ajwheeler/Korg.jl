@@ -83,9 +83,9 @@ This could also be computed via a Saha equation involving the molecular partitio
 dissolution energy.
 """
 function molecular_equilibrium_equations(absolute_abundances, ionization_energies, partition_fns, 
-                                         equilibrium_constants)
+                                         log_equilibrium_constants)
     atoms = 0x01:Natoms
-    molecules = collect(keys(equilibrium_constants))
+    molecules = collect(keys(log_equilibrium_constants))
 
     #the residuals of the molecular equilibrium equations parametrized by T, electron number density
     #and number densities of each element [cm^-3]
@@ -99,9 +99,7 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
         end
         # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
         # pressure, unlike those in equilibrium_constants.
-        Ks = map(molecules) do mol
-            10^equilibrium_constants[mol](log(T)) / (kboltz_cgs*T)^(n_atoms(mol) - 1)
-        end
+        nKs = get_nK.(molecules, T, Ref(log_equilibrium_constants))
 
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
@@ -112,9 +110,9 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
 
             # LHS: total number of atoms, RHS: first through third ionization states
             F .= atom_number_densities .- ion_factors .* x
-            for (m, K) in zip(molecules, Ks)
+            for (m, nK) in zip(molecules, nKs)
                 els = get_atoms(m.formula)
-                n_mol = prod(x[el] for el in els) / K
+                n_mol = prod(x[el] for el in els) / nK
                 # RHS: atoms which are part of molecules
                 for el in els
                     F[el] -= n_mol
@@ -127,7 +125,7 @@ function molecular_equilibrium_equations(absolute_abundances, ionization_energie
     #anticipation of potentially culling the list of species considered 
     (atoms=atoms, molecules=molecules, equations=system, absolute_abundances=absolute_abundances,
      ionization_energies=ionization_energies, partition_fns=partition_fns, 
-     equilibrium_constants=equilibrium_constants)
+     log_equilibrium_constants=log_equilibrium_constants)
 end
 
 """
@@ -171,15 +169,21 @@ function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
         number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
     #now the molecules
-    for m in MEQs.molecules 
-        els = get_atoms(m.formula)
-        K = get_molecular_equlibrium_constant(m, T, MEQs.partition_fns, MEQs.equilibrium_constants)
-        number_densities[m] = prod(number_densities[Species(Formula(el), 0)] for el in els) / K
+    for mol in MEQs.molecules 
+        nK = get_nK(mol, T, MEQs.log_equilibrium_constants)
+        els = get_atoms(mol.formula)
+        number_densities[mol] = prod(number_densities[Species(Formula(el), 0)] for el in els) / nK
     end
 
     number_densities
 end
 
+"""
+TODO
+"""
+function get_nK(mol, T, log_equilibrium_constants) 
+    10^log_equilibrium_constants[mol](log(T)) / (kboltz_cgs*T)^(n_atoms(mol) - 1)
+end
 
 ###################################################################################
 # The methods below are experimental, and not used by Korg for spectral synthesis #
