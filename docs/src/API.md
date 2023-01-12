@@ -27,8 +27,7 @@ Korg.rectify
 Korg.constant_R_LSF
 ```
 
-## Line absorption 
-These functions can be used to directly compute line opacities. 
+## Line absorption These functions can be used to directly compute line opacities. 
 
 ```@docs
 Korg.line_absorption!
@@ -78,8 +77,7 @@ layer, or other statmech calculations.
 
 ```@docs
 Korg.saha_ion_weights
-Korg.molecular_equilibrium_equations
-Korg.molecular_equilibrium
+Korg.chemical_equilibrium
 ```
 
 ## Misc
