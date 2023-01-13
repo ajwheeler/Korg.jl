@@ -16,8 +16,9 @@ using Interpolations: LinearInterpolation, Throw
     _combined_john_neg_ion_absorption(ν, T, ndens_neutral, ne, short_wavelength_interp,
                                       long_wavelength_interp)
 
-uses absorption data from John 1975, MNRAS, 172, 305 for 0.5 μm ≤ λ ≤ 10 μm and data from
-John 1975, MNRAS, 170, 5 for λ > 10 μm. Returns linear absorption coefficient (in cm⁻¹)
+Use the John 1975a data for λ > 10^5 Å and the John 1975b data otherwise.  Takes tabulated data as
+two interpolators over temperature, short_wavelength_interp and long_wavelength_interp.
+Returns linear absorption coefficient (in cm⁻¹).
 
 These values are extremely uncertain.
 """
