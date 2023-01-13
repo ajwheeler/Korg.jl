@@ -50,7 +50,7 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
             Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
                       n_densities[species"H_I"] .* [scaled_vdW(line.vdW, m, T) for T in temp])
         end
-        # calculate the lorentz broadening parameter in in wavelength. Doing this involves an 
+        # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
@@ -193,7 +193,7 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_siz
         levels_factor = (exp(-β*Elo) - exp(-β*Eup)) / UH_I
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)
+        lb, ub = move_bounds(λs, 1, 1, λ₀, window_size)
         if lb == ub
             continue
         end
