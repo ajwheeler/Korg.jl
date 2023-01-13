@@ -73,22 +73,31 @@ end
 Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
 `q`-quantile with window size `bandwidth`.  `wl_step` controls the size of the grid that the moving 
 quantile is calculated on and interpolated from.  Setting `wl_step` to 0 results in the exact 
-calculation with no interpolation, but note that this is very slow.  
+calculation with no interpolation, but note that this is very slow when the `wls` is sampled for 
+synthesis (~0.01 Å).
 
 Experiments on real spectra show an agreement between the interpolated rectified spectrum and the 
 "exact" one (with default values) at the 3 × 10^-4 level.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
     #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
-    inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
+    if wl_step == 0
+        inds = eachindex(wls)
+    else
+        inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
+    end
     lb = 1
     ub = 1
     moving_quantile = map(wls[inds]) do λ
         lb, ub = move_bounds(wls, lb, ub, λ, bandwidth)
         quantile(flux[lb:ub], q)
     end
-    itp = LinearInterpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
-    flux ./ itp.(wls)
+    if wl_step == 0
+        flux ./ moving_quantile
+    else
+        itp = LinearInterpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
+        flux ./ itp.(wls)
+    end
 end
 
 """

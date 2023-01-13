@@ -17,5 +17,6 @@ module Korg
     include("utils.jl")                                # functions to apply LSF, vac<->air wls, etc.
     include("ContinuumAbsorption/ContinuumAbsorption.jl")   # Define continuum absorption functions.
     include("synthesize.jl")                                # top-level API
+    include("fit.jl")                                  # routines to infer stellar params from data
 
 end # module
