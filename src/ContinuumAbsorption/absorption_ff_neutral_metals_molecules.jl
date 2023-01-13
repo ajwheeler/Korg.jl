@@ -7,8 +7,8 @@ using Interpolations: LinearInterpolation, Throw
 
 # -----------------------------------------------------------------------------------------
 # Define absorption functions by combining data from both
-# - [John 1975, MNRAS, 170, 5](https://ui.adsabs.harvard.edu/abs/1975MNRAS.170....5J)
-# - [John 1975, MNRAS, 172, 305](https://ui.adsabs.harvard.edu/abs/1975MNRAS.172..305J)
+# - John 1975, MNRAS, 170, 5 https://ui.adsabs.harvard.edu/abs/1975MNRAS.170....5J
+# - John 1975, MNRAS, 172, 305 https://ui.adsabs.harvard.edu/abs/1975MNRAS.172..305J
 # This is the procedure recommended by the latter paper.
 # -----------------------------------------------------------------------------------------
 
