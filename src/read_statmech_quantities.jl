@@ -27,7 +27,7 @@ end
     setup_partition_funcs_and_equilibrium_constants()
 
 Returns two dictionaries. One holding the default patition functions, and one holding the default
-equilibrium constants.
+log10 equilibrium constants.
 
 # Default partition functions
 The partition functions are custom (calculated from NIST levels) for atoms, from Barklem & 
