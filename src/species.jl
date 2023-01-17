@@ -21,7 +21,7 @@ struct Formula
         elseif len < MAX_ATOMS_PER_MOLECULE
             Zs = [zeros(Int, MAX_ATOMS_PER_MOLECULE-len) ; Zs]
         elseif len > MAX_ATOMS_PER_MOLECULE
-            throw(ArgumentError("Can't construct Formula with atoms $(Int.(Zs)). Up to five atoms are supported."))
+            throw(ArgumentError("Can't construct Formula with atoms $(Int.(Zs)). Up to $(MAX_ATOMS_PER_MOLECULE) atoms are supported."))
         end
         @assert(issorted(Zs))
         new(Zs)
