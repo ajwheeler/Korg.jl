@@ -78,7 +78,7 @@ end
 # this function could be reused in the future for testing solutions to coupled Saha equations
 function free_electrons_per_Hydrogen_particle(nₑ, T, abundances=Korg.asplund_2020_solar_abundances)
     out = 0.0
-    for element in 1:Korg.Natoms
+    for element in 1:Korg.MAX_ATOMIC_NUMBER
         wII, wIII = Korg.saha_ion_weights(T, nₑ, element, Korg.ionization_energies, 
                                           Korg.default_partition_funcs)
 

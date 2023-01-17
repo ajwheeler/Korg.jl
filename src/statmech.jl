@@ -99,7 +99,7 @@ function chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_ene
                               partition_fns, log_equilibrium_constants; x0=nothing)
     if x0 === nothing
         #compute good first guess by neglecting molecules
-        x0 = map(1:Natoms) do atom
+        x0 = map(1:MAX_ATOMIC_NUMBER) do atom
             wII, wIII =  saha_ion_weights(T, nₑ, atom, ionization_energies, partition_fns)
             nₜ*absolute_abundances[atom] / (1 + wII + wIII)
         end
@@ -115,9 +115,9 @@ function chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_ene
 
     # start with the neutral atomic species.  Only the absolute value of sol.zero is
     # necessarilly correct.
-    number_densities = Dict(Species.(Formula.(1:Natoms), 0) .=> abs.(sol.zero))
+    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> abs.(sol.zero))
     #now the ionized atomic species
-    for a in 1:Natoms
+    for a in 1:MAX_ATOMIC_NUMBER
         wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
         number_densities[Species(Formula(a), 1)] = wII  * number_densities[Species(Formula(a), 0)]
         number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
@@ -134,12 +134,11 @@ end
 
 function chemical_equilibrium_equations(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
-    atoms = 0x01:Natoms
     molecules = collect(keys(log_equilibrium_constants))
     atom_number_densities = nₜ .* absolute_abundances
                                     
     # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
-    ion_factors = map(atoms) do elem
+    ion_factors = map(1:MAX_ATOMIC_NUMBER) do elem
         wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
         (1 + wII + wIII)
     end

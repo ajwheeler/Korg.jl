@@ -11,7 +11,7 @@ struct Formula
     atoms::SVector{6, UInt8}
 
     function Formula(Z::Integer) 
-        @assert 1 <= Z <= Natoms
+        @assert 1 <= Z <= MAX_ATOMIC_NUMBER
         new([zeros(UInt8, MAX_ATOMS_PER_MOLECULE-1) ;  Z])
     end
     function Formula(Zs::AbstractVector{<:Integer})
@@ -238,5 +238,5 @@ n_atoms(s::Species) = n_atoms(s.formula)
 
 Returns an iterator that runs over all atomic species supported by Korg.
 """
-all_atomic_species() = (Korg.Species(Korg.Formula(Z), charge) 
-                        for Z in 1:Korg.Natoms, charge in 0:2 if charge <= Z)
+all_atomic_species() = (Species(Formula(Z), charge) 
+                        for Z in 1:MAX_ATOMIC_NUMBER, charge in 0:2 if charge <= Z)

@@ -112,7 +112,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
         throw(ArgumentError("λs must be in increasing order."))
     end
 
-    if length(A_X) != Natoms || (A_X[1] != 12)
+    if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
     end
 
@@ -229,7 +229,7 @@ function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
     end
 
     #populate A(X) vector
-    map(1:Natoms) do Z
+    map(1:MAX_ATOMIC_NUMBER) do Z
         if Z == 1 #handle hydrogen
             12.0
         elseif Z in keys(clean_abundances) #if explicitely set

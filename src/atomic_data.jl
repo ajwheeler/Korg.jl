@@ -9,8 +9,8 @@ const atomic_symbols = ["H","He","Li","Be","B","C","N","O","F","Ne",
         "Tl","Pb","Bi","Po","At","Rn","Fr","Ra","Ac","Th",
         "Pa","U"] #,"Np","Pu","Am"] # we don't have partition funcs for these last three
 
-const Natoms = UInt8(length(atomic_symbols))
-const atomic_numbers = Dict(atomic_symbols .=> UInt8.(1:Natoms))
+const MAX_ATOMIC_NUMBER = UInt8(length(atomic_symbols))
+const atomic_numbers = Dict(atomic_symbols .=> UInt8.(1:MAX_ATOMIC_NUMBER))
 
 #in grams
 const atomic_masses = [

@@ -72,8 +72,8 @@ function setup_partition_funcs_and_equilibrium_constants()
                 masses_ratio = prod([atomic_masses[Z] for Z in Zs]) / get_mass(spec)
                 T = exp(logT)
                 translational_U_factor = (2π*kboltz_cgs*T/hplanck_cgs^2)^1.5
-                K = translational_U_factor^(length(Zs)-1) * masses_ratio^1.5 * Us_ratio * exp(-D00/(kboltz_eV*T))
-                log10(K * (kboltz_cgs*T)^(length(Zs)-1))
+                nK = translational_U_factor^(length(Zs)-1) * masses_ratio^1.5 * Us_ratio * exp(-D00/(kboltz_eV*T))
+                log10(nK * (kboltz_cgs*T)^(length(Zs)-1))
             end
         end
         spec => logK
