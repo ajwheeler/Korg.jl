@@ -81,7 +81,7 @@ end
 """
     get_atoms(x)
 
-Returns a array view containing the atomic number of each atom that makes up the formula or species 
+Returns an array view containing the atomic number of each atom that makes up the formula or species 
 x.  E.g. `get_atoms(Korg.species"H2O")` yields [1, 1, 8].
 """
 function get_atoms(f::Formula) 
