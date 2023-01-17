@@ -61,7 +61,7 @@ end
 
 """
     chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
-                         partition_fns, log_equilibrium_constants; x0=nothing))
+                         partition_fns, log_equilibrium_constants; x0=nothing)
 
 Iteratively solve for the number density of each species. Returns a `Dict` mapping species to number 
 densities.
