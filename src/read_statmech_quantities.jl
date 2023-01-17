@@ -72,7 +72,9 @@ function setup_partition_funcs_and_equilibrium_constants()
                 masses_ratio = prod([atomic_masses[Z] for Z in Zs]) / get_mass(spec)
                 T = exp(logT)
                 translational_U_factor = (2π*kboltz_cgs*T/hplanck_cgs^2)^1.5
+                # this is the number-density equilbrium constant
                 nK = translational_U_factor^(length(Zs)-1) * masses_ratio^1.5 * Us_ratio * exp(-D00/(kboltz_eV*T))
+                # compute the log of the partial-pressure equilibrium constant
                 log10(nK * (kboltz_cgs*T)^(length(Zs)-1))
             end
         end
