@@ -30,7 +30,7 @@ Returns two dictionaries. One holding the default patition functions, and one ho
 equilibrium constants.
 
 # Default partition functions
-The partition functions are custom (calculated from NIST levels) for atoms, from via Barklem & 
+The partition functions are custom (calculated from NIST levels) for atoms, from Barklem & 
 Collet 2016 for diatomic molecules, and from [exomol](https://exomol.com) for polyatomic molecules.
 For each molecule, we include only the most abundant isotopologue.
 
