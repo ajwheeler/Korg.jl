@@ -77,7 +77,7 @@ function find_best_params(obs_wls, data, err, R, linelist;
     end 
 
     @time result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
-                            Optim.Options(time_limit=500, store_trace=true, extended_trace=true),
+                            Optim.Options(time_limit=3600, store_trace=true, extended_trace=true),
                             autodiff=:forward)
 
     #@time J0 = ForwardDiff.jacobian(global_synth, scale(p0))
