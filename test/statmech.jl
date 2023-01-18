@@ -89,7 +89,8 @@ end
             # we can't get closer than 2% because NIST has changed some things
             # (There may also be edge-case energy levels that are weird in some way that are only 
             # included in one calculation, but I think this effect is small.)
-            @test assert_allclose_grid(korg_U, BC_U, [("T", Ts, "K")]; rtol=0.02)
+            @test assert_allclose_grid(korg_U, BC_U, [("T", Ts, "K")]; rtol=0.01, 
+                                       print_rachet_info=false)
         end
     end
 end

@@ -63,6 +63,6 @@
         korg_k = actual_α_div_nₑ_nHeII .* saha_RHS ./ stim_emission_factor
 
         @test assert_allclose_grid(korg_k, ref_k, [("T", Ts, "K"), ("ν", ν, "Hz")];
-                                   atol = 0, rtol = 0.01)
+                                   atol = 0, rtol = 0.005)
     end
 end

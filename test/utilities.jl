@@ -18,11 +18,30 @@ shape, the locations of the max errors are also printed.
 - `error_location_fmt`: An optional keyword used to specify a function that creates a string 
   describing the location in the arrays where values are unequal, given a `CartesianIndex` object.
   This should not be specified in cases where actual and reference have different shapes.
+- `print_racheting_info`: set this to false to avoid printing a notice and stacktrace with rtol
+  or atol can be tightened.
+
 """
 function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = nothing,
-                         error_location_fmt = nothing)
-    # make the initial check fast!
-    if all( abs.(actual .- reference) .<= (rtol .* abs.(reference) .+ atol))
+                         error_location_fmt=nothing, print_rachet_info=true)
+    # log if the comparison can be racheted down
+    diff = abs.(actual .- reference)
+    relative_diff = diff ./ abs.(reference)
+
+    if print_rachet_info
+        if all(diff .< 0.5*atol)
+            @info "test can be racheted down: atol=$(atol), but the max diff is $(maximum(diff))"
+            display(stacktrace())
+        end
+        if all(relative_diff .< 0.5*rtol)
+            @info ("test can be racheted down: rtol=$(rtol), but the max relative diff is " 
+                    * "$(maximum(relative_diff))")
+            display(stacktrace())
+        end
+    end
+
+    # return promptly if the check passes
+    if all(diff .<= rtol .* abs.(reference) .+ atol)
         return true
     end
 
@@ -36,10 +55,7 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     # now let's provide a detailed error message (this can take longer):
 
     # determine what the max error is (and possibly where it happended)
-    diff = abs.(actual .- reference)
     diffmax = argmax(diff) #this in an index
-
-    relative_diff = diff ./ abs.(reference)
     relmax = argmax(relative_diff) #this is an index
 
     # format the message

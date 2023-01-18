@@ -585,8 +585,8 @@ end
                                    err_msg = ("\n$(spec) bf absorption coefficients " *
                                               "computed using data from the opacity project are " *
                                               "inconsistent with the results computed for a " *
-                                              "hydrogenic atom"))
-
+                                              "hydrogenic atom"),
+                                   print_rachet_info=false)
     end
 end
 
