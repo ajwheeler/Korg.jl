@@ -61,10 +61,9 @@ function setup_partition_funcs_and_equilibrium_constants()
     atomization_Es = CSV.File(joinpath(_data_dir, "polyatomic_partition_funcs", "atomization_energies.csv"))
     polyatomic_Ks = map(zip(Korg.Species.(atomization_Es.spec), atomization_Es.energy)) do (spec, D00)
         D00 *= 0.01036 # convert from kJ/mol to eV
-        # The let block means that default paritition functions will be used even when different 
-        # ones are passed to synthesize.  This is the desired behavior, since the 
-        # equilibrium_constants should be overridden by passing them explicitly.
-        calculate_logK = let parition_funcs = partition_funcs 
+        # this let block slightly improves performance. 
+        # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
+        calculate_logK = let parition_funcs=partition_funcs
             function logK(logT)
                 Zs = get_atoms(spec)
                 Us_ratio = (prod([partition_funcs[Species(Formula(Z), 0)](logT) for Z in Zs])
