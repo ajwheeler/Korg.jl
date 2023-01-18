@@ -2,13 +2,21 @@ using Korg, Test, HDF5
 
 @testset "Korg tests" begin
 
-include("utilities.jl") # assert_allclose and assert_allclose_grid
+# tools for testing: assert_allclose and assert_allclose_grid
+include("utilities.jl") 
 
+# tests for specific parts of the code broken out into their own files. As you add tests, do it 
+# this way.
 include("cubic_splines.jl")
 include("transfer.jl")
+include("species.jl")
+include("interval.jl")
+include("continuum_absorption.jl") # test this after the "Interval" testset
+include("partition_funcs.jl")
+include("statmech.jl")
 
 @testset "atomic data" begin 
-    @test (Korg.Natoms == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 
+    @test (Korg.MAX_ATOMIC_NUMBER == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 
             == length(Korg.asplund_2020_solar_abundances))
     @test (Korg.get_mass(Korg.Formula("CO")) ≈ 
            Korg.get_mass(Korg.Formula("C")) + Korg.get_mass(Korg.Formula("O")))
@@ -22,115 +30,8 @@ end
     @test Korg.ionization_energies[Korg.atomic_numbers["U"]] == [6.1940, 11.590, 19.800]
 end
 
-function _test_contained_slice(vals::AbstractVector, interval::Korg.Interval)
-
-    idx = Korg.contained_slice(vals, interval)
-    first_ind, last_ind = first(idx), last(idx)
-
-    @assert first_ind >= 1 && last_ind <= length(vals)
-
-    result = Korg.contained.(vals, Ref(interval))
-
-    if all(result)
-        @test (first_ind == 1) && (last_ind == length(vals))
-    elseif any(result)
-        @test last_ind >= first_ind
-        @test all(.!result[1:first_ind-1])
-        @test all(result[first_ind:last_ind])
-        @test all(.!result[last_ind+1:length(vals)])
-    else
-        @test first_ind == last_ind+1
-    end
-
-end
-
-@testset "Interval" begin
-
-    # first make sure that the following cases are caught by the constructor:
-    @test_throws AssertionError Korg.Interval(5,5)
-    @test_throws AssertionError Korg.Interval(3,2)
-    @test_throws AssertionError Korg.Interval(Inf,Inf)
-    @test_throws AssertionError Korg.Interval(-Inf,-Inf)
-
-    # check contained
-    sample = Korg.Interval(3,10)
-    @test !Korg.contained(3, sample)
-    @test !Korg.contained(10, sample)
-    @test Korg.contained(5.0, sample)
-    @test Korg.contained(nextfloat(3.0), sample)
-    @test Korg.contained(prevfloat(10.0), sample)
-
-    # check contained_slice
-    @testset "contained_slice" begin
-        # we consider cases where the slice contains just a single element or multiple elements
-
-        # first, try cases where everything is in-bounds
-        _test_contained_slice([6.0], sample) # slice of 1 element
-        _test_contained_slice([4.0, 5.0, 6.0, 7.0, 8.0, 9.0], sample) # slice of multiple elements
-
-        # next, try cases where some values are out-of bounds
-        _test_contained_slice([1.0, 6.0], sample) # slice of 1 element
-        _test_contained_slice([1.0, 6.0, 12.0], sample)
-        _test_contained_slice([6.0, 12.0], sample)
-
-        _test_contained_slice([1.0, 2.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0], sample)
-        _test_contained_slice([4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.5, 12.0], sample)
-        _test_contained_slice([1.0, 2.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.5, 12.0], sample)
-
-        # lastly, consider cases where all values are out of bounds
-        _test_contained_slice([1.0], sample)
-        _test_contained_slice([100.0], sample)
-
-        _test_contained_slice([1.0, 2.0, 2.5], sample)
-        _test_contained_slice([10.5, 12.5, 100.0], sample)
-    end
-end
-
-include("continuum_absorption.jl") # test this after the "Interval" testset
-include("partition_funcs.jl")
-include("statmech.jl")
-
 @testset "lines" begin
     @testset "linelists" begin 
-        @testset "species codes" begin
-            @test Korg.species"01.00"   == Korg.species"H"
-            @test Korg.species"101.0"   == Korg.species"H2 I"
-            @test Korg.species"01.0000" == Korg.species"H I"
-            @test Korg.species"02.01"   == Korg.species"He II"
-            @test Korg.species"02.1000" == Korg.species"He II"
-            @test Korg.species"0608"    == Korg.species"CO"
-            @test Korg.species"0606"    == Korg.species"C2 I"
-            @test Korg.species"606"     == Korg.species"C2 I"
-            @test Korg.species"0608.00" == Korg.species"CO I"
-            @test Korg.species"812.0"   == Korg.species"MgO"
-            @test Korg.species"822.0"   == Korg.species"TiO"
-            @test Korg.species"OOO"     == Korg.species"O3"
-            @test Korg.species"H 1" == Korg.species"H I"
-            @test Korg.species"H     1" == Korg.species"H I"
-            @test Korg.species"H_1" == Korg.species"H I"
-            @test Korg.species"H.I" == Korg.species"H I"
-            @test Korg.species"H I" == Korg.species"H I"
-            @test Korg.species"H 2" == Korg.species"H II"
-            @test Korg.species"H2" == Korg.species"HH I"
-            @test Korg.species"H" == Korg.species"H I"
-
-            @test_throws ArgumentError Korg.Species("06.05.04")
-            @test_throws Exception Korg.Species("99.01")
-        end
-
-        @testset "distinguish atoms from molecules" begin
-            @test Korg.ismolecule(Korg.Formula("H2"))
-            @test Korg.ismolecule(Korg.Formula("CO"))
-            @test !Korg.ismolecule(Korg.Formula("H"))
-            @test !Korg.ismolecule(Korg.Formula("Li"))
-        end
-
-        @testset "break molecules into atoms" begin
-            @test Korg.get_atoms(Korg.Formula("CO")) == [0x06, 0x08]
-            @test Korg.get_atoms(Korg.Formula("C2")) == [0x06, 0x06]
-            @test Korg.get_atoms(Korg.Formula("MgO")) == [0x08, 0x0c]
-        end
-
         @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
                                                           format="abc")
 
@@ -224,10 +125,8 @@ include("statmech.jl")
             end
 
             #make sure the default isotopic abundances sum to 1.
-            isotopes = keys(Korg.isotopic_abundances)
-            for Z in sort(collect(Set(first.(isotopes))))
-                isos = filter(==(Z) ∘ first, isotopes)                                               
-                @assert sum([Korg.isotopic_abundances[iso] for iso in isos]) ≈ 1                       
+            for (Z, isotopes) in Korg.isotopic_abundances
+                @test sum(values(isotopes)) ≈ 1
             end
         end
 
@@ -286,14 +185,14 @@ include("statmech.jl")
 
         αs = zeros(length(wls))
         Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1e11, 1e13, 
-                                       Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
+                                       Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
         @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; atol=5e-9)
 
         #make sure that H line absorption doesn't return NaNs on inputs where it used to
         αs = zeros(length(wls))
         wls = 3800 : 0.01 : 4200
         Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1.1e16, 1, 
-                                       Korg.partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
+                                       Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
         @assert all(.! isnan.(αs))
     end
 end

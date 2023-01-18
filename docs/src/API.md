@@ -78,8 +78,7 @@ layer, or other statmech calculations.
 
 ```@docs
 Korg.saha_ion_weights
-Korg.molecular_equilibrium_equations
-Korg.molecular_equilibrium
+Korg.chemical_equilibrium
 ```
 
 ## Misc

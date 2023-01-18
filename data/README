@@ -1,0 +1,14 @@
+This directory contains data used by Korg.  Because it's tracked in git, we try to keep this data
+from being larger than necessary.
+
+These are all the places data used by Korg can be stored, in order from smallest to largest.
+- Directly in the source code.  When a table of data is small, it is often included directly as an
+  Array in the source code.  See for example the Korg.ContinuumAbsoprtion.Peach1970 module.
+- In this directory. Files here are sometimes in their original format, and sometimes repackaged in 
+  HDF5 format for size or ease of access.  If the original data files are small, they will be
+  included here.  If they are large (> a few MB), they will be in the...
+- Korg_data repository (https://github.com/ajwheeler/Korg_data).  This is where we archive large-ish
+  files not used directly by Korg, but from which we created repacked HDF5 files.
+- Files too large for github (> 100 MB) can be fetched by Korg and placed in the $KORG_DATA_DIR 
+  directory (default: ~/.korg). So far this is only used for the grid of model atmospheres
+  interpolated by Korg.interpolate_marcs. 

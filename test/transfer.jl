@@ -1,6 +1,5 @@
 @testset "transfer" begin
 
-
 using SpecialFunctions: expint
 using Korg.RadiativeTransfer: MoogStyleTransfer
 

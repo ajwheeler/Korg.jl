@@ -62,10 +62,10 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
-   to data from Barklem & Collet 2016, `Korg.partition_funcs`.
+   to data from Barklem & Collet 2016, `Korg.default_partition_funcs`.
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to the base-10
    log of their molecular equilbrium constants in partial pressure form.  Defaults to data from 
-   Barklem and Collet 2016, `Korg.equilibrium_constants`.
+   Barklem and Collet 2016, `Korg.default_log_equilibrium_constants`.
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
 """
@@ -93,8 +93,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     hydrogen_lines=true, hydrogen_line_window_size=150, n_mu_points=20, 
                     line_cutoff_threshold=3e-4, bezier_radiative_transfer=false, 
-                    ionization_energies=ionization_energies, partition_funcs=partition_funcs, 
-                    equilibrium_constants=equilibrium_constants)
+                    ionization_energies=ionization_energies, partition_funcs=default_partition_funcs,
+                    log_equilibrium_constants=default_log_equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
     cntm_step *= 1e-8
@@ -112,14 +112,12 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
         throw(ArgumentError("λs must be in increasing order."))
     end
 
-    if length(A_X) != Natoms || (A_X[1] != 12)
+    if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
     end
 
     abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
-    MEQs = molecular_equilibrium_equations(abs_abundances, ionization_energies, partition_funcs, 
-                                           equilibrium_constants)
 
     #float-like type general to handle dual numbers
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
@@ -130,8 +128,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
     pairs = map(enumerate(atm.layers)) do (i, layer)
-        n_dict = molecular_equilibrium(MEQs, layer.temp, layer.number_density, 
-                                        layer.electron_number_density)
+        n_dict = chemical_equilibrium(layer.temp, layer.number_density, layer.electron_number_density, 
+                                      abs_abundances, ionization_energies, 
+                                      partition_funcs, log_equilibrium_constants)
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp,
                                                          layer.electron_number_density,
@@ -230,7 +229,7 @@ function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
     end
 
     #populate A(X) vector
-    map(1:Natoms) do Z
+    map(1:MAX_ATOMIC_NUMBER) do Z
         if Z == 1 #handle hydrogen
             12.0
         elseif Z in keys(clean_abundances) #if explicitely set
