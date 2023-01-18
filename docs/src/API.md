@@ -27,7 +27,8 @@ Korg.rectify
 Korg.constant_R_LSF
 ```
 
-## Line absorption These functions can be used to directly compute line opacities. 
+## Line absorption 
+These functions can be used to directly compute line opacities. 
 
 ```@docs
 Korg.line_absorption!
