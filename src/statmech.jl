@@ -55,8 +55,16 @@ end
 Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilbrium constants in partial
 pressure form, return the equilibrium constant in number density form, i.e. `nK = n(A)n(B)/n(AB)`.
 """
-function get_nK(mol, T, log_equilibrium_constants) 
-    10^log_equilibrium_constants[mol](log(T)) / (kboltz_cgs*T)^(n_atoms(mol) - 1)
+function get_inv_nK(mol, T, log_equilibrium_constants) 
+    inv_nK = (kboltz_cgs*T)^(n_atoms(mol) - 1) / 10^log_equilibrium_constants[mol](log(T))
+    # this weird construction handles the fact that autodiff will set the partial derivatives of 
+    # inv_nK to NaNs in cases where inv_nK is 0.  In these cases (∂ inv_nK / ∂ whatever) should also 
+    # be numerically 0, so dropping them does no harm.
+    if inv_nK == 0
+        0
+    else
+        inv_nK
+    end
 end
 
 """
@@ -124,9 +132,9 @@ function chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_ene
     end
     #now the molecules
     for mol in keys(log_equilibrium_constants)
-        nK = get_nK(mol, T, log_equilibrium_constants)
+        inv_nK = get_inv_nK(mol, T, log_equilibrium_constants)
         els = get_atoms(mol.formula)
-        number_densities[mol] = prod(number_densities[Species(Formula(el), 0)] for el in els) / nK
+        number_densities[mol] = prod(number_densities[Species(Formula(el), 0)] for el in els) * inv_nK
     end
 
     number_densities
@@ -144,7 +152,7 @@ function chemical_equilibrium_equations(T, nₜ, nₑ, absolute_abundances, ioni
     end
     # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
     # pressure, unlike those in equilibrium_constants.
-    nKs = get_nK.(molecules, T, Ref(log_equilibrium_constants))
+    inv_nKs = get_inv_nK.(molecules, T, Ref(log_equilibrium_constants))
                                     
     #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
     #`x` is a vector containing the number density of the neutral species of each element
@@ -155,9 +163,9 @@ function chemical_equilibrium_equations(T, nₜ, nₑ, absolute_abundances, ioni
                                     
         # LHS: total number of atoms, RHS: first through third ionization states
         F .= atom_number_densities .- ion_factors .* x
-        for (m, nK) in zip(molecules, nKs)
+        for (m, inv_nK) in zip(molecules, inv_nKs)
             els = get_atoms(m.formula)
-            n_mol = prod(x[el] for el in els) / nK
+            n_mol = prod(x[el] for el in els) * inv_nK
             # RHS: atoms which are part of molecules
             for el in els
                 F[el] -= n_mol

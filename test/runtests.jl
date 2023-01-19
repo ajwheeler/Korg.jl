@@ -351,7 +351,8 @@ end
         flux(p) = synthesize(atm, linelist, format_A_X(p[1], Dict("Ni"=>p[2])), 
                              wls; vmic=p[3]).flux
         #make sure this works.
-        ∇f = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+        J = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
+        @test .! any(isnan.(J))
     end
 end
 
