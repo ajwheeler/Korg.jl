@@ -50,10 +50,11 @@ function translational_U(m, T)
 end
 
 """
-    get_nK(mol, T, log_equilibrium_constants)
+    get_inv_nK(mol, T, log_equilibrium_constants)
 
 Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilbrium constants in partial
-pressure form, return the equilibrium constant in number density form, i.e. `nK = n(A)n(B)/n(AB)`.
+pressure form, return the inverse equilibrium constant in number density form, i.e. `1/nK` where 
+`nK = n(A)n(B)/n(AB)`.
 """
 function get_inv_nK(mol, T, log_equilibrium_constants) 
     inv_nK = (kboltz_cgs*T)^(n_atoms(mol) - 1) / 10^log_equilibrium_constants[mol](log(T))
