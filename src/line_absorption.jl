@@ -10,7 +10,7 @@ Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `line
 `λs` [cm^-1]. 
 
 other arguments:
-- `temp` the temerature in K (at multiply layers, if you like)
+- `temp` the temerature in K (as a vector, for multiple layers, if you like)
 - `n_densities`, a Dict mapping species to absolute number density [cm^-3] (as a vector, if temp is
    a vector).
 - `partition_fns`, a Dict containing the partition function of each species
@@ -48,7 +48,7 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
             Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
-                      n_densities[species"H_I"] .* [scaled_vdW(line.vdW, m, T) for T in temp])
+                      n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temp))
         end
         # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.

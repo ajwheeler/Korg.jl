@@ -129,7 +129,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     #sort the lines if necessary
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
     #discard lines far from the wavelength range being synthesized
-    linelist = filter(l-> all_λs[1] - line_buffer <= l.wl <= all_λs[end] + line_buffer, linelist)
+    linelist = filter(linelist) do line
+        map(wl_ranges) do wl_range
+            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
+        end |> any
+    end
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))

@@ -1,32 +1,51 @@
+"""
+Functions for fitting to data.
+
+!!! warning
+    This submodule is in alpha. Do not use it for science.
+"""
 module Fit
-using ..Korg, ProgressMeter, ForwardDiff
+using ..Korg, ProgressMeter, ForwardDiff, LineSearches, Optim
 using SparseArrays: spzeros
 using Statistics: mean
-using LineSearches, Optim
+using Interpolations: LinearInterpolation
+
 #TODO specify versions in Project.toml
-# TODO derivatives are zero at grid points
+# TODO derivatives are zero at grid points (perturbing in one direction would be bad???)
 
 """
-TODO
+    compute_LSF_matrix(synth_wls, obs_wls, R; window_size=3)
 
-TODO define in terms of LSF function
-TODO fix sigma/HWHM bug
+Construct a sparse matrix, which when multiplied with a flux vector defined over wavelenths 
+`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
+The LSF has a constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
+``\\Delta\\lambda`` is the LSF FWHM.  The `window_size` argument specifies how far out to extend
+the convolution kernel in standard deviations.
+
+For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
+the region you are going to compare.
+
+[`Korg.constant_R_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
+relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
+resolution via multiplication is fast.
 """
-function downsampled_LSF_matrix(synth_wls, obs_wls, R)
-    #ideas - require wls to be a rangbe object? Use erf to account for grid edges?
+function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4)
     convM = spzeros((length(obs_wls), length(synth_wls)))
     lb, ub = 1,1 #initialize window bounds
     @showprogress  "Constructing LSF matrix" for i in 1:length(obs_wls)
         λ0 = obs_wls[i]
-        σ = λ0 / R / 2
-        lb, ub = Korg.move_bounds(synth_wls, lb, ub, λ0, 3σ)
+        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
+        lb, ub = Korg.move_bounds(synth_wls, lb, ub, λ0, window_size*σ)
         ϕ = Korg.normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
         @. convM[i, lb:ub] += ϕ
     end
     convM 
 end
 
-# scaling free params.
+"""
+Rescale each parameter so that it lives on (-∞, ∞) instead of the finite range of the atmosphere 
+grid.
+"""
 function scale(p)
     nodes = Korg.get_atmosphere_archive()[1]
     lower = first.(nodes)
@@ -36,6 +55,10 @@ function scale(p)
     tan.(π .* (p.-0.5))
 end
 
+"""
+Unscale each parameter so that it lives on the finite range of the atmosphere grid insteaf of 
+(-∞, ∞).
+"""
 function unscale(p)
     nodes = Korg.get_atmosphere_archive()[1]
     lower = first.(nodes)
@@ -45,149 +68,246 @@ function unscale(p)
     p.*(upper - lower) .+ lower
 end
 
+"""
+Synthesize a spectrum, returning the flux, with LSF applied, resampled, and rectified.  This is 
+used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
+"""
 function synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix; line_buffer=10)
     p = unscale(scaled_p)
     atm = Korg.interpolate_marcs(p...)
     alpha_els = ["Ne", "Mg", "Si", "S", "Ar", "Ca", "Ti"]
     A_X = Korg.format_A_X(p[3], Dict(["C"=>p[5]+p[3], (alpha_els .=> p[4]+p[3])...]))
-    #F = try
-    F = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=1.0, line_buffer=line_buffer).flux
-    #catch e
-    #    ones(sum(length.(synthesis_wls))), NaN
-    #end
+    F = try
+        Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=1.0, line_buffer=line_buffer).flux
+    catch e
+        ones(sum(length.(synthesis_wls)))
+    end
     #rF = apply_rotation(F, wls, 10) #TODO
     dF = LSF_matrix * F
-    Korg.rectify(dF, obs_wls; wl_step=0)
 end
 
 """
-TODO rotation, vmic, abundances
-"""
-function find_best_params(obs_wls, data, err, R, linelist; 
-                          p0=(upper+lower)./2, 
-                          synthesis_wls=(first(obs_wls)-10) : 0.01 : (last(obs_wls)+10),
-                          LSF_matrix=downsampled_LSF_matrix(synthesis_wls, obs_wls, R),
-                          verbose=true
-                          )
-    #simple global fit
-    #chi2 = let obs_wls=obs_wls, data=data, err=err, synthesis_wls=synthesis_wls, LSF_matrix=LSF_matrix, linelist=linelist
-    #    scaled_p -> begin
-    #        flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
-    #        sum(((flux .- data)./err).^2)
-    #    end
-    #end 
-    #@time result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
-    #                        Optim.Options(x_tol=1e-5, time_limit=3600, store_trace=true, extended_trace=true),
-    #                        autodiff=:forward)
+TODO rotation, vmic, abundance
 
-    global_synth = let synthesis_wls=synthesis_wls, obs_wls=obs_wls, linelist=linelist, LSF_matrix=LSF_matrix
-        p -> synth(synthesis_wls, obs_wls, p, linelist, LSF_matrix)
-    end
-    @time J0 = ForwardDiff.jacobian(global_synth, scale(p0))
-    return J0
-    @assert !any(isnan.(J0))
-    find_best_params_multilocally(J0, obs_wls, data, err, linelist, p0, synthesis_wls, LSF_matrix, verbose)
+!!! warning
+    This function is in alpha. Do not use it for science.
+"""
+function find_best_params_globally(obs_wls, obs_flux, obs_err, linelist, p0; rectify=data_safe_rectify,
+                                   synthesis_wls=(first(obs_wls)-10) : 0.01 : (last(obs_wls)+10),
+                                   LSF_matrix=compute_LSF_matrix(synthesis_wls, obs_wls, R),
+                                   verbose=true)
+    obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
+    rect_data = rectify(obs_flux, obs_err, obs_wls)
+    rect_err = obs_err .* rect_data ./ obs_flux # divide out continuum
+    chi2 = let obs_wls=obs_wls, data=rect_data, obs_err=obs_err, rect_err=rect_err, 
+        synthesis_wls=synthesis_wls, LSF_matrix=LSF_matrix, linelist=linelist
+        scaled_p -> begin
+            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
+            flux = rectify(flux, obs_err, obs_wls)
+            sum(((flux .- data)./rect_err).^2)
+        end
+    end 
+    @time result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
+                            Optim.Options(x_tol=1e-5, time_limit=3600, store_trace=true, 
+                            extended_trace=true), autodiff=:forward)
 end
 
-function find_best_params_multilocally(J, obs_wls, data, err, linelist, p0, synthesis_wls, LSF_matrix, verbose; wl_buffer=10)
-    wl_chunck_edges = first(obs_wls) : 20 : last(obs_wls)
-    lb, ub = 1, 1
-    bounds = map(eachindex(p0)) do i
-        mean_J = []
-        for wl_ind in eachindex(wl_chunck_edges[1:end-1])
-            wl_lb = wl_chunck_edges[wl_ind]
-            wl_ub = wl_chunck_edges[wl_ind+1]
-            lb, ub = Korg.move_bounds(obs_wls, lb, ub, (wl_lb+wl_ub)/2, step(wl_chunck_edges))
-            push!(mean_J, (lb, ub, mean(J[lb:ub, i])))
-        end
-        lb, ub, _ = mean_J[argmax(last.(mean_J))]
-        lb, ub
-    end
+"""
+TODO
 
-    println(bounds)
-    # merge regions
-    sort!(bounds, by=first)
-    # only those bounds corresponding to a "true" in to keep will be kept.
-    tokeep = ones(Bool, length(bounds)) 
-    for i in 2:length(bounds)
-        # identify the previous bounds, skipping over those which will be dropped
-        prev_ind = i - 1
-        while !(tokeep[prev_ind])
-            prev_ind -= 1
-        end
-        # if these bounds overlap with the previous, drop the former and extend the latter
-        if bounds[i][1] < bounds[prev_ind][2]
-            bounds[prev_ind] = (bounds[prev_ind][1], max(bounds[i][2], bounds[prev_ind][2]))
-            tokeep[i] = false
-        end
-    end
-    bounds = bounds[tokeep]
-    println(bounds)
+synthesize spectrum in windows which are ± wl_buffer larger than the regions used for 
+comparison.  This is important because the spectra get convolved with the LSF. 
 
-    # set up wavelenths and LSF matrix for synthesis at few subspectra
-    obs_wl_mask = zeros(Bool, length(obs_wls)) # bitmask onto obs_wls to isolate the subspectra
-    synth_wl_mask = zeros(Bool, length(synthesis_wls)) # bitmask for the synthesis wls
-    # multi_synth_wls is the vector of ranges that we pass to synthesize
-    multi_synth_wls = map(bounds) do (lb, ub)
-        synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb]-wl_buffer)
-        synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub]+wl_buffer) - 1
+TODO local_rectify signature: error or not
+
+!!! warning
+    This function is in alpha. Do not use it for science.
+"""
+function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0, synthesis_wls, 
+                                       LSF_matrix; verbose=true, global_rectify=data_safe_rectify, 
+                                       local_rectify=simple_rectify, wl_chunk_size=10, wl_buffer=3,
+                                       line_buffer=3)
+    obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
+    J0 = global_jacobian(obs_wls, obs_err, linelist, p0, synthesis_wls, LSF_matrix)
+
+    # contains *indices* into obs_wls for each wl range
+    #obs_bounds_inds = merge_bounds(find_sensitive_ranges(J0, obs_wls, wl_chunk_size))
+    obs_bounds_inds = find_sensitive_ranges(J0, obs_err, obs_wls, wl_chunk_size)
+    obs_bounds_inds = merge_bounds(obs_bounds_inds)
+
+    # set up masks, etc to work with subspectra in native and downsampled resolution
+    # ------------------------------------------------------------------------------
+    # bitmask for obs_wls to isolate the subspectra
+    obs_wl_mask = zeros(Bool, length(obs_wls)) 
+    for (lb, ub) in obs_bounds_inds
         obs_wl_mask[lb:ub] .= true
+    end
+    # these ranges each select a subsprectrum from obs_wls[obs_wl_mask]
+    masked_obs_wls_range_inds = [(1 : obs_bounds_inds[1][2] - obs_bounds_inds[1][1] + 1)]
+    for (lb, ub) in obs_bounds_inds[2:end]
+        prev_ub = masked_obs_wls_range_inds[end][end]
+        push!(masked_obs_wls_range_inds, prev_ub+1 : prev_ub+ub-lb+1)
+    end
+    # bitmask for synthesis_wls to isolate the subspectra
+    synth_wl_mask = zeros(Bool, length(synthesis_wls)) 
+    # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
+    multi_synth_wls = map(obs_bounds_inds) do (lb, ub)
+        synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb] - wl_buffer)
+        synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub] + wl_buffer) - 1
         synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
         synthesis_wls[synth_wl_lb:synth_wl_ub]
     end
     small_LSF_matrix = LSF_matrix[obs_wl_mask, synth_wl_mask]
-    display(sum(synth_wl_mask))
+    if verbose
+        println("Synthesizing specrum in ranges: ", 
+                ("$(round(wls[1], digits=1))–$(round(wls[end], digits=1)) " for wls in multi_synth_wls)...)
+        println("to compare in the ranges:       ",
+                ("$(round(obs_wls[lb], digits=1))–$(round(obs_wls[ub], digits=1)) " for (lb, ub) in obs_bounds_inds)...)
+    end
 
-    chi2 = let obs_wls=obs_wls[obs_wl_mask], data=data[obs_wl_mask], err=err[obs_wl_mask], 
-               synthesis_wls=multi_synth_wls, LSF_matrix=small_LSF_matrix, 
-               linelist=linelist
+    # rectify subspectra of input data
+    # --------------------------------
+    rectified_local_data, rectified_local_err = copy(obs_flux[obs_wl_mask]), copy(obs_err[obs_wl_mask])
+    for r in masked_obs_wls_range_inds
+        rF = local_rectify(rectified_local_data[r], obs_wls[obs_wl_mask][r], obs_err[obs_wl_mask][r])
+        rectified_local_err[r] ./= rectified_local_data[r] ./ rF # divide cntm out of err
+        rectified_local_data[r] .= rF
+    end
+
+    # optimize
+    # --------
+    chi2 = let obs_wls=obs_wls[obs_wl_mask], data=rectified_local_data, rect_err=rectified_local_err, 
+               obs_err=obs_err, synthesis_wls=multi_synth_wls, LSF_matrix=small_LSF_matrix, 
+               linelist=linelist, masked_obs_wls_range_inds=masked_obs_wls_range_inds
         scaled_p -> begin
-            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix; line_buffer=0)
-            sum(((flux .- data)./err).^2)
+            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix; line_buffer=line_buffer)
+            for r in masked_obs_wls_range_inds
+                flux[r] .= local_rectify(flux[r], obs_wls[r], obs_err[r])
+            end
+            sum(((flux .- data)./rect_err).^2)
         end
     end 
+    @time result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
+                            Optim.Options(time_limit=1000, x_tol=1e-5, store_trace=true, 
+                            extended_trace=true), autodiff=:forward)
 
-    @time result = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),  
-                            Optim.Options(time_limit=1000, store_trace=true, extended_trace=true),
-                            autodiff=:forward)
+    (result, chi2, multi_synth_wls, small_LSF_matrix, obs_wls[obs_wl_mask], rectified_local_data, 
+     rectified_local_err, masked_obs_wls_range_inds)
 end
 
-function find_best_params_locally(lb, ub, obs_wls, data, err, linelist, p0, synthesis_wls, 
-                                  LSF_matrix, verbose; wl_buffer=10)
-
-    #grad2 = sum(J0.^2, dims=2)
-    #wl_chunck_edges = first(obs_wls) : 20 : last(obs_wls)
-    #lb, ub = 1, 1
-    #mean_grad2 = []
-    #for i in eachindex(wl_chunck_edges[1:end-1])
-    #    wl_lb = wl_chunck_edges[i]
-    #    wl_ub = wl_chunck_edges[i+1]
-    #    lb, ub = Korg.move_bounds(obs_wls, lb, ub, (wl_lb+wl_ub)/2, step(wl_chunck_edges))
-    #    push!(mean_grad2, (lb, ub, mean(grad2[lb:ub]))) 
-    #end
-    #lb, ub, _ = mean_grad2[argmax(last.(mean_grad2))]
-    #verbose && @info "the subspectrum with the strongest sensitivity to the parameters is $(obs_wls[lb]) – $(obs_wls[ub]) Å"
-    #find_best_params_locally(lb, ub, obs_wls, data, err, linelist, p0, synthesis_wls, LSF_matrix, 
-    #                         verbose)
-
-    # synthesize on a range which overshoots the subspectrum by wl_buffer Å on each side
-    synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb]-wl_buffer)
-    synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub]+wl_buffer) - 1
-    small_synthesis_wls = synthesis_wls[synth_wl_lb:synth_wl_ub]
-    small_LSF_matrix = LSF_matrix[lb:ub, synth_wl_lb:synth_wl_ub]
-
-    chi2 = let obs_wls=obs_wls[lb:ub], data=data[lb:ub], err=err[lb:ub], 
-              synthesis_wls=small_synthesis_wls, LSF_matrix=small_LSF_matrix, linelist=linelist
-        scaled_p -> begin
-            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
-            sum(((flux .- data)./err).^2)
+"""
+Sort a vector of lower-bound, uppoer-bound pairs and merge overlapping ranges.  Used by 
+find_best_params_multilocally.
+"""
+function merge_bounds(bounds)
+    bounds = sort(bounds, by=first)
+    new_bounds = [bounds[1]]
+    for i in 2:length(bounds)
+        # if these bounds overlap with the previous, extend the previous, 
+        # otherwise add them to the list
+        if bounds[i][1] < new_bounds[end][2]
+            new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
+        else
+            push!(new_bounds, bounds[i])
         end
-    end 
-    verbose && @info "finding best-fit params with subspectrum..."
-    # TODO show time if verbose
-    @time result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
-                        Optim.Options(time_limit=1000, store_trace=true, extended_trace=true),
-                        autodiff=:forward)
+    end
+    new_bounds
+end
+
+"""
+Divide `flux` by its mean.  This is a good way to "rectify" small wavelength regions.
+"""
+function simple_rectify(flux, wls, err)
+    iv = err.^-2
+    meanF = sum(flux .* iv) / sum(iv)
+    flux / meanF
+end
+
+"""
+    rectify(flux, wls; bandwidth=50, q=0.95, wl_step=1.0)
+
+Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
+`q`-quantile with window size `bandwidth`.  `wl_step` controls the size of the grid that the moving 
+quantile is calculated on and interpolated from. By default, this calculation is exact, but Setting
+`wl_step` to a non-zero value results in calculating the moving mean every `wl_step` Å and 
+interpolating to get the "continuum".
+"""
+function data_safe_rectify(flux, err, wls; bandwidth=50, wl_step=0)
+    inv_var = err.^-2
+    #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
+    if wl_step == 0
+        inds = eachindex(wls)
+    else
+        inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
+    end
+    lb = 1
+    ub = 1
+    moving_mean = map(wls[inds]) do λ
+        lb, ub = Korg.move_bounds(wls, lb, ub, λ, bandwidth)
+        sum(flux[lb:ub].*inv_var[lb:ub]) / sum(inv_var[lb:ub])
+    end
+    if wl_step == 0
+        flux ./ moving_mean
+    else
+        itp = LinearInterpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
+        flux ./ itp.(wls)
+    end
+end
+
+
+"""
+Given a Jacobian, `J`, whose data index is over wavelengths, `obs_wls`, find the 
+`chunks_per_param` wavelength chunks of length `chunk_size` which are most sensitive to each 
+parameter.
+"""
+function find_sensitive_ranges(J, err, obs_wls, chunk_size; chunks_per_param=3)
+    # chucks overlap by 50% with their neighbors
+    wl_half_chunk_edges = first(obs_wls) : chunk_size/2 : last(obs_wls)
+
+    bounds = Vector{Tuple{Int, Int}}()
+    lb, ub = 1, 1
+    for ∂F_∂x in eachcol(J)
+        local_grad2 = []
+        for wl_ind in eachindex(wl_half_chunk_edges[1:end-1])
+            wl_lb = wl_half_chunk_edges[wl_ind]
+            wl_ub = wl_half_chunk_edges[wl_ind+1]
+            lb, ub = Korg.move_bounds(obs_wls, lb, ub, (wl_lb+wl_ub)/2, chunk_size)
+
+            # if there are gaps in the observed spectra, there may be no data in the wl range
+            if lb < ub 
+                push!(local_grad2, (lb, ub, sum(@. (∂F_∂x[lb:ub]/err[lb:ub])^2)))
+            end
+        end
+        for i in partialsortperm(last.(local_grad2), 1:chunks_per_param, rev=true)
+            lb, ub, m = local_grad2[i]
+            #println(obs_wls[lb], "-", obs_wls[ub], " ", lb, " ", ub, " ", m)
+            push!(bounds, (lb, ub))
+        end
+    end
+    bounds
+end
+
+"""
+TODO
+"""
+function mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
+    mask = @. !isnan(obs_flux) && !isnan(obs_err)
+    obs_flux[mask], obs_err[mask], obs_wls[mask], LSF_matrix[mask, :]
+end
+
+"""
+TODO
+"""
+function global_jacobian(obs_wls, obs_err, linelist, p0, synthesis_wls, LSF_matrix;
+                         verbose=true, global_rectify=data_safe_rectify)
+    @time J0 = let synthesis_wls=synthesis_wls, obs_wls=obs_wls, linelist=linelist, LSF_matrix=LSF_matrix
+        ForwardDiff.jacobian(scale(p0)) do p
+            flux = synth(synthesis_wls, obs_wls, p, linelist, LSF_matrix)
+            global_rectify(flux, obs_wls)
+        end
+    end
+    @assert !any(isnan.(J0))
+    J0
 end
 
 end # module

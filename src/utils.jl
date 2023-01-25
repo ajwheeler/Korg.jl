@@ -44,6 +44,9 @@ the convolution kernel in standard deviations.
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
 the region you are going to compare.
 
+If you are convolving many spectra defined on the same wavelenths to observational resolution, you 
+will get much better performance using [`downsampled_LSF_matrix`](@ref).
+
 !!! warning
     - This is a naive, slow implementation.  Do not use it when performance matters.
 
@@ -52,7 +55,7 @@ the region you are going to compare.
        otherwise desired) grid.
 """
 function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=3) where F <: Real
-    #ideas - require wls to be a range object? Use erf to account for grid edges?
+    #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
     lb, ub = 1,1 #initialize window bounds
@@ -78,6 +81,12 @@ synthesis (~0.01 Å).
 
 Experiments on real spectra show an agreement between the interpolated rectified spectrum and the 
 "exact" one (with default values) at the 3 × 10^-4 level.
+
+!!! warning
+    This function should not be applied to data with observational error, as taking a quantile will
+    bias the rectification relative to the noiseless case.  It is intended as a fast way to compute
+    nice-looking rectified theoretical spectra.  See [`Korg.Fit.data_safe_rectify`](@ref) for an 
+    alternative which doesn't have this issue.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
     #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
