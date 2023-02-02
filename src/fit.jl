@@ -107,8 +107,8 @@ function find_best_params_globally(obs_wls, obs_flux, obs_err, linelist, p0; rec
             sum(((flux .- data)./rect_err).^2)
         end
     end 
-    @time result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
-                            Optim.Options(x_tol=1e-5, time_limit=3600, store_trace=true, 
+    result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
+                            Optim.Options(x_tol=1e-5, time_limit=10_000, store_trace=true, 
                             extended_trace=true), autodiff=:forward)
 end
 
@@ -187,8 +187,8 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
             sum(((flux .- data)./rect_err).^2)
         end
     end 
-    @time result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
-                            Optim.Options(time_limit=1000, x_tol=1e-5, store_trace=true, 
+    result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
+                            Optim.Options(time_limit=3600, x_tol=1e-5, store_trace=true, 
                             extended_trace=true), autodiff=:forward)
 
     (result, chi2, multi_synth_wls, small_LSF_matrix, obs_wls[obs_wl_mask], rectified_local_data, 
@@ -300,10 +300,11 @@ TODO
 """
 function global_jacobian(obs_wls, obs_err, linelist, p0, synthesis_wls, LSF_matrix;
                          verbose=true, global_rectify=data_safe_rectify)
-    @time J0 = let synthesis_wls=synthesis_wls, obs_wls=obs_wls, linelist=linelist, LSF_matrix=LSF_matrix
+    J0 = let synthesis_wls=synthesis_wls, obs_wls=obs_wls, linelist=linelist, LSF_matrix=LSF_matrix, 
+             obs_err=obs_err
         ForwardDiff.jacobian(scale(p0)) do p
             flux = synth(synthesis_wls, obs_wls, p, linelist, LSF_matrix)
-            global_rectify(flux, obs_wls)
+            global_rectify(flux, obs_err, obs_wls)
         end
     end
     @assert !any(isnan.(J0))
