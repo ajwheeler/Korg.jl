@@ -38,10 +38,9 @@
     "referencePublication": [
         {
             "@type": "ScholarlyArticle",
-            "url": "https://ui.adsabs.harvard.edu/abs/2022arXiv221100029W"//,
-            //"@id": "PLACEHOLDER: Add DOI (https://doi.org/xxxxxx) here"
+            "url": "https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract",
+            "@id": "https://doi.org/10.3847/1538-3881/acaaad"
         }
     ],
-    //"version": "PLACEHOLDER: Add version here",
     "license": "https://spdx.org/licenses/BSD-3-Clause.html"
 }
