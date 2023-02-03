@@ -256,6 +256,15 @@ end
                 == format_A_X(Dict{String, Float64}())
                 == format_A_X(Dict{Int, Float64}()))
 
+        @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1 atol=1e-6
+        @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 atol=1e-6
+        @test Korg.get_metals_H(format_A_X(0.1)) ≈ 0.1 atol=1e-6
+        @test Korg.get_metals_H(format_A_X(-0.2)) ≈ -0.2 atol=1e-6
+        @test Korg.get_metals_H(Korg.grevesse_2007_solar_abundances; 
+                                solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=1e-6
+        @test Korg.get_alpha_H(Korg.grevesse_2007_solar_abundances;
+                               solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=1e-6
+
         @testset for metallicity in [0.0, 0.5], abundances in [Dict(), Dict("C"=>1.1)], solar_relative in [true, false]
             A_X = format_A_X(metallicity, abundances; 
                                        solar_abundances=Korg.asplund_2020_solar_abundances,

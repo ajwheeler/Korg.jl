@@ -265,12 +265,14 @@ with the `KORG_DATA_DIR` environment variable.
     https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
 """
 function interpolate_marcs(Teff, logg, A_X::Vector; kwargs...)
-    Fe_H = A_X[26] - grevesse_2007_solar_abundances[26]
-    alpha_Fe = A_X[12]/A_X[26] - grevesse_2007_solar_abundances[12]/grevesse_2007_solar_abundances[26]
-    C_Fe = A_X[6]/A_X[26] - grevesse_2007_solar_abundances[6]/grevesse_2007_solar_abundances[26]
-    interpolate_marcs(Teff, logg, Fe_H, alpha_Fe, C_Fe; kwargs...)
+    M_H = get_metals_H(A_X; solar_abundances=grevesse_2007_solar_abundances)
+    alpha_H = get_alpha_H(A_X; solar_abundances=grevesse_2007_solar_abundances)
+    alpha_M = alpha_H - M_H
+    C_H = A_X[6] - grevesse_2007_solar_abundances[6]
+    C_M = C_H - M_H
+    interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
-function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=logg < 3.5, 
+function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
                            archive=atmosphere_archive)
     if isnothing(archive)
         # the atmosphere archive is pretty large, so keep it out of memory unless it's used.
@@ -279,8 +281,8 @@ function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=log
     end
     nodes, exists, grid = archive
 
-    params = [Teff, logg, Fe_H, alpha_Fe, C_Fe]
-    param_names = ["Teff", "log(g)", "[Fe/H]", "[alpha/Fe]", "[C/Fe]"]
+    params = [Teff, logg, M_H, alpha_M, C_M]
+    param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
         if !(p_nodes[1] <= p <= p_nodes[end])
@@ -292,7 +294,7 @@ function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=log
     
     # allocate 2^n cube for each quantity
     dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
-    structure_type = typeof(promote(Teff, logg, Fe_H, alpha_Fe, C_Fe)[1])
+    structure_type = typeof(promote(Teff, logg, M_H, alpha_M, C_M)[1])
     structure = Array{structure_type}(undef, (56, 5, dims...))
      
     #put bounding atmospheres in 2^n cube
