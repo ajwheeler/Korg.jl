@@ -238,21 +238,21 @@ function download_atmosphere_archive(url="https://korg-data.s3.amazonaws.com/SDS
 end
 
 """
-    interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; kwargs...)
+    interpolate_marcs(Teff, logg, Fe_M=0, alpha_M=0, C_M=0; kwargs...)
     interpolate_marcs(Teff, logg, A_X; kwargs...)
 
-Returns a model atmosphere obtained by interpolating the SDSS atmosphere grid. 
-If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref) and accepted by 
-[`synthesize`](@ref)) is provided instead of `Fe_H`, `alpha_Fe`, and `C_Fe`, the solar-relative 
-ratios will be reconstructed assuming Grevesse+ 2007 solar abundances, with Mg determining the alpha
-ratio.
+Returns a model atmosphere obtained by interpolating the SDSS atmosphere grid, which provides 
+atmospheres for varying values of ``T_\\mathrm{eff}``, ``\\log g`, [metals/H], [alpha/metals], 
+and [C/metals].  If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref)
+and accepted by [`synthesize`](@ref)) is provided instead of `M_H`, `alpha_M`, and `C_M`, the 
+solar-relative ratios will be reconstructed assuming Grevesse+ 2007 solar abundances.
 
 The default model atmosphere grid is a repacked version of the 
 [MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
 Before you use `interpolate_marcs` for the first time, you will have to download the grid with by 
-running `download_atmosphere_archive()`.
-By default, the archive is stored at `.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set 
-with the `KORG_DATA_DIR` environment variable.
+running `download_atmosphere_archive()`.  By default, the archive is stored at 
+`.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set with the `KORG_DATA_DIR` environment 
+variable.
 
 # keyword arguments
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
