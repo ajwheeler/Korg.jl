@@ -1,7 +1,8 @@
 using Base
 using Statistics: mean
 using Interpolations: LinearInterpolation, deduplicate_knots!
-using Korg: partition_funcs, Species, ismolecule, get_atoms, _data_dir, move_bounds, @species_str
+using Korg
+using Korg: Species, ismolecule, get_atoms, _data_dir, move_bounds, @species_str
 using Korg: hplanck_eV, c_cgs, RydbergH_eV, kboltz_eV # constants
 using CSV, DataFrames #for NIST energy level parsing
 
