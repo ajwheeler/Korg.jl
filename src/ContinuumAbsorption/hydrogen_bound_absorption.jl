@@ -1,11 +1,17 @@
-using Interpolations: LinearInterpolation, Flat
+using Interpolations: LinearInterpolation, Line
+using HDF5 #TODO remove?
 
-include("../../data/bf_cross-sections/parse_and_tabulate_cross_sections.jl")
+# load hydrogen bf cross sections
+_H_cross_sections = let
+    _H_level_ns, _H_level_Ls, _H_level_binding_Es, _H_level_cross_sections = 
+            h5open(joinpath(_data_dir, "bf_cross-sections", "individual_H_cross-sections.h5")) do f
+        sigmas = map(eachcol(read(f["E"])), eachcol(read(f["sigma"]))) do Es, σs
+            LinearInterpolation(Es, σs, extrapolation_bc=Line())
+        end
+        read(f["n"]), read(f["L"]), read(f["E_bind"]), sigmas
+    end
 
-cross_sections = parse_TOPBase_cross_sections("../../Korg_data/bf_cross_sections/TOPBase/p01.01.dat")
-for state in keys(cross_sections)
-    Ebind, Es, sigmas = cross_sections[state]
-    cross_sections[state] = (Ebind, LinearInterpolation(Es, sigmas, extrapolation_bc=Flat()))
+    zip(_H_level_ns, _H_level_Ls, _H_level_binding_Es, _H_level_cross_sections)
 end
 
 #TODO broadcast over ν
@@ -46,13 +52,11 @@ function hydrogen_bound_absorption(ν, T, nH, nHe, ne, invU_H;
         end
 
         cross_section = 0
-        for (state, (Ebind, sigmas)) in cross_sections
-            if n == Int(round(sqrt(RydbergH_eV/Ebind)))
-                Elow = sigmas.itp.knots[1][1]
-                #println(round(hplanck_eV * c_cgs / Elow * 1e8))
-                g = 2*(2*state.L + 1)
-                cross_section += g * sigmas(hplanck_eV*ν)
-            end
+        for (n, L, Ebind, sigmas) in _H_cross_sections
+            #Elow = sigmas.itp.knots[1][1]
+            #println(round(hplanck_eV * c_cgs / Elow * 1e8))
+            g = 2 * (2L + 1)
+            cross_section += g * sigmas(hplanck_eV*ν)
         end
 
         partial_sum += ndens_state * cross_section * dissolved_fraction
