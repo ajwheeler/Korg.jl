@@ -32,8 +32,8 @@ function parse_NORAD_H_cross_sections(filename, norad_format=false)
 
         i += 2 # Make i point at the first real line of the cross-sections vals
         for j in 1:npoints
-            Es[j] = parse(Float32, lines[i+j-1][3:14])
-            σs[j] = parse(Float32, lines[i+j-1][16:24])
+            Es[j] = parse(Float64, lines[i+j-1][3:14])
+            σs[j] = parse(Float64, lines[i+j-1][26:36])
         end
 
         push!(cross_sections, (n, L, binding_E*RydbergH_eV, Es*RydbergH_eV, σs))
