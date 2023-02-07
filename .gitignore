@@ -1,6 +1,9 @@
 *.ipynb_checkpoints/
 *.zhistory
-Manifest.toml
+/Manifest.toml
+test/Manifest.toml
+docs/Manifest.toml
+sanity_checks/Manifest.toml
 *.jl~
 misc/Playground.ipynb
 misc/statprof/*
