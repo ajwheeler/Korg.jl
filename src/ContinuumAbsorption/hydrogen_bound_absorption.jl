@@ -2,13 +2,15 @@ using Interpolations: LinearInterpolation, Line
 using HDF5 #TODO remove?
 
 # load hydrogen bf cross sections
-_H_cross_sections = let
+const _H_cross_sections = let
     h5open(joinpath(_data_dir, "bf_cross-sections", 
                                          "individual_H_cross-sections.h5")) do f
         sigmas = map(eachcol(read(f["E"])), eachcol(read(f["sigma"]))) do Es, σs
             LinearInterpolation(Es, σs, extrapolation_bc=Line())
         end
-        zip(read(f["n"]), sigmas)
+        # use the cross sections for the first 6 energy levels only.
+        # the binding energy for n=7 corresponds to ~45,000 Å 
+        collect(zip(read(f["n"]), sigmas))[1:6]
     end
 end
 
@@ -19,12 +21,12 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H;
     E_levels = map(1:n_max) do n
         RydbergH_eV - RydbergH_eV/n^2
     end
-    ws = map(zip(1:n_max, E_levels)) do (n, E_level)
+    ws = map(1:n_max) do n
         hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
     end
 
     partial_sum = zeros(length(νs))
-    for n = 1 : 4 # iterate over energy levels
+    for (n, sigmas) in _H_cross_sections
         #the degeneracy is not included here
         ndens_state = ws[n] * exp(-E_levels[n] / (kboltz_eV * T))
 
@@ -50,16 +52,9 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H;
                 frac
             end
         end
-
-        cross_section = zeros(length(νs))
-        for (n_p, sigmas) in _H_cross_sections
-            if n_p != n
-                continue
-            end
-            # degeneracy, g, has already been factored in
-            cross_section += sigmas.(hplanck_eV .* νs)
-        end
-
+        
+        cross_section = sigmas.(hplanck_eV .* νs)
+        
         partial_sum .+= ndens_state .* cross_section .* dissolved_fraction
     end
     #factor of 10^-18 converts cross-sections from megabarns to cm^2
