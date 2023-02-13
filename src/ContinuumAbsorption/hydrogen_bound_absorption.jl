@@ -10,18 +10,18 @@ const _H_cross_sections = let
         end
         # use the cross sections for the first 6 energy levels only.
         # the binding energy for n=7 corresponds to ~45,000 Å 
-        collect(zip(read(f["n"]), sigmas))[1:6]
+        collect(zip(read(f["n"]), sigmas))
     end
 end
 
 #TODO broadcast over ν
-function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H; 
-                                   n_max=30, use_hubeny_generalization=false, taper=true)
+function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, n_lower_max=6,
+                                   use_hubeny_generalization=false, taper=true)
     #TODO collapse some of these maps
-    E_levels = map(1:n_max) do n
+    E_levels = map(1:n_upper_max) do n
         RydbergH_eV - RydbergH_eV/n^2
     end
-    ws = map(1:n_max) do n
+    ws = map(1:n_upper_max) do n
         hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
     end
 
@@ -42,7 +42,7 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H;
                 # that of the photon, i.e. the upper level
                 n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
                 frac = 1 - hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
-                if taper && n==1
+                if taper #&& n==1
                     redcut = hplanck_eV * c_cgs / (RydbergH_eV * (1/n^2 - 1/(n+1)^2))
                     λ = c_cgs / ν
                     if λ > redcut
@@ -58,7 +58,9 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H;
         partial_sum .+= ndens_state .* cross_section .* dissolved_fraction
     end
     #factor of 10^-18 converts cross-sections from megabarns to cm^2
-    @. nH * invU_H * partial_sum * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
+    alpha = @. nH * invU_H * partial_sum * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
+    #display(alpha)
+    alpha
 end
 
 """
