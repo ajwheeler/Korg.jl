@@ -14,9 +14,9 @@ const _H_cross_sections = let
     end
 end
 
-#TODO broadcast over ν
 function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, n_lower_max=6,
-                                   use_hubeny_generalization=false, taper=true)
+                                   use_hubeny_generalization=false, taper=false, 
+                                   use_MHD_for_Lyman=false)
     #TODO collapse some of these maps
     E_levels = map(1:n_upper_max) do n
         RydbergH_eV - RydbergH_eV/n^2
@@ -36,19 +36,27 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, 
         dissolved_fraction = map(νs) do ν
             if hplanck_eV * ν > RydbergH_eV/n^2
                 1.0
+            else if !use_MHD_for_Lyman && n==1
+                # don't use MHD for the Lyman series limit since it leads to inflated cross-sections
+                # far red of the limit
+                0.0 
             else
                 # otherwise there is still some bf absorption because of level dissolution
                 # this is the effective quantum number associated with the energy of the nth level plus 
                 # that of the photon, i.e. the upper level
                 n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
                 frac = 1 - hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
-                if taper #&& n==1
+
+                # the taper kwarg implements the tapering of the cross-section past a certain 
+                # wavelength redward of the jump.  It is not ennabled in Korg calls this function.
+                if taper && n==1
                     redcut = hplanck_eV * c_cgs / (RydbergH_eV * (1/n^2 - 1/(n+1)^2))
                     λ = c_cgs / ν
                     if λ > redcut
                         frac *= exp(-(c_cgs/ν - redcut)*1e6)
                     end
                 end
+
                 frac
             end
         end
