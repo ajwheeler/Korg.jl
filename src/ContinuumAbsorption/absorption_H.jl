@@ -1,13 +1,13 @@
 using Interpolations: LinearInterpolation, Throw
 using HDF5: h5read
 
-using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
+using ..ContinuumAbsorption: hydrogenic_ff_absorption, ionization_energies
 
-const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
 const _H⁻_ion_energy = 0.754204 # [eV] used by McLaughlin+ 2017 H⁻ ff cross sections
 
 """
-    TODO
+    H_I_bf(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, use_hubeny_generalization=false, 
+           taper=false, use_MHD_for_Lyman=false)
 
 The bound-free linear absorption coefficient contributed by all energy states of a neutral Hydrogen 
 atom.  Even though the Mihalas-Hummer-Daeppen (MHD) occupation probability formalism is not used in
