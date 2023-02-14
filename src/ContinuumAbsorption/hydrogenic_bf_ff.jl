@@ -2,7 +2,6 @@ using Interpolations: LinearInterpolation, Throw
 using StaticArrays: SA
 
 _eVtoHz(energy) = energy/hplanck_eV
-_HztoeV(freq) = freq*hplanck_eV
 
 # In the following equation, e is the elementary charge in units of statcoulombs
 const _bf_σ_const = 2.815e29 # = 64*π⁴e^10 mₑ / (c h⁶ 3√3)

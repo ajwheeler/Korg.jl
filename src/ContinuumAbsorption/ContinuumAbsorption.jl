@@ -1,7 +1,7 @@
 module ContinuumAbsorption
 
 using ..Korg: ionization_energies, Species, @species_str, _data_dir # not sure that this is the best idea
-using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound
+using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound, hummer_mihalas_w
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
 # define helper functions
@@ -54,7 +54,7 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
     nH_I = number_densities[species"H_I"]
     nH_I_div_U = nH_I / partition_funcs[species"H_I"](log(T))
 
-    α .+= hydrogen_bound_absorption(νs, T, nH_I, number_densities[species"He I"], nₑ, 
+    α .+= H_I_bf(νs, T, nH_I, number_densities[species"He I"], nₑ, 
                                     1/partition_funcs[species"H I"](log(T)); taper=true)
 
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)

@@ -6,39 +6,75 @@ using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption,
 const _H_I_ion_energy = ionization_energies[1][1] # not sure if this is a good idea
 const _H⁻_ion_energy = 0.754204 # [eV] used by McLaughlin+ 2017 H⁻ ff cross sections
 
-_H_I_bf(ν, T, nH_I_div_partition, ion_energy = _H_I_ion_energy, nmax_explicit_sum = 8,
-        integrate_high_n = true) =
-           hydrogenic_bf_absorption(ν, T, 1, nH_I_div_partition, ion_energy, nmax_explicit_sum,
-                                    integrate_high_n)
 """
-    H_I_bf(ν, T, nH_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n];
-           kwargs...)
+    TODO
 
-Compute the bound-free linear absorption coefficient contributed by all energy states of a
-neutral Hydrogen atom.
+The bound-free linear absorption coefficient contributed by all energy states of a neutral Hydrogen 
+atom.  Even though the Mihalas-Hummer-Daeppen (MHD) occupation probability formalism is not used in
+Korg when computing the hydrogen partition function, it is used here.
 
-# Required Arguments
-- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
-- `T`: temperature in K
-- `nH_I_div_partition` is the total number density of neutral Hydrogen divided by the its
-   partition function.
-
-# Optional Arguments
-- `ion_energy`: The ionization energy of Hydrogen. By default, this is set to the values loaded 
-  into the global `ionization_energies` list.
-- `nmax_explicit_sum`: The highest energy level whose absorption contribution is included
-   in the explicit sum. The contributions from higher levels are included in an integral.
-- `integrate_high_n::bool`: When this is `false`, bf absorption from higher energy states are not
-   estimated at all. Default is `true`.
-
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
-
-# Notes
-This function wraps [`hydrogenic_ff_absorption`](@ref). See that function for implementation
-details.
+Because MHD level dissolution applied to the the Lyman series limit leads to inflated cross-sections
+in the visible, we don't use MHD for bf absorption from n=1.  This can be overridden by setting
+`use_MHD_for_Lyman=true`, in which case you will also want to set `taper=true`, which the same 
+tapering of the cross-section as [HBOP](https://github.com/barklem/hlinop/blob/master/hbop.f) to fix 
+the problem.
+                                    
+The `use_hubeny_generalization` keyword argument ennables the generalization of the MHD from 
+Hubeny 1994. It is experimental and switched off by default.
 """
-H_I_bf = bounds_checked_absorption(_H_I_bf; ν_bound = Interval(0, Inf),
-                                   temp_bound = Interval(0, Inf))
+function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, use_hubeny_generalization=false, 
+                taper=false, use_MHD_for_Lyman=false)
+    #TODO collapse some of these maps
+    E_levels = map(1:n_upper_max) do n
+        RydbergH_eV - RydbergH_eV/n^2
+    end
+    ws = map(1:n_upper_max) do n
+        hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+    end
+                                    
+    total_cross_section = zeros(length(νs))
+    for (n, sigmas) in _H_cross_sections
+        #the degeneracy is not included here
+        ndens_state = ws[n] * exp(-E_levels[n] / (kboltz_eV * T))
+                                    
+        dissolved_fraction = map(νs) do ν
+            if hplanck_eV * ν > RydbergH_eV/n^2
+                # if the photon energy is greater than the ionization energy of the unperturbed atom 
+                # with its electron having primary quantum number n, the dissolved fraction is one.
+                1.0
+            elseif !use_MHD_for_Lyman && n==1
+                # don't use MHD for the Lyman series limit since it leads to inflated cross-sections
+                # far red of the limit
+                0.0 
+            else  # account for bf absorption redward of the limit because of level dissolution
+                # the effective quantum number associated with the energy of the nth level plus the 
+                # photon energy
+                n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
+                # this could probably be interpolated without much loss of accuracy
+                w_upper = hummer_mihalas_w(T, n_eff, nH, nHe, ne; 
+                                            use_hubeny_generalization=use_hubeny_generalization)
+                # w_upper/w[n] is the prob that the upper level is dissolved given that the lower isn't
+                frac = 1 - w_upper/ws[n] 
+                if taper 
+                    # taper of the cross-section past a certain  wavelength redward of the jump, as 
+                    # is done in HBOP. (Not ennabled in Korg calls to this function.)
+                    redcut = hplanck_eV * c_cgs / (RydbergH_eV * (1/n^2 - 1/(n+1)^2))
+                    λ = c_cgs / ν
+                    if λ > redcut
+                        frac *= exp(-(λ - redcut)*1e6)
+                    end
+                end
+                frac
+            end
+        end
+                                            
+        cross_section = sigmas.(hplanck_eV .* νs)
+                                            
+        total_cross_section .+= ndens_state .* cross_section .* dissolved_fraction
+    end
+    #factor of 10^-18 converts cross-sections from megabarns to cm^2
+    @. nH * invU_H * total_cross_section * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
+end
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
