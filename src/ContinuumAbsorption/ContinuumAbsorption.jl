@@ -45,7 +45,7 @@ The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
     sorted `AbstractVector`, it is most effient when passed an  `AbstractRange`.
 """
 function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partition_funcs::Dict;
-                                    error_oobounds = false, new_hbf=false)
+                                    error_oobounds=false, new_hbf=true)
     α = zeros(promote_type(eltype(νs), typeof(T), typeof(nₑ), valtype(number_densities)), length(νs))
 
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
@@ -61,8 +61,6 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
     else
         H_I_bf(νs, T, nH_I_div_U; kwargs...)
     end
-
-    return α
 
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)

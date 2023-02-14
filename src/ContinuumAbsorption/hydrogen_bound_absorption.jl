@@ -42,7 +42,6 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H;
         #the degeneracy is not included here
         ndens_state = ws[n] * exp(-E_levels[n] / (kboltz_eV * T))
 
-        # TODO this is different from TS and Hillier
         dissolved_fraction = map(νs) do ν
             if hplanck_eV * ν > RydbergH_eV/n^2
                 # if the photon energy is greater than the ionization energy of the unperturbed atom 
@@ -57,8 +56,10 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H;
                 # photon energy
                 n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
                 # this could probably be interpolated without much loss of accuracy
-                frac = 1 - hummer_mihalas_w(T, n_eff, nH, nHe, ne; 
+                w_upper = hummer_mihalas_w(T, n_eff, nH, nHe, ne; 
                                             use_hubeny_generalization=use_hubeny_generalization)
+                # w_upper/w[n] is the prob that the upper level is dissolved given that the lower isn't
+                frac = 1 - w_upper/ws[n] 
                 if taper 
                     # taper of the cross-section past a certain  wavelength redward of the jump, as 
                     # is done in HBOP. (Not ennabled in Korg calls to this function.)
@@ -77,9 +78,7 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H;
         total_cross_section .+= ndens_state .* cross_section .* dissolved_fraction
     end
     #factor of 10^-18 converts cross-sections from megabarns to cm^2
-    alpha = @. nH * invU_H * total_cross_section * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
-    #display(alpha)
-    alpha
+    @. nH * invU_H * total_cross_section * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
 end
 
 """
