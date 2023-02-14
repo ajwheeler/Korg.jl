@@ -14,8 +14,20 @@ const _H_cross_sections = let
     end
 end
 
-function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, n_lower_max=6,
-                                   use_hubeny_generalization=false, taper=false, 
+"""
+
+
+Because MHD level dissolution applied to the the Lyman series limit leads to inflated cross-sections
+in the visible, we don't use MHD for bf absorption from n=1.  This can be overridden by setting
+`use_MHD_for_Lyman=true`, in which case you will also want to set `taper=true`, which the same 
+tapering of the cross-section as [HBOP](https://github.com/barklem/hlinop/blob/master/hbop.f) to fix 
+the problem.
+
+The `use_hubeny_generalization` keyword argument ennables the generalization of the MHD from 
+Hubeny 1994. It is experimental and switched off by default.
+"""
+function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H; 
+                                   n_upper_max=40, use_hubeny_generalization=false, taper=false, 
                                    use_MHD_for_Lyman=false)
     #TODO collapse some of these maps
     E_levels = map(1:n_upper_max) do n
@@ -25,48 +37,47 @@ function hydrogen_bound_absorption(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, 
         hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
     end
 
-    partial_sum = zeros(length(νs))
+    total_cross_section = zeros(length(νs))
     for (n, sigmas) in _H_cross_sections
         #the degeneracy is not included here
         ndens_state = ws[n] * exp(-E_levels[n] / (kboltz_eV * T))
 
         # TODO this is different from TS and Hillier
-        # if the photon energy is greater than the ionization energy of the unperturbed atom with its
-        # electron having primary quantum number n, the dissolved fraction is unity
         dissolved_fraction = map(νs) do ν
             if hplanck_eV * ν > RydbergH_eV/n^2
+                # if the photon energy is greater than the ionization energy of the unperturbed atom 
+                # with its electron having primary quantum number n, the dissolved fraction is one.
                 1.0
-            else if !use_MHD_for_Lyman && n==1
+            elseif !use_MHD_for_Lyman && n==1
                 # don't use MHD for the Lyman series limit since it leads to inflated cross-sections
                 # far red of the limit
                 0.0 
-            else
-                # otherwise there is still some bf absorption because of level dissolution
-                # this is the effective quantum number associated with the energy of the nth level plus 
-                # that of the photon, i.e. the upper level
+            else  # account for bf absorption redward of the limit because of level dissolution
+                # the effective quantum number associated with the energy of the nth level plus the 
+                # photon energy
                 n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
-                frac = 1 - hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
-
-                # the taper kwarg implements the tapering of the cross-section past a certain 
-                # wavelength redward of the jump.  It is not ennabled in Korg calls this function.
-                if taper && n==1
+                # this could probably be interpolated without much loss of accuracy
+                frac = 1 - hummer_mihalas_w(T, n_eff, nH, nHe, ne; 
+                                            use_hubeny_generalization=use_hubeny_generalization)
+                if taper 
+                    # taper of the cross-section past a certain  wavelength redward of the jump, as 
+                    # is done in HBOP. (Not ennabled in Korg calls to this function.)
                     redcut = hplanck_eV * c_cgs / (RydbergH_eV * (1/n^2 - 1/(n+1)^2))
                     λ = c_cgs / ν
                     if λ > redcut
-                        frac *= exp(-(c_cgs/ν - redcut)*1e6)
+                        frac *= exp(-(λ - redcut)*1e6)
                     end
                 end
-
                 frac
             end
         end
         
         cross_section = sigmas.(hplanck_eV .* νs)
         
-        partial_sum .+= ndens_state .* cross_section .* dissolved_fraction
+        total_cross_section .+= ndens_state .* cross_section .* dissolved_fraction
     end
     #factor of 10^-18 converts cross-sections from megabarns to cm^2
-    alpha = @. nH * invU_H * partial_sum * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
+    alpha = @. nH * invU_H * total_cross_section * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
     #display(alpha)
     alpha
 end
@@ -136,13 +147,13 @@ end
     hummer_mihalas_U_H(T, nH, nHe, ne)
 
 !!!note
-    This is experimental, and not used by Korg for spectal synthesis.
+    This is experimental, and not used by Korg for spectral synthesis.
 
 Calculate the partition function of neutral hydrogen using the occupation probability formalism
 from Hummer and Mihalas 1988.  See [`hummer_mihalas_w`](@ref) for details.
 """
 function hummer_mihalas_U_H(T, nH, nHe, ne; use_hubeny_generalization=false)
-    # Used by hummer_mihalas_U_H, below. These are from NIST, but it would be nice to generate them on the fly.
+    # These are from NIST, but it would be nice to generate them on the fly.
     hydrogen_energy_levels = [0.0, 10.19880615024, 10.19881052514816, 10.19885151459, 12.0874936591, 12.0874949611, 12.0875070783, 12.0875071004, 12.0875115582, 12.74853244632, 12.74853299663, 12.7485381084, 12.74853811674, 12.74853999753, 12.748539998, 12.7485409403, 13.054498182, 13.054498464, 13.054501074, 13.054501086, 13.054502042, 13.054502046336, 13.054502526, 13.054502529303, 13.054502819633, 13.22070146198, 13.22070162532, 13.22070313941, 13.22070314214, 13.220703699081, 13.22070369934, 13.220703978574, 13.220703979103, 13.220704146258, 13.220704146589, 13.220704258272, 13.320916647, 13.32091675, 13.320917703, 13.320917704, 13.320918056, 13.38596007869, 13.38596014765, 13.38596078636, 13.38596078751, 13.385961022639, 13.4305536, 13.430553648, 13.430554096, 13.430554098, 13.430554262, 13.462451058, 13.462451094, 13.46245141908, 13.462451421, 13.46245154007, 13.486051554, 13.486051581, 13.486051825, 13.486051827, 13.486051916, 13.504001658, 13.504001678, 13.50400186581, 13.504001867, 13.50400193582]
     hydrogen_energy_level_degeneracies = [2, 2, 2, 4, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 6, 8, 2, 2, 4, 4, 6, 6, 8, 8, 10, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6]
     hydrogen_energy_level_n = [1, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12]
