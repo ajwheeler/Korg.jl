@@ -45,7 +45,7 @@ The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
     sorted `AbstractVector`, it is most effient when passed an  `AbstractRange`.
 """
 function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partition_funcs::Dict;
-                                    error_oobounds=false, new_hbf=true)
+                                    error_oobounds=false)
     α = zeros(promote_type(eltype(νs), typeof(T), typeof(nₑ), valtype(number_densities)), length(νs))
 
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
@@ -54,17 +54,12 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
     nH_I = number_densities[species"H_I"]
     nH_I_div_U = nH_I / partition_funcs[species"H_I"](log(T))
 
-    # Hydrogen continuum absorption
-    if new_hbf
-        α .+= hydrogen_bound_absorption(νs, T, nH_I, number_densities[species"He I"], nₑ, 
+    α .+= hydrogen_bound_absorption(νs, T, nH_I, number_densities[species"He I"], nₑ, 
                                     1/partition_funcs[species"H I"](log(T)); taper=true)
-    else
-        H_I_bf(νs, T, nH_I_div_U; kwargs...)
-    end
 
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
-    H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_I"]; kwargs...)
+    H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
     # He continuum absorption isn't actually important, but here we are
     He_II_bf(νs, T, number_densities[species"He_II"]/partition_funcs[species"He_II"](log(T)); kwargs...)
