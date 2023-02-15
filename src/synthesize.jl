@@ -50,6 +50,9 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
   calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
+- `use_MHD_for_hydrogen_lines` (default: `true`): whether or not to use the MHD occupation 
+   probability formalism for hydrogen lines.  (It is always used for hydrogen bound-free absorption.)
+   hydrogen lines.  This is only valid for spherical geometry.
 - `hydrogen_line_window_size` (default: 150): the mamximum distance (in Å) from each hydrogen line 
    center at which to calculate its contribution to the total absorption coefficient.
 - `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
@@ -91,9 +94,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_s
 end
 function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
-                    hydrogen_lines=true, hydrogen_line_window_size=150, n_mu_points=20, 
-                    line_cutoff_threshold=3e-4, bezier_radiative_transfer=false, 
-                    ionization_energies=ionization_energies, partition_funcs=default_partition_funcs,
+                    hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
+                    hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
+                    bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
+                    partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants)
     #work in cm
     λs = λs * 1e-8
@@ -146,9 +150,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
 
         if hydrogen_lines
             hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
-                                      n_dict[species"H_I"], 
+                                      n_dict[species"H_I"], n_dict[species"He I"],
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
-                                      hydrogen_line_window_size*1e-8)
+                                      hydrogen_line_window_size*1e-8; 
+                                      use_MHD=use_MHD_for_hydrogen_lines)
         end
 
         n_dict, α_cntm_layer
