@@ -28,7 +28,8 @@ Hubeny 1994. It is experimental and switched off by default.
 """
 function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalization=false, 
                 taper=false, use_MHD_for_Lyman=false)
-    total_cross_section = zeros(length(νs)) #TODO make autodiff-safe
+    σ_type = promote_type(eltype(νs), typeof(T), typeof(nH), typeof(nHe), typeof(ne), typeof(invU_H))
+    total_cross_section = zeros(σ_type, length(νs))
     for (n, sigmas) in _H_cross_sections[1:n_max_MHD]
         w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
         #the degeneracy is already factored into the nahar cross-sections

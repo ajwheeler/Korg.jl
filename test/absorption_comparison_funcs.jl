@@ -293,11 +293,12 @@ end # end the definition of the Gray_opac_compare module
 module OP_compare
 using Korg
 
-function calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec)
+function calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec; use_OP_data=true)
     @assert spec in Korg.Species.(["H I", "He II"])
+    @assert (spec == Korg.species"H I") || use_OP_data
 
     νs = Korg.c_cgs ./ (λ_vals * 1e-8)
-    if spec == Korg.species"He II"
+    if use_OP_data || spec == Korg.species"He II"
         σ_itp = Korg.ContinuumAbsorption.metal_bf_cross_sections[spec]
         exp.(log(ndens_species) .+ σ_itp.(νs, log10(T))) * 1e-18 #convert to cm^2 
     else # spec is H I
@@ -309,7 +310,9 @@ end
 
 function _dflt_λ_vals(spec)
     if spec == Korg.species"H I"
-        500 : 1.0 : 5_000
+        # skip the breaks because that's where MHD make a difference.  Don't go to far red because 
+        # those levels get dissolved.
+        [500:1.0:600 ; 3000:1.0:3100 ; 4000:1.0:4100 ; 10_000:1.0:10_100]
     else # He II
         500 : 1.0 : 900 # cross-section is below Float32 min above ~912 Å
     end

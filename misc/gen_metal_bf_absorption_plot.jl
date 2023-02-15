@@ -21,7 +21,7 @@ function plot_hydrogenic_comparison(spec, T = 7800.0, ndens_species = 3.0e16; p 
         p = plot()
     end
     plot!(p, λ_vals, [hydrogenic_α_OP, hydrogenic_α_dflt],
-          labels = ["Opacity Project" "Reference (Hydrogenic)"],
+          labels = ["Opacity Project" "Korg default (uses MHD)"],
           yscale = :log10, xscale = :log10, ylims = ylims,
           ylabel = "absorption coef, α (cm⁻¹)", xlabel = "λ (Ångstroms)",
           title = "$spec Comparison")
@@ -36,7 +36,7 @@ end
 function main()
     T = 7800.0 # kind of arbitrary
     ndens_species = 3.0e16 # kind of arbitrary
-    for spec in Korg.Species.(["H I", "He II"])
+    for spec in Korg.Species.(["H I"]) #He II no longer has a non-OP implementation.
         plot_fname = joinpath(@__DIR__, string(spec, " comp.png"))
         println("\nCreating Comparison plot at T = $T K, n($spec)= $ndens_species cm⁻³ for $spec")
         p = plot_hydrogenic_comparison(spec, T, ndens_species);

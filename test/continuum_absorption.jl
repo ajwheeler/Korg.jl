@@ -513,38 +513,10 @@ end
             nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
             nH_I = nₑ * 100.0 # this is totally arbitrary
 
-            absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, nH_I/H_I_partition_val,
-                                                              H_I_ion_energy) / nH_I
-            @test maximum(abs.(absorption_coef - ref_absorption_coef)/absorption_coef) < 0.007
+            absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, 1, 0, 0, H_I_partition_val)
+            @test assert_allclose_grid(absorption_coef, ref_absorption_coef, [("λ", λ_vals, "Å")];
+                                       rtol=0.0, atol=0.007)
             @test all(absorption_coef .≥ 0.0)
-        end
-    end
-
-    @testset "Integral-Summation Equivalence" begin
-        # Korg.ContinuumAbsorption.H_I_bf approximates the sum of the absorption contributions from
-        # bound-free transitions originating from high energy levels with an integral. These tests
-        # check that the integral does a reasonable job reproducing the direct sum.
-
-        H_I_ion_energy = Korg.RydbergH_eV # use this to decouple test from ionization energies
-        H_I_partition_val = 2.0 # implicitly assumed by the Gray implementation
-
-        λ_vals = [3e3 + (i-1)*500 for i = 1:35] # equally spaced vals from 3e3 Å through 2e4 Å
-        ν_vals = Korg.c_cgs*1e8./λ_vals
-
-        nstop_sum = 100
-
-        for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
-            ref_absorption_coef = gray_H_I_bf_absorption_coef.(λ_vals, T)
-
-            nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
-            nH_I = nₑ * 100.0 # this is totally arbitrary
-
-            α_integral = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, nH_I/H_I_partition_val,
-                                                         H_I_ion_energy)
-            α_sum = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, nH_I/H_I_partition_val,
-                                                    H_I_ion_energy, nstop_sum, false)
-            #println(maximum(abs.(α_integral - α_sum)/α_sum))
-            @test maximum(abs.(α_integral - α_sum)/α_sum) < 0.003
         end
     end
 end
@@ -569,24 +541,21 @@ end
     T = 7800.0 #K, this is fairly arbitrary
     ndens_species = 3.0e16 #cm⁻³, this is fairly arbitrary
 
-    @testset "$spec comparison" for spec in Korg.Species.(["H_I", "He_II"])
-        λ_vals = OP_compare._dflt_λ_vals(spec)
+    λ_vals = OP_compare._dflt_λ_vals(Korg.species"H I")
 
-        # compute the absorption coefficients using the TOPbase/NORAD data
-        hydrogenic_α_OP = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
-                                                                        spec; use_OP_data = true)
-        # compute the absorption coefficients using our function for hydrogenic atoms
-        hydrogenic_α_dflt = OP_compare.calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species,
-                                                                          spec; use_OP_data = false)
+    # compute the absorption coefficients using the TOPbase/NORAD data
+    H_I_bf_OP = OP_compare.calc_hydrogenic_bf_absorption_coef(
+        λ_vals, T, ndens_species, Korg.species"H I"; use_OP_data = true)
+    # compute the absorption coefficients using our function for hydrogenic atoms
+    H_I_bf_default = OP_compare.calc_hydrogenic_bf_absorption_coef(
+        λ_vals, T, ndens_species, Korg.species"H I"; use_OP_data = false)
 
-        λ_comp_intervals = [(λ_vals[1], λ_vals[end])]
-        @test assert_allclose_grid(hydrogenic_α_OP, hydrogenic_α_dflt, [("λ", λ_vals, "Å"),];
-                                   rtol = OP_compare._hydrogenic_rtol(spec), atol = 0.0,
-                                   err_msg = ("\n$(spec) bf absorption coefficients " *
-                                              "computed using data from the opacity project are " *
-                                              "inconsistent with the results computed for a " *
-                                              "hydrogenic atom"),
-                                   print_rachet_info=false)
-    end
+    λ_comp_intervals = [(λ_vals[1], λ_vals[end])]
+    @test assert_allclose_grid(H_I_bf_OP, H_I_bf_default, [("λ", λ_vals, "Å"),];
+                               rtol = OP_compare._hydrogenic_rtol(Korg.species"H I"), atol = 0.0,
+                               err_msg = ("\nH I bf absorption coefficients " *
+                                          "computed using data from the opacity project are " *
+                                          "inconsistent with the default implementation."),
+                               print_rachet_info=true)
 end
 
