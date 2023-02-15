@@ -5,13 +5,17 @@ using ..ContinuumAbsorption: hydrogenic_ff_absorption, ionization_energies
 
 const _H⁻_ion_energy = 0.754204 # [eV] used by McLaughlin+ 2017 H⁻ ff cross sections
 
+
 """
-    H_I_bf(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, use_hubeny_generalization=false, 
+    H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalization=false, 
            taper=false, use_MHD_for_Lyman=false)
 
 The bound-free linear absorption coefficient contributed by all energy states of a neutral Hydrogen 
 atom.  Even though the Mihalas-Hummer-Daeppen (MHD) occupation probability formalism is not used in
 Korg when computing the hydrogen partition function, it is used here.
+
+By default, detailed cross-sections for n=1 through n=6 are included, with the rest modelled with a 
+simple integral. This can be overridden by setting `n_max_MHD`. TODO
 
 Because MHD level dissolution applied to the the Lyman series limit leads to inflated cross-sections
 in the visible, we don't use MHD for bf absorption from n=1.  This can be overridden by setting
@@ -22,23 +26,18 @@ the problem.
 The `use_hubeny_generalization` keyword argument ennables the generalization of the MHD from 
 Hubeny 1994. It is experimental and switched off by default.
 """
-function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, use_hubeny_generalization=false, 
+function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalization=false, 
                 taper=false, use_MHD_for_Lyman=false)
-    #TODO collapse some of these maps
-    E_levels = map(1:n_upper_max) do n
-        RydbergH_eV - RydbergH_eV/n^2
-    end
-    ws = map(1:n_upper_max) do n
-        hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
-    end
-                                    
-    total_cross_section = zeros(length(νs))
-    for (n, sigmas) in _H_cross_sections
-        #the degeneracy is not included here
-        ndens_state = ws[n] * exp(-E_levels[n] / (kboltz_eV * T))
+    total_cross_section = zeros(length(νs)) #TODO make autodiff-safe
+    for (n, sigmas) in _H_cross_sections[1:n_max_MHD]
+        w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+        #the degeneracy is already factored into the nahar cross-sections
+        occupation_prob = w_lower * exp(-RydbergH_eV * (1-1/n^2) / (kboltz_eV * T))
                                     
         dissolved_fraction = map(νs) do ν
-            if hplanck_eV * ν > RydbergH_eV/n^2
+            if n > n_max_MHD
+                0.0
+            elseif hplanck_eV * ν > RydbergH_eV/n^2
                 # if the photon energy is greater than the ionization energy of the unperturbed atom 
                 # with its electron having primary quantum number n, the dissolved fraction is one.
                 1.0
@@ -54,7 +53,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, use_hubeny_generali
                 w_upper = hummer_mihalas_w(T, n_eff, nH, nHe, ne; 
                                             use_hubeny_generalization=use_hubeny_generalization)
                 # w_upper/w[n] is the prob that the upper level is dissolved given that the lower isn't
-                frac = 1 - w_upper/ws[n] 
+                frac = 1 - w_upper/w_lower
                 if taper 
                     # taper of the cross-section past a certain  wavelength redward of the jump, as 
                     # is done in HBOP. (Not ennabled in Korg calls to this function.)
@@ -67,14 +66,58 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_upper_max=40, use_hubeny_generali
                 frac
             end
         end
-                                            
         cross_section = sigmas.(hplanck_eV .* νs)
-                                            
-        total_cross_section .+= ndens_state .* cross_section .* dissolved_fraction
+        total_cross_section .+= occupation_prob .* cross_section .* dissolved_fraction
     end
+
+    for n in (n_max_MHD+1) : 40
+        w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+        occupation_prob = 2n^2 * w_lower * exp(-RydbergH_eV * (1-1/n^2) / (kboltz_eV * T))
+        if w_lower < 1e-3
+            break
+        end
+        # factor of 1e18 converts from cm^2 to megabarns
+        @. total_cross_section += occupation_prob * hydrogen_bf_cross_section.(n, νs) * 1e18
+    end
+
     #factor of 10^-18 converts cross-sections from megabarns to cm^2
     @. nH * invU_H * total_cross_section * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
 end
+
+
+"""
+Calculate the H I bf cross section using a very simple approximation.  See, for example, Kurucz 1970
+equation 5.5.
+
+Equation 5.5 of Kurucz had a typo in it. In the numerator of the fraction that is multiplied by the 
+entire polynomial, Z² should be Z⁴. This was discovered during comparisons with data from the 
+Opacity Project, and can be confirmed by looking at eqn 5.6 of Kurucz (it uses Z⁴ instead of Z²) or
+by comparison against equation 10.54 of Rybicki & Lightman.
+"""
+function hydrogen_bf_cross_section(n::Integer, ν::Real)
+    # this implements equation 5.5 from Kurucz (1970)
+    # - Z is the atomic number
+    # - n is the energy level (remember, they start from n=1)
+    # - ν should have units of Hz
+    # - ion_freq is the frequency of the photon carrying the minimum energy needed to ionize the
+    #   ground state configuration of the current ion (in Hz). This can be estimated as
+    #   _eVtoHz(Z²*RydbergH_eV).
+    if (n < 1)
+        throw(DomainError(n,"n must be a positive integer"))
+    end
+
+    inv_n = 1.0/n
+    inv_n2 = inv_n*inv_n
+    if hplanck_eV * ν < (RydbergH_eV*inv_n2)
+        0.0
+    else
+        inv_ν = 1.0/ν
+        # 64*π⁴e^10 mₑ / (c h⁶ 3√3), where e is the elementary charge in units of statcoulombs
+        bf_σ_const = 2.815e29 
+        bf_σ_const * (inv_n2*inv_n2*inv_n) * (inv_ν^3)
+    end
+end
+
 
 """
     _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)

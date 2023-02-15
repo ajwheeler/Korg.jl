@@ -134,8 +134,7 @@ function HI_coefficient(λ, T, Pₑ, H_I_ion_energy = 13.598)
     bf_coef = begin
         H_I_partition_val = 2.0 # implicitly in the implementation provided by Gray (2005)
         nH_I = nₑ * 100.0 # this is totally arbitrary
-        bf_linear_absorption_coef = Korg.ContinuumAbsorption.H_I_bf([ν], T, nH_I/H_I_partition_val,
-                                                                    H_I_ion_energy)[1]
+        bf_linear_absorption_coef = Korg.ContinuumAbsorption.H_I_bf([ν], T, 1.0, 0, 0, 1/H_I_partition_val)[1]*nH_I
         bf_linear_absorption_coef / (Pₑ * nH_I)
     end
 
@@ -294,23 +293,17 @@ end # end the definition of the Gray_opac_compare module
 module OP_compare
 using Korg
 
-function calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec;
-                                            use_OP_data = false)
+function calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec)
     @assert spec in Korg.Species.(["H I", "He II"])
 
     νs = Korg.c_cgs ./ (λ_vals * 1e-8)
-    if use_OP_data
+    if spec == Korg.species"He II"
         σ_itp = Korg.ContinuumAbsorption.metal_bf_cross_sections[spec]
         exp.(log(ndens_species) .+ σ_itp.(νs, log10(T))) * 1e-18 #convert to cm^2 
-    else
-        ndens_div_partition = ndens_species/Korg.default_partition_funcs[spec](log(T))
-        if spec == Korg.species"H I"
-            H_I_ion_energy = 13.598
-            Korg.ContinuumAbsorption.H_I_bf(νs, T, ndens_div_partition, H_I_ion_energy)
-        else
-            He_II_ion_energy = 54.418
-            Korg.ContinuumAbsorption.He_II_bf(νs, T, ndens_div_partition, He_II_ion_energy)
-        end
+    else # spec is H I
+        invU = 1/Korg.default_partition_funcs[spec](log(T))
+        # assume nHe = ne = 0 for the purposed of MHD
+        Korg.ContinuumAbsorption.H_I_bf(νs, T, ndens_species, 0, 0, invU)
     end
 end
 
