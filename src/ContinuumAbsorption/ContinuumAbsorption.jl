@@ -1,26 +1,17 @@
 module ContinuumAbsorption
+export total_continuum_absorption
 
 using ..Korg: ionization_energies, Species, @species_str, _data_dir # not sure that this is the best idea
 using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound, hummer_mihalas_w
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
-# define helper functions
-include("bounds_checking.jl")
+include("bounds_checking.jl") # define helper functions
 include("hydrogenic_bf_ff.jl")
-
-include("hydrogen_bound_absorption.jl")
 include("absorption_H.jl")
 include("absorption_He.jl")
-
 include("absorption_ff_positive_ion.jl")
-#used for metal bf absorption
-using HDF5 
-using Interpolations: LinearInterpolation, Flat
 include("absorption_metals_bf.jl")
 include("scattering.jl")
-
-
-export total_continuum_absorption
 
 """
     total_continuum_absorption(νs, T, nₑ, number_densities, partition_funcs; error_oobounds)

@@ -1,3 +1,6 @@
+using HDF5 
+using Interpolations: LinearInterpolation, Flat
+
 metal_bf_cross_sections = let 
     cross_sections = Dict{Species, Any}()
     h5open(joinpath(_data_dir, "bf_cross-sections", "bf_cross-sections.h5")) do f
