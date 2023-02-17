@@ -203,7 +203,8 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, win
         β = 1/(kboltz_eV * T)
         
         levels_factor = if use_MHD
-            (ws[line.lower]*exp(-β*Elo) - (ws[line.upper]/ws[line.lower])*exp(-β*Eup)) / UH_I
+            # the transition can't happen if the upper level doesn't exist
+            ws[line.upper] * (exp(-β*Elo) - exp(-β*Eup)) / UH_I
         else
             (exp(-β*Elo) - exp(-β*Eup)) / UH_I
         end

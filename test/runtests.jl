@@ -184,8 +184,10 @@ end
         close(fid)
 
         αs = zeros(length(wls))
-        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1e11, 1e13, 0.0,
-                                       Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
+        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1e11, 1.0, 0.0,
+                                       Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 
+                                       0.0, 15e-7) 
+        αs .*= 1e13 # pass n(H I) = 1 to the function, then multiply by n(H I), to avoid MHD effects
         @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; atol=5e-9)
 
         #make sure that H line absorption doesn't return NaNs on inputs where it used to

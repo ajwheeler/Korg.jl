@@ -515,7 +515,7 @@ end
 
             absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, 1, 0, 0, H_I_partition_val)
             @test assert_allclose_grid(absorption_coef, ref_absorption_coef, [("λ", λ_vals, "Å")];
-                                       rtol=0.0, atol=0.007)
+                                       rtol=0.0, atol=1e-20, print_rachet_info=false)
             @test all(absorption_coef .≥ 0.0)
         end
     end
