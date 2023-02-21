@@ -41,17 +41,18 @@ Hubeny 1994. It is experimental and switched off by default.
 """
 function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalization=false, 
                 taper=false, use_MHD_for_Lyman=false)
+    χ = ionization_energies[1][1]
     σ_type = promote_type(eltype(νs), typeof(T), typeof(nH), typeof(nHe), typeof(ne), typeof(invU_H))
     total_cross_section = zeros(σ_type, length(νs))
     for (n, sigmas) in _H_I_bf_cross_sections[1:n_max_MHD]
         w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
         #the degeneracy is already factored into the nahar cross-sections
-        occupation_prob = w_lower * exp(-RydbergH_eV * (1-1/n^2) / (kboltz_eV * T))
+        occupation_prob = w_lower * exp(-χ * (1-1/n^2) / (kboltz_eV * T))
                                     
         dissolved_fraction = map(νs) do ν
             if n > n_max_MHD
                 0.0
-            elseif hplanck_eV * ν > RydbergH_eV/n^2
+            elseif hplanck_eV * ν > χ/n^2
                 # if the photon energy is greater than the ionization energy of the unperturbed atom 
                 # with its electron having primary quantum number n, the dissolved fraction is one.
                 1.0
@@ -62,7 +63,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
             else  # account for bf absorption redward of the limit because of level dissolution
                 # the effective quantum number associated with the energy of the nth level plus the 
                 # photon energy
-                n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/RydbergH_eV)
+                n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/χ)
                 # this could probably be interpolated without much loss of accuracy
                 w_upper = hummer_mihalas_w(T, n_eff, nH, nHe, ne; 
                                             use_hubeny_generalization=use_hubeny_generalization)
@@ -71,7 +72,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
                 if taper 
                     # taper of the cross-section past a certain  wavelength redward of the jump, as 
                     # is done in HBOP. (Not ennabled in Korg calls to this function.)
-                    redcut = hplanck_eV * c_cgs / (RydbergH_eV * (1/n^2 - 1/(n+1)^2))
+                    redcut = hplanck_eV * c_cgs / (χ * (1/n^2 - 1/(n+1)^2))
                     λ = c_cgs / ν
                     if λ > redcut
                         frac *= exp(-(λ - redcut)*1e6)
@@ -86,7 +87,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
 
     for n in (n_max_MHD+1) : 40
         w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
-        occupation_prob = 2n^2 * w_lower * exp(-RydbergH_eV * (1-1/n^2) / (kboltz_eV * T))
+        occupation_prob = 2n^2 * w_lower * exp(-χ * (1-1/n^2) / (kboltz_eV * T))
         if w_lower < 1e-3
             break
         end
