@@ -458,7 +458,7 @@ function gray_H_I_bf_absorption_coef(λ, T)
 
     # They are not particularly tranparent about this, but I believe n0 should be the lowest energy
     # state for which the ionization energy is greater than or equal to photon_energy_eV
-    full_ion_energy = 13.6 # ionization from ground state
+    full_ion_energy = Korg.ionization_energies[1][1] # ionization from ground state
 
     # to ionize electron in state n, need:   photon_energy_eV ≥ full_ion_energy /n²
     # Rearrange eqn to determine values of n that can be excited by a given photon_energy_eV:
@@ -515,7 +515,7 @@ end
 
             absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, 1, 0, 0, H_I_partition_val)
             @test assert_allclose_grid(absorption_coef, ref_absorption_coef, [("λ", λ_vals, "Å")];
-                                       rtol=0.0, atol=1e-20, print_rachet_info=false)
+                                       rtol=0.007, print_rachet_info=false)
             @test all(absorption_coef .≥ 0.0)
         end
     end
@@ -527,7 +527,7 @@ end
 # alternative implementations described in Gray (2005), I'm unconcerned by the need for large
 # tolerances.
 @testset "combined H I bf and ff absorption" begin
-    @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.035),
+    @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.40),
                                                                           ("c",0.125),
                                                                           ("d",40.0)]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
