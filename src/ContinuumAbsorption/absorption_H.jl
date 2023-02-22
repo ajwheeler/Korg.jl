@@ -88,11 +88,24 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
     for n in (n_max_MHD+1) : 40
         w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
         occupation_prob = 2n^2 * w_lower * exp(-χ * (1-1/n^2) / (kboltz_eV * T))
-        if w_lower < 1e-3
+        if w_lower < 1e-5
             break
         end
+
+        # extrapolate the cross-section to lower energies by assuming proportionality to ν^3
+        ν_break =  χ/(n^2 * hplanck_eV)
+        σ_break = hydrogen_bf_cross_section(n, ν_break)
+        scaling_factor = σ_break / ν_break^3
+        σ_level = map(νs) do ν
+            if ν > ν_break
+                hydrogen_bf_cross_section(n, ν)
+            else
+                ν^3 * scaling_factor
+            end
+        end
+
         # factor of 1e18 converts from cm^2 to megabarns
-        @. total_cross_section += occupation_prob * hydrogen_bf_cross_section.(n, νs) * 1e18
+        @. total_cross_section += occupation_prob * σ_level * 1e18
     end
 
     #factor of 10^-18 converts cross-sections from megabarns to cm^2
