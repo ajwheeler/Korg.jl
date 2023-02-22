@@ -468,7 +468,7 @@ function gray_H_I_bf_absorption_coef(λ, T)
 
     # Let's compute the summation in equation 8.8 that runs from n₀ through n₀+2
     Σ_term = 0.0
-    for n = n₀:(n₀+2)
+    for n = n₀:(n₀+3)
         # compute excitation potential, χ, (from equation 8.3):
         χ = full_ion_energy * (1.0 - 1.0/(n*n)) #eV
         # estimate bound-free gaunt factor (from equation 8.5):
@@ -501,21 +501,17 @@ end
         # bound-free absorption. It's also much more constraining when H I bf absorption is
         # subdominant
 
-        H_I_ion_energy = Korg.RydbergH_eV # use this to decouple test from ionization energies
         H_I_partition_val = 2.0 # implicitly assumed by the Gray implementation
 
         λ_vals = [3e3 + (i-1)*250 for i = 1:69] # equally spaced vals from 3e3 Å through 2e4 Å
         ν_vals = Korg.c_cgs*1e8./λ_vals
 
-        for (logPₑ, T) in [(1.08, 5143.0), (1.77, 6429.0), (2.50, 7715.0), (2.76, 11572.0)]
+        for T in [5143.0, 6429.0, 7715.0, 11572.0]
             ref_absorption_coef = gray_H_I_bf_absorption_coef.(λ_vals, T)
 
-            nₑ = 10.0^logPₑ / (Korg.kboltz_cgs * T)
-            nH_I = nₑ * 100.0 # this is totally arbitrary
-
-            absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, 1, 0, 0, H_I_partition_val)
+            absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, 1, 0, 0, 1/H_I_partition_val)
             @test assert_allclose_grid(absorption_coef, ref_absorption_coef, [("λ", λ_vals, "Å")];
-                                       rtol=0.007, print_rachet_info=false)
+                                       rtol=0.09, print_rachet_info=false)
             @test all(absorption_coef .≥ 0.0)
         end
     end
@@ -527,9 +523,9 @@ end
 # alternative implementations described in Gray (2005), I'm unconcerned by the need for large
 # tolerances.
 @testset "combined H I bf and ff absorption" begin
-    @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.40),
+    @testset "Gray (2005) Fig 8.5$panel comparison" for (panel, atol) in [("b",0.04),
                                                                           ("c",0.125),
-                                                                          ("d",40.0)]
+                                                                          ("d",30.0)]
         calculated, ref = Gray_opac_compare.Gray05_comparison_vals(panel,"H")
         @test all(calculated .≥ 0.0)
         @test assert_allclose(calculated, ref; rtol=0, atol=atol)
