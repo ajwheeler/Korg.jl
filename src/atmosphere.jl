@@ -277,12 +277,7 @@ function interpolate_marcs(Teff, logg, A_X::Vector; kwargs...)
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           archive=atmosphere_archive)
-    if isnothing(archive)
-        # the atmosphere archive is pretty large, so keep it out of memory unless it's used.
-        println("loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session.")
-        archive = _load_atmosphere_archive()
-    end
+                           archive=get_atmosphere_archive())
     nodes, exists, grid = archive
 
     params = [Teff, logg, M_H, alpha_M, C_M]
