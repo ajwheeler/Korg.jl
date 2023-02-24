@@ -16,7 +16,7 @@ Compute a synthetic spectrum.
 - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
 - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
-TODO flexible wavelength specification
+TODO flexible wavelength specification wl_chunk_inds
 
 # Returns 
 A named tuple with keys:
@@ -186,8 +186,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     # Add contribution of line absorption to α, proceding one wavelength range at a time.
     # Keeping the wavelengths in range objects is important for performance.
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
+    wavelength_chunks = []
     for λs in wl_ranges
         wl_inds = wl_lb_ind : wl_lb_ind + length(λs) - 1
+        push!(wavelength_chunks, wl_inds)
         line_absorption!(view(α, :, wl_inds), linelist, λs, [layer.temp for layer in atm.layers], 
                          [layer.electron_number_density for layer in atm.layers], number_densities,
                          partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
@@ -201,7 +203,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
         RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
     end
 
-    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=all_λs.*1e8)
+    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
+     wavelengths=all_λs.*1e8, wavelength_chunks=wavelength_chunks)
 end
 
 """
