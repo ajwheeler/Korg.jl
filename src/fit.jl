@@ -133,7 +133,7 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
     # contains *indices* into obs_wls for each wl range
     #obs_bounds_inds = merge_bounds(find_sensitive_ranges(J0, obs_wls, wl_chunk_size))
     obs_bounds_inds = find_sensitive_ranges(J0, obs_err, obs_wls, wl_chunk_size)
-    obs_bounds_inds = merge_bounds(obs_bounds_inds)
+    obs_bounds_inds = merge_bounds(obs_bounds_inds, 2wl_buffer / step(synthesis_wls))
 
     # set up masks, etc to work with subspectra in native and downsampled resolution
     # ------------------------------------------------------------------------------
@@ -199,13 +199,13 @@ end
 Sort a vector of lower-bound, uppoer-bound pairs and merge overlapping ranges.  Used by 
 find_best_params_multilocally.
 """
-function merge_bounds(bounds)
+function merge_bounds(bounds, merge_distance)
     bounds = sort(bounds, by=first)
     new_bounds = [bounds[1]]
     for i in 2:length(bounds)
-        # if these bounds overlap with the previous, extend the previous, 
+        # if these bounds are within merge_distance of the previous, extend the previous, 
         # otherwise add them to the list
-        if bounds[i][1] < new_bounds[end][2]
+        if bounds[i][1] < new_bounds[end][2] + merge_distance 
             new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
         else
             push!(new_bounds, bounds[i])
