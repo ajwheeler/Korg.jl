@@ -276,6 +276,39 @@ end
 format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
 
 """
+    get_metals_H(A_X)
+
+Calculate [metals/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_M/n_\\mathrm{H})``.
+See also [`get_A_alpha`](@ref).
+"""
+function get_metals_H(A_X; solar_abundances=asplund_2020_solar_abundances)
+   _get_multi_X_H(A_X, 3:MAX_ATOMIC_NUMBER, solar_abundances)
+end
+
+"""
+    get_alpha_H(A_X)
+
+Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_α/n_\\mathrm{H})``.
+Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
+[`get_alpha_H`](@ref).
+"""
+function get_alpha_H(A_X; solar_abundances=asplund_2020_solar_abundances)
+    _get_multi_X_H(A_X, 8:2:22, solar_abundances)
+end
+
+"""
+Given a vector of abundances, `A_X`, get [I+J+K/H], where `Zs = [I,J,K]` is a vector of atomic 
+numbers.  This is used to calculate, for example, [α/H] and [metals/H].
+"""
+function _get_multi_X_H(A_X, Zs, solar_abundances)
+    # there is no logsumexp in the julia stdlib, but it would make this more stable.
+    # these are missing "+ 12", but it cancels out
+    A_mX = log10(sum(10^A_X[Z] - 12 for Z in Zs))
+    A_mX_solar = log10(sum(10^solar_abundances[Z] - 12 for Z in Zs))
+    A_mX - A_mX_solar
+end
+
+"""
     blackbody(T, λ)
 
 The value of the Planck blackbody function for temperature `T` at wavelength `λ` [cm].
