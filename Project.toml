@@ -5,7 +5,6 @@ version = "0.15.0"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
-DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
