@@ -9,6 +9,7 @@ using ..Korg, ProgressMeter, ForwardDiff, LineSearches, Optim
 using SparseArrays: spzeros
 using Statistics: mean
 using Interpolations: LinearInterpolation
+using InteractiveUtils: @code_warntype
 
 #TODO specify versions in Project.toml
 # TODO derivatives are zero at grid points (perturbing in one direction would be bad???)
@@ -72,12 +73,13 @@ end
 Synthesize a spectrum, returning the flux, with LSF applied, resampled, and rectified.  This is 
 used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
 """
-function synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix; line_buffer=10)
+function synth(synthesis_wls, obs_wls, scaled_p::Vector{R}, linelist, LSF_matrix; line_buffer=10
+              ) :: Vector{R} where R <: Real
     p = unscale(scaled_p)
     atm = Korg.interpolate_marcs(p...)
     alpha_els = ["Ne", "Mg", "Si", "S", "Ar", "Ca", "Ti"]
     A_X = Korg.format_A_X(p[3], Dict(["C"=>p[5]+p[3], (alpha_els .=> p[4]+p[3])...]))
-    F = try
+    F::Vector{R} = try
         Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=1.0, line_buffer=line_buffer).flux
     catch e
         ones(sum(length.(synthesis_wls)))
@@ -120,6 +122,9 @@ comparison.  This is important because the spectra get convolved with the LSF.
 
 TODO local_rectify signature: error or not
 
+TODO synthesis wls must be a range. This isn't a bug problem because the full-spectrum synthesis is
+only done once.
+
 !!! warning
     This function is in alpha. Do not use it for science.
 """
@@ -131,42 +136,17 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
     J0 = global_jacobian(obs_wls, obs_err, linelist, p0, synthesis_wls, LSF_matrix)
 
     # contains *indices* into obs_wls for each wl range
-    #obs_bounds_inds = merge_bounds(find_sensitive_ranges(J0, obs_wls, wl_chunk_size))
     obs_bounds_inds = find_sensitive_ranges(J0, obs_err, obs_wls, wl_chunk_size)
     obs_bounds_inds = merge_bounds(obs_bounds_inds, 2wl_buffer / step(synthesis_wls))
-
-    # set up masks, etc to work with subspectra in native and downsampled resolution
-    # ------------------------------------------------------------------------------
-    # bitmask for obs_wls to isolate the subspectra
-    obs_wl_mask = zeros(Bool, length(obs_wls)) 
-    for (lb, ub) in obs_bounds_inds
-        obs_wl_mask[lb:ub] .= true
-    end
-    # these ranges each select a subsprectrum from obs_wls[obs_wl_mask]
-    masked_obs_wls_range_inds = [(1 : obs_bounds_inds[1][2] - obs_bounds_inds[1][1] + 1)]
-    for (lb, ub) in obs_bounds_inds[2:end]
-        prev_ub = masked_obs_wls_range_inds[end][end]
-        push!(masked_obs_wls_range_inds, prev_ub+1 : prev_ub+ub-lb+1)
-    end
-    # bitmask for synthesis_wls to isolate the subspectra
-    synth_wl_mask = zeros(Bool, length(synthesis_wls)) 
-    # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
-    multi_synth_wls = map(obs_bounds_inds) do (lb, ub)
-        synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb] - wl_buffer)
-        synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub] + wl_buffer) - 1
-        synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
-        synthesis_wls[synth_wl_lb:synth_wl_ub]
-    end
-    small_LSF_matrix = LSF_matrix[obs_wl_mask, synth_wl_mask]
+    # The various masks and ranges we need to work with the subspectra. See docstring for details.
+    obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
+        calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls, wl_buffer)
     if verbose
-        println("Synthesizing specrum in ranges: ", 
-                ("$(round(wls[1], digits=1))–$(round(wls[end], digits=1)) " for wls in multi_synth_wls)...)
-        println("to compare in the ranges:       ",
-                ("$(round(obs_wls[lb], digits=1))–$(round(obs_wls[ub], digits=1)) " for (lb, ub) in obs_bounds_inds)...)
+        println("Using subspectra: ", ("$(round(obs_wls[lb], digits=1))–$(round(obs_wls[ub], digits=1)) "
+                                       for (lb, ub) in obs_bounds_inds)...)
     end
 
     # rectify subspectra of input data
-    # --------------------------------
     rectified_local_data, rectified_local_err = copy(obs_flux[obs_wl_mask]), copy(obs_err[obs_wl_mask])
     for r in masked_obs_wls_range_inds
         rF = local_rectify(rectified_local_data[r], obs_wls[obs_wl_mask][r], obs_err[obs_wl_mask][r])
@@ -175,24 +155,27 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
     end
 
     # optimize
-    # --------
-    chi2 = let obs_wls=obs_wls[obs_wl_mask], data=rectified_local_data, rect_err=rectified_local_err, 
-               obs_err=obs_err, synthesis_wls=multi_synth_wls, LSF_matrix=small_LSF_matrix, 
-               linelist=linelist, masked_obs_wls_range_inds=masked_obs_wls_range_inds
+    chi2 = let obs_wls=obs_wls[obs_wl_mask], obs_err=obs_err[obs_wl_mask], 
+               masked_obs_wls_range_inds=masked_obs_wls_range_inds, # to rectify model subspectra
+               rect_err=rectified_local_err, rect_obs_flux=rectified_local_data, # to compare to model
+               synthesis_wls=multi_synth_wls, LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask],
+               linelist=linelist  # to synthesize model subspectra
         scaled_p -> begin
             flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix; line_buffer=line_buffer)
             for r in masked_obs_wls_range_inds
                 flux[r] .= local_rectify(flux[r], obs_wls[r], obs_err[r])
             end
-            sum(((flux .- data)./rect_err).^2)
+            sum(((flux .- rect_obs_flux)./rect_err).^2)
         end
     end 
+    println(typeof(masked_obs_wls_range_inds))
+    @code_warntype chi2(scale(p0))
     result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
                             Optim.Options(time_limit=3600, x_tol=1e-5, store_trace=true, 
                             extended_trace=true), autodiff=:forward)
 
-    (result, chi2, multi_synth_wls, small_LSF_matrix, obs_wls[obs_wl_mask], rectified_local_data, 
-     rectified_local_err, masked_obs_wls_range_inds)
+    (result, chi2, multi_synth_wls, LSF_matrix[obs_wl_mask, synth_wl_mask], obs_wls[obs_wl_mask], 
+    rectified_local_data, rectified_local_err, masked_obs_wls_range_inds)
 end
 
 """
@@ -285,6 +268,48 @@ function find_sensitive_ranges(J, err, obs_wls, chunk_size; chunks_per_param=3)
         end
     end
     bounds
+end
+
+"""
+    calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls)
+
+Given a vector of target synthesis ranges in the observbed spectrum, return the masks, etc required.
+
+Arguments:
+    - `obs_bounds_inds`: a vector of tuples of the form `(lower_bound_index, upper_bound_index)`
+    - `obs_wls`: the wavelengths of the observed spectrum
+    - `synthesis_wls`: the wavelengths of the synthesis spectrum
+    - `wl_buffer`: the number of Å to add to each side of the synthesis range
+
+Returns:
+    - `obs_wl_mask`: a bitmask for `obs_wls` which selects the observed wavelengths
+    - `masked_obs_wls_range_inds`: a vector of ranges which select each subspectrum in the masked 
+       observed spectrum. 
+    - `synthesis_wl_mask`: a bitmask for `synthesis_wls` which selects the synthesis wavelengths 
+       needed to generated the masked observed spectrum.
+    - `multi_synth_wls`: The vector of ranges to pass to `Korg.synthesize`.
+"""
+function calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls, wl_buffer)
+    obs_wl_mask = zeros(Bool, length(obs_wls)) 
+    for (lb, ub) in obs_bounds_inds
+        obs_wl_mask[lb:ub] .= true
+    end
+    # these ranges each select a subsprectrum from obs_wls[obs_wl_mask]
+    masked_obs_wls_range_inds = [(1 : obs_bounds_inds[1][2] - obs_bounds_inds[1][1] + 1)]
+    for (lb, ub) in obs_bounds_inds[2:end]
+        prev_ub = masked_obs_wls_range_inds[end][end]
+        push!(masked_obs_wls_range_inds, prev_ub+1 : prev_ub+ub-lb+1)
+    end
+    # bitmask for synthesis_wls to isolate the subspectra
+    synth_wl_mask = zeros(Bool, length(synthesis_wls)) 
+    # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
+    multi_synth_wls = map(obs_bounds_inds) do (lb, ub)
+        synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb] - wl_buffer)
+        synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub] + wl_buffer) - 1
+        synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
+        synthesis_wls[synth_wl_lb:synth_wl_ub]
+    end
+    obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls
 end
 
 """
