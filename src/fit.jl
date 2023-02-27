@@ -11,8 +11,10 @@ using Statistics: mean
 using Interpolations: LinearInterpolation
 using InteractiveUtils: @code_warntype
 
-#TODO specify versions in Project.toml
+# TODO specify versions in Project.toml
 # TODO derivatives are zero at grid points (perturbing in one direction would be bad???)
+
+
 
 """
     compute_LSF_matrix(synth_wls, obs_wls, R; window_size=3)
@@ -31,6 +33,9 @@ relatively slow, but one the LSF matrix is constructed, convolving spectra to ob
 resolution via multiplication is fast.
 """
 function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4)
+    if !(first(synth_wls) < first(obs_wls) < last(obs_wls) < last(synth_wls))
+        @warn raw"Synthesis wavelenths are not superset of observation wavelenths."
+    end
     convM = spzeros((length(obs_wls), length(synth_wls)))
     lb, ub = 1,1 #initialize window bounds
     @showprogress  "Constructing LSF matrix" for i in 1:length(obs_wls)
@@ -199,13 +204,17 @@ function simple_rectify(flux, wls, err)
 end
 
 """
-    rectify(flux, wls; bandwidth=50, q=0.95, wl_step=1.0)
+    data_safe_rectify(flux::Vector{R}, err, wls; bandwidth=50, wl_step=0)
 
 Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
 `q`-quantile with window size `bandwidth`.  `wl_step` controls the size of the grid that the moving 
 quantile is calculated on and interpolated from. By default, this calculation is exact, but Setting
 `wl_step` to a non-zero value results in calculating the moving mean every `wl_step` Å and 
 interpolating to get the "continuum".
+
+This method is not a true rectification in the sense that it does not set the continuum to 1, but
+it removes the continuum from a spectrum without introducing any bias. It does not work well with 
+linelists lacking many lines.
 """
 function data_safe_rectify(flux::Vector{R}, err, wls; bandwidth=50, wl_step=0
                           ) :: Vector{R} where R <: Real

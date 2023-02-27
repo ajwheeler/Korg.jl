@@ -204,7 +204,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
-     wavelengths=all_λs.*1e8, wavelength_chunks=wavelength_chunks)
+     wavelengths=all_λs.*1e8, subspectra=wavelength_chunks)
 end
 
 """
