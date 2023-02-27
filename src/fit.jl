@@ -109,9 +109,9 @@ function find_best_params_globally(obs_wls, obs_flux, obs_err, linelist, p0; rec
             sum(((flux .- data)./rect_err).^2)
         end
     end 
-    result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
-                            Optim.Options(x_tol=1e-5, time_limit=10_000, store_trace=true, 
-                            extended_trace=true), autodiff=:forward)
+    optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
+            Optim.Options(x_tol=1e-5, time_limit=10_000, store_trace=true, 
+            extended_trace=true), autodiff=:forward)
 end
 
 """
@@ -207,7 +207,8 @@ quantile is calculated on and interpolated from. By default, this calculation is
 `wl_step` to a non-zero value results in calculating the moving mean every `wl_step` Å and 
 interpolating to get the "continuum".
 """
-function data_safe_rectify(flux, err, wls; bandwidth=50, wl_step=0)
+function data_safe_rectify(flux::Vector{R}, err, wls; bandwidth=50, wl_step=0
+                          ) :: Vector{R} where R <: Real
     inv_var = err.^-2
     #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
     if wl_step == 0
