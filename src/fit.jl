@@ -154,22 +154,14 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
         rectified_local_data[r] .= rF
     end
 
-    # optimize
-    chi2 = let obs_wls=obs_wls[obs_wl_mask], obs_err=obs_err[obs_wl_mask], 
-               masked_obs_wls_range_inds=masked_obs_wls_range_inds, # to rectify model subspectra
-               rect_err=rectified_local_err, rect_obs_flux=rectified_local_data, # to compare to model
-               synthesis_wls=multi_synth_wls, LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask],
-               linelist=linelist  # to synthesize model subspectra
-        scaled_p -> begin
-            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix; line_buffer=line_buffer)
-            for r in masked_obs_wls_range_inds
-                flux[r] .= local_rectify(flux[r], obs_wls[r], obs_err[r])
-            end
-            sum(((flux .- rect_obs_flux)./rect_err).^2)
+    function chi2(scaled_p) 
+        flux = synth(multi_synth_wls, obs_wls[obs_wl_mask], scaled_p, linelist, 
+                     LSF_matrix[obs_wl_mask, synth_wl_mask]; line_buffer=line_buffer)
+        for r in masked_obs_wls_range_inds
+            flux[r] .= local_rectify(flux[r], obs_wls[obs_wl_mask][r], obs_err[obs_wl_mask][r])
         end
+        sum(((flux .- rectified_local_data)./rectified_local_err).^2)
     end 
-    println(typeof(masked_obs_wls_range_inds))
-    @code_warntype chi2(scale(p0))
     result = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
                             Optim.Options(time_limit=3600, x_tol=1e-5, store_trace=true, 
                             extended_trace=true), autodiff=:forward)
