@@ -34,8 +34,7 @@ These functions can be used to directly compute line opacities.
 Korg.line_absorption!
 Korg.line_profile
 Korg.hydrogen_line_absorption!
-Korg.setup_hydrogen_stark_profiles
-Korg.voigt
+Korg.voigt_hjerting
 ```
 
 ## Continuum absorption
@@ -59,15 +58,14 @@ the following keyword arguments:
 ```@docs
 Korg.total_continuum_absorption
 Korg.ContinuumAbsorption.H_I_bf
-Korg.ContinuumAbsorption.H_I_ff
 Korg.ContinuumAbsorption.Hminus_bf
 Korg.ContinuumAbsorption.Hminus_ff
 Korg.ContinuumAbsorption.H2plus_bf_and_ff
 Korg.ContinuumAbsorption.He_II_bf
-Korg.ContinuumAbsorption.He_II_ff
 Korg.ContinuumAbsorption.Heminus_ff
 Korg.ContinuumAbsorption.electron_scattering
 Korg.ContinuumAbsorption.rayleigh
+Korg.positive_ion_ff_absorption!
 Korg.ContinuumAbsorption.hydrogenic_bf_absorption
 Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```
@@ -85,7 +83,6 @@ Korg.chemical_equilibrium
 
 ```@docs
 Korg.blackbody
-Korg.get_absolute_abundances
 Korg.air_to_vacuum
 Korg.vacuum_to_air
 ```
