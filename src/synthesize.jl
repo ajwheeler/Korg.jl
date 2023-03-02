@@ -202,32 +202,34 @@ You can provide either or both of:
 """
 function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
                               solar_relative=true, solar_abundances=asplund_2020_solar_abundances)
-    if (((1 in keys(abundances)) && (abundances[1] != 0)) || (("H" in keys(abundances)) && (abundances["H"] != 12)))
-        silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
-        throw(ArgumentError("$silly_abundance set, but $silly_abundance = $silly_value by " *
-                            "definition. Adjust \"metallicity\" and \"abundances\" to implicitly " *
-                            "set the amount of H"))
-    end
-    clean_abundances = Dict()
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
+    clean_abundances = Dict()
     for (el, abund) in abundances
         if el isa AbstractString
             if ! (el in keys(Korg.atomic_numbers))
                 throw(ArgumentError("$el isn't a valid atomic symbol."))
             elseif Korg.atomic_numbers[el] in keys(abundances)
                 throw(ArgumentError("The abundances of $el was specified by both atomic number and atomic symbol."))
-            elseif el != "H"
+            else
                 clean_abundances[Korg.atomic_numbers[el]] =  abund
             end
         elseif el isa Integer
-            if ! (1 <= el < 92)
+            if ! (1 <= el <= MAX_ATOMIC_NUMBER)
                 throw(ArgumentError("Z = $el is not a supported atomic number."))
-            elseif el > 1
+            else
                 clean_abundances[el] = abund
             end
         else
             throw(ArgumentError("$el isn't a valid element. Keys of the abundances dict should be strings or integers."))
         end
+    end
+
+    correct_H_abund = solar_relative ? 0.0 : 12.0
+    if 1 in keys(clean_abundances) && clean_abundances[1] != correct_H_abund
+        silly_abundance, silly_value = solar_relative ? ("[H/H]", 0) : ("A(H)", 12)
+        throw(ArgumentError("$silly_abundance set, but $silly_abundance = $silly_value by " *
+                            "definition. Adjust \"metallicity\" and \"abundances\" to implicitly " *
+                            "set the amount of H"))
     end
 
     #populate A(X) vector
