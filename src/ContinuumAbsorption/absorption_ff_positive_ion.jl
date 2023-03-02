@@ -13,11 +13,11 @@ and the uncorrected hydrogenic approximation when they are not.
 - `T`: temperature in K
 - `number_densities` is a `Dict` mapping each `Species` to its number density.
 - `ne`: the number density of free electrons.
-- `departure_coefficients` (optional, defaults to [Peach1970](@ref)): 
+- `departure_coefficients` (optional, defaults to 
+   [ContinuumAbsorption.Peach1970.departure_coefficients](@ref)): 
    a dictionary mapping species to the departure coefficients for the ff process it participates in 
    (e.g. `species"C II"` maps to the C III ff departure coefficients--see note below).  Departure
    coefficients should be callables taking temperature and (photon energy / RydbergH / Zeff^2).  
-   See [Peach1970](@ref) for details.
 
 !!! note
     A free-free interaction is named as though the species interacting with the free electron had 
