@@ -50,11 +50,28 @@ function translational_U(m, T)
 end
 
 """
-    molecular_equilibrium_equations(absolute_abundances, ironization_energies, partiation_fns, equilibrium_constants)
+    get_inv_nK(mol, T, log_equilibrium_constants)
 
-Returns a NamedTuple representing the system of equations specifying molecular equilibrium.
+Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilbrium constants in partial
+pressure form, return the inverse equilibrium constant in number density form, i.e. `1/nK` where 
+`nK = n(A)n(B)/n(AB)`.
+"""
+function get_log_nK(mol, T, log_equilibrium_constants) 
+    log_equilibrium_constants[mol](log(T)) - (n_atoms(mol) - 1)*log10(kboltz_cgs*T) 
+end
 
+"""
+    chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
+                         partition_fns, log_equilibrium_constants; x0=nothing)
+
+Iteratively solve for the number density of each species. Returns a `Dict` mapping species to number 
+densities.
+
+TODO
 arguments:
+- the temperature, `T`, in K
+- the number density of non-electron particles `nₜ`
+- the electron number density `nₑ`
 - A Dict of `absolute_abundances`, N_X/N_total
 - a Dict of ionization energies, `ionization_energies`.  The keys of act as a list of all atoms.
 - a Dict of partition functions, `partition_fns`
@@ -78,97 +95,77 @@ number density (supplied later)
 Equilibrium constants are defined in terms of partial pressures, so e.g.
 
     K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH)) kT
- 
-This could also be computed via a Saha equation involving the molecular partition function and 
-dissolution energy.
 """
-function molecular_equilibrium_equations(absolute_abundances, ionization_energies, partition_fns, 
-                                         equilibrium_constants)
-    atoms = 0x01:Natoms
-    molecules = keys(equilibrium_constants)
-
-    #the residuals of the molecular equilibrium equations parametrized by T, electron number density
-    #and number densities of each element [cm^-3]
-    function system(T, nₜ, nₑ)
-        atom_number_densities = nₜ .* absolute_abundances
-        ion_factors = map(atoms) do elem
-            wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
-            (1 + wII + wIII)
-        end
-        #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
-        #`x` is a vector containing the number density of the neutral species of each element
-        function residuals!(F, x)
-            #LHS: total number of atoms, RHS: first through third ionization states
-            F .= atom_number_densities .- ion_factors .* x
-            for m in molecules
-                el1, el2 = get_atoms(m.formula)
-                nₘ = x[el1] * x[el2] * kboltz_cgs * T / 10^equilibrium_constants[m](log(T))
-                #RHS: subtract atoms which are part of mollecules
-                F[el1] -= nₘ
-                F[el2] -= nₘ
-            end
-        end
-    end
-
-    #passing atoms and molecules might seem a little weird architecturally, but it's partly in
-    #anticipation of potentially culling the list of species considered 
-    (atoms=atoms, molecules=molecules, equations=system, absolute_abundances=absolute_abundances,
-     ionization_energies=ionization_energies, partition_fns=partition_fns, 
-     equilibrium_constants=equilibrium_constants)
-end
-
-"""
-    molecular_equilibrium(MEQS, T, nₜ, nₑ; x0)
-
-Iteratively solve for the number density of each species. Returns a `Dict` mapping species to number 
-densities.
-
-arguments:
-- the system of molecular equilibrium equations `MEQs` (the thing returned by 
-`molecular_equilibrium_equations`)
-- the temperature `T`, 
-- the number density of non-electron particles `nₜ`
-- the electron number density `nₑ`
-- optionally, `x0`, a starting point for the solver
-"""
-function molecular_equilibrium(MEQs, T, nₜ, nₑ; x0=nothing)
+function chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
+                              partition_fns, log_equilibrium_constants; x0=nothing)
     if x0 === nothing
         #compute good first guess by neglecting molecules
-        x0 = map(MEQs.atoms) do atom
-            wII, wIII =  saha_ion_weights(T, nₑ, atom, MEQs.ionization_energies, 
-                                                  MEQs.partition_fns)
-            nₜ*MEQs.absolute_abundances[atom] / (1 + wII + wIII)
+        x0 = map(1:MAX_ATOMIC_NUMBER) do atom
+            wII, wIII =  saha_ion_weights(T, nₑ, atom, ionization_energies, partition_fns)
+            nₜ*absolute_abundances[atom] / (1 + wII + wIII)
         end
     end
 
     #numerically solve for equlibrium.
-    sol = nlsolve(MEQs.equations(T, nₜ, nₑ), x0; iterations=200, store_trace=true, ftol=nₜ*1e-12,
-                  autodiff=:forward)
+    sol = nlsolve(chemical_equilibrium_equations(T, nₜ, nₑ, absolute_abundances, ionization_energies,
+                                                 partition_fns, log_equilibrium_constants),
+                  x0; iterations=1_000, store_trace=true, ftol=nₜ*1e-12, autodiff=:forward)
     if !sol.f_converged
-        error("Molecular equlibrium unconverged", sol, "\n", sol.trace)
+        error("Molecular equlibrium unconverged. \n", sol)
     end
 
-    #start with the neutral atomic species
-    number_densities = Dict(Species.(Formula.(MEQs.atoms), 0) .=> sol.zero)
+    # start with the neutral atomic species.  Only the absolute value of sol.zero is
+    # necessarilly correct.
+    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> abs.(sol.zero))
     #now the ionized atomic species
-    for a in MEQs.atoms
-        wII, wIII = saha_ion_weights(T, nₑ, a, MEQs.ionization_energies, MEQs.partition_fns)
+    for a in 1:MAX_ATOMIC_NUMBER
+        wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
         number_densities[Species(Formula(a), 1)] = wII  * number_densities[Species(Formula(a), 0)]
         number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
     #now the molecules
-    for m in MEQs.molecules 
-        el1, el2 = get_atoms(m.formula)
-        n₁ = number_densities[Species(Formula(el1), 0)]
-        n₂ = number_densities[Species(Formula(el2), 0)]
-        logK = MEQs.equilibrium_constants[m]
-        #add 1 to logK to conver to to cgs from mks
-        number_densities[m] = n₁ * n₂ * kboltz_cgs * T / 10^logK(log(T))
+    for mol in keys(log_equilibrium_constants)
+        log_nK = get_log_nK(mol, T, log_equilibrium_constants)
+        element_log_ns = (log10(number_densities[Species(Formula(el), 0)]) for el in get_atoms(mol.formula))
+        number_densities[mol] = 10^(sum(element_log_ns) - log_nK)
     end
 
     number_densities
 end
 
+function chemical_equilibrium_equations(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
+                                        partition_fns, log_equilibrium_constants)
+    molecules = collect(keys(log_equilibrium_constants))
+    atom_number_densities = nₜ .* absolute_abundances
+                                    
+    # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
+    ion_factors = map(1:MAX_ATOMIC_NUMBER) do elem
+        wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
+        (1 + wII + wIII)
+    end
+    # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
+    # pressure, unlike those in equilibrium_constants.
+    log_nKs = get_log_nK.(molecules, T, Ref(log_equilibrium_constants))
+                                    
+    #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
+    #`x` is a vector containing the number density of the neutral species of each element
+    function residuals!(F, x)
+        # Don't allow negative number densities.  This is a trick to bound the possible values 
+        # of x. Taking the log was less performant in tests.
+        x = abs.(x) 
+                                    
+        # LHS: total number of atoms, RHS: first through third ionization states
+        F .= atom_number_densities .- ion_factors .* x
+        for (m, log_nK) in zip(molecules, log_nKs)
+            els = get_atoms(m.formula)
+            n_mol = 10^(sum(log10(x[el]) for el in els) - log_nK)
+            # RHS: atoms which are part of molecules
+            for el in els
+                F[el] -= n_mol
+            end
+        end
+    end
+end
 
 ###################################################################################
 # The methods below are experimental, and not used by Korg for spectral synthesis #

@@ -10,3 +10,4 @@ misc/c.pdf
 misc/d.pdf
 misc/*.png
 docs/build/
+*.DS_Store

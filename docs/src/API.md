@@ -1,7 +1,5 @@
-# API
-
 This page docuements the Korg API for users of the package. Low-level functions that only people 
-digging into the internals of Korg will be interested in can be found on the 
+digging into the internals of Korg will be interested in can be found in the 
 [Developer documentation](@ref).
 
 # Top-level functions
@@ -13,6 +11,7 @@ These functions are exported, so if you do `using Korg`, you can call them unqua
 synthesize
 read_linelist
 read_model_atmosphere
+interpolate_marcs
 format_A_X
 ```
 
@@ -35,8 +34,7 @@ These functions can be used to directly compute line opacities.
 Korg.line_absorption!
 Korg.line_profile
 Korg.hydrogen_line_absorption!
-Korg.setup_hydrogen_stark_profiles
-Korg.voigt
+Korg.voigt_hjerting
 ```
 
 ## Continuum absorption
@@ -60,15 +58,14 @@ the following keyword arguments:
 ```@docs
 Korg.total_continuum_absorption
 Korg.ContinuumAbsorption.H_I_bf
-Korg.ContinuumAbsorption.H_I_ff
 Korg.ContinuumAbsorption.Hminus_bf
 Korg.ContinuumAbsorption.Hminus_ff
 Korg.ContinuumAbsorption.H2plus_bf_and_ff
 Korg.ContinuumAbsorption.He_II_bf
-Korg.ContinuumAbsorption.He_II_ff
 Korg.ContinuumAbsorption.Heminus_ff
 Korg.ContinuumAbsorption.electron_scattering
 Korg.ContinuumAbsorption.rayleigh
+Korg.positive_ion_ff_absorption!
 Korg.ContinuumAbsorption.hydrogenic_bf_absorption
 Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```
@@ -79,15 +76,13 @@ layer, or other statmech calculations.
 
 ```@docs
 Korg.saha_ion_weights
-Korg.molecular_equilibrium_equations
-Korg.molecular_equilibrium
+Korg.chemical_equilibrium
 ```
 
 ## Misc
 
 ```@docs
 Korg.blackbody
-Korg.get_absolute_abundances
 Korg.air_to_vacuum
 Korg.vacuum_to_air
 ```

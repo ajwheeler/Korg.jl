@@ -1,0 +1,46 @@
+{
+    "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+    "@type": "SoftwareSourceCode",
+    "name": "Korg: 1D local thermodynamic equilibrium stellar spectral synthesis",
+    "description": "Korg computes stellar spectra from 1D model atmospheres and linelists assuming local thermodynamic equilibrium and implements both plane-parallel and spherical radiative transfer. The code is generally faster than other codes, and is compatible with automatic differentiation libraries and easily extensible, making it ideal for statistical inference and parameter estimation applied to large data sets.",
+    "identifier": "ascl:2211.016",
+    "author": [
+        {
+            "@type": "Person",
+            "givenName": "Adam J.",
+            "familyName": "Wheeler",
+            "@id": "https://orcid.org/0000-0001-7339-5136"
+        },
+        {
+            "@type": "Person",
+            "givenName": "Matthew W.",
+            "familyName": "Abruzzo",
+            "@id": "https://orcid.org/0000-0002-7918-3086"
+        },
+        {
+            "@type": "Person",
+            "givenName": "Andrew R.",
+            "familyName": "Casey",
+            "@id": "https://orcid.org/0000-0003-0174-0564"
+        },
+        {
+            "@type": "Person",
+            "givenName": "Melissa K.",
+            "familyName": "Ness",
+            "@id": "https://orcid.org/0000-0001-5082-6693"
+        }
+    ],
+    "citation": "https://ui.adsabs.harvard.edu/abs/arXiv:2211.00029",
+    "relatedLink": [],
+    "codeRepository": [
+        "https://github.com/ajwheeler/korg.jl"
+    ],
+    "referencePublication": [
+        {
+            "@type": "ScholarlyArticle",
+            "url": "https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract",
+            "@id": "https://doi.org/10.3847/1538-3881/acaaad"
+        }
+    ],
+    "license": "https://spdx.org/licenses/BSD-3-Clause.html"
+}

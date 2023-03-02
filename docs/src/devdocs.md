@@ -33,5 +33,5 @@ absorption from scattering).
 Here are all the documented methods in Korg.
 
 ```@autodocs
-Modules = [Korg, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994]
+Modules = [Korg, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994, Korg.RadiativeTransfer, Korg.RadiativeTransfer.MoogStyleTransfer, Korg.RadiativeTransfer.BezierTransfer]
 ```

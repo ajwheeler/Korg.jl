@@ -3,7 +3,7 @@
 
 1D LTE stellar spectral synthesis for FGK stars in pure Julia.
 
-[Code paper](https://arxiv.org/abs/2211.00029)
+[Code paper](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract) (please cite this if you use Korg)
 
 [Tutorial](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/Tutorial.ipynb)
 
@@ -14,7 +14,7 @@
 using Korg, PyPlot
 lines = read_linelist("linelist.vald", format="vald")
 atm = read_model_atmosphere("s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
-synthesize(atm, lines, format_A_X(0), 5000, 5030);
+sol = synthesize(atm, lines, format_A_X(0), 5000, 5030);
 
 figure(figsize=(12, 4))
 plot(sol.wavelengths, sol.flux, "k-")

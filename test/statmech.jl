@@ -38,7 +38,7 @@ end
 
     @testset "monotonic N ions Temperature dependence" begin
         weights = [Korg.saha_ion_weights(T, 1.0, 7, Korg.ionization_energies, 
-                                            Korg.partition_funcs) for T in 1:100:10000]
+                                            Korg.default_partition_funcs) for T in 1:100:10000]
         #N II + NIII grows with T === N I shrinks with T
         @test issorted(first.(weights) + last.(weights))
         
@@ -53,13 +53,11 @@ end
 
         nₜ = 1e15 
         nₑ = 1e-3 * nₜ #arbitrary
+        T = 5700
+        n = Korg.chemical_equilibrium(T, nₜ, nₑ, nX_ntot, Korg.ionization_energies, 
+                                      Korg.default_partition_funcs, 
+                                      Korg.default_log_equilibrium_constants; x0=nothing)
 
-        MEQs = Korg.molecular_equilibrium_equations(nX_ntot, Korg.ionization_energies, 
-                                                    Korg.partition_funcs, 
-                                                    Korg.equilibrium_constants)
-        @test MEQs.atoms == 0x01:Korg.Natoms
-
-        n = Korg.molecular_equilibrium(MEQs, 5700.0, nₜ, nₑ)
         #make sure number densities are sensible
         @test (n[Korg.species"C_III"] < n[Korg.species"C_II"] < n[Korg.species"C_I"] < 
                n[Korg.species"H_II"] < n[Korg.species"H_I"])
@@ -86,12 +84,13 @@ end
         # B&C numbers.
         @testset for spec in Korg.Species.(Korg.atomic_symbols[1:10] .* " I")
             BC_U = BC_Us[spec].(logTs * log(10))
-            korg_U = Korg.partition_funcs[spec].(logTs * log(10))
+            korg_U = Korg.default_partition_funcs[spec].(logTs * log(10))
 
             # we can't get closer than 2% because NIST has changed some things
             # (There may also be edge-case energy levels that are weird in some way that are only 
             # included in one calculation, but I think this effect is small.)
-            @test assert_allclose_grid(korg_U, BC_U, [("T", Ts, "K")]; rtol=0.02)
+            @test assert_allclose_grid(korg_U, BC_U, [("T", Ts, "K")]; rtol=0.01, 
+                                       print_rachet_info=false)
         end
     end
 end
