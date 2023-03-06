@@ -2,7 +2,7 @@ This page docuements the Korg API for users of the package. Low-level functions 
 digging into the internals of Korg will be interested in can be found in the 
 [Developer documentation](@ref).
 
-# Top-level functions
+# [Top-level functions](@id API)
 If you are synthesize a spectrum Korg, these are the functions you will call.  
 These functions are exported, so if you do `using Korg`, you can call them unquallified (i.e.
 `synthesize` instead of `Korg.synthesize`).  
@@ -65,7 +65,7 @@ Korg.ContinuumAbsorption.He_II_bf
 Korg.ContinuumAbsorption.Heminus_ff
 Korg.ContinuumAbsorption.electron_scattering
 Korg.ContinuumAbsorption.rayleigh
-Korg.positive_ion_ff_absorption!
+Korg.ContinuumAbsorption.positive_ion_ff_absorption!
 Korg.ContinuumAbsorption.hydrogenic_bf_absorption
 Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```

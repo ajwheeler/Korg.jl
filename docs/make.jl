@@ -12,6 +12,25 @@ makedocs(sitename="Korg",
                 "Changelog" => "changelog.md"
                 "Developer Documentation" => "devdocs.md"
                ],
+        checkdocs = :all, # make sure all docstrings are in the documentation
+        linkcheck = true, # check if any external links are broken
+        linkcheck_ignore = [],
+        strict = [ # make these warnings into errors
+            :doctest,
+            :linkcheck,
+            :parse_error,
+            :example_block,
+            # This will error on duplicate functions docs, which we currently have by design
+            #:autodocs_block, 
+            :cross_references,
+            :docs_block, 
+            :eval_block,
+            :example_block,
+            :footnote,
+            :meta_block,
+            :missing_docs,
+            :setup_block
+        ],
         authors="Adam Wheeler and Matthew Abruzzo",
         format=Documenter.HTML(assets=["assets/favicon.ico"])
        )

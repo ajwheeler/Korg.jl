@@ -1,5 +1,6 @@
 """
-Korg's default radiative transfer implementation. See also: [`BezierTransfer`](@ref)
+Korg's default radiative transfer implementation. 
+See also: `RadiativeTransfer.BezierTransfer`
 """
 module MoogStyleTransfer 
 using ..RadiativeTransfer: generate_mu_grid
