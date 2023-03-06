@@ -3,8 +3,8 @@ Functions to solve the radiative transfer formal solution using the
 [de la Cruz Rodríguez and Piskunov method](https://ui.adsabs.harvard.edu/abs/2013ApJ...764...33D/abstract).
 
 We would like to migrate to this transfer implementation as the default eventually, but it doens't 
-seem to perform much better than [`MoogStyleTransfer`](@ref) in practice.  The treatment of both
-the path-length (ds) and what happens at the midplane of the star are more careful in this 
+seem to perform much better than `RadiativeTransfer.MoogStyleTransfer`` in practice.  The treatment 
+of both the path-length (ds) and what happens at the midplane of the star are more careful in this 
 implementation, but it's not yet as fast and it doesn't produce results any closer to the MARCS flux 
 files (even when adjusting the absorption coeffs to match the MARCS numbers).
 """
