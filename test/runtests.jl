@@ -260,10 +260,10 @@ end
                 == format_A_X(0, Dict("H"=>12.0); solar_relative=false))
         
         # make sure silly H abundances are caught
-        @test_throws ArgumentError format_A_X(0.0, Dict("H"=>13); solar_relative=false)
-        @test_throws ArgumentError format_A_X(0.0, Dict(1=>13); solar_relative=false)
-        @test_throws ArgumentError format_A_X(0.0, Dict("H"=>13); solar_relative=true)
-        @test_throws ArgumentError format_A_X(0.0, Dict(1=>13); solar_relative=true)
+        @test_throws ArgumentError format_A_X(0.0, Dict("H"=>0); solar_relative=false)
+        @test_throws ArgumentError format_A_X(0.0, Dict(1=>0); solar_relative=false)
+        @test_throws ArgumentError format_A_X(0.0, Dict("H"=>12); solar_relative=true)
+        @test_throws ArgumentError format_A_X(0.0, Dict(1=>12); solar_relative=true)
 
         @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1 atol=1e-6
         @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 atol=1e-6
