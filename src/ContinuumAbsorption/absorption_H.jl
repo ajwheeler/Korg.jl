@@ -44,7 +44,7 @@ in the visible, we don't use MHD for bf absorption from n=1.  This can be overri
 tapering of the cross-section as [HBOP](https://github.com/barklem/hlinop/blob/master/hbop.f) to fix 
 the problem.
                                     
-The `use_hubeny_generalization` keyword argument ennables the generalization of the MHD from 
+The `use_hubeny_generalization` keyword argument enables the generalization of the MHD from 
 Hubeny 1994. It is experimental and switched off by default.
 """
 function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalization=false, 
@@ -79,7 +79,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
                 frac = 1 - w_upper/w_lower
                 if taper 
                     # taper of the cross-section past a certain  wavelength redward of the jump, as 
-                    # is done in HBOP. (Not ennabled in Korg calls to this function.)
+                    # is done in HBOP. (Not enabled in Korg calls to this function.)
                     redcut = hplanck_eV * c_cgs / (χ * (1/n^2 - 1/(n+1)^2))
                     λ = c_cgs / ν
                     if λ > redcut
