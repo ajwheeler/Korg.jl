@@ -51,8 +51,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
   calculated.
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
 - `use_MHD_for_hydrogen_lines` (default: `true`): whether or not to use the MHD occupation 
-   probability formalism for hydrogen lines.  (It is always used for hydrogen bound-free absorption.)
-   hydrogen lines.  This is only valid for spherical geometry.
+   probability formalism for hydrogen lines. (MHD is always used for hydrogen bound-free absorption.)
 - `hydrogen_line_window_size` (default: 150): the mamximum distance (in Å) from each hydrogen line 
    center at which to calculate its contribution to the total absorption coefficient.
 - `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
