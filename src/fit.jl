@@ -99,10 +99,8 @@ TODO rotation, vmic, abundance
 !!! warning
     This function is in alpha. Do not use it for science.
 """
-function find_best_params_globally(obs_wls, obs_flux, obs_err, linelist, p0; rectify=data_safe_rectify,
-                                   synthesis_wls=(first(obs_wls)-10) : 0.01 : (last(obs_wls)+10),
-                                   LSF_matrix=compute_LSF_matrix(synthesis_wls, obs_wls, R),
-                                   verbose=true)
+function find_best_params_globally(obs_wls, obs_flux, obs_err, linelist, p0, synthesis_wls, LSF_matrix
+                                  ; rectify=data_safe_rectify)
     obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
     rect_data = rectify(obs_flux, obs_err, obs_wls)
     rect_err = obs_err .* rect_data ./ obs_flux # divide out continuum
