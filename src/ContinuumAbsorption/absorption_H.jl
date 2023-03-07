@@ -141,14 +141,16 @@ by comparison against equation 10.54 of Rybicki & Lightman.
 """
 function simple_hydrogen_bf_cross_section(n::Integer, ν::Real)
     # this implements equation 5.5 from Kurucz (1970)
-    # - Z is the atomic number
+    # - Z is the atomic number (Z=1 for hydrogen atoms)
     # - n is the energy level (remember, they start from n=1)
     # - ν should have units of Hz
-    # - ion_freq is the frequency of the photon carrying the minimum energy needed to ionize the
-    #   ground state configuration of the current ion (in Hz). This can be estimated as
-    #   _eVtoHz(Z²*RydbergH_eV).
-    if (n < 1)
-        throw(DomainError(n,"n must be a positive integer"))
+    # - we are using the polynomial coefficients appropriate for n>6
+    if (n < 7)
+        if (n < 1)
+            throw(DomainError(n,"n must be a positive integer"))
+        else 
+            @warn "this function may provide inaccurate estimates when the n < 7"
+        end
     end
 
     inv_n = 1.0/n
