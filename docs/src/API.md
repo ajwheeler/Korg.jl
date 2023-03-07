@@ -73,7 +73,7 @@ Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```
 
 ## Statistical mechanics
-These functions can be used to calculate the number densities of all species in a given atospheric 
+These functions can be used to calculate the number densities of all species in a given atmospheric 
 layer, or other statmech calculations. 
 
 ```@docs
