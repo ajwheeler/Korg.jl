@@ -30,8 +30,8 @@ Korg when computing the hydrogen partition function, it is used here.
 # Required Arguments
 - `νs`: sorted frequency vector in Hz
 - `T`: temperature in K
-- `nH`: the total number density of neutral Hydrogen (in cm⁻³)
-- `nHe`: the total number density of neutral Helium (in cm⁻³)
+- `nH_I`: the total number density of neutral Hydrogen (in cm⁻³)
+- `nHe_I`: the total number density of neutral Helium (in cm⁻³)
 - `ne`: the number density of electrons (in cm⁻³)
 - `invU_H`: The inverse of the neutral hydrogen partition function (neglecting contributions from the
   MHD formalism)
@@ -48,16 +48,16 @@ the problem.
 The `use_hubeny_generalization` keyword argument enables the generalization of the MHD from 
 Hubeny 1994. It is experimental and switched off by default.
 """
-function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalization=false, 
+function H_I_bf(νs, T, nH_I, nHe_I, ne, invU_H; n_max_MHD=6, use_hubeny_generalization=false, 
                 taper=false, use_MHD_for_Lyman=false)
     χ = ionization_energies[1][1]
-    σ_type = promote_type(eltype(νs), typeof(T), typeof(nH), typeof(nHe), typeof(ne), typeof(invU_H))
+    σ_type = promote_type(eltype(νs), typeof(T), typeof(nH_I), typeof(nHe_I), typeof(ne), typeof(invU_H))
     total_cross_section = zeros(σ_type, length(νs))
     # allocate working vectors outside of loop
     cross_section = Vector{σ_type}(undef, length(νs))
     dissolved_fraction = Vector{σ_type}(undef, length(νs))
     for (n, sigmas) in _H_I_bf_cross_sections[1:n_max_MHD]
-        w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+        w_lower = hummer_mihalas_w(T, n, nH_I, nHe_I, ne; use_hubeny_generalization=use_hubeny_generalization)
         #the degeneracy is already factored into the nahar cross-sections
         occupation_prob = w_lower * exp(-χ * (1-1/n^2) / (kboltz_eV * T))
 
@@ -85,7 +85,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
                 # photon energy
                 n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/χ)
                 # this could probably be interpolated without much loss of accuracy
-                w_upper = hummer_mihalas_w(T, n_eff, nH, nHe, ne; 
+                w_upper = hummer_mihalas_w(T, n_eff, nH_I, nHe_I, ne; 
                                             use_hubeny_generalization=use_hubeny_generalization)
                 # w_upper/w[n] is the prob that the upper level is dissolved given that the lower isn't
                 frac = 1 - w_upper/w_lower
@@ -113,7 +113,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
     end
 
     for n in (n_max_MHD+1) : 40
-        w_lower = hummer_mihalas_w(T, n, nH, nHe, ne; use_hubeny_generalization=use_hubeny_generalization)
+        w_lower = hummer_mihalas_w(T, n, nH_I, nHe_I, ne; use_hubeny_generalization=use_hubeny_generalization)
         if w_lower < 1e-5
             break
         end
@@ -122,7 +122,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
     end
 
     #factor of 10^-18 converts cross-sections from megabarns to cm^2
-    @. nH * invU_H * total_cross_section * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
+    @. nH_I * invU_H * total_cross_section * (1.0 - exp(-hplanck_eV * νs / (kboltz_eV * T))) * 1e-18
 end
 
 
