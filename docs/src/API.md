@@ -63,12 +63,10 @@ Korg.ContinuumAbsorption.H_I_ff
 Korg.ContinuumAbsorption.Hminus_bf
 Korg.ContinuumAbsorption.Hminus_ff
 Korg.ContinuumAbsorption.H2plus_bf_and_ff
-Korg.ContinuumAbsorption.He_II_bf
 Korg.ContinuumAbsorption.He_II_ff
 Korg.ContinuumAbsorption.Heminus_ff
 Korg.ContinuumAbsorption.electron_scattering
 Korg.ContinuumAbsorption.rayleigh
-Korg.ContinuumAbsorption.hydrogenic_bf_absorption
 Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```
 
