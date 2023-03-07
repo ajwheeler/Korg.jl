@@ -57,8 +57,8 @@ The second argument should specify the file where the resulting figure should be
 contain:
     a: H⁻ bf
     b: H⁻ ff, He⁻ ff, H⁻ bf, H₂⁺, H
-    c: H⁻ ff, He⁻ ff, H⁻ bf, H I bf
-    d: H I bf
+    c: H⁻ ff, He⁻ ff, H⁻ bf, H I
+    d: H I bf and ff
 """
         throw(ArgumentError(msg))
     end

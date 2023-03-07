@@ -509,7 +509,7 @@ end
         for T in [5143.0, 6429.0, 7715.0, 11572.0]
             ref_absorption_coef = gray_H_I_bf_absorption_coef.(λ_vals, T)
 
-            absorption_coef = Korg.ContinuumAbsorption.H_I_bf(ν_vals, T, 1, 0, 0, 1/H_I_partition_val)
+            absorption_coef = reverse(Korg.ContinuumAbsorption.H_I_bf(reverse(ν_vals), T, 1, 0, 0, 1/H_I_partition_val))
             @test assert_allclose_grid(absorption_coef, ref_absorption_coef, [("λ", λ_vals, "Å")];
                                        rtol=0.09, print_rachet_info=false)
             @test all(absorption_coef .≥ 0.0)
