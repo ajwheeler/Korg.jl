@@ -27,6 +27,14 @@ The bound-free linear absorption coefficient contributed by all energy states of
 atom.  Even though the Mihalas-Hummer-Daeppen (MHD) occupation probability formalism is not used in
 Korg when computing the hydrogen partition function, it is used here.
 
+# Required Arguments
+- `νs`: sorted frequency vector in Hz
+- `T`: temperature in K
+- `nH`: the total number density of neutral Hydrogen (in cm⁻³)
+- `nHe`: the total number density of neutral Helium (in cm⁻³)
+- `ne`: the number density of electrons (in cm⁻³)
+- `invU_H`: The inverse of the neutral hydrogen partition function (neglecting contributions from the
+  MHD formalism)
 By default, detailed cross-sections for n=1 through n=6 are included, with the rest modelled with a 
 simple integral. This can be overridden by setting `n_max_MHD`. TODO
 
