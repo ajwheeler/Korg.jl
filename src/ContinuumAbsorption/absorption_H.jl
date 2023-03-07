@@ -68,7 +68,7 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
                 # don't use MHD for the Lyman series limit since it leads to inflated cross-sections
                 # far red of the limit
                 0.0 
-            else  # account for bf absorption redward of the limit because of level dissolution
+            else  # account for bf absorption redward of the jump/break because of level dissolution
                 # the effective quantum number associated with the energy of the nth level plus the 
                 # photon energy
                 n_eff = 1 / sqrt(1/n^2 - hplanck_eV*ν/χ)
