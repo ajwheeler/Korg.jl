@@ -24,8 +24,10 @@ end
            taper=false, use_MHD_for_Lyman=false)
 
 The bound-free linear absorption coefficient contributed by all energy states of a neutral Hydrogen 
-atom.  Even though the Mihalas-Hummer-Daeppen (MHD) occupation probability formalism is not used in
-Korg when computing the hydrogen partition function, it is used here.
+atom. Even though the Mihalas-Hummer-Daeppen (MHD) occupation probability formalism is not used in
+Korg when computing the hydrogen partition function, it is used here. That means that series limit
+jumps (e.g. the Balmer jump), are "rounded off", as photons with less than the "classical" 
+ionization energy can ionize if the upper level is dissolved into the continuum.
 
 # Required Arguments
 - `νs`: sorted frequency vector in Hz
@@ -36,8 +38,11 @@ Korg when computing the hydrogen partition function, it is used here.
 - `invU_H`: The inverse of the neutral hydrogen partition function (neglecting contributions from the
   MHD formalism)
 
-By default, detailed cross-sections for n=1 through n=6 are included, with the rest modelled with a 
-simple integral. This can be overridden by setting `n_max_MHD`.
+For n=1 through n=`n_max_MHD` (default: 6), the cross-sections are computed using 
+[Nahar 2021](https://ui.adsabs.harvard.edu/abs/2021Atoms...9...73N/abstract). 
+These are modified using the MHD formalism to account for level dissolution.  
+For larger n, the cross-sections are calculated with a simple analytic formula (see 
+[`simple_hydrogen_bf_cross_section`](@ref)).
 
 Because MHD level dissolution applied to the the Lyman series limit leads to inflated cross-sections
 in the visible, we don't use MHD for bf absorption from n=1.  This can be overridden by setting
