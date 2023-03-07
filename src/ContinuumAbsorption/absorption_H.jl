@@ -78,8 +78,9 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
                 # w_upper/w[n] is the prob that the upper level is dissolved given that the lower isn't
                 frac = 1 - w_upper/w_lower
                 if taper 
-                    # taper of the cross-section past a certain  wavelength redward of the jump, as 
-                    # is done in HBOP. (Not enabled in Korg calls to this function.)
+                    # taper of the cross-section past a certain wavelength redward of the jump/break 
+                    # (non-MHD ionization energy), as is done in HBOP. (Not enabled in Korg calls to 
+                    # this function.)
                     redcut = hplanck_eV * c_cgs / (χ * (1/n^2 - 1/(n+1)^2))
                     λ = c_cgs / ν
                     if λ > redcut
