@@ -156,6 +156,8 @@ function simple_hydrogen_bf_cross_section(n::Integer, ν::Real)
     inv_n = 1.0/n
     inv_n2 = inv_n*inv_n
     if hplanck_eV * ν < (RydbergH_eV*inv_n2)
+        # photon doesn't carry minimum energy required to ionize the photon
+        # -> definitionally the cross-section is zero
         0.0
     else
         inv_ν = 1.0/ν
