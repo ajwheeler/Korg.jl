@@ -123,6 +123,8 @@ end
 
 
 """
+    hydrogen_bf_cross_section(n::Integer, ν::Real)
+
 Calculate the H I bf cross section using a very simple approximation.  See, for example, Kurucz 1970
 equation 5.5.
 
