@@ -103,11 +103,11 @@ function H_I_bf(νs, T, nH, nHe, ne, invU_H; n_max_MHD=6, use_hubeny_generalizat
 
         # extrapolate the cross-section to lower energies by assuming proportionality to ν^3
         ν_break =  χ/(n^2 * hplanck_eV)
-        σ_break = hydrogen_bf_cross_section(n, ν_break)
+        σ_break = simple_hydrogen_bf_cross_section(n, ν_break)
         scaling_factor = σ_break / ν_break^3
         σ_level = map(νs) do ν
             if ν > ν_break
-                hydrogen_bf_cross_section(n, ν)
+                simple_hydrogen_bf_cross_section(n, ν)
             else
                 ν^3 * scaling_factor
             end
@@ -123,17 +123,19 @@ end
 
 
 """
-    hydrogen_bf_cross_section(n::Integer, ν::Real)
+    simple_hydrogen_bf_cross_section(n::Integer, ν::Real)
 
 Calculate the H I bf cross section using a very simple approximation.  See, for example, Kurucz 1970
-equation 5.5.
+equation 5.5 (though see note below).  This implementation is used to extrapolate the cross-section
+past the ionization energy of an unperturbed hydrogen atom, as is required to take level dissolution
+into account with the MHD formalism.
 
 Equation 5.5 of Kurucz had a typo in it. In the numerator of the fraction that is multiplied by the 
 entire polynomial, Z² should be Z⁴. This was discovered during comparisons with data from the 
 Opacity Project, and can be confirmed by looking at eqn 5.6 of Kurucz (it uses Z⁴ instead of Z²) or
 by comparison against equation 10.54 of Rybicki & Lightman.
 """
-function hydrogen_bf_cross_section(n::Integer, ν::Real)
+function simple_hydrogen_bf_cross_section(n::Integer, ν::Real)
     # this implements equation 5.5 from Kurucz (1970)
     # - Z is the atomic number
     # - n is the energy level (remember, they start from n=1)
