@@ -22,9 +22,14 @@ other arguments:
 """
 function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
                           α_cntm; cutoff_threshold=1e-3)
+
     if length(linelist) == 0
         return zeros(length(λs))
     end
+
+    # if λs is an vector of ranges, we need this concatenated version for easy indexing
+    # the vector of ranges is used for fast index calculations (the move_bounds function).
+    concatenated_λs = vcat(λs...)
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
@@ -71,7 +76,8 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
             continue
         end
 
-        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, 
+                                                      view(concatenated_λs, lb:ub)')
     end
 end
 

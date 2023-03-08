@@ -183,24 +183,25 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(pairs) 
 
-    # Add contribution of line absorption to α, proceding one wavelength range at a time.
-    # Keeping the wavelengths in range objects is important for performance.
-    wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
-    wavelength_chunks = []
-    for λs in wl_ranges
-        wl_inds = wl_lb_ind : wl_lb_ind + length(λs) - 1
-        push!(wavelength_chunks, wl_inds)
-        line_absorption!(view(α, :, wl_inds), linelist, λs, [layer.temp for layer in atm.layers], 
-                         [layer.electron_number_density for layer in atm.layers], number_densities,
-                         partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
-        wl_lb_ind += length(λs)
-    end
+    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], 
+                    [layer.electron_number_density for layer in atm.layers], number_densities,
+                    partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
+    
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
         RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+    end
+
+    # collect the indices corresponding to each wavelength range
+    wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
+    wavelength_chunks = []
+    for λs in wl_ranges
+        wl_inds = wl_lb_ind : wl_lb_ind + length(λs) - 1
+        push!(wavelength_chunks, wl_inds)
+        wl_lb_ind += length(λs)
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 

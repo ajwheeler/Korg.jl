@@ -3,79 +3,40 @@ using Interpolations: LinearInterpolation, Flat
 
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
-
 """
-TODO
-TODO abstract vector
-"""
-struct MonotonicRangeVector <: AbstractArray{Float64, 1}
-    ranges::Vector{StepRangeLen{Float64}}
-    cumulative_length::Vector{Int}
+    move_bounds(λs, lb0, ub0, λ₀, window_size)
 
-    function MonotonicRangeVector(ranges::Vector{<:StepRangeLen}) 
-        #TODO convert to errors
-        @assert all(issorted.(ranges))
-        for i in 1:length(ranges)-1
-            @assert ranges[i][end] < ranges[i+1][1]
-        end
-        new(ranges, cumsum(length.(ranges)))
-    end
-end
-Base.IndexStyle(::Type{<:MonotonicRangeVector}) = IndexLinear()
-Base.size(v::MonotonicRangeVector) = (v.cumulative_length[end],)
-function calculate_both_indices(v::Vector{<:AbstractRange}, i)
-    range_ind = searchsortedfirst(v.cumulative_length, i)
-    if (range_ind == 0) || (range_ind == length(v.ranges)+1)
-        throw(BoundsError(v, i))
-    elseif range_ind == 1
-        1, i
-    else
-        range_ind, i - v.cumulative_length[range_ind-1]
-    end
-end
-function Base.getindex(v::MonotonicRangeVector, i)
-    range_ind, el_ind = calculate_both_indices(v, i)
-    v.ranges[range_ind][el_ind]
-end
-function Base.setindex!(v::MonotonicRangeVector, val, i)
-    range_ind, el_ind = calculate_both_indices(v, i)
-    v.ranges[range_ind][el_ind] = val
-end
-function Base.show(io::IO, v::MonotonicRangeVector)
-    print(io, "MonotonicRangeVector(")
-    show(io, v.ranges)
-    print(io, ")")
-end
-
-"""
-    move_bounds(λs, lb, ub, λ₀, window_size)
-
-Using `lb` and `ub` as initial guesses, return the indices of `λs` corresponding to 
-`λ₀`` ± `window_size`.  If `λs` is an `AbstractRange`, then compute them directly.  Assumes `λs` is 
-sorted.
-TODO
+Using `lb0` and `ub0` as initial guesses, return the indices of `λs`, `(lb, ub)` corresponding to 
+`λ₀`` ± `window_size`.  `λs` can either be a 
+- Vector, in which case `lb` and `ub` are used as first guesses
+- Range, in which case `lb` and `ub` are ignored and the bounds are computed directly
+- Vector of Ranges, in which case `lb` and `ub` are also ignored.  In this case, the bounds returned
+  are indices into the concatenation of the ranges.
 """
 function move_bounds(λs::R, lb, ub, λ₀, window_size) where R <: AbstractRange
     len = length(λs)
     lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
-    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 1, len)
+    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 0, len)
     lb,ub
 end
 function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R <: AbstractRange
-    #TODO
-    offset = 0
-    # this loop could be replaced with a binary search at the expense of code complexity
-    #TODO use searchsortedfirst
-    for λs in wl_ranges
-        if λ₀ - window_size > λs[end]
-            offset += length(λs)
-        elseif λ₀ + window_size < λs[1]
-            break
-        else
-            lb, ub = move_bounds(λs, lb, ub, λ₀, window_size)
-            return lb + offset, ub + offset
-        end
+    cumulative_lengths=cumsum(length.(wl_ranges))
+    lb, ub = 1, 0
+    # index of the first range for which the last element is greater than λ₀ - window_size
+    range_ind = searchsortedfirst(last.(wl_ranges), λ₀ - window_size)
+    if range_ind == length(wl_ranges) + 1
+        return lb, ub
     end
+    lb, ub = move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size) 
+    if range_ind > 1
+        lb += cumulative_lengths[range_ind-1]
+        ub += cumulative_lengths[range_ind-1]
+    end
+    while ub == cumulative_lengths[range_ind] && range_ind < length(wl_ranges)
+        range_ind += 1
+        ub += move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size)[2]
+    end
+    lb, ub
 end
 function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVector
     #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
