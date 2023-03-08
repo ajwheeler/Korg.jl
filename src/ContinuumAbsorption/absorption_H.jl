@@ -108,10 +108,10 @@ function H_I_bf(νs, T, nH_I, nHe_I, ne, invU_H; n_max_MHD=6, use_hubeny_general
             end
         end
 
-        # extrapolate the cross-section to lower energies by assuming proportionality to ν^3
+        # extrapolate the cross-section to lower energies by assuming proportionality to ν^-3
         σ_break = sigmas(ν_break * hplanck_eV)
-        scaling_factor = σ_break / ν_break^3
-        cross_section[1:break_ind-1] .= νs[1:break_ind-1].^3 * scaling_factor
+        scaling_factor = σ_break / ν_break^-3
+        cross_section[1:break_ind-1] .= νs[1:break_ind-1].^-3 * scaling_factor
         cross_section[break_ind:end] .= sigmas.(hplanck_eV .* νs[break_ind:end])
 
         total_cross_section .+= occupation_prob .* cross_section .* dissolved_fraction
