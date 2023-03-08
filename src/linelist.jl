@@ -61,7 +61,6 @@ struct Line{F}
     end
 end
 
-# it's important that this produces something parsable by the constructor
 function Base.show(io::IO, line::Line)
     show(io, line.species)
     print(io, " ", round(line.wl*1e8, digits=6), " Å (log gf = ", round(line.log_gf, digits=2) ,")")
