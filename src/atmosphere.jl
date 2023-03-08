@@ -99,7 +99,7 @@ Parse the provided model atmosphere file in MARCS ".mod" format.  Returns either
 
 !!! warning
     Korg does not yet support cool (``\\lesssim`` 3500 K) stars.  While it will happily parse their
-    model atmospheres, it is very likely to crash when you feed them into `synthesize`.
+    model atmospheres, it may crash when you feed them into `synthesize`.
 """
 function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
     open(fname) do f
@@ -205,7 +205,14 @@ Download the data used by [`interpolate_marcs`](@ref), a repacked version of the
 By default, the archive is stored at `.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set 
 with the `KORG_DATA_DIR` environment variable.
 """
-function download_atmosphere_archive(url="https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres.h5")
+function download_atmosphere_archive(url="https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres.h5"; 
+                                     force=false)
+    atm_archive_path = joinpath(_korg_data_dir(), "SDSS_MARCS_atmospheres.h5")
+    if !force && isfile(atm_archive_path)
+        error("It looks like you have already downloaded the SDSS MARCS model atmosphere grid. ",
+              "($(atm_archive_path) is present.) If you are sure you would like to re-download it, ", 
+              "you can run\n\n    download_atmosphere_archive(force=true)\n")
+    end
     prog = Progress(100, output=stdout, desc="Downloading model atmosphere archive: ")
     finished = false
     function update_progress(total, now)
@@ -227,52 +234,55 @@ function download_atmosphere_archive(url="https://korg-data.s3.amazonaws.com/SDS
         @info "creating $data_dir"
         mkdir(data_dir)
     end
-    download(url, joinpath(data_dir, "SDSS_MARCS_atmospheres.h5"), progress=update_progress);
+    download(url, atm_archive_path, progress=update_progress);
 end
 
 """
-    interpolate_marcs(archive, Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0)
-    interpolate_marcs(archive, Teff, logg, A_X)
+    interpolate_marcs(Teff, logg, Fe_M=0, alpha_M=0, C_M=0; kwargs...)
+    interpolate_marcs(Teff, logg, A_X; kwargs...)
 
-Returns a model atmosphere obtained by interpolating the atmosphere grid `archive`. 
-If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref) and accepted by 
-[`synthesize`](@ref)) is provided instead of `Fe_H`, `alpha_Fe`, and `C_Fe`, the solar-relative 
-ratios will be reconstructed assuming Grevesse+ 2007 solar abundances, with Mg determining the alpha
-ratio.
+Returns a model atmosphere obtained by interpolating the MARCS SDSS atmosphere grid, which provides 
+atmospheres for varying values of ``T_\\mathrm{eff}``, ``\\log g`, [metals/H], [alpha/metals], 
+and [C/metals].  If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref)
+and accepted by [`synthesize`](@ref)) is provided instead of `M_H`, `alpha_M`, and `C_M`, the 
+solar-relative ratios will be reconstructed assuming Grevesse+ 2007 solar abundances.
 
 The model atmosphere grid is a repacked version of the 
 [MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
 Before you use `interpolate_marcs` for the first time, you will have to download the grid with by 
-running `download_atmosphere_archive()`.
-By default, the archive is stored at `.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set 
-with the `KORG_DATA_DIR` environment variable.
+running `download_atmosphere_archive()`.  By default, the archive is stored at 
+`.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set with the `KORG_DATA_DIR` environment 
+variable.
 
 # keyword arguments
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
   default true when `logg` < 3.5.
-- `archive`: The atmosphere archive to use. For testing purposes.
+- `archive`: The atmosphere archive to use.  This is used to override the default grid for testing.
 
 !!! warning
-    Atmosphere interpolation is in beta.  Use with caution as it may be inaccurate.
-
+    Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
+    Teff ≈ 4250 K. We do not endorse using it for science in that regime. See 
+    https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
 """
 function interpolate_marcs(Teff, logg, A_X::Vector; kwargs...)
-    Fe_H = A_X[26] - grevesse_2007_solar_abundances[26], A[X]
-    alpha_Fe = A_X[12]/A_X[26] - grevesse_2007_solar_abundances[12]/grevesse_2007_solar_abundances[26]
-    C_Fe = A_X[6]/A_x[26] - grevesse_2007_solar_abundances[6]/grevesse_2007_solar_abundances[26]
-    interpolate_marcs(Teff, logg, Fe_H, alpha_Fe, C_Fe; kwargs...)
+    M_H = get_metals_H(A_X; solar_abundances=grevesse_2007_solar_abundances)
+    alpha_H = get_alpha_H(A_X; solar_abundances=grevesse_2007_solar_abundances)
+    alpha_M = alpha_H - M_H
+    C_H = A_X[6] - grevesse_2007_solar_abundances[6]
+    C_M = C_H - M_H
+    interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
-function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=logg < 3.5, 
+function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
                            archive=atmosphere_archive)
     if isnothing(archive)
         # the atmosphere archive is pretty large, so keep it out of memory unless it's used.
-        @info "loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session."
+        println("loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session.")
         archive = _load_atmosphere_archive()
     end
     nodes, exists, grid = archive
 
-    params = [Teff, logg, Fe_H, alpha_Fe, C_Fe]
-    param_names = ["Teff", "log(g)", "[Fe/H]", "[alpha/Fe]", "[C/Fe]"]
+    params = [Teff, logg, M_H, alpha_M, C_M]
+    param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
         if !(p_nodes[1] <= p <= p_nodes[end])
@@ -284,7 +294,7 @@ function interpolate_marcs(Teff, logg, Fe_H=0, alpha_Fe=0, C_Fe=0; spherical=log
     
     # allocate 2^n cube for each quantity
     dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
-    structure_type = typeof(promote(Teff, logg, Fe_H, alpha_Fe, C_Fe)[1])
+    structure_type = typeof(promote(Teff, logg, M_H, alpha_M, C_M)[1])
     structure = Array{structure_type}(undef, (56, 5, dims...))
      
     #put bounding atmospheres in 2^n cube

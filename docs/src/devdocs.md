@@ -18,7 +18,6 @@ If you've never developed a package in Julia, here are some tips.
 - Unless they will never be called elsewhere, provide docstrings describing the inputs, assumptions and outputs of any functions you write.
 
 ## Continuum absorption
-
 Steps for implementing new continuum sources of absorption:
 - Define a helper function that computes a single absorption coefficient (in units of cm⁻²). The function should accept `ν` (in Hz) and `T` (in K) as the first and second arguments, respectively. The convention is for it should share a name with the corresponding public function, but have an underscore pre-appended (e.g. we define `_H_I_bf` to help implement `H_I_bf`).
 - The public function is the function constructed and returned by `Korg.ContinuumAbsorption.bounds_checked_absorption` that wraps the above helper function. This wrapper function implements bounds-checking for `ν` and `T` and supports the keyword arguments described in [Continuum Absorption Kwargs](@ref).
@@ -46,5 +45,6 @@ between them.
 Here are all the documented methods in Korg.
 
 ```@autodocs
-Modules = [Korg, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994, Korg.RadiativeTransfer, Korg.RadiativeTransfer.MoogStyleTransfer, Korg.RadiativeTransfer.BezierTransfer]
+Modules = [Korg, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994,
+Korg.ContinuumAbsorption.Peach1970, Korg.RadiativeTransfer, Korg.RadiativeTransfer.MoogStyleTransfer, Korg.RadiativeTransfer.BezierTransfer]
 ```

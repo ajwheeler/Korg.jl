@@ -66,15 +66,16 @@ function setup_partition_funcs_and_equilibrium_constants()
         calculate_logK = let parition_funcs=partition_funcs
             function logK(logT)
                 Zs = get_atoms(spec)
-                Us_ratio = (prod([partition_funcs[Species(Formula(Z), 0)](logT) for Z in Zs])
-                            / partition_funcs[spec](logT))
-                masses_ratio = prod([atomic_masses[Z] for Z in Zs]) / get_mass(spec)
+                log_Us_ratio = log10(prod([partition_funcs[Species(Formula(Z), 0)](logT) for Z in Zs])
+                                     / partition_funcs[spec](logT))
+                log_masses_ratio = sum([log10(atomic_masses[Z]) for Z in Zs]) - log10(get_mass(spec))
                 T = exp(logT)
-                translational_U_factor = (2π*kboltz_cgs*T/hplanck_cgs^2)^1.5
-                # this is the number-density equilbrium constant
-                nK = translational_U_factor^(length(Zs)-1) * masses_ratio^1.5 * Us_ratio * exp(-D00/(kboltz_eV*T))
-                # compute the log of the partial-pressure equilibrium constant
-                log10(nK * (kboltz_cgs*T)^(length(Zs)-1))
+                log_translational_U_factor = 1.5*log10(2π*kboltz_cgs*T/hplanck_cgs^2)
+                # this is log number-density equilbrium constant
+                log_nK = ((length(Zs)-1)*log_translational_U_factor 
+                          + 1.5*log_masses_ratio + log_Us_ratio - D00/(kboltz_eV*T*log(10)))
+                # compute the log of the partial-pressure equilibrium constant, log10(pK)
+                log_nK + (length(Zs)-1)*log10(kboltz_cgs*T)
             end
         end
         spec => calculate_logK
