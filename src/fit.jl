@@ -14,8 +14,6 @@ using InteractiveUtils: @code_warntype
 # TODO specify versions in Project.toml
 # TODO derivatives are zero at grid points (perturbing in one direction would be bad???)
 
-
-
 """
     compute_LSF_matrix(synth_wls, obs_wls, R; window_size=3)
 
@@ -52,11 +50,8 @@ end
 Rescale each parameter so that it lives on (-∞, ∞) instead of the finite range of the atmosphere 
 grid.
 """
-function scale(p)
-    nodes = Korg.get_atmosphere_archive()[1]
-    lower = first.(nodes)
-    upper = last.(nodes)
-
+function scale(p; lower = first.(Korg.get_atmosphere_archive()[1]),
+                  upper = last.(Korg.get_atmosphere_archive()[1]))
     p = (p - lower) ./ (upper - lower)
     tan.(π .* (p.-0.5))
 end
@@ -65,11 +60,8 @@ end
 Unscale each parameter so that it lives on the finite range of the atmosphere grid insteaf of 
 (-∞, ∞).
 """
-function unscale(p)
-    nodes = Korg.get_atmosphere_archive()[1]
-    lower = first.(nodes)
-    upper = last.(nodes)
-
+function unscale(p; lower = first.(Korg.get_atmosphere_archive()[1]),
+                    upper = last.(Korg.get_atmosphere_archive()[1]))
     p = atan.(p)./π .+ 0.5
     p.*(upper - lower) .+ lower
 end
@@ -85,7 +77,7 @@ function synth(synthesis_wls, obs_wls, scaled_p::Vector{R}, linelist, LSF_matrix
     alpha_els = ["Ne", "Mg", "Si", "S", "Ar", "Ca", "Ti"]
     A_X = Korg.format_A_X(p[3], Dict(["C"=>p[5]+p[3], (alpha_els .=> p[4]+p[3])...]))
     F::Vector{R} = try
-        Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=1.0, line_buffer=line_buffer).flux
+        Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=1.25, line_buffer=line_buffer).flux
     catch e
         ones(sum(length.(synthesis_wls)))
     end
@@ -120,6 +112,91 @@ end
 """
 TODO
 
+using, e.g. iron lines
+"""
+function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist, p0, synthesis_wls, 
+                                   LSF_matrix; buffer=1.0)
+
+    obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
+
+    # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
+    windows = merge_bounds(windows, 2buffer)
+    obs_wl_inds = map(windows) do (ll, ul)
+        (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
+    end
+    obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
+        calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, buffer)
+
+    chi2 = let obs_wls=obs_wls[obs_wl_mask], data=obs_flux[obs_wl_mask], 
+               obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
+               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist
+        scaled_p -> begin
+            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
+            cntm = synth(synthesis_wls, obs_wls, scaled_p, [], LSF_matrix)
+            flux ./= cntm
+            sum(((flux .- data)./obs_err).^2)
+        end
+    end 
+    
+    res = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
+                   Optim.Options(x_tol=1e-5, time_limit=10_000, store_trace=true, 
+                   extended_trace=true), autodiff=:forward)
+
+    flux = synth(multi_synth_wls, obs_wls[obs_wl_mask], res.minimizer, linelist,
+                 LSF_matrix[obs_wl_mask, synth_wl_mask])
+    cntm = synth(multi_synth_wls, obs_wls[obs_wl_mask], res.minimizer, [],
+                 LSF_matrix[obs_wl_mask, synth_wl_mask])
+    best_fit_flux = flux ./ cntm
+
+    res, obs_wl_mask, best_fit_flux
+end
+
+function find_best_fit_abundace(obs_wls, obs_flux, obs_err, linelist, windows, Z_to_fit, A_X_0, atm,
+                                synthesis_wls, LSF_matrix; buffer=1.0)
+    obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
+
+    # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
+    windows = merge_bounds(windows, 2buffer)
+    obs_wl_inds = map(windows) do (ll, ul)
+        (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
+    end
+    obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
+        calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, buffer)
+
+    ll = A_X_0[Z_to_fit] - 4
+    ul = A_X_0[Z_to_fit] + 4
+
+
+    chi2 = let atm=atm, Z_to_fit=Z_to_fit, obs_wls=obs_wls[obs_wl_mask], 
+               data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], 
+               synthesis_wls=multi_synth_wls, A_X_0=A_X_0,
+               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist
+        scaled_abund -> begin
+            abund = unscale(scaled_abund[1], lower=ll, upper=ul)
+            A_X = [A_X_0[1:Z_to_fit-1] ; abund; A_X_0[Z_to_fit+1:length(A_X_0)]]
+            flux = Korg.synthesize(atm, linelist, A_X, synthesis_wls).flux
+            cntm = Korg.synthesize(atm, [], A_X, synthesis_wls).flux
+
+            flux = LSF_matrix * (flux ./ cntm)
+            sum(((flux .- data)./obs_err).^2)
+        end
+    end
+    
+    res = optimize(chi2, [scale(A_X_0[Z_to_fit], lower=ll, upper=ul)], autodiff=:forward,
+                   Optim.Options(time_limit=10_000, store_trace=true, extended_trace=true))
+
+    A_X = copy(A_X_0)
+    A_X[Z_to_fit] = unscale(res.minimizer[1];  lower=ll, upper=ul)
+    flux = Korg.synthesize(atm, linelist, A_X, multi_synth_wls).flux
+    cntm = Korg.synthesize(atm, [], A_X, multi_synth_wls).flux
+    best_fit_flux = LSF_matrix[obs_wl_mask, synth_wl_mask] * (flux ./ cntm)
+
+    res, A_X[Z_to_fit], obs_wl_mask, best_fit_flux
+end
+
+"""
+TODO
+
 synthesize spectrum in windows which are ± wl_buffer larger than the regions used for 
 comparison.  This is important because the spectra get convolved with the LSF. 
 
@@ -134,7 +211,7 @@ only done once.
 function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0, synthesis_wls, 
                                        LSF_matrix; verbose=true, global_rectify=data_safe_rectify, 
                                        local_rectify=simple_rectify, wl_chunk_size=10, wl_buffer=3,
-                                       line_buffer=3)
+                                       line_buffer=3, prerectified=false)
     obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
     J0 = global_jacobian(obs_wls, obs_err, linelist, p0, synthesis_wls, LSF_matrix)
 
@@ -150,18 +227,28 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
     end
 
     # rectify subspectra of input data
-    rectified_local_data, rectified_local_err = copy(obs_flux[obs_wl_mask]), copy(obs_err[obs_wl_mask])
-    for r in masked_obs_wls_range_inds
-        rF = local_rectify(rectified_local_data[r], obs_wls[obs_wl_mask][r], obs_err[obs_wl_mask][r])
-        rectified_local_err[r] ./= rectified_local_data[r] ./ rF # divide cntm out of err
-        rectified_local_data[r] .= rF
+    rectified_local_data, rectified_local_err = if prerectified
+        obs_flux[obs_wl_mask], obs_err[obs_wl_mask]
+    else
+        copy(obs_flux[obs_wl_mask]), copy(obs_err[obs_wl_mask])
+        for r in masked_obs_wls_range_inds
+            rF = local_rectify(rectified_local_data[r], obs_wls[obs_wl_mask][r], obs_err[obs_wl_mask][r])
+            rectified_local_err[r] ./= rectified_local_data[r] ./ rF # divide cntm out of err
+            rectified_local_data[r] .= rF
+        end
     end
 
     function chi2(scaled_p) 
         flux = synth(multi_synth_wls, obs_wls[obs_wl_mask], scaled_p, linelist, 
                      LSF_matrix[obs_wl_mask, synth_wl_mask]; line_buffer=line_buffer)
-        for r in masked_obs_wls_range_inds
-            flux[r] .= local_rectify(flux[r], obs_wls[obs_wl_mask][r], obs_err[obs_wl_mask][r])
+        if prerectified
+            cntm = synth(multi_synth_wls, obs_wls[obs_wl_mask], scaled_p, [], 
+                         LSF_matrix[obs_wl_mask, synth_wl_mask]; line_buffer=line_buffer)
+            flux ./= cntm
+        else
+            for r in masked_obs_wls_range_inds
+                flux[r] .= local_rectify(flux[r], obs_wls[obs_wl_mask][r], obs_err[obs_wl_mask][r])
+            end
         end
         sum(((flux .- rectified_local_data)./rectified_local_err).^2)
     end 
