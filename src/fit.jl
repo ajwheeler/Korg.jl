@@ -132,7 +132,9 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist
         scaled_p -> begin
             flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
+            flux = apply_rotation(flux, synthesis_wls, 10) #TODO
             cntm = synth(synthesis_wls, obs_wls, scaled_p, [], LSF_matrix)
+            cntm = apply_rotation(cntm, synthesis_wls, 10) #TODO
             flux ./= cntm
             sum(((flux .- data)./obs_err).^2)
         end
@@ -259,6 +261,35 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
     (result, chi2, multi_synth_wls, LSF_matrix[obs_wl_mask, synth_wl_mask], obs_wls[obs_wl_mask], 
     rectified_local_data, rectified_local_err, masked_obs_wls_range_inds)
 end
+
+"""
+Gray equation 8.14
+"""
+function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
+    vsini *= 1e5 # km/s to cm/s
+    newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
+    newF = zeros(newFtype, length(flux))
+    
+    c1 = 2(1-ε)
+    c2 = π * ε / 2
+    
+    # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot 
+    # (because we are working in wavelenths) and moves inside the loop
+    denominator = π * (1-ε/3) / step(wls) 
+    
+    for i in 1:length(flux)
+        Δλrot = wls[i] * vsini / Korg.c_cgs
+        nwls = Int(floor(Δλrot / step(wls)))
+        window = max(1, i-nwls) : min(length(flux), i+nwls)
+                
+        x = (wls[i] .- wls[window]) ./ Δλrot
+        one_less_x2 = @. 1 - x^2
+        
+        @. newF[window] .+= flux[i] * (c1*sqrt(one_less_x2) + c2*one_less_x2) / (denominator * Δλrot)
+    end
+    newF
+end
+
 
 """
 Sort a vector of lower-bound, uppoer-bound pairs and merge overlapping ranges.  Used by 
