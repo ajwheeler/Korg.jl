@@ -50,36 +50,67 @@ end
 Rescale each parameter so that it lives on (-∞, ∞) instead of the finite range of the atmosphere 
 grid.
 """
-function scale(p; lower = first.(Korg.get_atmosphere_archive()[1]),
-                  upper = last.(Korg.get_atmosphere_archive()[1]))
-    p = (p - lower) ./ (upper - lower)
-    tan.(π .* (p.-0.5))
+function scale(params::NamedTuple)
+    atm_params = [:Teff, :logg, :M_H, :alpha_M, :C_M]
+    new_pairs = map(collect(pairs(params))) do (name, p)
+        if name in atm_params
+            ind = findfirst(name .== atm_params)
+            lower = first(Korg.get_atmosphere_archive()[1][ind])
+            upper = last(Korg.get_atmosphere_archive()[1][ind])
+            @assert lower <= p <= upper
+            p = (p - lower) ./ (upper - lower)
+            name => tan.(π .* (p.-0.5))
+        elseif name in [:vmic, :vsini]
+            name => sqrt(p)
+        else
+            @error "$name is not a parameter I know how to scale."
+        end
+    end
+    (; new_pairs...)
 end
 
 """
-Unscale each parameter so that it lives on the finite range of the atmosphere grid insteaf of 
+Unscale each parameter so that it lives on the finite range of the atmosphere grid instead of 
 (-∞, ∞).
 """
-function unscale(p; lower = first.(Korg.get_atmosphere_archive()[1]),
-                    upper = last.(Korg.get_atmosphere_archive()[1]))
-    p = atan.(p)./π .+ 0.5
-    p.*(upper - lower) .+ lower
+function unscale(params)
+    atm_params = [:Teff, :logg, :M_H, :alpha_M, :C_M]
+    new_pairs = map(collect(pairs(params))) do (name, p)
+        if name in atm_params
+            ind = findfirst(name .== atm_params)
+            lower = first(Korg.get_atmosphere_archive()[1][ind])
+            upper = last(Korg.get_atmosphere_archive()[1][ind])
+            p = atan.(p)./π .+ 0.5
+            name => p.*(upper - lower) .+ lower
+        elseif name in [:vmic, :vsini]
+            name => p^2
+        else
+            @error "$name is not a parameter I know how to unscale."
+        end
+    end
+    (; new_pairs...)
 end
 
 """
 Synthesize a spectrum, returning the flux, with LSF applied, resampled, and rectified.  This is 
 used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
 """
-function synth(synthesis_wls, obs_wls, scaled_p::Vector{R}, linelist, LSF_matrix; line_buffer=10
-              ) :: Vector{R} where R <: Real
-    p = unscale(scaled_p)
-    atm = Korg.interpolate_marcs(p...)
+function basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, params;
+                     line_buffer=10) :: Vector{<:Real}
+    # interpolate_marcs (really deeper in the atm code) wants the types of its args to be the same
+    # TODO maybe that requirement should just be lifted instead.
+    atm_params = collect(promote(params.Teff, params.logg, params.M_H, params.alpha_M, params.C_M))
+    atm = Korg.interpolate_marcs(atm_params...)
     alpha_els = ["Ne", "Mg", "Si", "S", "Ar", "Ca", "Ti"]
-    A_X = Korg.format_A_X(p[3], Dict(["C"=>p[5]+p[3], (alpha_els .=> p[4]+p[3])...]))
-    F::Vector{R} = try
-        Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=1.25, line_buffer=line_buffer).flux
+    alpha_H = params.alpha_M + params.M_H
+    A_X = Korg.format_A_X(params.M_H, Dict(["C"=>params.C_M+params.M_H, (alpha_els .=> alpha_H)...]))
+    F = try
+        Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer).flux
     catch e
         ones(sum(length.(synthesis_wls)))
+    end
+    if params.vsini != 0
+        F .= apply_rotation(F, synthesis_wls, params.vsini)
     end
     #rF = apply_rotation(F, wls, 10) #TODO
     dF = LSF_matrix * F
@@ -99,7 +130,7 @@ function find_best_params_globally(obs_wls, obs_flux, obs_err, linelist, p0, syn
     chi2 = let obs_wls=obs_wls, data=rect_data, obs_err=obs_err, rect_err=rect_err, 
         synthesis_wls=synthesis_wls, LSF_matrix=LSF_matrix, linelist=linelist
         scaled_p -> begin
-            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
+            flux = basic_synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
             flux = rectify(flux, obs_err, obs_wls)
             sum(((flux .- data)./rect_err).^2)
         end
@@ -112,12 +143,26 @@ end
 """
 TODO
 
-using, e.g. iron lines
-"""
-function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist, p0, synthesis_wls, 
-                                   LSF_matrix; buffer=1.0)
+Given a list of windows in the form of wavelength pairs, find the best stellar parameters by 
+synthesizing and fitting within them.
 
-    obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
+TODO what is buffer and how should it be set?
+"""
+function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist, synthesis_wls, 
+                                   LSF_matrix, initial_guesses, fixed_params; buffer=1.0)
+
+    default_params = (M_H=0.0, alpha_M=0.0, C_M=0.0, vsini=0.0, vmic=1.0)
+    fixed_params = merge(default_params, fixed_params) # set unspecified params to default
+    let keys_in_both = collect(keys(initial_guesses) ∩ keys(fixed_params))
+        if length(keys_in_both) > 0
+            throw(ArgumentError("Theses parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
+        end 
+    end
+    let all_params = keys(initial_guesses) ∪ keys(fixed_params)
+        if !(:Teff in all_params) || !(:logg in all_params)
+            throw(ArgumentError("Must specify Teff and logg in either starting_params or fixed_params. (Did you get the capitalization right?)"))
+        end
+    end
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
     windows = merge_bounds(windows, 2buffer)
@@ -131,26 +176,30 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist
                obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist
         scaled_p -> begin
-            flux = synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
-            flux = apply_rotation(flux, synthesis_wls, 10) #TODO
-            cntm = synth(synthesis_wls, obs_wls, scaled_p, [], LSF_matrix)
-            cntm = apply_rotation(cntm, synthesis_wls, 10) #TODO
+            guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
+            params = merge(guess, fixed_params)
+            flux = basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, params)
+            cntm = basic_synth(synthesis_wls, obs_wls, [], LSF_matrix, params)
             flux ./= cntm
             sum(((flux .- data)./obs_err).^2)
         end
     end 
     
-    res = optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
+    # the initial guess must be supplied as a vector to optimize
+    p0 = collect(values(scale(initial_guesses)))
+    res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),  
                    Optim.Options(x_tol=1e-5, time_limit=10_000, store_trace=true, 
                    extended_trace=true), autodiff=:forward)
 
-    flux = synth(multi_synth_wls, obs_wls[obs_wl_mask], res.minimizer, linelist,
-                 LSF_matrix[obs_wl_mask, synth_wl_mask])
-    cntm = synth(multi_synth_wls, obs_wls[obs_wl_mask], res.minimizer, [],
-                 LSF_matrix[obs_wl_mask, synth_wl_mask])
+    solution = unscale((; zip(keys(initial_guesses), res.minimizer)...))
+    full_solution = merge(solution, fixed_params)
+    flux = basic_synth(multi_synth_wls, obs_wls[obs_wl_mask], linelist,
+                 LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
+    cntm = basic_synth(multi_synth_wls, obs_wls[obs_wl_mask], [],
+                 LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
     best_fit_flux = flux ./ cntm
 
-    res, obs_wl_mask, best_fit_flux
+    solution, res, obs_wl_mask, best_fit_flux
 end
 
 function find_best_fit_abundace(obs_wls, obs_flux, obs_err, linelist, windows, Z_to_fit, A_X_0, atm,
@@ -177,7 +226,9 @@ function find_best_fit_abundace(obs_wls, obs_flux, obs_err, linelist, windows, Z
             abund = unscale(scaled_abund[1], lower=ll, upper=ul)
             A_X = [A_X_0[1:Z_to_fit-1] ; abund; A_X_0[Z_to_fit+1:length(A_X_0)]]
             flux = Korg.synthesize(atm, linelist, A_X, synthesis_wls).flux
+            flux = apply_rotation(flux, synthesis_wls, 100.0) #TODO
             cntm = Korg.synthesize(atm, [], A_X, synthesis_wls).flux
+            cntm = apply_rotation(cntm, synthesis_wls, 100.0) #TODO
 
             flux = LSF_matrix * (flux ./ cntm)
             sum(((flux .- data)./obs_err).^2)
@@ -241,10 +292,10 @@ function find_best_params_multilocally(obs_wls, obs_flux, obs_err, linelist, p0,
     end
 
     function chi2(scaled_p) 
-        flux = synth(multi_synth_wls, obs_wls[obs_wl_mask], scaled_p, linelist, 
+        flux = basic_synth(multi_synth_wls, obs_wls[obs_wl_mask], scaled_p, linelist, 
                      LSF_matrix[obs_wl_mask, synth_wl_mask]; line_buffer=line_buffer)
         if prerectified
-            cntm = synth(multi_synth_wls, obs_wls[obs_wl_mask], scaled_p, [], 
+            cntm = basic_synth(multi_synth_wls, obs_wls[obs_wl_mask], scaled_p, [], 
                          LSF_matrix[obs_wl_mask, synth_wl_mask]; line_buffer=line_buffer)
             flux ./= cntm
         else
@@ -289,7 +340,19 @@ function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
     end
     newF
 end
-
+#handle case where wavelengths are provided as a vector of ranges.
+function apply_rotation(flux, wl_ranges::Vector{R}, vsini, ε=0.6) where R <: AbstractRange
+    newflux = similar(flux)
+    lower_index = 1
+    upper_index = length(wl_ranges[1])
+    newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index), wl_ranges[1], vsini, ε)
+    for i in 2:length(wl_ranges)
+        lower_index = upper_index + 1
+        upper_index = lower_index + length(wl_ranges[i]) - 1
+        newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index), wl_ranges[i], vsini, ε)
+    end
+    newflux
+end
 
 """
 Sort a vector of lower-bound, uppoer-bound pairs and merge overlapping ranges.  Used by 
@@ -446,7 +509,7 @@ function global_jacobian(obs_wls, obs_err, linelist, p0, synthesis_wls, LSF_matr
     J0 = let synthesis_wls=synthesis_wls, obs_wls=obs_wls, linelist=linelist, LSF_matrix=LSF_matrix, 
              obs_err=obs_err
         ForwardDiff.jacobian(scale(p0)) do p
-            flux = synth(synthesis_wls, obs_wls, p, linelist, LSF_matrix)
+            flux = basic_synth(synthesis_wls, obs_wls, p, linelist, LSF_matrix)
             global_rectify(flux, obs_err, obs_wls)
         end
     end
