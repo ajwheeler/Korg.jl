@@ -61,17 +61,14 @@ Korg.ContinuumAbsorption.H_I_bf
 Korg.ContinuumAbsorption.Hminus_bf
 Korg.ContinuumAbsorption.Hminus_ff
 Korg.ContinuumAbsorption.H2plus_bf_and_ff
-Korg.ContinuumAbsorption.He_II_bf
 Korg.ContinuumAbsorption.Heminus_ff
 Korg.ContinuumAbsorption.electron_scattering
 Korg.ContinuumAbsorption.rayleigh
 Korg.ContinuumAbsorption.positive_ion_ff_absorption!
-Korg.ContinuumAbsorption.hydrogenic_bf_absorption
-Korg.ContinuumAbsorption.hydrogenic_ff_absorption
 ```
 
 ## Statistical mechanics
-These functions can be used to calculate the number densities of all species in a given atospheric 
+These functions can be used to calculate the number densities of all species in a given atmospheric 
 layer, or other statmech calculations. 
 
 ```@docs

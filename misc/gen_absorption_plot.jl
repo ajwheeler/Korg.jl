@@ -51,9 +51,15 @@ end
 function main(args)
     # first, parse arguments
     if length(args) != 2
-        msg = string("This script expects 2 arguments. The first argument should indicate the ",
-                     "panel to compare data from. The second argument should specify the file ",
-                     "where the resulting figure should be saved.")
+        msg = """
+This script expects 2 arguments. The first argument should indicate the panel to compare data from.
+The second argument should specify the file where the resulting figure should be saved.  The panels 
+contain:
+    a: H⁻ bf
+    b: H⁻ ff, He⁻ ff, H⁻ bf, H₂⁺, H
+    c: H⁻ ff, He⁻ ff, H⁻ bf, H I
+    d: H I bf and ff
+"""
         throw(ArgumentError(msg))
     end
     panel_name = args[1]

@@ -144,10 +144,10 @@ const _hline_stark_profiles = _load_stark_profiles(joinpath(_data_dir,
 _zero2epsilon(x) = x + (x == 0) * floatmin()
 
 """
-    hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size)
+    hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size; kwargs...)
 
 Calculate contribution to the the absorption coefficient, αs, from hydrogen lines in units of cm^-1,
-at wavelengths `λs`. 
+at wavelengths `λs`.  TODO MHD
 
 Uses profiles from [Stehlé & Hutcheon (1999)](https://ui.adsabs.harvard.edu/abs/1999A%26AS..140...93S/abstract),
 which include Stark and Doppler broadening.  
@@ -171,12 +171,23 @@ Arguments:
 Keyword arguments:
 - `stark_profiles` (default: `Korg._hline_stark_profiles`): tables from which to interpolate Stark 
    profiles
+- `use_MHD` TODO
 """
-function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size; 
-                                   stark_profiles=_hline_stark_profiles)
+function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
+                                   stark_profiles=_hline_stark_profiles, use_MHD=true)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
     Hmass = get_mass(Formula("H"))
+
+    n_max = maximum(Korg._hline_stark_profiles) do line
+        line.upper
+    end
+
+    # precalculate occupation probabilities
+    ws = map(1:n_max) do n
+        E = RydbergH_eV * (1 - 1/n^2)
+        hummer_mihalas_w(T, n, nH_I, nHe_I, nₑ)
+    end
 
     #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
     #interpolated stark profiles
@@ -190,7 +201,13 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_siz
         Elo = RydbergH_eV * (1 - 1/line.lower^2)
         Eup = RydbergH_eV * (1 - 1/line.upper^2)
         β = 1/(kboltz_eV * T)
-        levels_factor = (exp(-β*Elo) - exp(-β*Eup)) / UH_I
+        
+        levels_factor = if use_MHD
+            # the transition can't happen if the upper level doesn't exist
+            ws[line.upper] * (exp(-β*Elo) - exp(-β*Eup)) / UH_I
+        else
+            (exp(-β*Elo) - exp(-β*Eup)) / UH_I
+        end
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
         lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)

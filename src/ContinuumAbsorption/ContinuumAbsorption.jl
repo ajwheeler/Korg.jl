@@ -1,25 +1,17 @@
 module ContinuumAbsorption
+export total_continuum_absorption
 
 using ..Korg: ionization_energies, Species, @species_str, _data_dir # not sure that this is the best idea
-using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound
+using ..Korg: Interval, closed_interval, contained, contained_slice, λ_to_ν_bound, hummer_mihalas_w
 include("../constants.jl") # I'm not thrilled to duplicate this, but I think it's probably alright
 
-# define helper functions
-include("bounds_checking.jl")
+include("bounds_checking.jl") # define helper functions
 include("hydrogenic_bf_ff.jl")
-
 include("absorption_H.jl")
 include("absorption_He.jl")
-
 include("absorption_ff_positive_ion.jl")
-#used for metal bf absorption
-using HDF5 
-using Interpolations: LinearInterpolation, Flat
 include("absorption_metals_bf.jl")
 include("scattering.jl")
-
-
-export total_continuum_absorption
 
 """
     total_continuum_absorption(νs, T, nₑ, number_densities, partition_funcs; error_oobounds)
@@ -44,7 +36,7 @@ The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
     sorted `AbstractVector`, it is most effient when passed an  `AbstractRange`.
 """
 function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partition_funcs::Dict;
-                                    error_oobounds = false)
+                                    error_oobounds=false)
     α = zeros(promote_type(eltype(νs), typeof(T), typeof(nₑ), valtype(number_densities)), length(νs))
 
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
@@ -54,13 +46,15 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
     nH_I_div_U = nH_I / partition_funcs[species"H_I"](log(T))
 
     # Hydrogen continuum absorption
-    H_I_bf(νs, T, nH_I_div_U; kwargs...)
+    # note: inclusion of He I ndens below is NOT a typo
+    α .+= H_I_bf(νs, T, nH_I, number_densities[species"He I"], nₑ, 
+                                    1/partition_funcs[species"H I"](log(T)))
+
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
     # He continuum absorption isn't actually important, but here we are
-    He_II_bf(νs, T, number_densities[species"He_II"]/partition_funcs[species"He_II"](log(T)); kwargs...)
     Heminus_ff(νs, T, number_densities[species"He_I"] / partition_funcs[species"He_I"](log(T)), nₑ;
                kwargs...)
 

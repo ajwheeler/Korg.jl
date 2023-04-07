@@ -5,44 +5,6 @@ population of that level is too small to be worth considering.
 
 We are currently missing free-free and bound free contributions from He I.
 """
-
-using ..ContinuumAbsorption: hydrogenic_bf_absorption, hydrogenic_ff_absorption, ionization_energies
-const _He_II_ion_energy = ionization_energies[2][2] # not sure if this is a good idea
-
-_He_II_bf(ν, T, nHe_II_div_partition, ion_energy = _He_II_ion_energy, nmax_explicit_sum = 9,
-          integrate_high_n = true) =
-              hydrogenic_bf_absorption(ν, T, 2, nHe_II_div_partition, ion_energy, nmax_explicit_sum,
-                                       integrate_high_n)
-"""
-    He_II_bf(ν, T, nHe_I_div_partition, [ion_energy], [nmax_explicit_sum], [integrate_high_n];
-             kwargs...)
-
-Compute the bound-free linear absorption coefficient contributed by all energy states of a
-singly-ionized Helium atom.
-
-# Required Arguments
-- `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
-- `T`: temperature in K
-- `nHe_II_div_partition` is the total number density of singly-ionized Helium divided by the its
-   partition function.
-
-# Optional Arguments
-- `ion_energy`: The ionization energy of Helium. By default, this is set to the values loaded 
-  into the global `ionization_energies` list.
-- `nmax_explicit_sum`: The highest energy level whose absorption contribution is included
-   in the explicit sum. The contributions from higher levels are included in an integral.
-- `integrate_high_n::bool`: When this is `false`, bf absorption from higher energy states are not
-   estimated at all. Default is `true`.
-
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
-
-# Notes
-This function simply wraps [`hydrogenic_ff_absorption`](@ref). See that function for additional
-details.
-"""
-He_II_bf = bounds_checked_absorption(_He_II_bf; ν_bound = Interval(0, Inf),
-                                     temp_bound = Interval(0, Inf))
-
 # Compute the number density of atoms in different He I states
 # taken from section 5.5 of Kurucz (1970)
 function ndens_state_He_I(n::Integer, nsdens_div_partition::Real, T::Real)

@@ -28,6 +28,19 @@ Steps for implementing new continuum sources of absorption:
 The first two steps may not apply for sources that don't directly depend on `ν` and `T` (e.g.
 absorption from scattering).
 
+## `Manifest.toml` and `Project.toml`
+[Read more about these files here.](https://pkgdocs.julialang.org/v1/toml-files/)
+These files are used by the julia package manager.  `Project.toml` records dependencies, and you'll 
+notice that the test and docs directories have their own `Project.toml`s for test and 
+documentation-specific dependencies.  `Manifest.toml` records exact package versions used when a 
+package was run.  It enables someone else to reproduce the exact environment and results later.  
+There are a few directories containing scripts that generate Korg's data files which have there own 
+`Projects.toml`s and `Manifest.toml`s, for example `data/bf_cross-sections/`.
+
+## Where to put data 
+If you are adding data to Korg, `data/README` provides an overview of the options and how to decide 
+between them.
+
 ## Complete API
 Here are all the documented methods in Korg.
 

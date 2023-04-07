@@ -1,7 +1,8 @@
 using Base
 using Statistics: mean
 using Interpolations: LinearInterpolation, deduplicate_knots!
-using Korg: partition_funcs, Species, ismolecule, get_atoms, _data_dir, move_bounds, @species_str
+using Korg
+using Korg: Species, ismolecule, get_atoms, _data_dir, move_bounds, @species_str
 using Korg: hplanck_eV, c_cgs, RydbergH_eV, kboltz_eV # constants
 using CSV, DataFrames #for NIST energy level parsing
 
@@ -237,7 +238,7 @@ function single_species_bf_cross_section(spec::Species, λs, Ts, data_dir)
     ionization_energy = Korg.ionization_energies[Z][spec.charge + 1]
 
     single_species_bf_cross_section(cross_sections, nist_levels, ionization_energy, 
-                             Korg.partition_funcs[spec], λs, Ts)
+                             Korg.default_partition_funcs[spec], λs, Ts)
 end
 function single_species_bf_cross_section(cross_sections, energy_levels, ionization_energy, U, λs, Ts)
     # convert λ_vals to photon energies in eV
