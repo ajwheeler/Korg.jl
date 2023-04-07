@@ -149,19 +149,26 @@ synthesizing and fitting within them.
 TODO what is buffer and how should it be set?
 """
 function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist, synthesis_wls, 
-                                   LSF_matrix, initial_guesses, fixed_params; buffer=1.0)
-
-    default_params = (M_H=0.0, alpha_M=0.0, C_M=0.0, vsini=0.0, vmic=1.0)
-    fixed_params = merge(default_params, fixed_params) # set unspecified params to default
-    let keys_in_both = collect(keys(initial_guesses) ∩ keys(fixed_params))
-        if length(keys_in_both) > 0
-            throw(ArgumentError("Theses parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
-        end 
-    end
+                                   LSF_matrix, initial_guesses, fixed_params=(;); buffer=1.0)
+    # check that Teff and logg are specified
     let all_params = keys(initial_guesses) ∪ keys(fixed_params)
         if !(:Teff in all_params) || !(:logg in all_params)
             throw(ArgumentError("Must specify Teff and logg in either starting_params or fixed_params. (Did you get the capitalization right?)"))
         end
+    end
+
+    # set fixed params which are not explicitely chosen
+    default_params = Dict([:M_H=>0.0, :alpha_M=>0.0, :C_M=>0.0, :vsini=>0.0, :vmic=>1.0])
+    filter!(default_params) do (k, v)
+        !(k in keys(initial_guesses)) && !(k in keys(fixed_params))
+    end
+    fixed_params = merge((; default_params...), fixed_params) 
+
+    # check that no params are both fixed and initial guesses
+    let keys_in_both = collect(keys(initial_guesses) ∩ keys(fixed_params))
+        if length(keys_in_both) > 0
+            throw(ArgumentError("Theses parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
+        end 
     end
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
