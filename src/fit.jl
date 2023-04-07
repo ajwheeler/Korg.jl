@@ -94,6 +94,8 @@ end
 """
 Synthesize a spectrum, returning the flux, with LSF applied, resampled, and rectified.  This is 
 used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
+
+TODO remove obs_wls ?
 """
 function basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, params;
                      line_buffer=10) :: Vector{<:Real}
@@ -112,54 +114,27 @@ function basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, params;
     if params.vsini != 0
         F .= apply_rotation(F, synthesis_wls, params.vsini)
     end
-    #rF = apply_rotation(F, wls, 10) #TODO
-    dF = LSF_matrix * F
+    LSF_matrix * F
 end
 
 """
-TODO rotation, vmic, abundance
-
-!!! warning
-    This function is in alpha. Do not use it for science.
+validate fitting parameters, and insert default values when needed.
 """
-function find_best_params_globally(obs_wls, obs_flux, obs_err, linelist, p0, synthesis_wls, LSF_matrix
-                                  ; rectify=data_safe_rectify)
-    obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
-    rect_data = rectify(obs_flux, obs_err, obs_wls)
-    rect_err = obs_err .* rect_data ./ obs_flux # divide out continuum
-    chi2 = let obs_wls=obs_wls, data=rect_data, obs_err=obs_err, rect_err=rect_err, 
-        synthesis_wls=synthesis_wls, LSF_matrix=LSF_matrix, linelist=linelist
-        scaled_p -> begin
-            flux = basic_synth(synthesis_wls, obs_wls, scaled_p, linelist, LSF_matrix)
-            flux = rectify(flux, obs_err, obs_wls)
-            sum(((flux .- data)./rect_err).^2)
-        end
-    end 
-    optimize(chi2, scale(p0), BFGS(linesearch=LineSearches.BackTracking()),  
-            Optim.Options(x_tol=1e-5, time_limit=10_000, store_trace=true, 
-            extended_trace=true), autodiff=:forward)
-end
+function validate_fitting_params(initial_guesses, fixed_params)
 
-"""
-TODO
-
-Given a list of windows in the form of wavelength pairs, find the best stellar parameters by 
-synthesizing and fitting within them.
-
-TODO what is buffer and how should it be set?
-"""
-function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist, synthesis_wls, 
-                                   LSF_matrix, initial_guesses, fixed_params=(;); buffer=1.0)
-    # check that Teff and logg are specified
+    required_params = [:Teff, :logg] # these must be specified in either initial_guesses or fixed_params
     let all_params = keys(initial_guesses) ∪ keys(fixed_params)
-        if !(:Teff in all_params) || !(:logg in all_params)
-            throw(ArgumentError("Must specify Teff and logg in either starting_params or fixed_params. (Did you get the capitalization right?)"))
+        for param in required_params
+            if !(param in all_params)
+                throw(ArgumentError("Must specify $param in either starting_params or fixed_params. (Did you get the capitalization right?)"))
+            end
         end
     end
 
-    # set fixed params which are not explicitely chosen
-    default_params = Dict([:M_H=>0.0, :alpha_M=>0.0, :C_M=>0.0, :vsini=>0.0, :vmic=>1.0])
-    filter!(default_params) do (k, v)
+    # these can be specified in either initial_guesses or fixed_params, but if they are not, 
+    # these values are inserted into fixed_params
+    default_params = (M_H=0.0, alpha_M=0.0, C_M=0.0, vsini=0.0, vmic=1.0)
+    default_params = filter(collect(pairs(default_params))) do (k, v)
         !(k in keys(initial_guesses)) && !(k in keys(fixed_params))
     end
     fixed_params = merge((; default_params...), fixed_params) 
@@ -170,6 +145,27 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist
             throw(ArgumentError("Theses parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
         end 
     end
+
+    #allowed_params = Symbol.(Korg.atomic_symbols) # TODO USE
+    # TODO check for unknown keys?
+
+    initial_guesses, fixed_params
+end
+
+"""
+TODO
+
+Given a list of windows in the form of wavelength pairs, find the best stellar parameters by 
+synthesizing and fitting within them.
+
+TODO what is buffer and how should it be set?
+TODO fit or fix limb darkening epsilon 
+TODO test case where windows is unspecified
+"""
+function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthesis_wls, 
+                                   LSF_matrix, initial_guesses, fixed_params=(;);
+                                   windows=[(obs_wls[1], obs_wls[end])], buffer=1.0)
+    initial_guesses, fixed_params = validate_fitting_params(initial_guesses, fixed_params)
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
     windows = merge_bounds(windows, 2buffer)
@@ -209,8 +205,8 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, windows, linelist
     solution, res, obs_wl_mask, best_fit_flux
 end
 
-function find_best_fit_abundace(obs_wls, obs_flux, obs_err, linelist, windows, Z_to_fit, A_X_0, atm,
-                                synthesis_wls, LSF_matrix; buffer=1.0)
+function find_best_fit_abundace(obs_wls, obs_flux, obs_err, linelist,
+                                synthesis_wls, LSF_matrix, windows; buffer=1.0)
     obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
