@@ -46,6 +46,9 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4)
     convM 
 end
 
+tan_scale(p, lower, upper) = tan(π * (((p-lower)/(upper-lower))-0.5))
+tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
+
 """
 Rescale each parameter so that it lives on (-∞, ∞) instead of the finite range of the atmosphere 
 grid.
@@ -53,15 +56,16 @@ grid.
 function scale(params::NamedTuple)
     atm_params = [:Teff, :logg, :M_H, :alpha_M, :C_M]
     new_pairs = map(collect(pairs(params))) do (name, p)
-        if name in atm_params
+        name => if name in atm_params
             ind = findfirst(name .== atm_params)
             lower = first(Korg.get_atmosphere_archive()[1][ind])
             upper = last(Korg.get_atmosphere_archive()[1][ind])
             @assert lower <= p <= upper
-            p = (p - lower) ./ (upper - lower)
-            name => tan.(π .* (p.-0.5))
+            tan_scale(p, lower, upper)
         elseif name in [:vmic, :vsini]
-            name => sqrt(p)
+            sqrt(p)
+        elseif string(name) in Korg.atomic_symbols
+            tan_scale(p, -12, 12)
         else
             @error "$name is not a parameter I know how to scale."
         end
@@ -76,14 +80,15 @@ Unscale each parameter so that it lives on the finite range of the atmosphere gr
 function unscale(params)
     atm_params = [:Teff, :logg, :M_H, :alpha_M, :C_M]
     new_pairs = map(collect(pairs(params))) do (name, p)
-        if name in atm_params
+        name => if name in atm_params
             ind = findfirst(name .== atm_params)
             lower = first(Korg.get_atmosphere_archive()[1][ind])
             upper = last(Korg.get_atmosphere_archive()[1][ind])
-            p = atan.(p)./π .+ 0.5
-            name => p.*(upper - lower) .+ lower
+            tan_unscale(p, lower, upper)
         elseif name in [:vmic, :vsini]
-            name => p^2
+            p^2
+        elseif string(name) in Korg.atomic_symbols
+            tan_unscale(p, -12, 12)
         else
             @error "$name is not a parameter I know how to unscale."
         end
@@ -105,7 +110,9 @@ function basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, params;
     atm = Korg.interpolate_marcs(atm_params...)
     alpha_els = ["Ne", "Mg", "Si", "S", "Ar", "Ca", "Ti"]
     alpha_H = params.alpha_M + params.M_H
-    A_X = Korg.format_A_X(params.M_H, Dict(["C"=>params.C_M+params.M_H, (alpha_els .=> alpha_H)...]))
+    # TODO how to deal with carbon? (better integrate detailed abunds and atm params generally)
+    specified_abundances = [String(p.first)=>p.second for p in pairs(params) if String(p.first) in Korg.atomic_symbols]
+    A_X = Korg.format_A_X(params.M_H, Dict(["C"=>params.C_M+params.M_H ; (alpha_els .=> alpha_H) ; specified_abundances]))
     F = try
         Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer).flux
     catch e
@@ -146,7 +153,6 @@ function validate_fitting_params(initial_guesses, fixed_params)
         end 
     end
 
-    #allowed_params = Symbol.(Korg.atomic_symbols) # TODO USE
     # TODO check for unknown keys?
 
     initial_guesses, fixed_params
@@ -166,6 +172,7 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthes
                                    LSF_matrix, initial_guesses, fixed_params=(;);
                                    windows=[(obs_wls[1], obs_wls[end])], buffer=1.0)
     initial_guesses, fixed_params = validate_fitting_params(initial_guesses, fixed_params)
+    @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
     windows = merge_bounds(windows, 2buffer)
@@ -177,7 +184,8 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthes
 
     chi2 = let obs_wls=obs_wls[obs_wl_mask], data=obs_flux[obs_wl_mask], 
                obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
-               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist
+               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist,
+               fixed_params=fixed_params
         scaled_p -> begin
             guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
             params = merge(guess, fixed_params)
@@ -205,10 +213,15 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthes
     solution, res, obs_wl_mask, best_fit_flux
 end
 
-function find_best_fit_abundace(obs_wls, obs_flux, obs_err, linelist,
-                                synthesis_wls, LSF_matrix, windows; buffer=1.0)
+function find_best_fit_abundance(obs_wls, obs_flux, obs_err, linelist, synthesis_wls, LSF_matrix, 
+                                windows, element, initial_guess,fixed_params
+                                ; buffer=1.0)
     obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
+    _, fixed_params = validate_fitting_params((;), fixed_params)
 
+    # TODO if this code remains duplicated between fitting functions, this shoudl be split into
+    # a method or modification of calculate_multilocal_masks_and_ranges.  (the merging probably 
+    # should as well.)
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
     windows = merge_bounds(windows, 2buffer)
     obs_wl_inds = map(windows) do (ll, ul)
@@ -217,37 +230,31 @@ function find_best_fit_abundace(obs_wls, obs_flux, obs_err, linelist,
     obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
         calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, buffer)
 
-    ll = A_X_0[Z_to_fit] - 4
-    ul = A_X_0[Z_to_fit] + 4
-
-
-    chi2 = let atm=atm, Z_to_fit=Z_to_fit, obs_wls=obs_wls[obs_wl_mask], 
-               data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], 
-               synthesis_wls=multi_synth_wls, A_X_0=A_X_0,
-               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist
+    chi2 = let obs_wls=obs_wls[obs_wl_mask], data=obs_flux[obs_wl_mask], 
+               obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
+               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist,
+               element=element, fixed_params=fixed_params
+               
         scaled_abund -> begin
-            abund = unscale(scaled_abund[1], lower=ll, upper=ul)
-            A_X = [A_X_0[1:Z_to_fit-1] ; abund; A_X_0[Z_to_fit+1:length(A_X_0)]]
-            flux = Korg.synthesize(atm, linelist, A_X, synthesis_wls).flux
-            flux = apply_rotation(flux, synthesis_wls, 100.0) #TODO
-            cntm = Korg.synthesize(atm, [], A_X, synthesis_wls).flux
-            cntm = apply_rotation(cntm, synthesis_wls, 100.0) #TODO
-
-            flux = LSF_matrix * (flux ./ cntm)
+            abund = unscale((; Symbol(element) => scaled_abund[1]))
+            flux = basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, merge(abund, fixed_params))
+            cntm = basic_synth(synthesis_wls, obs_wls, [], LSF_matrix, merge(abund, fixed_params))
+            flux ./= cntm
             sum(((flux .- data)./obs_err).^2)
         end
     end
     
-    res = optimize(chi2, [scale(A_X_0[Z_to_fit], lower=ll, upper=ul)], autodiff=:forward,
+    # put scaled initial abundance guess in singleton vector
+    p0 = collect(scale((; Symbol(element)=>initial_guess)))
+    res = optimize(chi2, p0, autodiff=:forward,
                    Optim.Options(time_limit=10_000, store_trace=true, extended_trace=true))
 
-    A_X = copy(A_X_0)
-    A_X[Z_to_fit] = unscale(res.minimizer[1];  lower=ll, upper=ul)
-    flux = Korg.synthesize(atm, linelist, A_X, multi_synth_wls).flux
-    cntm = Korg.synthesize(atm, [], A_X, multi_synth_wls).flux
-    best_fit_flux = LSF_matrix[obs_wl_mask, synth_wl_mask] * (flux ./ cntm)
+    best_fit_abund = unscale((; Symbol(element)=>res.minimizer[1]))
+    flux = basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, merge(best_fit_abund, fixed_params))
+    cntm = basic_synth(synthesis_wls, obs_wls, [], LSF_matrix, merge(best_fit_abund, fixed_params))
+    best_fit_flux = flux ./ cntm
 
-    res, A_X[Z_to_fit], obs_wl_mask, best_fit_flux
+    best_fit_abund[1], res, obs_wl_mask, best_fit_flux
 end
 
 """
