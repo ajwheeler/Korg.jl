@@ -156,7 +156,7 @@ end
 
 # this isn't a const because the model atmosphere doesn't get loaded into memory until 
 # interpolate_marcs is called for the first time
-global atmosphere_archive = nothing 
+global _atmosphere_archive = nothing 
 
 """
 Returns the local where Korg's large (too big for git) data files are stored.  At present, this is
@@ -171,11 +171,15 @@ function _korg_data_dir()
 end
 
 """
-Loads the model atmosphere grid used for interpolation into module-global memory.  It's not loaded 
+Returns the model atmosphere grid, first loading it into memory if necessary. It's not loaded 
 at import time because it's large, and model atmosphere interpolation isn't always needed. This
 is called automatically when running `interpolate_marcs`.
 """
-function _load_atmosphere_archive()
+function get_atmosphere_archive()
+    if !isnothing(_atmosphere_archive)
+        return _atmosphere_archive
+    end
+    @info "loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session."
     path = joinpath(_korg_data_dir(), "SDSS_MARCS_atmospheres.h5")
     if !isfile(path)
         msg = """
@@ -194,7 +198,7 @@ function _load_atmosphere_archive()
     exists = h5read(path, "exists")
     grid = h5read(path, "grid")
     nodes = [h5read(path, "grid_values/$i") for i in 1:5]
-    global atmosphere_archive = (nodes, exists, grid)
+    global _atmosphere_archive = (nodes, exists, grid)
 end
 
 """
@@ -273,12 +277,7 @@ function interpolate_marcs(Teff, logg, A_X::Vector; kwargs...)
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           archive=atmosphere_archive)
-    if isnothing(archive)
-        # the atmosphere archive is pretty large, so keep it out of memory unless it's used.
-        println("loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session.")
-        archive = _load_atmosphere_archive()
-    end
+                           archive=get_atmosphere_archive())
     nodes, exists, grid = archive
 
     params = [Teff, logg, M_H, alpha_M, C_M]

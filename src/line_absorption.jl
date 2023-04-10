@@ -10,7 +10,7 @@ Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `line
 `λs` [cm^-1]. 
 
 other arguments:
-- `temp` the temerature in K (at multiply layers, if you like)
+- `temp` the temerature in K (as a vector, for multiple layers, if you like)
 - `n_densities`, a Dict mapping species to absolute number density in cm^-3 (as a vector, if temp is
    a vector).
 - `partition_fns`, a Dict containing the partition function of each species
@@ -22,9 +22,14 @@ other arguments:
 """
 function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
                           α_cntm; cutoff_threshold=1e-3)
+
     if length(linelist) == 0
         return zeros(length(λs))
     end
+
+    # if λs is an vector of ranges, we need this concatenated version for easy indexing
+    # the vector of ranges is used for fast index calculations (the move_bounds function).
+    concatenated_λs = vcat(λs...)
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
@@ -48,9 +53,9 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         Γ = line.gamma_rad 
         if !ismolecule(line.species) 
             Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
-                      n_densities[species"H_I"] .* [scaled_vdW(line.vdW, m, T) for T in temp])
+                      n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temp))
         end
-        # calculate the lorentz broadening parameter in in wavelength. Doing this involves an 
+        # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
@@ -71,7 +76,8 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
             continue
         end
 
-        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, 
+                                                      view(concatenated_λs, lb:ub)')
     end
 end
 
@@ -210,7 +216,7 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, win
         end
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)
+        lb, ub = move_bounds(λs, 1, 1, λ₀, window_size)
         if lb == ub
             continue
         end

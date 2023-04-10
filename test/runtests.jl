@@ -150,6 +150,16 @@ end
             @test Korg.move_bounds(collect(a), lb, ub, 0., 3.) == (1, 2)
             @test Korg.move_bounds(collect(a), lb, ub, 6., 4.) == (2, 9)
         end
+
+        a = 1:10
+        @test Korg.move_bounds(a, 0, 0, 5.5, 0.1) == (6, 5)
+
+        a = [3:5, 11:0.5:12.5, 16:20]
+        @test Korg.move_bounds(a, 0, 0, -1, 1) == (1, 0)
+        @test Korg.move_bounds(a, 0, 0, 3, 1) == (1, 2)
+        @test Korg.move_bounds(a, 0, 0, 5, 6) == (1, 4)
+        @test Korg.move_bounds(a, 0, 0, 12.5, 0.6) == (6, 7)
+        @test Korg.move_bounds(a, 0, 0, 50, 5) == (1, 0)
     end
 
     @testset "line profile" begin
