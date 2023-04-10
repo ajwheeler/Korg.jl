@@ -79,39 +79,39 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
 """
-# Handle λ_start, λ_stop, and λ_step. Turn them into a range in vacuum wavelengths.
-function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01
-                    ; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4, kwargs...)
-    wls = if air_wavelengths
-        len = Int(round((λ_stop - λ_start)/λ_step))+1
-        vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
-        vac_step = (vac_stop - vac_start) / (len-1)
-        wls = StepRangeLen(vac_start, vac_step, len)
-        max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
-        if max_diff > wavelength_conversion_warn_threshold
-            throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
-                                *"linear vacuum wavelength range. This solution differs by up to " * 
-                                "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you "*
-                                "want to suppress this error."))
-        end
-        wls
-    else
-        StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)
-    end
+function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01; kwargs...)
+    wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
     synthesize(atm, linelist, A_X, wls; kwargs...)
 end
-# wrap a single wavelenth range in a 1-element vector
-synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; kwargs...) =
-    synthesize(atm, linelist, A_X, [λs]; kwargs...)
-# the base case: a vector of (vacuum) wavelenth ranges
 function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, 
                     wl_ranges::AbstractVector{<:AbstractRange}; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
+                    air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants)
+
+    # Convert air to vacuum wavelenths if necessary.
+    if air_wavelengths
+        wl_ranges = map(wl_ranges) do wls
+            λ_start, λ_stop, λ_step = first(wls), last(wls), step(wls)
+            len = Int(round((λ_stop - λ_start)/λ_step))+1
+            vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
+            vac_step = (vac_stop - vac_start) / (len-1)
+            wls = StepRangeLen(vac_start, vac_step, len)
+            max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
+            if max_diff > wavelength_conversion_warn_threshold
+                throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
+                                    *"linear vacuum wavelength range. This solution differs by up to " * 
+                                    "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you "*
+                                    "want to suppress this error."))
+            end
+            wls
+        end
+    end
+
     # work in cm
     wl_ranges = wl_ranges .* 1e-8 # broadbasting the = prevents wl_ranges from changing type
     cntm_step *= 1e-8

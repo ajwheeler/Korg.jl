@@ -373,7 +373,7 @@ end
     using ForwardDiff
 
     linelist = read_linelist("data/linelists/5000-5005.vald")
-    wls = 6564:0.01:6565
+    wls = [6564:0.01:6565]
     for atm_file in ["data/sun.mod",
              "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"]
         atm = read_model_atmosphere(atm_file)
