@@ -4,6 +4,7 @@ using .RadiativeTransfer
 
 """
     synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
+    synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
 
 Compute a synthetic spectrum.
 
@@ -16,7 +17,9 @@ Compute a synthetic spectrum.
 - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
 - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
-TODO flexible wavelength specification wl_chunk_inds
+If you provide a vector of wavelength ranges in place of `λ_start` and `λ_stop`, the spectrum will 
+be synthesized over each range with minimal overhead.
+The ranges can be any Julia `AbstractRange`, for example: `5000:0.01:5010`.
 
 # Returns 
 A named tuple with keys:
@@ -27,6 +30,9 @@ A named tuple with keys:
    atmospheric layer
 - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
   `air_wavelengths=true` this will not be the same as the input wavelenths.
+- `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum 
+   for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`, 
+   `λ_step` syntax, this will be a vector containing only one range.
 
 # Example
 to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to 
@@ -107,7 +113,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants)
     # work in cm
-    wl_ranges = wl_ranges .* 1e-8 # broadbasting the = prevents wl_ranges from changing type if necessary
+    wl_ranges = wl_ranges .* 1e-8 # broadbasting the = prevents wl_ranges from changing type
     cntm_step *= 1e-8
     line_buffer *= 1e-8
 
@@ -201,15 +207,15 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
 
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
-    wavelength_chunks = []
+    subspectra = []
     for λs in wl_ranges
         wl_inds = wl_lb_ind : wl_lb_ind + length(λs) - 1
-        push!(wavelength_chunks, wl_inds)
+        push!(subspectra, wl_inds)
         wl_lb_ind += length(λs)
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
-     wavelengths=all_λs.*1e8, subspectra=wavelength_chunks)
+     wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
 
 """
