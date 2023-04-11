@@ -198,6 +198,7 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, win
     #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
     #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2/3)
+    lb, ub = 1, 1
     for line in stark_profiles
         if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
             continue #transitions to high levels are omitted for high nₑ and T
@@ -216,11 +217,10 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, win
         end
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        lb, ub = move_bounds(λs, 1, 1, λ₀, window_size)
-        if lb == ub
+        lb, ub = move_bounds(λs, lb, ub, λ₀, window_size)
+        if lb >= ub
             continue
         end
-         
         # if it's Halpha, Hbeta, or Hgamma, add the resonant broadening to the absorption vector
         # use the Barklem+ 2000 p-d approximation
         if line.lower == 2 && line.upper in [3, 4, 5]
