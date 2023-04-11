@@ -179,8 +179,9 @@ Keyword arguments:
    profiles
 - `use_MHD` TODO
 """
-function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
+function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
+    λs = vcat(collect.(wl_ranges)...)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
     Hmass = get_mass(Formula("H"))
@@ -198,7 +199,6 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, win
     #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
     #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2/3)
-    lb, ub = 1, 1
     for line in stark_profiles
         if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
             continue #transitions to high levels are omitted for high nₑ and T
@@ -217,7 +217,7 @@ function hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, win
         end
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        lb, ub = move_bounds(λs, lb, ub, λ₀, window_size)
+        lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, window_size)
         if lb >= ub
             continue
         end

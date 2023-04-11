@@ -177,7 +177,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
         end
 
         if hydrogen_lines
-            hydrogen_line_absorption!(view(α, i, :), all_λs, layer.temp, layer.electron_number_density, 
+            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, layer.electron_number_density, 
                                       n_dict[species"H_I"],  n_dict[species"He I"],
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
                                       hydrogen_line_window_size*1e-8; 
