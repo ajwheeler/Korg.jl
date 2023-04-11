@@ -194,7 +194,7 @@ end
         close(fid)
 
         αs = zeros(length(wls))
-        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, ne, nH_I, 0.0,
+        Korg.hydrogen_line_absorption!(αs, [wls], 9000.0, ne, nH_I, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 
                                        0.0, 15e-7, use_MHD=false) 
         @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; atol=5e-9)
@@ -202,7 +202,7 @@ end
         #make sure that H line absorption doesn't return NaNs on inputs where it used to
         αs = zeros(length(wls))
         wls = 3800 : 0.01 : 4200
-        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1.1e16, 1, 0.0,
+        Korg.hydrogen_line_absorption!(αs, [wls], 9000.0, 1.1e16, 1, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
         @assert all(.! isnan.(αs))
     end
@@ -351,6 +351,18 @@ end
     @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true, 
                                           wavelength_conversion_warn_threshold=1e-20)
     @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
+
+    # test multiple line windows
+    r1 = 5000:0.01:5001
+    r2 = 6000:0.01:6001
+    sol1 = synthesize(atm, [], A_X, [r1]; hydrogen_lines=true)
+    sol2 = synthesize(atm, [], A_X, [r2]; hydrogen_lines=true)
+    sol3 = synthesize(atm, [], A_X, [r1, r2]; hydrogen_lines=true)
+
+    @test sol1.wavelengths == sol3.wavelengths[sol3.subspectra[1]]
+    @test sol2.wavelengths == sol3.wavelengths[sol3.subspectra[2]]
+    @test sol1.flux == sol3.flux[sol3.subspectra[1]]
+    @test sol2.flux == sol3.flux[sol3.subspectra[2]]
 end
 
 @testset "line buffer" begin

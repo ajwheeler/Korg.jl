@@ -153,7 +153,7 @@ _zero2epsilon(x) = x + (x == 0) * floatmin()
     hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size; kwargs...)
 
 Calculate contribution to the the absorption coefficient, αs, from hydrogen lines in units of cm^-1,
-at wavelengths `λs`.  TODO MHD
+at wavelengths `λs` (a vector of ranges).
 
 Uses profiles from [Stehlé & Hutcheon (1999)](https://ui.adsabs.harvard.edu/abs/1999A%26AS..140...93S/abstract),
 which include Stark and Doppler broadening.  
@@ -177,7 +177,8 @@ Arguments:
 Keyword arguments:
 - `stark_profiles` (default: `Korg._hline_stark_profiles`): tables from which to interpolate Stark 
    profiles
-- `use_MHD` TODO
+- `use_MHD`: whether or not to use the Mihalas-Daeppen-Hummer formalism to adjust the occupation 
+   probabilities of each hydrogen orbital for plasma effects.  Default: `true`.
 """
 function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
