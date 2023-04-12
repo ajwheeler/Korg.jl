@@ -41,40 +41,49 @@ struct Formula
         #handle numeric codes, e.g. 0801 -> OH
         if all(isdigit(c) for c in code)
             if length(code) <= 2
-                return Formula(parse(Int,code))
+                Formula(parse(Int,code))
             elseif length(code) <= 4
                 el1 = parse(Int, code[1:end-2])   #first digit
                 el2 = parse(Int, code[end-1:end]) #second digit
-                return new([zeros(UInt8, MAX_ATOMS_PER_MOLECULE-2) ; min(el1, el2) ; max(el1, el2)])
-            else
-                throw(ArgumentError("numeric codes for molecules with more than 4 chars are not supported. (Trying to parse $code)"))
-            end
-        end
-
-        #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
-        inds::Vector{Int} = findall(code) do c
-            isdigit(c) || isuppercase(c)
-        end
-        push!(inds, length(code)+1)
-        subcode::Vector{String} = map(1:(length(inds)-1)) do j
-            code[inds[j]:inds[j+1]-1]
-        end
-
-        atoms = UInt8[]
-        for s in subcode
-            num = tryparse(Int, s)
-            if num isa Int
-                previous = atoms[end]
-                for _ in 1:(num-1)
-                    push!(atoms, previous)
+                new([zeros(UInt8, MAX_ATOMS_PER_MOLECULE-2) ; min(el1, el2) ; max(el1, el2)])
+            elseif length(code) / 2 <= MAX_ATOMS_PER_MOLECULE 
+                # if there are an odd number of digits, pad the front with a zero
+                if length(code) % 2 == 1
+                    code = "0" * code
                 end
+                els = map(1:2:(length(code)-1)) do i
+                    parse(Int, code[i:i+1])
+                end
+                new([zeros(UInt8, MAX_ATOMS_PER_MOLECULE-length(els)) ; sort(els)])
             else
-                push!(atoms, atomic_numbers[s])
+                throw(ArgumentError("Korg only supports atoms with up to $MAX_ATOMS_PER_MOLECULE nuclei. (Trying to parse $code)"))
             end
-        end
+        else
+            #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
+            inds::Vector{Int} = findall(code) do c
+                isdigit(c) || isuppercase(c)
+            end
+            push!(inds, length(code)+1)
+            subcode::Vector{String} = map(1:(length(inds)-1)) do j
+                code[inds[j]:inds[j+1]-1]
+            end
 
-        sort!(atoms)
-        Formula(atoms)
+            atoms = UInt8[]
+            for s in subcode
+                num = tryparse(Int, s)
+                if num isa Int
+                    previous = atoms[end]
+                    for _ in 1:(num-1)
+                        push!(atoms, previous)
+                    end
+                else
+                    push!(atoms, atomic_numbers[s])
+                end
+            end
+
+            sort!(atoms)
+            Formula(atoms)
+        end
     end
 end
 
