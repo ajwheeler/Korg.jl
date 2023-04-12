@@ -365,43 +365,30 @@ function parse_turbospectrum_linelist(fn)
 end
 
 function parse_turbospectrum_linelist_transition(species, Δloggf, line)
-    # This regular expression correctly validates and parses, but it's waaaay slow.
-    # leaving here for posterity.
+    # from the Turbospectrum docs (In practice linelists may have as few at 6 columns:
     #
-    #sep = raw"\s+" 
-    #capture groups
-    #positive_int(name) = raw"(?<"*name*raw">\d+\.0)" # positive integer as a float (e.g. "42.0")
-    #num(name) = raw"(?<"*name*raw">-?\d+\.?\d*)"     # float
-    #sci_not(name) = raw"(?<"*name*raw">-?\d+\.?\d*[eE][+-]\d+)" # float (scientific notation)
-    #re = Regex(raw"^\s*" * num("wavelength") * sep * 
-    #          num("Elow") * sep * 
-    #          num("loggf") * sep * 
-    #          num("vdw") * sep *
-    #          positive_int("gup") * sep *
-    #          sci_not("gamma_rad") * sep *
-    #          raw"(" * num("gamma_stark") * sep * raw")?" * #gamma_stark may be omitted
-    #          raw"(?<upper_l>'[\w?]')" * sep *
-    #          raw"(?<lower_l>'[\w?]')") 
-    #          # followed by equivalent width, equivalent width error, and an optional comment
-    #m = match(re, line)
-    #if isnothing(m)
-    #    println(line)
-    #end
-    #Line(parse(Float64, m["wavelength"])*1e-8,
-    #     parse(Float64, m["loggf"]) + Δloggf, 
-    #     species, 
-    #     parse(Float64, m["Elow"]), 
-    #     parse(Float64, m["gamma_rad"]), 
-    #     isnothing(m["gamma_stark"]) ? 0.0 : parse(Float64, m["gamma_stark"]), 
-    #     parse(Float64, m["vdw"]))
+    # For each line that follows:
+    # col 1: lambda(A)  
+    # col 2: Elow(eV) 
+    # col 3: loggf 
+    # col 4: fdamp (see below)
+    # col 5: gup
+    # col 6: gamma_rad (if =0, gf-value is used to compute gamma_rad)
+    # col 7: gamma_Stark (may be omitted)
+    # col 8: s,p,d,f etc for upper level (or X), see fdamp
+    # col 9: same for lower level
+    # col 10: equivalent width, when needed (abundance determination in eqwidt run)
+    # col 11: error in eqw
+    # col 12: (in quotes) some text describing levels or whatever you like to include
 
     # there could be a comma separating tokens (and fortran would parse), but I've never seen it.
     toks = split(line)
-    gs = tryparse(Float64, toks[7]) # will be the the upper level l (as letter) if gamma_stark is omitted
-    stark_log_gamma = if isnothing(gs)
+
+    # if toks[7] is present, but gamma_stark is skipped, it will be the l for the upper level.
+    stark_log_gamma = if length(toks) < 7 || isnothing(tryparse(Float64, toks[7]))
         missing
     else
-        tentotheOrMissing(gs)
+        tentotheOrMissing(tryparse(Float64, toks[7]))
     end
     Line(air_to_vacuum(parse(Float64, toks[1])*1e-8),
          parse(Float64, toks[3]) + Δloggf, 
