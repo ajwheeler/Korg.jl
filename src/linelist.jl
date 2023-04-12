@@ -138,6 +138,9 @@ end
 
 Parse a linelist file, returning a vector of [`Line`](@ref)s.
 
+TODO ts
+TODO assumed air
+
 Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
 (`format=kurucz_vac` if it uses vacuum wavelengths; Be warned that Korg will not assume that 
 wavelengths are vacuum below 2000 Å),`format="vald"` for a 
@@ -307,4 +310,104 @@ function parse_moog_linelist(f)
              parse(Float64, toks[3]))
     end
     linelist
+end
+
+function parse_turbospectrum_linelist(fn)
+    # https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19
+
+    lines = readlines(fn)
+    species_headers = Int[]
+    for i in 1:length(lines)
+        if i != length(lines) && lines[i][1] == '\'' && lines[i+1][1] == '\''
+            push!(species_headers, i)
+        end
+    end
+
+    transitions_for_each_species = map(1:length(species_headers)) do header_line_ind
+        first_line_ind = species_headers[header_line_ind]
+        last_line_ind = if header_line_ind == length(species_headers)
+            length(lines)
+        else
+            species_headers[header_line_ind+1] - 1
+        end
+
+        # species line might look like this (carrot is beginning of line):
+        # ^'  26.000            '    1       2342
+        # here, the 26 refers to Fe (works as everything else does for molecules).  The decimal part
+        # is the isotop information, NOT THE CHARGE.  The "1" is the ionization starge, i.e. the 
+        # charge + 1. 2341 is the number of lines.
+
+        species_line = lines[first_line_ind]
+        m = match(r"'\s*(?<formula>\d+)\.(?<isostring>\d+)\s+'\s+(?<ion>\d+)\s+(?<n_lines>\d+)\s*", 
+                  species_line)
+        formula = Formula(m["formula"]) 
+        charge = parse(Int, m["ion"]) - 1
+        spec = Korg.Species(formula, charge)
+        n_lines = parse(Int, m["n_lines"])
+        if last_line_ind - first_line_ind - 1 != n_lines
+            throw(ArgumentError("Can't parse this line list.  The file says there are $n_lines lines for $spec, but I see $(last_line_ind - first_line_ind - 2) lines."))
+        end
+
+        isostring = m["isostring"]
+        isotopic_Δ_loggf =  if !isnothing(match(r"^0+$", isostring))
+            0.0
+        else
+            map(get_atoms(spec), 1:3:length(isostring)-2) do el, i
+                m = parse(Int, isostring[i:i+2])
+                log10(isotopic_abundances[el][m])
+            end |> sum
+        end
+        map(lines[first_line_ind+2:last_line_ind]) do line
+            parse_turbospectrum_linelist_transition(spec, isotopic_Δ_loggf, line)
+        end
+    end
+    sort!(vcat(transitions_for_each_species...), by=l->l.wl)
+end
+
+function parse_turbospectrum_linelist_transition(species, Δloggf, line)
+    # This regular expression correctly validates and parses, but it's waaaay slow.
+    # leaving here for posterity.
+    #
+    #sep = raw"\s+" 
+    #capture groups
+    #positive_int(name) = raw"(?<"*name*raw">\d+\.0)" # positive integer as a float (e.g. "42.0")
+    #num(name) = raw"(?<"*name*raw">-?\d+\.?\d*)"     # float
+    #sci_not(name) = raw"(?<"*name*raw">-?\d+\.?\d*[eE][+-]\d+)" # float (scientific notation)
+    #re = Regex(raw"^\s*" * num("wavelength") * sep * 
+    #          num("Elow") * sep * 
+    #          num("loggf") * sep * 
+    #          num("vdw") * sep *
+    #          positive_int("gup") * sep *
+    #          sci_not("gamma_rad") * sep *
+    #          raw"(" * num("gamma_stark") * sep * raw")?" * #gamma_stark may be omitted
+    #          raw"(?<upper_l>'[\w?]')" * sep *
+    #          raw"(?<lower_l>'[\w?]')") 
+    #          # followed by equivalent width, equivalent width error, and an optional comment
+    #m = match(re, line)
+    #if isnothing(m)
+    #    println(line)
+    #end
+    #Line(parse(Float64, m["wavelength"])*1e-8,
+    #     parse(Float64, m["loggf"]) + Δloggf, 
+    #     species, 
+    #     parse(Float64, m["Elow"]), 
+    #     parse(Float64, m["gamma_rad"]), 
+    #     isnothing(m["gamma_stark"]) ? 0.0 : parse(Float64, m["gamma_stark"]), 
+    #     parse(Float64, m["vdw"]))
+
+    # there could be a comma separating tokens (and fortran would parse), but I've never seen it.
+    toks = split(line)
+    stark_log_gamma = try
+        gs = parse(Float64, toks[7])
+        gs == 0 ? missing : gs
+    catch
+        missing 
+    end
+    Line(air_to_vacuum(parse(Float64, toks[1])*1e-8),
+         parse(Float64, toks[3]) + Δloggf, 
+         species, 
+         parse(Float64, toks[2]), 
+         parse(Float64, toks[6]), 
+         stark_log_gamma,
+         parse(Float64, toks[4]))
 end

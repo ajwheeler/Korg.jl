@@ -33,7 +33,7 @@ struct Formula
     Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, 
     i.e. "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
-    function Formula(code::String) 
+    function Formula(code::AbstractString) 
         if code in atomic_symbols #quick-parse single elements
             return new([zeros(UInt8, MAX_ATOMS_PER_MOLECULE-1) ; atomic_numbers[code]]) 
         end

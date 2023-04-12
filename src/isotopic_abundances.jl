@@ -1,6 +1,7 @@
 # these are scraped from NIST
 # maps atomic number to another dict mapping atomic weight to absolute abundance (abundances for an 
 # element sum to 1)
+# this isn't an array, because not every element is present
 const isotopic_abundances = Dict(
     1 => Dict(1=>0.999885, 2=>0.000115, ),
     2 => Dict(3=>1.34e-6, 4=>0.99999866, ),
