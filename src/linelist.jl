@@ -186,7 +186,7 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
 end
 
 #used to handle missing gammas in vald and kurucz lineslist parsers
-expOrMissing(x) = x == 0.0 ? missing : 10.0^x
+tentotheOrMissing(x) = x == 0.0 ? missing : 10.0^x
 idOrMissing(x) = x == 0.0 ? missing : x
 
 function parse_kurucz_linelist(f; vacuum=false)
@@ -212,8 +212,8 @@ function parse_kurucz_linelist(f; vacuum=false)
                      parse(Float64, row[12:18]),
                      Species(row[19:24]),
                      min(E_levels...),
-                     expOrMissing(parse(Float64, row[81:86])),
-                     expOrMissing(parse(Float64, row[87:92])),
+                     tentotheOrMissing(parse(Float64, row[81:86])),
+                     tentotheOrMissing(parse(Float64, row[87:92])),
                      idOrMissing(parse(Float64, row[93:98]))))
     end
     lines
@@ -294,8 +294,8 @@ function parse_vald_linelist(f, isotopic_abundances)
         0
     end
 
-    Line.(wl * 1e-8, loggf, Species.(body.species), E_low, expOrMissing.(body.gamma_rad), 
-          expOrMissing.(body.gamma_stark), idOrMissing.(body.gamma_vdW))
+    Line.(wl * 1e-8, loggf, Species.(body.species), E_low, tentotheOrMissing.(body.gamma_rad), 
+          tentotheOrMissing.(body.gamma_stark), idOrMissing.(body.gamma_vdW))
 end
 
 #todo support moog linelists with broadening parameters?
@@ -397,17 +397,17 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line)
 
     # there could be a comma separating tokens (and fortran would parse), but I've never seen it.
     toks = split(line)
-    stark_log_gamma = try
-        gs = parse(Float64, toks[7])
-        gs == 0 ? missing : gs
-    catch
-        missing 
+    gs = tryparse(Float64, toks[7]) # will be the the upper level l (as letter) if gamma_stark is omitted
+    stark_log_gamma = if isnothing(gs)
+        missing
+    else
+        tentotheOrMissing(gs)
     end
     Line(air_to_vacuum(parse(Float64, toks[1])*1e-8),
          parse(Float64, toks[3]) + Δloggf, 
          species, 
          parse(Float64, toks[2]), 
-         parse(Float64, toks[6]), 
+         tentotheOrMissing(parse(Float64, toks[6])), 
          stark_log_gamma,
          parse(Float64, toks[4]))
 end
