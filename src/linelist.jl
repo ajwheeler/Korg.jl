@@ -390,11 +390,15 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line)
     else
         tentotheOrMissing(tryparse(Float64, toks[7]))
     end
+    gamma_rad = parse(Float64, toks[6])
+    if gamma_rad == 0
+        gamma_rad = missing
+    end
     Line(air_to_vacuum(parse(Float64, toks[1])*1e-8),
          parse(Float64, toks[3]) + Δloggf, 
          species, 
          parse(Float64, toks[2]), 
-         tentotheOrMissing(parse(Float64, toks[6])), 
+         gamma_rad,
          stark_log_gamma,
          parse(Float64, toks[4]))
 end
