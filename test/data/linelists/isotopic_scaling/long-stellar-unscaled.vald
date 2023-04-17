@@ -13,6 +13,10 @@ Spec Ion        WL_vac(A)  log gf* E_low(eV) J lo E_up(eV)  J up   lower   upper
 '  LS                                                                           3d4.4s2 a1G'
 '  LS                                                                      3d5.(2H).4p x1H*'
 '_      A   Kurucz Cr I 2016   3 wl:K16   3 gf:K16   3 K16   3 K16   3 K16   3 K16   3 K16   3 K16   3 K16    Cr'
+'Cr 1',       3569.04432, -0.511,  3.9659,  4.0,  7.4397,  5.0,  1.000,  0.890,  0.660, 0.000,-5.960,  -7.730, 0.364,
+'  LS                                                                           3d4.4s2 a1G'
+'  LS                                                                      3d5.(2H).4p x1H*'
+'_      A   Kurucz Cr I 2016   3 wl:K16   3 gf:K16   3 K16   3 K16   3 K16   3 K16   3 K16   3 K16   3 K16    Cr'
 'castelli_ap00k2_T05000G40.krz',
 'H :  0.92','He: -1.11',
 'Li:-10.94','Be:-10.64','B : -9.49','C : -3.52','N : -4.12','O : -3.21',
