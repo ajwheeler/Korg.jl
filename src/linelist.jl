@@ -165,6 +165,10 @@ from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-re
 ([Korg.isotopic_abundances]).
 To use custom isotopic abundances, just pass `isotopic_abundances` with the same structure: 
 a dict mapping atomic number to a dict mapping from atomic weight to abundance.
+
+TODO
+Be warned that for linelists which are pre-scaled for isotopic abundance, the estimation of 
+radiative broadening from log(gf) is not accurate.
 """
 function read_linelist(fname::String; format="vald", isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
@@ -274,7 +278,7 @@ function parse_vald_linelist(f, isotopic_abundances)
         error("Can't parse linelist.  Can't determine energy units: " * E_col)
     end
 
-    wl = if contains(header, "air") #convert wls to vacuum if necessary
+    wl = 1e-8 * if contains(header, "air") #convert wls to vacuum if necessary
         air_to_vacuum.(body.wl)
     elseif contains(header, "vac")
         body.wl
@@ -303,15 +307,15 @@ function parse_vald_linelist(f, isotopic_abundances)
         0
     end
 
-    gamma_rad = map(wl, body.loggf, tentotheOrMissing.(body.gamma_rad)) do lambda, loggf, gamma
-        if ismissing(gamma)
+    gamma_rad = map(wl, body.loggf, body.gamma_rad) do lambda, loggf, gamma
+        if gamma == 0
             approximate_radiative_gamma(lambda, loggf)
         else
-            gamma
+            10^gamma
         end
     end
 
-    Line.(wl * 1e-8, body.loggf .+ Δlog_gf, Species.(body.species), E_low, gamma_rad,
+    Line.(wl, body.loggf .+ Δlog_gf, Species.(body.species), E_low, gamma_rad,
         tentotheOrMissing.(body.gamma_stark),
         idOrMissing.(body.gamma_vdW))
 end
