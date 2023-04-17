@@ -68,7 +68,8 @@ end
 """
     approximate_radiative_gamma(wl, log_gf)
 
-Approximate radiate broadening parameter.
+Approximate radiate broadening parameter.  When using this, make sure that `log_gf` is the true 
+value (not adjusted for isotopic abundance).
 """
 function approximate_radiative_gamma(wl, log_gf) 
     e = electron_charge_cgs
