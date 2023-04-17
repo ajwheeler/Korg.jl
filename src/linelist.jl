@@ -24,14 +24,12 @@ struct Line{F}
     Optional Arguments (these override default recipes):
      - `gamma_rad`: Fundemental width
      - `gamma_stark`: Stark broadening width at 10,000 K (s⁻¹)
-     - `vdW`: Either the van der Waals broadening width at 10,000 K (s⁻¹) or a `Tuple`, (σ, α) from
-       ABO theory.
-    Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
-    profile.
+     - `vdW`: If this is present, it may may be log(Γ_vdW) (assumed if negative), Γ_vdW (assumed if 
+        0 < `vdW` < 1), or packed ABO if this Either the van der Waals broadening width at 10,000 K 
+        (s⁻¹) or a `Tuple`, (σ, α) from ABO theory.
 
-    Construct a `Line`.  If any of `gamma_rad`, `gamma_stark`, or `vdW` are `missing`, guess them.
-    `vdW` may be log(Γ_vdW) (assumed if negative), Γ_vdW (assumed if 0 < `vdW` < 1), or packed ABO 
-    parameters (assumed if `vdW` > 1).  It may also be passed as a Tuple, `(σ, α)`.
+    Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
+    profile, and are in units of s⁻¹.
     """
     function Line(wl::F, log_gf::F, species::Species, E_lower::F, 
                   gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
@@ -138,24 +136,34 @@ end
 
 Parse a linelist file, returning a vector of [`Line`](@ref)s.
 
-TODO ts
+The `format` keyword argument can be used to specify one of these linelist formats 
+(default: `"vald"`):
+- `"vald"` for a [VALD](http://vald.astro.uu.se/~vald/php/vald.php) linelist.
+   These can be either "short" or "long" format, 
+   "extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
+   wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
+- `"kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
+   (format=kurucz_vac if it uses vacuum wavelengths; Be warned that Korg will not assume that 
+   wavelengths are vacuum below 2000 Å),
+- `"moog"` for a [MOOG linelist](http://www.as.utexas.edu/~chris/moog.html)
+   (doesn't support broadening parameters or dissociation energies).  
+- `"turbospectrum"` for a 
+   [Turbospectrum linelist](https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19).
+   Note that Korg doesn't make use of the (optional) orbital angular momentum quantum number, l, 
+   for the upper or lower levels, so it won't fall back on generic ABO recipes when the ABO 
+   parameters are not available.
+   Korg's interpretation of the `fdamp` parameter is also slightly different from Turbospectrum's.
+   See the documentation of the `vdW` parameter of [`Line`](@ref) for details.  Korg will error if 
+   encounters an Unsoeld fudge factor, which it does not support.
+
 TODO assumed air
 
-Pass `format="kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
-(`format=kurucz_vac` if it uses vacuum wavelengths; Be warned that Korg will not assume that 
-wavelengths are vacuum below 2000 Å),`format="vald"` for a 
-[VALD](http://vald.astro.uu.se/~vald/php/vald.php) linelist, and `format="moog"` for a MOOG linelist
-(doesn't support broadening parameters or dissociation energies).  
-
-VALD linelists (the default and preferred format) can be either "short" or "long" format, 
-"extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
-wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
-
-When they are not pre-scaled by isotopic abundace (which VALD does by default), Korg will 
-automatically adjust the `log_gf` of each line according to `isotopic_abundances`, which defaults 
-to the values from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses).
-To use custom isotopic abundances, just pass `isotopic_abundances` as a dictionary mapping
-`(atomic number, atomic weight)` pairs to abundances between 0 and 1.
+For VALD and Turbospectrum linelists with isotope information available, Korg will scale log gf 
+values by isotopic abundance (unless VALD has already pre-scaled them), using isotopic abundances
+from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses) 
+([Korg.isotopic_abundances]).
+To use custom isotopic abundances, just pass `isotopic_abundances` with the same structure: 
+a dict mapping atomic number to a dict mapping from atomic weight to abundance.
 """
 function read_linelist(fname::String; format="vald", isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
@@ -262,7 +270,7 @@ function parse_vald_linelist(f, isotopic_abundances)
     elseif contains(header, "eV")
         body.E_low
     else
-        throw(ArgumentError( "Can't parse linelist.  Can't determine energy units: " * E_col))
+        error("Can't parse linelist.  Can't determine energy units: " * E_col)
     end
 
     wl = if contains(header, "air") #convert wls to vacuum if necessary
@@ -270,10 +278,10 @@ function parse_vald_linelist(f, isotopic_abundances)
     elseif contains(header, "vac")
         body.wl
     else
-        throw(ArgumentError( "Can't parse linelist.  Can't determine vac/air wls: " * header))
+        error("Can't parse linelist.  Can't determine vac/air wls: " * header)
     end
 
-    loggf = body.loggf .+ if scale_isotopes
+    Δlog_gf = if scale_isotopes
         refs = if !shortformat #the references are on different lines
             lines[firstline+3 .+ ((0:length(body)-1) .* 4)]
         else #references are in the last column
@@ -294,8 +302,17 @@ function parse_vald_linelist(f, isotopic_abundances)
         0
     end
 
-    Line.(wl * 1e-8, loggf, Species.(body.species), E_low, tentotheOrMissing.(body.gamma_rad), 
-          tentotheOrMissing.(body.gamma_stark), idOrMissing.(body.gamma_vdW))
+    gamma_rad = map(wl, body.loggf, tentotheOrMissing.(body.gamma_rad)) do lambda, loggf, gamma
+        if ismissing(gamma)
+            approximate_radiative_gamma(lambda, loggf)
+        else
+            gamma
+        end
+    end
+
+    Line.(wl * 1e-8, body.loggf .+ Δlog_gf, Species.(body.species), E_low, gamma_rad,
+        tentotheOrMissing.(body.gamma_stark),
+        idOrMissing.(body.gamma_vdW))
 end
 
 #todo support moog linelists with broadening parameters?
@@ -384,21 +401,28 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line)
     # there could be a comma separating tokens (and fortran would parse), but I've never seen it.
     toks = split(line)
 
+    log_gf = parse(Float64, toks[3]) 
+    wl = air_to_vacuum(parse(Float64, toks[1])*1e-8)
+    gamma_rad = parse(Float64, toks[6])
+    if gamma_rad == 0 || gamma_rad == 1
+        gamma_rad = Korg.approximate_radiative_gamma(wl, log_gf)
+    end
+
     # if toks[7] is present, but gamma_stark is skipped, it will be the l for the upper level.
     stark_log_gamma = if length(toks) < 7 || isnothing(tryparse(Float64, toks[7]))
         missing
     else
         tentotheOrMissing(tryparse(Float64, toks[7]))
     end
-    gamma_rad = parse(Float64, toks[6])
-    if gamma_rad == 0
-        gamma_rad = missing
+    fdamp = parse(Float64, toks[4])
+    if 0 < fdamp < 20
+        error("fdamp parameter ($fdamp) is an enhancement factor for the damping constant, which is not supported by Korg. Please open an issue or get in contact if this is a problem for you.")
     end
     Line(air_to_vacuum(parse(Float64, toks[1])*1e-8),
-         parse(Float64, toks[3]) + Δloggf, 
+         log_gf,
          species, 
          parse(Float64, toks[2]), 
          gamma_rad,
          stark_log_gamma,
-         parse(Float64, toks[4]))
+         fdamp)
 end
