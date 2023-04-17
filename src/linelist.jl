@@ -181,6 +181,8 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
             parse_vald_linelist(f, isotopic_abundances)
         elseif format == "moog"
             parse_moog_linelist(f)
+        elseif format == "turbospectrum"
+            parse_turbospectrum_linelist(f, isotopic_abundances)
         else
             throw(ArgumentError("$(format) is not a supported linelist format"))
         end
@@ -334,7 +336,7 @@ function parse_moog_linelist(f)
     linelist
 end
 
-function parse_turbospectrum_linelist(fn)
+function parse_turbospectrum_linelist(fn, isotopic_abundances)
     # https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19
 
     lines = readlines(fn)
@@ -367,7 +369,7 @@ function parse_turbospectrum_linelist(fn)
         spec = Korg.Species(formula, charge)
         n_lines = parse(Int, m["n_lines"])
         if last_line_ind - first_line_ind - 1 != n_lines
-            throw(ArgumentError("Can't parse this line list.  The file says there are $n_lines lines for $spec, but I see $(last_line_ind - first_line_ind - 2) lines."))
+            error("Can't parse this line list.  The file says there are $n_lines lines for $spec, but I see $(last_line_ind - first_line_ind - 2) lines.")
         end
 
         isostring = m["isostring"]

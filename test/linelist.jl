@@ -105,4 +105,12 @@
         @test moog_linelist[1].species == Korg.species"Ti_I"
         @test moog_linelist[2].E_lower ≈ 3.265
     end
+
+    @testset "turbospectrum linelists" begin
+        ll = read_linelist("data/linelists/TurboSpectrum/goodlist"; format="turbospectrum") 
+        @assert ll[1] == ll[end]
+
+        @test_throws ErrorException read_linelist("data/linelists/TurboSpectrum/badlines"; format="turbospectrum")
+        @test_throws ErrorException read_linelist("data/linelists/TurboSpectrum/badvdw"; format="turbospectrum")
+    end
 end
