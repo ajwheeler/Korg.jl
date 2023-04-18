@@ -14,6 +14,7 @@ makedocs(sitename="Korg",
                ],
         checkdocs = :all, # make sure all docstrings are in the documentation
         linkcheck = true, # check if any external links are broken
+        linkcheck_timeout = 30, # default (10s) is too short for slow academic sites
         linkcheck_ignore = [],
         strict = [ # make these warnings into errors
             :doctest,
