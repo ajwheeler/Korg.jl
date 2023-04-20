@@ -108,7 +108,14 @@
 
     @testset "turbospectrum linelists" begin
         ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum") 
-        @assert ll[1] == ll[end]
+        @test ll[1] == ll[end]
+
+        vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac") 
+        for (l_air, l_vac) in zip(ll, vac_ll)
+            # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg 
+            # to read it in as vacuum
+            @test l_air.wl ≈ Korg.air_to_vacuum(l_vac.wl) rtol=1e-8
+        end
 
         @test_throws ErrorException read_linelist("data/linelists/Turbospectrum/badlines"; format="turbospectrum")
         @test_throws ErrorException read_linelist("data/linelists/Turbospectrum/badvdw"; format="turbospectrum")

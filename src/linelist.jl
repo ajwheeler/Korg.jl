@@ -24,9 +24,9 @@ struct Line{F}
     Optional Arguments (these override default recipes):
      - `gamma_rad`: Fundemental width
      - `gamma_stark`: Stark broadening width at 10,000 K (s⁻¹)
-     - `vdW`: If this is present, it may may be log(Γ_vdW) (assumed if negative), Γ_vdW (assumed if 
-        0 < `vdW` < 1), or packed ABO if this Either the van der Waals broadening width at 10,000 K 
-        (s⁻¹) or a `Tuple`, (σ, α) from ABO theory.
+     - `vdW`: If this is present, it may may be log(Γ_vdW) (assumed if negative) or the 
+        [ABO parameters](https://www.astro.uu.se/~barklem/howto.html) as packed float or a 
+        `Tuple`, `(σ, α)`.
 
     Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
     profile, and are in units of s⁻¹.
@@ -149,15 +149,14 @@ The `format` keyword argument can be used to specify one of these linelist forma
 - `"moog"` for a [MOOG linelist](http://www.as.utexas.edu/~chris/moog.html)
    (doesn't support broadening parameters or dissociation energies).  
 - `"turbospectrum"` for a 
-   [Turbospectrum linelist](https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19).
-   Note that Korg doesn't make use of the (optional) orbital angular momentum quantum number, l, 
+   [Turbospectrum linelist](https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19) 
+   in air wavelengths. Note that Korg doesn't make use of the (optional) orbital angular momentum quantum number, l, 
    for the upper or lower levels, so it won't fall back on generic ABO recipes when the ABO 
    parameters are not available.
    Korg's interpretation of the `fdamp` parameter is also slightly different from Turbospectrum's.
    See the documentation of the `vdW` parameter of [`Line`](@ref) for details.  Korg will error if 
    encounters an Unsoeld fudge factor, which it does not support.
-
-TODO assumed air
+- "turbospectrum_vac" for a Turbospectrum linelist in vacuum wavelengths.
 
 For VALD and Turbospectrum linelists with isotope information available, Korg will scale log gf 
 values by isotopic abundance (unless VALD has already pre-scaled them), using isotopic abundances
@@ -166,7 +165,6 @@ from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-re
 To use custom isotopic abundances, just pass `isotopic_abundances` with the same structure: 
 a dict mapping atomic number to a dict mapping from atomic weight to abundance.
 
-TODO
 Be warned that for linelists which are pre-scaled for isotopic abundance, the estimation of 
 radiative broadening from log(gf) is not accurate.
 """
@@ -182,7 +180,9 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
         elseif format == "moog"
             parse_moog_linelist(f)
         elseif format == "turbospectrum"
-            parse_turbospectrum_linelist(f, isotopic_abundances)
+            parse_turbospectrum_linelist(f, isotopic_abundances, false)
+        elseif format == "turbospectrum_vac"
+            parse_turbospectrum_linelist(f, isotopic_abundances, true)
         else
             throw(ArgumentError("$(format) is not a supported linelist format"))
         end
@@ -336,7 +336,7 @@ function parse_moog_linelist(f)
     linelist
 end
 
-function parse_turbospectrum_linelist(fn, isotopic_abundances)
+function parse_turbospectrum_linelist(fn, isotopic_abundances, vacuum)
     # https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19
 
     lines = readlines(fn)
@@ -382,13 +382,13 @@ function parse_turbospectrum_linelist(fn, isotopic_abundances)
             end |> sum
         end
         map(lines[first_line_ind+2:last_line_ind]) do line
-            parse_turbospectrum_linelist_transition(spec, isotopic_Δ_loggf, line)
+            parse_turbospectrum_linelist_transition(spec, isotopic_Δ_loggf, line, vacuum)
         end
     end
     sort!(vcat(transitions_for_each_species...), by=l->l.wl)
 end
 
-function parse_turbospectrum_linelist_transition(species, Δloggf, line)
+function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
     # from the Turbospectrum docs (In practice linelists may have as few at 6 columns:
     #
     # For each line that follows:
@@ -425,7 +425,8 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line)
     if 0 < fdamp < 20
         error("fdamp parameter ($fdamp) is an enhancement factor for the damping constant, which is not supported by Korg. Please open an issue or get in contact if this is a problem for you.")
     end
-    Line(air_to_vacuum(parse(Float64, toks[1])*1e-8),
+    wltrans = vacuum ? identity : air_to_vacuum
+    Line(wltrans(parse(Float64, toks[1])*1e-8),
          log_gf,
          species, 
          parse(Float64, toks[2]), 
