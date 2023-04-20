@@ -340,11 +340,8 @@ function parse_turbospectrum_linelist(fn, isotopic_abundances, vacuum)
     # https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19
 
     lines = readlines(fn)
-    species_headers = Int[]
-    for i in 1:length(lines)
-        if i != length(lines) && lines[i][1] == '\'' && lines[i+1][1] == '\''
-            push!(species_headers, i)
-        end
+    species_headers = filter(1:length(lines)) do i
+        i != length(lines) && lines[i][1] == '\'' && lines[i+1][1] == '\''
     end
 
     transitions_for_each_species = map(1:length(species_headers)) do header_line_ind
