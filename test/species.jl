@@ -13,9 +13,10 @@
         @test Korg.species"812.0"   == Korg.species"MgO"
         @test Korg.species"822.0"   == Korg.species"TiO"
 
+        @test Korg.species"010108" == Korg.species"10108"== Korg.species"H2O"
+        @test Korg.species"060606" == Korg.species"60606"== Korg.species"C3"
+
         # The normal constructor (NOT string literal) must be used to test for failure
-        # only up to two atoms are supported with numerical codes
-        @test_throws ArgumentError Korg.Species("060606")
         # species which contain more than 2 tokens are invalid
         @test_throws ArgumentError Korg.Species("06.05.04")
         # Korg only goes up to uranium (Z=92)

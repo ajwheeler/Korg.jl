@@ -3,6 +3,7 @@ Elm Ion       WL_vac(A) Excit(eV) log gf*   Rad.  Stark    Waals factor   Refere
 'CN 1',      3569.00751,   0.2895, -1.137,  7.180, 0.000,   0.000, 99.000,'   6 wl:BRW   6 BRW   6 gf:BRW   6 BRW   6 BRW   6 BRW   6 BRW    (12)C(14)N'
 'CN 1',      3569.02687,   0.2894, -1.170,  7.180, 0.000,   0.000, 99.000,'   6 wl:BRW   6 BRW   6 gf:BRW   6 BRW   6 BRW   6 BRW   6 BRW    (12)C(14)N'
 'Cr 1',      3569.04432,   3.9659, -0.511,  8.230,-5.960,  -7.730,  0.660,'  12 wl:K16  12 K16  12 gf:K16  12 K16  12 K16  12 K16  12 K16    Cr'
+'Cr 1',      3569.04432,   3.9659, -0.511,  0.000,-5.960,  -7.730,  0.660,'  12 wl:K16  12 K16  12 gf:K16  12 K16  12 K16  12 K16  12 K16    Cr'
 * oscillator strengths were scaled by the solar isotopic ratios.
  References:
   1. Plez 2012 Ti49O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants
