@@ -207,9 +207,6 @@ You can provide either or both of:
   use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-# handle case where alpha isn't specified but abundance dict is provided.
-format_A_X(default_metallicity::Real=0.0, abundances::Dict=Dict(); kwargs...) = 
-    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...)
 function format_A_X(default_metallicity::Real=0.0, default_alpha_H::Real=default_metallicity, 
                     abundances::Dict=Dict(); 
                     solar_relative=true, solar_abundances=default_solar_abundances)
@@ -264,6 +261,9 @@ function format_A_X(default_metallicity::Real=0.0, default_alpha_H::Real=default
 end
 # handle case  where metallicity isn't specified
 format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
+# handle case where alpha isn't specified but abundance dict is provided.
+format_A_X(default_metallicity::Real=0.0, abundances::Dict=Dict(); kwargs...) = 
+    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...)
 
 """
     get_metals_H(A_X)
