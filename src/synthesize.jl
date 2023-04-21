@@ -181,15 +181,18 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
 end
 
 """
-    format_A_X(metallicity, abundances; kwargs... )
+    format_A_X(default_metallicity, default_alpha_H, abundances; kwargs... )
 
 Returns a 92 element vector containing abundances in ``A(X)`` (``\\log_{10}(X/H) + 12``) format for
 elements from hydrogen to uranium.
 
 # Arguments
 You can provide either or both of:
-- `metallicity` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
-   than He. It is overriden by `abundances`, on a per-element basis.  
+- `default_metallicity` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
+   than He. It is overriden by `default_alpha` and `abundances` on a per-element basis.  
+- `default_alpha_H` (default: 0), i.e. [alpha/H] is the ``\\log_{10}`` solar-relative abundance of 
+   the alpha elements (defined to be C, O, Ne, Mg, Si, S, Ar, Ca, and Ti). It is overriden by 
+   `abundances` on a per-element basis.
 - `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
   This is the only way to specify an abundance of He that is non-solar.
@@ -204,8 +207,12 @@ You can provide either or both of:
   use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
-                              solar_relative=true, solar_abundances=asplund_2020_solar_abundances)
+# handle case where alpha isn't specified but abundance dict is provided.
+format_A_X(default_metallicity::Real=0.0, abundances::Dict=Dict(); kwargs...) = 
+    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...)
+function format_A_X(default_metallicity::Real=0.0, default_alpha_H::Real=default_metallicity, 
+                    abundances::Dict=Dict(); 
+                    solar_relative=true, solar_abundances=default_solar_abundances)
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
     clean_abundances = Dict()
     for (el, abund) in abundances
@@ -237,6 +244,7 @@ function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
     end
 
     #populate A(X) vector
+    alpha_els = [6, 8, 10, 12, 14, 16, 18, 20, 22]
     map(1:MAX_ATOMIC_NUMBER) do Z
         if Z == 1 #handle hydrogen
             12.0
@@ -246,8 +254,10 @@ function format_A_X(metallicity::Real=0.0, abundances::Dict=Dict();
             else
                 clean_abundances[Z]
             end
+        elseif Z in alpha_els
+            solar_abundances[Z] + default_alpha_H
         else #if not set, use solar value adjusted for metallicity
-            Δ = metallicity * (Z >= 3) #only adjust for metals, not H or He
+            Δ = default_metallicity * (Z >= 3) #only adjust for metals, not H or He
             solar_abundances[Z] + Δ
         end
     end
@@ -261,7 +271,7 @@ format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
 Calculate [metals/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_M/n_\\mathrm{H})``.
 See also [`get_alpha_H`](@ref).
 """
-function get_metals_H(A_X; solar_abundances=asplund_2020_solar_abundances)
+function get_metals_H(A_X; solar_abundances=default_solar_abundances)
    _get_multi_X_H(A_X, 3:MAX_ATOMIC_NUMBER, solar_abundances)
 end
 
@@ -272,7 +282,7 @@ Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{1
 Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
 [`get_alpha_H`](@ref).
 """
-function get_alpha_H(A_X; solar_abundances=asplund_2020_solar_abundances)
+function get_alpha_H(A_X; solar_abundances=default_solar_abundances)
     _get_multi_X_H(A_X, 8:2:22, solar_abundances)
 end
 

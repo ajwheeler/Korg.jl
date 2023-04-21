@@ -145,9 +145,11 @@ end
     @testset "abundances" begin
         @test (format_A_X() 
                 == format_A_X(0)
+                == format_A_X(0, 0)
                 == format_A_X(Dict{String, Float64}())
                 == format_A_X(Dict{Int, Float64}())
                 == format_A_X(0, Dict(1=>0.0); solar_relative=true)
+                == format_A_X(0, 0, Dict(1=>0.0); solar_relative=true)
                 == format_A_X(0, Dict("H"=>0.0); solar_relative=true)
                 == format_A_X(0, Dict(1=>12.0); solar_relative=false)
                 == format_A_X(0, Dict("H"=>12.0); solar_relative=false))
@@ -159,7 +161,9 @@ end
         @test_throws ArgumentError format_A_X(0.0, Dict(1=>12); solar_relative=true)
 
         @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1 atol=1e-6
+        @test Korg.get_alpha_H(format_A_X(0.0, 0.1)) ≈ 0.1 atol=1e-6
         @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 atol=1e-6
+        @test Korg.get_alpha_H(format_A_X(-2, -0.2)) ≈ -0.2 atol=1e-6
         @test Korg.get_metals_H(format_A_X(0.1)) ≈ 0.1 atol=1e-6
         @test Korg.get_metals_H(format_A_X(-0.2)) ≈ -0.2 atol=1e-6
         @test Korg.get_metals_H(Korg.grevesse_2007_solar_abundances; 
