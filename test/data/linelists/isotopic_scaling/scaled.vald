@@ -12,6 +12,10 @@ Elm Ion      WL_vac(A)   log gf* E_low(eV) J lo E_up(eV)  J up  lower   upper   
   LS                                                                           3d4.4s2 a1G
   LS                                                                      3d5.(2H).4p x1H*
 '_      A   Kurucz Cr I 2016  12 wl:K16  12 gf:K16  12 K16  12 K16  12 K16  12 K16  12 K16  12 K16  12 K16    Cr'
+'Cr 1',      3569.04432,  -0.511,  3.9659,  4.0,  7.4397,  5.0,  1.000,  0.890,  0.660, 0.000,-5.960,  -7.730
+  LS                                                                           3d4.4s2 a1G
+  LS                                                                      3d5.(2H).4p x1H*
+'_      A   Kurucz Cr I 2016  12 wl:K16  12 gf:K16  12 K16  12 K16  12 K16  12 K16  12 K16  12 K16  12 K16    Cr'
 * oscillator strengths were NOT scaled by the solar isotopic ratios.
  References:
   1. Plez 2012 Ti49O, polynomial fits to Phillips obs. wavelengths, Nordlander molecular constants

@@ -167,55 +167,6 @@ function vacuum_to_air(λ; cgs=λ<1)
     λ / n
 end
 
-"""
-    parse_fwf(source, rowspec; datarow, lastrow)
-
-Parse fixed-width files, returning a vector of `NamedTuples`.
-`source` can be either an `AbstractVector` of `Strings` or a filename.
-`rowspec` should be a vector of tuples each containing, in order
-- a range object corresponding to the column postion
-- the type.  Strings will be pulled directly & other types will be parsed with `parse`.
-- the column name, a `Symbol`.
-- optionally, a function to apply to the parsed value.
-"""
-function parse_fwf(filename::String, rowspec; datarow=1, lastrow=0)
-    open(filename, "r") do file
-        for _ in 1:(datarow-1)
-            readline(file)
-        end
-        _parse_fwf_core(eachline(file), rowspec, lastrow-datarow+1)
-    end
-end
-function parse_fwf(lines::AbstractVector{String}, rowspec; datarow=1, lastrow=0)
-    lastrow = lastrow == 0 ? length(lines) : lastrow
-    _parse_fwf_core(lines[datarow:lastrow], rowspec)
-end
-
-function _parse_fwf_core(lines, rowspec, n=0)
-    #use n
-    map(lines) do line
-        #broadcasts over each itemspec and passes to NamedTuple constuctor as kwargs
-        (; _parse_item.(line, rowspec)...)
-    end
-end
-
-function _parse_item(line, itemspec)
-    if length(itemspec) == 4
-        r, t, n, f = itemspec
-    else
-        r, t, n = itemspec
-        f = identity
-    end
-    if t == String
-        (n, f(line[r]))
-    elseif r[2] > length(line) || strip(line[r]) == ""
-        (n, zero(t))
-    else
-        (n, f(parse(t, line[r])))
-    end
-end
-
-
 # take some care to avoid subnormal values (they can slow things down a lot!)
 _nextfloat_skipsubnorm(v::F) where {F<:AbstractFloat} =
     ifelse(-floatmin(F) ≤ v < 0, F(0), ifelse(0 ≤ v < floatmin(F), floatmin(F), nextfloat(v)))

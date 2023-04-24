@@ -1,0 +1,7 @@
+' 3.0000             '    1         3                        
+'this is Li I '                                                      
+ 15982.629  4.521  -2.752     -6.25    6.0  5.25e+06  -1.75  'x' 'x' 0.0 1.0 'LI  I   1s2.4p 2P   1s2.12d 2D'
+ 15982.629  4.521  -1.6322417759     -6.25    6.0  5.25e+06  -1.75  'x' 'x' 0.0 1.0 'LI  I   1s2.4p 2P   1s2.12d 2D'
+' 3.0060             '    1        1                        
+'this is the same element with a specified atomic weight, and this string can be whatever it wants'                        
+ 15982.629  4.521  -2.752     -6.25    6.0  5.25e+06  -1.75  'x' 'x' 0.0 1.0 'LI  I   1s2.4p 2P   1s2.12d 2D'
