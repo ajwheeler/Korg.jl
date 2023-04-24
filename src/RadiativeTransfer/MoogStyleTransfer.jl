@@ -20,6 +20,10 @@ inputs:
    Korg.
 - `mu_grid`: (required if atm is a [`ShellAtmosphere`](@ref)) the values of μ at which to calculate 
    the surface intensity, which is integrated to obtain the astrophysical flux.
+
+Keyword arguments:
+- `n_nu_points`: the number of rays to use when integrating over I_surface(μ) to obtain the 
+   astrophysical flux.  This doesn't do anything if `atm` is a [`PlanarAtmosphere`](@ref).
 """
 function radiative_transfer(atm::PlanarAtmosphere, α, S, α_ref, n_mu_points=nothing)
     τ5 = [l.tau_5000 for l in atm.layers] #τ at 5000 Å according to model atmosphere
