@@ -120,7 +120,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     # make sure wl_ranges are OK
     all_λs = vcat(wl_ranges...)
     if !issorted(all_λs) #TODO test
-        throw(ArgumentError("wl_ranges must be increasing and non-overlapping"))
+        throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
     end
 
     # wavelenths at which to calculate the continuum
