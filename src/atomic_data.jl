@@ -65,3 +65,5 @@ const grevesse_2007_solar_abundances = [
          0.06,   0.88, -0.13,  0.69,  0.28,  1.45,  1.35,  1.80,  0.85,  1.13,  
          0.83,   1.95,  0.71, -5.0,  -5.0,  -5.0,  -5.0,   -5.0, -5.0,   0.09, 
         -5.0,  -0.50]
+
+const default_solar_abundances = asplund_2020_solar_abundances
