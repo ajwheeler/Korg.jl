@@ -4,29 +4,29 @@ using Downloads: download
  
 abstract type ModelAtmosphere end
 
-struct PlanarAtmosphereLayer{F}
-    tau_5000::F                #dimensionless (used for legacy radiative transfer)
-    z::F                       #cm
-    temp::F                    #K
-    electron_number_density::F #cm^-3
-    number_density::F          #cm^-3
+struct PlanarAtmosphereLayer{F1, F2, F3, F4, F5}
+    tau_5000::F1                #dimensionless (used for legacy radiative transfer)
+    z::F2                       #cm
+    temp::F3                    #K
+    electron_number_density::F4 #cm^-3
+    number_density::F5          #cm^-3
 end
 
-struct PlanarAtmosphere{F} <: ModelAtmosphere
-    layers::Vector{PlanarAtmosphereLayer{F}}
+struct PlanarAtmosphere{F1, F2, F3, F4, F5} <: ModelAtmosphere
+    layers::Vector{PlanarAtmosphereLayer{F1, F2, F3, F4, F5}}
 end
 
-struct ShellAtmosphereLayer{F}
-    tau_5000::F                #dimensionless (used for legacy radiative transfer)
-    z::F                       #cm
-    temp::F                    #K
-    electron_number_density::F #cm^-3
-    number_density::F          #cm^-3
+struct ShellAtmosphereLayer{F1, F2, F3, F4, F5}
+    tau_5000::F1                #dimensionless (used for legacy radiative transfer)
+    z::F2                       #cm
+    temp::F3                    #K
+    electron_number_density::F4 #cm^-3
+    number_density::F5          #cm^-3
 end
 
-struct ShellAtmosphere{F} <: ModelAtmosphere
-    layers::Vector{ShellAtmosphereLayer{F}}
-    R::F #the radius of the star where τ_ros == 1, i.e. the photosphere (not the top)
+struct ShellAtmosphere{F1, F2, F3, F4, F5, F6} <: ModelAtmosphere
+    layers::Vector{ShellAtmosphereLayer{F1, F2, F3, F4, F5}}
+    R::F6 #the radius of the star where τ_ros == 1, i.e. the photosphere (not the top)
 end
 
 """
@@ -262,18 +262,27 @@ variable.
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
   default true when `logg` < 3.5.
 - `archive`: The atmosphere archive to use.  This is used to override the default grid for testing.
+- `clamp`: allowed when specifying `A_X` direction. Whether or not to clip the alpha and 
+  carbon abundances to be within the range of the MARCS grid.  By default false.
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
     Teff ≈ 4250 K. We do not endorse using it for science in that regime. See 
     https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
 """
-function interpolate_marcs(Teff, logg, A_X::Vector; kwargs...)
-    M_H = get_metals_H(A_X; solar_abundances=grevesse_2007_solar_abundances)
-    alpha_H = get_alpha_H(A_X; solar_abundances=grevesse_2007_solar_abundances)
+function interpolate_marcs(Teff, logg, A_X::Vector; 
+                           solar_abundances=default_solar_abundances, clamp_abundances=false, kwargs...)
+    M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
+    alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
     alpha_M = alpha_H - M_H
-    C_H = A_X[6] - grevesse_2007_solar_abundances[6]
+    C_H = A_X[6] - solar_abundances[6]
     C_M = C_H - M_H
+    if clamp_abundances
+        nodes = get_atmosphere_archive()[1]
+        M_H = clamp(M_H, nodes[3][1], nodes[3][end])
+        alpha_M = clamp(C_M, nodes[4][1], nodes[4][end])
+        C_M = clamp(C_M, nodes[5][1], nodes[5][end])
+    end
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 

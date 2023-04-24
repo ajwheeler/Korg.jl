@@ -66,6 +66,9 @@ the convolution kernel in standard deviations.
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
 the region you are going to compare.
 
+If you are convolving many spectra defined on the same wavelenths to observational resolution, you 
+will get much better performance using [`downsampled_LSF_matrix`](@ref).
+
 !!! warning
     - This is a naive, slow implementation.  Do not use it when performance matters.
 
@@ -104,7 +107,8 @@ Experiments on real spectra show an agreement between the interpolated rectified
 !!! warning
     This function should not be applied to data with observational error, as taking a quantile will
     bias the rectification relative to the noiseless case.  It is intended as a fast way to compute
-    nice-looking rectified theoretical spectra.  
+    nice-looking rectified theoretical spectra.  See [`Korg.Fit.data_safe_rectify`](@ref) for an 
+    alternative which doesn't have this issue.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
     #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
