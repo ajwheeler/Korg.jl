@@ -4,19 +4,41 @@ using Interpolations: LinearInterpolation, Flat
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
 """
-    move_bounds(λs, lb, ub, λ₀, window_size)
+    move_bounds(λs, lb0, ub0, λ₀, window_size)
 
-Using `lb` and `ub` as initial guesses, return the indices of `λs` corresponding to 
-`λ₀`` ± `window_size`.  If `λs` is an `AbstractRange`, then compute them directly.  Assumes `λs` is 
-sorted.
+Using `lb0` and `ub0` as initial guesses, return the indices of `λs`, `(lb, ub)` corresponding to 
+`λ₀`` ± `window_size`.  `λs` can either be a 
+- Vector, in which case `lb` and `ub` are used as first guesses
+- Range, in which case `lb` and `ub` are ignored and the bounds are computed directly
+- Vector of Ranges, in which case `lb` and `ub` are also ignored.  In this case, the bounds returned
+  are indices into the concatenation of the ranges.
 """
-function move_bounds(λs::AbstractRange, lb, ub, λ₀, window_size)
+function move_bounds(λs::R, lb, ub, λ₀, window_size) where R <: AbstractRange
     len = length(λs)
     lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
-    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 1, len)
+    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 0, len)
     lb,ub
 end
-function move_bounds(λs, lb, ub, λ₀, window_size)
+function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R <: AbstractRange
+    cumulative_lengths=cumsum(length.(wl_ranges))
+    lb, ub = 1, 0
+    # index of the first range for which the last element is greater than λ₀ - window_size
+    range_ind = searchsortedfirst(last.(wl_ranges), λ₀ - window_size)
+    if range_ind == length(wl_ranges) + 1
+        return lb, ub
+    end
+    lb, ub = move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size) 
+    if range_ind > 1
+        lb += cumulative_lengths[range_ind-1]
+        ub += cumulative_lengths[range_ind-1]
+    end
+    while ub == cumulative_lengths[range_ind] && range_ind < length(wl_ranges)
+        range_ind += 1
+        ub += move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size)[2]
+    end
+    lb, ub
+end
+function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVector
     #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
     while lb+1 < length(λs) && λs[lb] < λ₀ - window_size
         lb += 1
@@ -52,7 +74,7 @@ the region you are going to compare.
        otherwise desired) grid.
 """
 function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=3) where F <: Real
-    #ideas - require wls to be a range object? Use erf to account for grid edges?
+    #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
     lb, ub = 1,1 #initialize window bounds
@@ -73,22 +95,36 @@ end
 Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
 `q`-quantile with window size `bandwidth`.  `wl_step` controls the size of the grid that the moving 
 quantile is calculated on and interpolated from.  Setting `wl_step` to 0 results in the exact 
-calculation with no interpolation, but note that this is very slow.  
+calculation with no interpolation, but note that this is very slow when the `wls` is sampled for 
+synthesis (~0.01 Å).
 
 Experiments on real spectra show an agreement between the interpolated rectified spectrum and the 
 "exact" one (with default values) at the 3 × 10^-4 level.
+
+!!! warning
+    This function should not be applied to data with observational error, as taking a quantile will
+    bias the rectification relative to the noiseless case.  It is intended as a fast way to compute
+    nice-looking rectified theoretical spectra.  
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
     #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
-    inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
+    if wl_step == 0
+        inds = eachindex(wls)
+    else
+        inds = 1 : max(1, Int(floor(wl_step/step(wls)))) : length(wls)
+    end
     lb = 1
     ub = 1
     moving_quantile = map(wls[inds]) do λ
         lb, ub = move_bounds(wls, lb, ub, λ, bandwidth)
         quantile(flux[lb:ub], q)
     end
-    itp = LinearInterpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
-    flux ./ itp.(wls)
+    if wl_step == 0
+        flux ./ moving_quantile
+    else
+        itp = LinearInterpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
+        flux ./ itp.(wls)
+    end
 end
 
 """

@@ -4,6 +4,7 @@ using .RadiativeTransfer
 
 """
     synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
+    synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
 
 Compute a synthetic spectrum.
 
@@ -16,6 +17,10 @@ Compute a synthetic spectrum.
 - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
 - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
+If you provide a vector of wavelength ranges in place of `λ_start` and `λ_stop`, the spectrum will 
+be synthesized over each range with minimal overhead.
+The ranges can be any Julia `AbstractRange`, for example: `5000:0.01:5010`.
+
 # Returns 
 A named tuple with keys:
 - `flux`: the output spectrum
@@ -25,6 +30,9 @@ A named tuple with keys:
    atmospheric layer
 - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
   `air_wavelengths=true` this will not be the same as the input wavelenths.
+- `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum 
+   for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`, 
+   `λ_step` arguments, this will be a vector containing only one range.
 
 # Example
 to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to 
@@ -71,48 +79,69 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
 """
-function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01
-                    ; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4, kwargs...)
-    wls = if air_wavelengths
-        len = Int(round((λ_stop - λ_start)/λ_step))+1
-        vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
-        vac_step = (vac_stop - vac_start) / (len-1)
-        wls = StepRangeLen(vac_start, vac_step, len)
-        max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
-        if max_diff > wavelength_conversion_warn_threshold
-            throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
-                                *"linear vacuum wavelength range. This solution differs by up to " * 
-                                "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you" *
-                                "want to suppress this error."))
-        end
-        wls
-    else
-        StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)
-    end
+function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01; kwargs...)
+    wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
     synthesize(atm, linelist, A_X, wls; kwargs...)
 end
-function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::AbstractRange; 
+function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, 
+                    wl_ranges::AbstractVector{<:AbstractRange}; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
+                    air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants)
-    #work in cm
-    λs = λs * 1e-8
+
+    # Convert air to vacuum wavelenths if necessary.
+    if air_wavelengths
+        wl_ranges = map(wl_ranges) do wls
+            λ_start, λ_stop, λ_step = first(wls), last(wls), step(wls)
+            len = Int(round((λ_stop - λ_start)/λ_step))+1
+            vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
+            vac_step = (vac_stop - vac_start) / (len-1)
+            wls = StepRangeLen(vac_start, vac_step, len)
+            max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
+            if max_diff > wavelength_conversion_warn_threshold
+                throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
+                                    *"linear vacuum wavelength range. This solution differs by up to " * 
+                                    "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you "*
+                                    "want to suppress this error."))
+            end
+            wls
+        end
+    end
+
+    # work in cm
+    wl_ranges = wl_ranges .* 1e-8 # broadbasting the = prevents wl_ranges from changing type
     cntm_step *= 1e-8
     line_buffer *= 1e-8
-    cntmλs = (λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step)
-    sorted_cntmνs = c_cgs ./ reverse(cntmλs) #frequencies at which to calculate the continuum
+
+    # make sure wl_ranges are OK
+    all_λs = vcat(wl_ranges...)
+    if !issorted(all_λs) #TODO test
+        throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
+    end
+
+    # wavelenths at which to calculate the continuum
+    cntm_wl_ranges = map(wl_ranges) do λs 
+        collect((λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step))
+    end
+    # eliminate portions where ranges overlap.  One fitting is merged, there will be functions for this.
+    for i in 1:length(cntm_wl_ranges)-1 
+        cntm_wl_ranges[i] = cntm_wl_ranges[i][cntm_wl_ranges[i] .< first(cntm_wl_ranges[i+1])]
+    end
+    cntmλs = vcat(cntm_wl_ranges...)
+    # frequencies at which to calculate the continuum, as a single vector
+    sorted_cntmνs = c_cgs ./ reverse(cntmλs) 
 
     #sort the lines if necessary
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
     #discard lines far from the wavelength range being synthesized
-    linelist = filter(l-> λs[1] - line_buffer <= l.wl <= λs[end] + line_buffer, linelist)
-    
-    #check that λs is sorted
-    if step(λs) < 0
-        throw(ArgumentError("λs must be in increasing order."))
+    linelist = filter(linelist) do line
+        map(wl_ranges) do wl_range
+            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
+        end |> any
     end
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
@@ -123,10 +152,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
 
     #float-like type general to handle dual numbers
-    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, λs[1], 
-                            vmic, abs_abundances[1])[1])
+    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, 
+                            all_λs[1], vmic, abs_abundances[1])[1])
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α = Matrix{α_type}(undef, length(atm.layers), length(λs))
+    α = Matrix{α_type}(undef, length(atm.layers), length(all_λs))
     # each layer's absorption at reference λ (5000 Å)
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
@@ -139,7 +168,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
                                                          layer.electron_number_density,
                                                          n_dict, partition_funcs))
         α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
-        α[i, :] .= α_cntm_layer.(λs)
+        α[i, :] .= α_cntm_layer.(all_λs)
 
         if ! bezier_radiative_transfer
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
@@ -148,8 +177,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
         end
 
         if hydrogen_lines
-            hydrogen_line_absorption!(view(α, i, :), λs, layer.temp, layer.electron_number_density, 
-                                      n_dict[species"H_I"], n_dict[species"He I"],
+            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, layer.electron_number_density, 
+                                      n_dict[species"H_I"],  n_dict[species"He I"],
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
                                       hydrogen_line_window_size*1e-8; 
                                       use_MHD=use_MHD_for_hydrogen_lines)
@@ -164,20 +193,29 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
     #vector of continuum-absorption interpolators
     α_cntm = last.(pairs) 
 
-    #add contribution of line absorption to α
-    line_absorption!(α, linelist, λs, [layer.temp for layer in atm.layers], 
-                     [layer.electron_number_density for layer in atm.layers], number_densities,
-                     partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold,
-                     )
+    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], 
+                    [layer.electron_number_density for layer in atm.layers], number_densities,
+                    partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
 
-    source_fn = blackbody.((l->l.temp).(atm.layers), λs')
+    
+    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
         RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
     end
 
-    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, wavelengths=λs.*1e8)
+    # collect the indices corresponding to each wavelength range
+    wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
+    subspectra = []
+    for λs in wl_ranges
+        wl_inds = wl_lb_ind : wl_lb_ind + length(λs) - 1
+        push!(subspectra, wl_inds)
+        wl_lb_ind += length(λs)
+    end
+
+    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
+     wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
 
 """

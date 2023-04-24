@@ -41,6 +41,16 @@ end
         @test Korg.move_bounds(collect(a), lb, ub, 0., 3.) == (1, 2)
         @test Korg.move_bounds(collect(a), lb, ub, 6., 4.) == (2, 9)
     end
+
+    a = 1:10
+    @test Korg.move_bounds(a, 0, 0, 5.5, 0.1) == (6, 5)
+
+    a = [3:5, 11:0.5:12.5, 16:20]
+    @test Korg.move_bounds(a, 0, 0, -1, 1) == (1, 0)
+    @test Korg.move_bounds(a, 0, 0, 3, 1) == (1, 2)
+    @test Korg.move_bounds(a, 0, 0, 5, 6) == (1, 4)
+    @test Korg.move_bounds(a, 0, 0, 12.5, 0.6) == (6, 7)
+    @test Korg.move_bounds(a, 0, 0, 50, 5) == (1, 0)
 end
 
 @testset "line profiles" begin
@@ -69,14 +79,14 @@ end
         fid = h5open(fname) 
         T = HDF5.read_attribute(fid["profile"], "T")
         ne = HDF5.read_attribute(fid["profile"], "ne")
-        nH_I = HDF5.read_attribute(fid["profile"], "nH_I")
+       nH_I = HDF5.read_attribute(fid["profile"], "nH_I")
         wls = (HDF5.read_attribute(fid["profile"], "start_wl") :
                HDF5.read_attribute(fid["profile"], "wl_step") : 
                HDF5.read_attribute(fid["profile"], "stop_wl") )
         close(fid)
 
         αs = zeros(length(wls))
-        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, ne, nH_I, 0.0,
+        Korg.hydrogen_line_absorption!(αs, [wls], 9000.0, ne, nH_I, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 
                                        0.0, 15e-7, use_MHD=false) 
         @test assert_allclose_grid(αs_ref, αs, [("λ", wls*1e8, "Å")]; atol=5e-9)
@@ -84,7 +94,7 @@ end
         #make sure that H line absorption doesn't return NaNs on inputs where it used to
         αs = zeros(length(wls))
         wls = 3800 : 0.01 : 4200
-        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1.1e16, 1, 0.0,
+        Korg.hydrogen_line_absorption!(αs, [wls], 9000.0, 1.1e16, 1, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)), 0.0, 15e-7)
         @assert all(.! isnan.(αs))
     end
@@ -240,6 +250,18 @@ end
     @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true, 
                                           wavelength_conversion_warn_threshold=1e-20)
     @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
+
+    # test multiple line windows
+    r1 = 5000:0.01:5001
+    r2 = 6000:0.01:6001
+    sol1 = synthesize(atm, [], A_X, [r1]; hydrogen_lines=true)
+    sol2 = synthesize(atm, [], A_X, [r2]; hydrogen_lines=true)
+    sol3 = synthesize(atm, [], A_X, [r1, r2]; hydrogen_lines=true)
+
+    @test sol1.wavelengths == sol3.wavelengths[sol3.subspectra[1]]
+    @test sol2.wavelengths == sol3.wavelengths[sol3.subspectra[2]]
+    @test sol1.flux == sol3.flux[sol3.subspectra[1]]
+    @test sol2.flux == sol3.flux[sol3.subspectra[2]]
 end
 
 @testset "line buffer" begin
@@ -262,7 +284,7 @@ end
     using ForwardDiff
 
     linelist = read_linelist("data/linelists/5000-5005.vald")
-    wls = 6564:0.01:6565
+    wls = [6564:0.01:6565]
     for atm_file in ["data/sun.mod",
              "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"]
         atm = read_model_atmosphere(atm_file)
