@@ -298,10 +298,10 @@ function format_A_X(default_metals_H::Real=0.0, default_alpha_H::Real=default_me
         end
     end
 end
-# handle case where metallicity isn't specified
+# handle case where metallicity and alpha aren't specified but individual abundances are
 format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
-# handle case where alpha isn't specified but abundance dict is provided.
-format_A_X(default_metallicity::Real=0.0, abundances::Dict=Dict(); kwargs...) = 
+# handle case where alpha isn't specified but individual abundances are
+format_A_X(default_metallicity::Real, abundances::Dict; kwargs...) = 
     format_A_X(default_metallicity, default_metallicity, abundances; kwargs...)
 
 """
