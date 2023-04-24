@@ -181,33 +181,34 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, λs::Ab
 end
 
 """
-    format_A_X(default_metallicity, default_alpha_H, abundances; kwargs... )
+    format_A_X(default_metals_H, default_alpha_H, abundances; kwargs... )
 
 Returns a 92 element vector containing abundances in ``A(X)`` (``\\log_{10}(X/H) + 12``) format for
 elements from hydrogen to uranium.
 
 # Arguments
-You can provide either or both of:
-- `default_metallicity` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
+You can specify abundance with these positional arguments.  All are optional, but if 
+`default_alpha_H` is provided, `default_metals_H` must be as well. 
+- `default_metals_H` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
    than He. It is overriden by `default_alpha` and `abundances` on a per-element basis.  
-- `default_alpha_H` (default: 0), i.e. [alpha/H] is the ``\\log_{10}`` solar-relative abundance of 
-   the alpha elements (defined to be C, O, Ne, Mg, Si, S, Ar, Ca, and Ti). It is overriden by 
-   `abundances` on a per-element basis.
+- `default_alpha_H` (default: same as `default_metals_H`), i.e. [alpha/H] is the ``\\log_{10}`` 
+   solar-relative abundance of the alpha elements (defined to be C, O, Ne, Mg, Si, S, Ar, Ca, and 
+   Ti). It is overriden by `abundances` on a per-element basis.
 - `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
-  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `metallicity`.
+  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `default_metals_H`.
   This is the only way to specify an abundance of He that is non-solar.
 
 # Keyword arguments
 - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
   (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
    ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
-   Note that abundances not specified default to the solar value, adjusted with `metallicity`, in
-   either case.
+   Note that abundances not specified default to the solar value still depend on the solar value, as
+   they are set according to `default_metals_H` and `default_alpha_H`.
 - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
-  use, as a vector indexed by atomic number.  `Korg.asplund_2009_solar_abundances` and 
+  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function format_A_X(default_metallicity::Real=0.0, default_alpha_H::Real=default_metallicity, 
+function format_A_X(default_metals_H::Real=0.0, default_alpha_H::Real=default_metals_H, 
                     abundances::Dict=Dict(); 
                     solar_relative=true, solar_abundances=default_solar_abundances)
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
@@ -254,12 +255,12 @@ function format_A_X(default_metallicity::Real=0.0, default_alpha_H::Real=default
         elseif Z in alpha_els
             solar_abundances[Z] + default_alpha_H
         else #if not set, use solar value adjusted for metallicity
-            Δ = default_metallicity * (Z >= 3) #only adjust for metals, not H or He
+            Δ = default_metals_H * (Z >= 3) #only adjust for metals, not H or He
             solar_abundances[Z] + Δ
         end
     end
 end
-# handle case  where metallicity isn't specified
+# handle case where metallicity isn't specified
 format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
 # handle case where alpha isn't specified but abundance dict is provided.
 format_A_X(default_metallicity::Real=0.0, abundances::Dict=Dict(); kwargs...) = 
