@@ -127,7 +127,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     cntm_wl_ranges = map(wl_ranges) do λs 
         collect((λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step))
     end
-    for i in 1:length(cntm_wl_ranges)-1 # eliminate portions where ranges overlap
+    # eliminate portions where ranges overlap.  One fitting is merged, there will be functions for this.
+    for i in 1:length(cntm_wl_ranges)-1 
         cntm_wl_ranges[i] = cntm_wl_ranges[i][cntm_wl_ranges[i] .< first(cntm_wl_ranges[i+1])]
     end
     cntmλs = vcat(cntm_wl_ranges...)
