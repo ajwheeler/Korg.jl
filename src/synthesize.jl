@@ -32,7 +32,7 @@ A named tuple with keys:
   `air_wavelengths=true` this will not be the same as the input wavelenths.
 - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum 
    for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`, 
-   `λ_step` syntax, this will be a vector containing only one range.
+   `λ_step` arguments, this will be a vector containing only one range.
 
 # Example
 to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to 
