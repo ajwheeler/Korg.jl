@@ -262,8 +262,9 @@ variable.
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
   default true when `logg` < 3.5.
 - `archive`: The atmosphere archive to use.  This is used to override the default grid for testing.
-- `clamp`: allowed when specifying `A_X` direction. Whether or not to clip the alpha and 
-  carbon abundances to be within the range of the MARCS grid.  By default false.
+- `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to clamp the abundance 
+   paramerters to be within the range of the MARCS grid to avoid throwing an out of bounds error. 
+   Use with caution.
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
