@@ -67,7 +67,6 @@ end
 Iteratively solve for the number density of each species. Returns a `Dict` mapping species to number 
 densities.
 
-TODO
 arguments:
 - the temperature, `T`, in K
 - the number density of non-electron particles `nₜ`
@@ -75,7 +74,7 @@ arguments:
 - A Dict of `absolute_abundances`, N_X/N_total
 - a Dict of ionization energies, `ionization_energies`.  The keys of act as a list of all atoms.
 - a Dict of partition functions, `partition_fns`
-- a Dict of log molecular equilibrium constants, `equilibrium_constants`, in partial pressure form. 
+- a Dict of log molecular equilibrium constants, `log_equilibrium_constants`, in partial pressure form. 
   The keys of `equilibrium_constants` act as a list of all molecules.
 
 The system of equations is specified with the number densities of the neutral atoms as free 
