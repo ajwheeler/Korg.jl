@@ -95,18 +95,19 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 
     K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH)) kT
 """
-function chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
+function chemical_equilibrium(T, nₜ, model_atom_nₑ, absolute_abundances, ionization_energies, 
                               partition_fns, log_equilibrium_constants; x0=nothing)
     if x0 === nothing
         #compute good first guess by neglecting molecules
         x0 = map(1:MAX_ATOMIC_NUMBER) do atom
-            wII, wIII =  saha_ion_weights(T, nₑ, atom, ionization_energies, partition_fns)
+            wII, wIII =  saha_ion_weights(T, model_atom_nₑ, atom, ionization_energies, partition_fns)
             nₜ*absolute_abundances[atom] / (1 + wII + wIII)
         end
+        push!(x0, model_atom_nₑ)
     end
 
     #numerically solve for equlibrium.
-    sol = nlsolve(chemical_equilibrium_equations(T, nₜ, nₑ, absolute_abundances, ionization_energies,
+    sol = nlsolve(chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies,
                                                  partition_fns, log_equilibrium_constants),
                   x0; iterations=1_000, store_trace=true, ftol=nₜ*1e-12, autodiff=:forward)
     if !sol.f_converged
@@ -115,7 +116,8 @@ function chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_ene
 
     # start with the neutral atomic species.  Only the absolute value of sol.zero is
     # necessarilly correct.
-    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> abs.(sol.zero))
+    nₑ = sol.zero[end]
+    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> abs.(sol.zero[1:end-1]))
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
         wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
@@ -132,37 +134,43 @@ function chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_ene
     number_densities
 end
 
-function chemical_equilibrium_equations(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
+function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
     molecules = collect(keys(log_equilibrium_constants))
     atom_number_densities = nₜ .* absolute_abundances
                                     
-    # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
-    ion_factors = map(1:MAX_ATOMIC_NUMBER) do elem
-        wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
-        (1 + wII + wIII)
-    end
     # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
     # pressure, unlike those in equilibrium_constants.
     log_nKs = get_log_nK.(molecules, T, Ref(log_equilibrium_constants))
-                                    
+
+
     #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
     #`x` is a vector containing the number density of the neutral species of each element
     function residuals!(F, x)
         # Don't allow negative number densities.  This is a trick to bound the possible values 
         # of x. Taking the log was less performant in tests.
-        x = abs.(x) 
+        x = abs.(x)
+
+        nₑ = x[end]
                                     
-        # LHS: total number of atoms, RHS: first through third ionization states
-        F .= atom_number_densities .- ion_factors .* x
-        for (m, log_nK) in zip(molecules, log_nKs)
-            els = get_atoms(m.formula)
-            n_mol = 10^(sum(log10(x[el]) for el in els) - log_nK)
-            # RHS: atoms which are part of molecules
-            for el in els
-                F[el] -= n_mol
-            end
+        # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
+        ion_and_charge_factors = map(1:MAX_ATOMIC_NUMBER) do elem
+            wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
+            (1 + wII + wIII), (wII + 2wIII)
         end
+
+        # LHS: total number of atoms, RHS: first through third ionization states
+        F[1:end-1] .= atom_number_densities .- first.(ion_and_charge_factors) .* x[1:end-1]
+        F[end] = sum(last.(ion_and_charge_factors) .* x[1:end-1]) - nₑ
+
+        #for (m, log_nK) in zip(molecules, log_nKs)
+        #    els = get_atoms(m.formula)
+        #    n_mol = 10^(sum(log10(x[el]) for el in els) - log_nK)
+        #    # RHS: atoms which are part of molecules
+        #    for el in els
+        #        F[el] -= n_mol
+        #    end
+        #end
     end
 end
 
