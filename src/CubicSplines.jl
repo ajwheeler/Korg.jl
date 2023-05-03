@@ -54,8 +54,9 @@ function CubicSpline(t,u; extrapolate=false)
     d_tmp = 2 .* (h[1:n+1] .+ h[2:n+2])
     du = h[2:n+1]
     tA = LinearAlgebra.Tridiagonal(dl,d_tmp,du)
-    d = map(i -> i == 1 || i == n + 1 ? 0 : 6(u[i+1] - u[i]) / h[i+1] - 6(u[i] - u[i-1]) / h[i], 1:n+1)
-    z = tA\d
+    d = Vector{promote_type(eltype(u), eltype(h))}(undef, n+1)
+    d .= (i -> i == 1 || i == n + 1 ? 0 : 6(u[i+1] - u[i]) / h[i+1] - 6(u[i] - u[i-1]) / h[i]).(1:n+1)
+    z = tA \ d
     CubicSpline(t, u, h[1:n+1], z, extrapolate)
 end
 
