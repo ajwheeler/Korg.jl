@@ -262,9 +262,12 @@ variable.
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
   default true when `logg` < 3.5.
 - `archive`: The atmosphere archive to use.  This is used to override the default grid for testing.
-- `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to clamp the abundance 
-   paramerters to be within the range of the MARCS grid to avoid throwing an out of bounds error. 
-   Use with caution.
+- `solar_abundances`: (default: `grevesse_2007_solar_abundances`) The solar abundances to use when 
+  `A_X` is provided instead of `M_H`, `alpha_M`, and `C_M`. The default is chosen to match that of 
+  the atmosphere grid, and is probably no good reason to change it.
+- `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to 
+   clamp the abundance paramerters to be within the range of the MARCS grid to avoid throwing an out 
+   of bounds error. Use with caution.
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
@@ -272,7 +275,8 @@ variable.
     https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
 """
 function interpolate_marcs(Teff, logg, A_X::Vector; 
-                           solar_abundances=default_solar_abundances, clamp_abundances=false, kwargs...)
+                           solar_abundances=grevesse_2007_solar_abundances, 
+                           clamp_abundances=false, kwargs...)
     M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
     alpha_M = alpha_H - M_H
