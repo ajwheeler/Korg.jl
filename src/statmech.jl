@@ -119,7 +119,8 @@ function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ioni
     # start with the neutral atomic species.  Only the absolute value of sol.zero is
     # necessarilly correct.
     nₑ = abs(sol.zero[end]) * nₜ * 1e-5
-    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> nₜ * abs.(sol.zero[1:end-1]))
+    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) 
+                            .=> nₜ .* absolute_abundances .* abs.(sol.zero[1:end-1]))
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
         wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
