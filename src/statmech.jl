@@ -95,29 +95,31 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 
     K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH)) kT
 """
-function chemical_equilibrium(T, nₜ, model_atom_nₑ, absolute_abundances, ionization_energies, 
+function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
                               partition_fns, log_equilibrium_constants; x0=nothing)
     if x0 === nothing
         #compute good first guess by neglecting molecules
         x0 = map(1:MAX_ATOMIC_NUMBER) do atom
-            wII, wIII =  saha_ion_weights(T, model_atom_nₑ, atom, ionization_energies, partition_fns)
-            nₜ*absolute_abundances[atom] / (1 + wII + wIII)
+            wII, wIII =  saha_ion_weights(T, model_atm_nₑ, atom, ionization_energies, partition_fns)
+            1 / (1 + wII + wIII)
         end
-        push!(x0, model_atom_nₑ)
+        push!(x0, model_atm_nₑ / nₜ * 1e5)
     end
 
     #numerically solve for equlibrium.
-    sol = nlsolve(chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies,
-                                                 partition_fns, log_equilibrium_constants),
-                  x0; iterations=1_000, store_trace=true, ftol=nₜ*1e-12, autodiff=:forward)
+    residuals! = chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
+                                                partition_fns, log_equilibrium_constants)
+    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
     if !sol.f_converged
         error("Molecular equlibrium unconverged. \n", sol)
+    elseif !all(isfinite, sol.zero)
+        error("Molecular equlibrium solution contains non-finite values.")
     end
 
     # start with the neutral atomic species.  Only the absolute value of sol.zero is
     # necessarilly correct.
-    nₑ = sol.zero[end]
-    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> abs.(sol.zero[1:end-1]))
+    nₑ = abs(sol.zero[end]) * nₜ * 1e-5
+    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> nₜ * abs.(sol.zero[1:end-1]))
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
         wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
@@ -143,33 +145,53 @@ function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization
     # pressure, unlike those in equilibrium_constants.
     log_nKs = get_log_nK.(molecules, T, Ref(log_equilibrium_constants))
 
+    # precompute the ratio of singly and doubly ionized to neutral atoms with factors of nₑ^-1 and 
+    # nₑ^-2 divided out
+    pairs = map(1:MAX_ATOMIC_NUMBER) do Z
+        saha_ion_weights(T, 1, Z, ionization_energies, partition_fns)
+    end
+    wII_ne, wIII_ne2 = first.(pairs), last.(pairs)
 
-    #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
-    #`x` is a vector containing the number density of the neutral species of each element
-    function residuals!(F, x)
-        # Don't allow negative number densities.  This is a trick to bound the possible values 
-        # of x. Taking the log was less performant in tests.
-        x = abs.(x)
+    let nₜ=nₜ, log_nKs=log_nKs, molecules=molecules, atom_number_densities=atom_number_densities, wII_ne=wII_ne, wIII_ne2=wIII_ne2
+        #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
+        #`x` is a vector containing the number density of the neutral species of each element
+        function residuals!(F, x)
+            # Don't allow negative number densities.  This is a trick to bound the possible values 
+            # of x. Taking the log was less performant in tests.
+            x = abs.(x) #make a single copy of z, from here on, we can modify it in place
 
-        nₑ = x[end]
-                                    
-        # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
-        ion_and_charge_factors = map(1:MAX_ATOMIC_NUMBER) do elem
-            wII, wIII = saha_ion_weights(T, nₑ, elem, ionization_energies, partition_fns)
-            (1 + wII + wIII), (wII + 2wIII)
-        end
+            # the first 92 elements of x are the fraction of each element in it's neutral atomic form
+            x[1:end-1] .*= atom_number_densities
 
-        # LHS: total number of atoms, RHS: first through third ionization states
-        F[1:end-1] .= atom_number_densities .- first.(ion_and_charge_factors) .* x[1:end-1]
-        F[end] = sum(last.(ion_and_charge_factors) .* x[1:end-1]) - nₑ
-
-        for (m, log_nK) in zip(molecules, log_nKs)
-            els = get_atoms(m.formula)
-            n_mol = 10^(sum(log10(x[el]) for el in els) - log_nK)
-            # RHS: atoms which are part of molecules
-            for el in els
-                F[el] -= n_mol
+            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to 
+            # better specify the tolerance for the solver.
+            nₑ = x[end] * nₜ * 1e-5 
+            F[end] = 0
+                                        
+            # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
+            for Z in 1:MAX_ATOMIC_NUMBER
+                wII = wII_ne[Z] / nₑ
+                wIII = wIII_ne2[Z] / nₑ^2
+                # LHS: total number of atoms, RHS: first through third ionization states
+                F[Z] = atom_number_densities[Z] - (1 + wII + wIII) * x[Z]
+                # RHS: electrons freed from each ion
+                F[end] += (wII + 2wIII) * x[Z]
             end
+            F[end] -= nₑ #LHS: total electron number density
+
+            # now the first 92 elements of x are log10(neutral number densities)
+            x[1:end-1] .= log10.(x[1:end-1])
+            for (m, log_nK) in zip(molecules, log_nKs)
+                els = get_atoms(m.formula)
+                n_mol = 10^(sum(x[el] for el in els) - log_nK)
+                # RHS: atoms which are part of molecules
+                for el in els
+                    F[el] -= n_mol
+                end
+            end
+
+            F[1:end-1] ./= atom_number_densities
+            F[end] /= nₑ * 1e-5
         end
     end
 end
