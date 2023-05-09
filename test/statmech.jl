@@ -54,25 +54,20 @@ end
         nₜ = 1e15 
         nₑ = 1e-3 * nₜ #arbitrary
         T = 5700
-        n = Korg.chemical_equilibrium(T, nₜ, nₑ, nX_ntot, Korg.ionization_energies, 
+        nₑ, n_dict = Korg.chemical_equilibrium(T, nₜ, nₑ, nX_ntot, Korg.ionization_energies, 
                                       Korg.default_partition_funcs, 
                                       Korg.default_log_equilibrium_constants; x0=nothing)
 
         #make sure number densities are sensible
-        @test (n[Korg.species"C_III"] < n[Korg.species"C_II"] < n[Korg.species"C_I"] < 
-               n[Korg.species"H_II"] < n[Korg.species"H_I"])
+        @test (n_dict[Korg.species"C_III"] < n_dict[Korg.species"C_II"] < n_dict[Korg.species"C_I"] < 
+               n_dict[Korg.species"H_II"] < n_dict[Korg.species"H_I"])
 
-        #total number of carbons is correct
-        total_C = map(collect(keys(n))) do species
-            if species == Korg.species"C2"
-                n[species] * 2
-            elseif 0x06 in Korg.get_atoms(species.formula)
-                n[species]
-            else
-                0.0
+        @testset "conservation of nuclei: $(Korg.atomic_symbols[Z])" for Z in 1:Korg.MAX_ATOMIC_NUMBER
+            total_n = mapreduce(+, collect(keys(n_dict))) do species
+                sum(Korg.get_atoms(species.formula) .== Z) * n_dict[species]
             end
-        end |> sum
-        @test total_C ≈ nX_ntot[Korg.atomic_numbers["C"]] * nₜ
+            @test total_n ≈ nX_ntot[Z] * nₜ
+        end
     end
 
     @testset "compare to Barklem and Collet partiion functions" begin

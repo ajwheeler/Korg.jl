@@ -131,7 +131,7 @@ function chemical_equilibrium(T, nₜ, model_atom_nₑ, absolute_abundances, ion
         number_densities[mol] = 10^(sum(element_log_ns) - log_nK)
     end
 
-    number_densities
+    nₑ, number_densities
 end
 
 function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
@@ -163,14 +163,14 @@ function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization
         F[1:end-1] .= atom_number_densities .- first.(ion_and_charge_factors) .* x[1:end-1]
         F[end] = sum(last.(ion_and_charge_factors) .* x[1:end-1]) - nₑ
 
-        #for (m, log_nK) in zip(molecules, log_nKs)
-        #    els = get_atoms(m.formula)
-        #    n_mol = 10^(sum(log10(x[el]) for el in els) - log_nK)
-        #    # RHS: atoms which are part of molecules
-        #    for el in els
-        #        F[el] -= n_mol
-        #    end
-        #end
+        for (m, log_nK) in zip(molecules, log_nKs)
+            els = get_atoms(m.formula)
+            n_mol = 10^(sum(log10(x[el]) for el in els) - log_nK)
+            # RHS: atoms which are part of molecules
+            for el in els
+                F[el] -= n_mol
+            end
+        end
     end
 end
 

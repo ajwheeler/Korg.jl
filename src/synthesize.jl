@@ -159,44 +159,40 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     # each layer's absorption at reference λ (5000 Å)
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
-    pairs = map(enumerate(atm.layers)) do (i, layer)
-        n_dict = chemical_equilibrium(layer.temp, layer.number_density, layer.electron_number_density, 
+    tripples = map(enumerate(atm.layers)) do (i, layer)
+        nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, layer.electron_number_density, 
                                       abs_abundances, ionization_energies, 
                                       partition_funcs, log_equilibrium_constants)
 
-        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp,
-                                                         layer.electron_number_density,
-                                                         n_dict, partition_funcs))
+        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
+                                                         partition_funcs))
         α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer.(all_λs)
 
         if ! bezier_radiative_transfer
-            α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
-                                               layer.electron_number_density, n_dict,
-                                               partition_funcs)[1]
+            α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
         end
 
         if hydrogen_lines
-            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, layer.electron_number_density, 
+            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, nₑ,
                                       n_dict[species"H_I"],  n_dict[species"He I"],
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
                                       hydrogen_line_window_size*1e-8; 
                                       use_MHD=use_MHD_for_hydrogen_lines)
         end
 
-        n_dict, α_cntm_layer
+        nₑ, n_dict, α_cntm_layer
     end
+    nₑs = first.(tripples)
     #put number densities in a dict of vectors, rather than a vector of dicts.
-    n_dicts = first.(pairs)
+    n_dicts = getindex.(tripples, 2)
     number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1]) 
                              if spec != species"H III"])
     #vector of continuum-absorption interpolators
-    α_cntm = last.(pairs) 
+    α_cntm = last.(tripples) 
 
-    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], 
-                    [layer.electron_number_density for layer in atm.layers], number_densities,
-                    partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
-
+    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
+        number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
     
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     flux, intensity = if bezier_radiative_transfer
