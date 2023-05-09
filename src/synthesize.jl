@@ -149,7 +149,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     end
 
     abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
-    abs_abundances ./= sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
+    abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
     #float-like type general to handle dual numbers
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, 
