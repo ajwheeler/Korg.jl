@@ -28,6 +28,7 @@ A named tuple with keys:
    size (layers x wavelengths)
 - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
    atmospheric layer
+- `electron_number_density`: the electron number density at each atmospheric layer
 - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
   `air_wavelengths=true` this will not be the same as the input wavelenths.
 - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum 
@@ -217,7 +218,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
-     wavelengths=all_λs.*1e8, subspectra=subspectra)
+    electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
 
 """
