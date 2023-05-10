@@ -77,6 +77,13 @@ arguments:
 - a Dict of log molecular equilibrium constants, `log_equilibrium_constants`, in partial pressure form. 
   The keys of `equilibrium_constants` act as a list of all molecules.
 
+keyword arguments:
+- `x0` (default: `nothing`) is an initial guess for the solution (in the format internal to 
+  `chemical_equilibrium`). If not supplied, a good guess is computed by neglecting molecules.
+- `electron_number_density_warn_threshold` (default: `0.25`) is the fractional difference between 
+  the calculated electron number density and the model atmosphere electron number density at which 
+  a warning is issued.
+
 The system of equations is specified with the number densities of the neutral atoms as free 
 parameters.  Each equation specifies the conservation of a particular species, e.g. (simplified)
 
@@ -96,7 +103,8 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
     K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH)) kT
 """
 function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
-                              partition_fns, log_equilibrium_constants; x0=nothing)
+                              partition_fns, log_equilibrium_constants;  x0=nothing,
+                              electron_number_density_warn_threshold=0.25)
     if x0 === nothing
         #compute good first guess by neglecting molecules
         x0 = map(1:MAX_ATOMIC_NUMBER) do Z
@@ -119,9 +127,13 @@ function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ioni
         error("Molecular equlibrium solution contains non-finite values.")
     end
 
-    # start with the neutral atomic species.  Only the absolute value of sol.zero is
-    # necessarilly correct.
+    #  Only the absolute value of sol.zero is necessarilly correct.
     nₑ = abs(sol.zero[end]) * nₜ * 1e-5
+    if abs((nₑ - model_atm_nₑ) / model_atm_nₑ) > electron_number_density_warn_threshold
+        @warn "Electron number density differs from model atmosphere by a factor greater than $electron_number_density_warn_threshold. (calculated nₑ = $nₑ, model atmosphere nₑ = $model_atm_nₑ)"
+    end 
+
+    # start with the neutral atomic species.
     number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) 
                             .=> nₜ .* absolute_abundances .* abs.(sol.zero[1:end-1]))
     #now the ionized atomic species

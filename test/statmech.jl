@@ -52,11 +52,17 @@ end
         nX_ntot ./= sum(nX_ntot)
 
         nₜ = 1e15 
-        nₑ_initial_guess = 1e-5 * nₜ #arbitrary
+        nₑ_initial_guess = 1e12
         T = 5700
         nₑ, n_dict = Korg.chemical_equilibrium(T, nₜ, nₑ_initial_guess, nX_ntot, 
                                                Korg.ionization_energies, Korg.default_partition_funcs, 
-                                               Korg.default_log_equilibrium_constants; x0=nothing)
+                                               Korg.default_log_equilibrium_constants)
+
+        @test_logs (:warn, r"Electron number density differs") Korg.chemical_equilibrium(
+                                            T, nₜ, 1.0, nX_ntot, Korg.ionization_energies, 
+                                            Korg.default_partition_funcs, 
+                                            Korg.default_log_equilibrium_constants)
+        
 
         # plasma is net-neutral
         positive_charge_density =  mapreduce(+, pairs(n_dict)) do (species, n)
