@@ -98,20 +98,21 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
                               partition_fns, log_equilibrium_constants; x0=nothing)
     if x0 === nothing
-        x_type = promote_type(eltype(absolute_abundances), typeof(model_atm_nₑ), typeof(T), typeof(nₜ))
-        x0 = Vector{x_type}(undef, MAX_ATOMIC_NUMBER + 1)
         #compute good first guess by neglecting molecules
-        for Z in 1:MAX_ATOMIC_NUMBER
+        x0 = map(1:MAX_ATOMIC_NUMBER) do Z
             wII, wIII =  saha_ion_weights(T, model_atm_nₑ, Z, ionization_energies, partition_fns)
-            x0[Z] = 1 / (1 + wII + wIII)
+            1 / (1 + wII + wIII) 
         end
-        x0[end] = model_atm_nₑ / nₜ * 1e5
+        # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
+        # if that is going on.  I'm sure there's a better way...
+        x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
+        push!(x0, model_atm_nₑ / nₜ * 1e5)
     end
 
     #numerically solve for equlibrium.
     residuals! = chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
-    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+    sol = nlsolve(residuals!, x0; iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
     if !sol.f_converged
         error("Molecular equlibrium unconverged. \n", sol)
     elseif !all(isfinite, sol.zero)
