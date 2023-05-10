@@ -112,7 +112,7 @@ function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ioni
     #numerically solve for equlibrium.
     residuals! = chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
-    sol = nlsolve(residuals!, x0; iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
     if !sol.f_converged
         error("Molecular equlibrium unconverged. \n", sol)
     elseif !all(isfinite, sol.zero)
