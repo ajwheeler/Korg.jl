@@ -108,7 +108,19 @@
 
     @testset "turbospectrum linelists" begin
         ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum") 
-        @test ll[1] == ll[end]
+        @test ll[1].species == ll[3].species
+        @test ll[1].log_gf != ll[3].log_gf
+        @test ll[1].E_lower == ll[3].E_lower
+        @test ll[1].gamma_rad == ll[3].gamma_rad
+        @test ll[1].gamma_stark == ll[3].gamma_stark
+        @test ll[1].vdW ≈ ll[3].vdW
+
+        @test ll[2].species == ll[3].species
+        @test ll[2].log_gf ≈ ll[3].log_gf
+        @test ll[2].E_lower == ll[3].E_lower
+        @test ll[2].gamma_rad == ll[3].gamma_rad
+        @test ll[2].gamma_stark == ll[3].gamma_stark
+        @test ll[2].vdW ≈ ll[3].vdW
 
         vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac") 
         for (l_air, l_vac) in zip(ll, vac_ll)
