@@ -164,7 +164,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     # each layer's absorption at reference λ (5000 Å)
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
-    tripples = map(enumerate(atm.layers)) do (i, layer)
+    triples = map(enumerate(atm.layers)) do (i, layer)
         nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
                                           layer.electron_number_density, 
                                           abs_abundances, ionization_energies, 
@@ -190,13 +190,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
 
         nₑ, n_dict, α_cntm_layer
     end
-    nₑs = first.(tripples)
+    nₑs = first.(triples)
     #put number densities in a dict of vectors, rather than a vector of dicts.
-    n_dicts = getindex.(tripples, 2)
+    n_dicts = getindex.(triples, 2)
     number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1]) 
                              if spec != species"H III"])
     #vector of continuum-absorption interpolators
-    α_cntm = last.(tripples) 
+    α_cntm = last.(triples) 
 
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
