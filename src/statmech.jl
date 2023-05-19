@@ -1,4 +1,4 @@
-using NLsolve
+using NLsolve, ForwardDiff
 
 """
     saha_ion_weights(T, nₑ, atom, ionization_energies, partition_functions)
@@ -102,55 +102,67 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 
     K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH)) kT
 """
-function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
-                              partition_fns, log_equilibrium_constants;  x0=nothing,
+function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
+                              partition_fns, log_equilibrium_constants;  
                               electron_number_density_warn_threshold=0.25)
-    if x0 === nothing
-        #compute good first guess by neglecting molecules
-        x0 = map(1:MAX_ATOMIC_NUMBER) do Z
-            wII, wIII =  saha_ion_weights(T, model_atm_nₑ, Z, ionization_energies, partition_fns)
-            1 / (1 + wII + wIII) 
-        end
-        # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
-        # if that is going on.  I'm sure there's a better way...
-        x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
-        push!(x0, model_atm_nₑ / nₜ * 1e5)
+    # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
+    # if that is going on.  I'm sure there's a better way...
+    #x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
+
+    #compute good first guess by neglecting molecules
+    neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
+        wII, wIII =  saha_ion_weights(temp, model_atm_nₑ, Z, ionization_energies, partition_fns)
+        1 / (1 + wII + wIII) 
     end
 
-    #numerically solve for equlibrium.
-    residuals! = chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
-                                                partition_fns, log_equilibrium_constants)
-    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
-    if !sol.f_converged
-        error("Molecular equlibrium unconverged. \n", sol)
-    elseif !all(isfinite, sol.zero)
-        error("Molecular equlibrium solution contains non-finite values.")
-    end
+    nₑ, neutral_fractions = solve_chemical_equilibrium(temp, nₜ, absolute_abundances, 
+                                                       neutral_fraction_guess, model_atm_nₑ,
+                                                       ionization_energies, partition_fns, 
+                                                       log_equilibrium_constants)
 
-    #  Only the absolute value of sol.zero is necessarilly correct.
-    nₑ = abs(sol.zero[end]) * nₜ * 1e-5
     if abs((nₑ - model_atm_nₑ) / model_atm_nₑ) > electron_number_density_warn_threshold
         @warn "Electron number density differs from model atmosphere by a factor greater than $electron_number_density_warn_threshold. (calculated nₑ = $nₑ, model atmosphere nₑ = $model_atm_nₑ)"
     end 
 
     # start with the neutral atomic species.
     number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) 
-                            .=> nₜ .* absolute_abundances .* abs.(sol.zero[1:end-1]))
+                            .=> nₜ .* absolute_abundances .* neutral_fractions)
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
-        wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
+        wII, wIII = saha_ion_weights(temp, nₑ, a, ionization_energies, partition_fns)
         number_densities[Species(Formula(a), 1)] = wII  * number_densities[Species(Formula(a), 0)]
         number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
     #now the molecules
     for mol in keys(log_equilibrium_constants)
-        log_nK = get_log_nK(mol, T, log_equilibrium_constants)
+        log_nK = get_log_nK(mol, temp, log_equilibrium_constants)
         element_log_ns = (log10(number_densities[Species(Formula(el), 0)]) for el in get_atoms(mol.formula))
         number_densities[mol] = 10^(sum(element_log_ns) - log_nK)
     end
 
     nₑ, number_densities
 end
+
+function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
+                                    ionization_energies, partition_fns, log_equilibrium_constants)
+    #numerically solve for equlibrium.
+    residuals! = chemical_equilibrium_equations(temp, nₜ, absolute_abundances, ionization_energies, 
+                                                partition_fns, log_equilibrium_constants)
+    x0 = [neutral_fraction_guess; nₑ_guess / nₜ * 1e5]
+    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+
+    if !sol.f_converged
+        error("Molecular equlibrium unconverged. \n", sol)
+    elseif !all(isfinite, sol.zero)
+        error("Molecular equlibrium solution contains non-finite values.")
+    end
+
+    nₑ = abs(sol.zero[end]) * nₜ * 1e-5
+    neutral_fractions = abs.(sol.zero[1:end-1])
+    nₑ, neutral_fractions
+end
+
+
 
 function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
