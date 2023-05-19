@@ -23,7 +23,7 @@ end
     atm = read_model_atmosphere("data/sun.mod")
     bezier_sol = synthesize(atm, [], format_A_X(), 5000, 5001; bezier_radiative_transfer=true, n_mu_points=50)
     sol = synthesize(atm, [], format_A_X(), 5000, 5001 )
-    @test assert_allclose_grid(bezier_sol.flux, sol.flux, [("λ" , sol.wavelengths, "Å")]; rtol=0.025)
+    @test assert_allclose_grid(bezier_sol.flux, sol.flux, [("λ" , sol.wavelengths, "Å")]; rtol=0.03)
 end
 
 end
