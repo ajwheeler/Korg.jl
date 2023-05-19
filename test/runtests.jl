@@ -17,8 +17,13 @@ include("statmech.jl")
 include("linelist.jl")
 
 @testset "atomic data" begin 
-    @test (Korg.MAX_ATOMIC_NUMBER == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 
-            == length(Korg.asplund_2020_solar_abundances))
+    @test (Korg.MAX_ATOMIC_NUMBER 
+            == length(Korg.atomic_masses) 
+            == length(Korg.asplund_2009_solar_abundances) 
+            == length(Korg.asplund_2020_solar_abundances) 
+            == length(Korg.grevesse_2007_solar_abundances) 
+            == length(Korg.magg_2022_solar_abundances))
+
     @test (Korg.get_mass(Korg.Formula("CO")) ≈ 
            Korg.get_mass(Korg.Formula("C")) + Korg.get_mass(Korg.Formula("O")))
     @test Korg.get_mass(Korg.Formula("C2")) ≈ 2Korg.get_mass(Korg.Formula("C"))
