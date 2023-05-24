@@ -30,18 +30,21 @@ the region you are going to compare.
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
 resolution via multiplication is fast.
 """
-function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4)
+function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
     if !(first(synth_wls) < first(obs_wls) < last(obs_wls) < last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths."
     end
     convM = spzeros((length(obs_wls), length(synth_wls)))
     lb, ub = 1,1 #initialize window bounds
-    @showprogress  "Constructing LSF matrix" for i in 1:length(obs_wls)
+    nwls = length(obs_wls)
+    p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
+    for i in 1:length(obs_wls)
         λ0 = obs_wls[i]
         σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
         lb, ub = Korg.move_bounds(synth_wls, lb, ub, λ0, window_size*σ)
         ϕ = Korg.normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
         @. convM[i, lb:ub] += ϕ
+        next!(p)
     end
     convM 
 end
