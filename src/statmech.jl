@@ -173,7 +173,7 @@ function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::Forwa
 
     ptemp = ForwardDiff.partials(temp)
     pnₜ = ForwardDiff.partials(nₜ)
-    partials = [ptemp; pnₜ] 
+    partials = [ptemp pnₜ]'
 
     #numerically solve for equlibrium.
     residuals! = chemical_equilibrium_equations(vtemp, vnₜ, absolute_abundances, ionization_energies, 
@@ -192,14 +192,14 @@ function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::Forwa
     tmp = similar(sol.zero) # for storing results of residuals!. jacobian handles this nicely.
     drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, sol.zero)
     drdp = ForwardDiff.jacobian(tmp, [vtemp, vnₜ]) do tmp, p
-        r! = chemical_equilibrium_equations(p[1], p[1], absolute_abundances, ionization_energies, 
+        r! = chemical_equilibrium_equations(p[1], p[2], absolute_abundances, ionization_energies, 
                                             partition_fns, log_equilibrium_constants)
         r!(tmp, sol.zero)
     end
     dxdp = -(drdx \ drdp)
     partial_zero = dxdp * partials
 
-    dual_zero = map(sol.zero, partial_zero) do v, p
+    dual_zero = map(sol.zero, eachrow(partial_zero)) do v, p
         ForwardDiff.Dual{T}(v, p...)
     end
 
