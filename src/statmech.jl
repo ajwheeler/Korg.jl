@@ -28,7 +28,7 @@ function saha_ion_weights(T, nₑ, atom, ionization_energies, partition_funcs::D
         0.0
     else
         UIII = partition_funcs[Species(atom, 2)](log(T))
-        (wII*2.0/nₑ * (UIII/UII) * transU * exp(-χII/(k*T)))
+        wII*2.0/nₑ * (UIII/UII) * transU * exp(-χII/(k*T))
     end
     wII, wIII
 end

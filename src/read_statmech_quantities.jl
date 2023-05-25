@@ -128,12 +128,12 @@ species to interpolators over log(T).
 """
 function load_atomic_partition_functions(filename=joinpath(_data_dir, "atomic_partition_funcs", 
                                          "partition_funcs.h5"))
-    partition_funcs = Dict{Species, Any}()
+    partition_funcs = Dict{Species, CubicSplines.CubicSpline{Vector{Float64}, Vector{Float64}, Vector{Float64}, Vector{Float64}, Float64}}()
 
     logT_min = h5read(filename, "logT_min")
     logT_step = h5read(filename, "logT_step")
     logT_max = h5read(filename, "logT_max")
-    logTs = logT_min : logT_step : logT_max
+    logTs = collect(logT_min : logT_step : logT_max)
 
     for elem in Korg.atomic_symbols, ionization in ["I", "II", "III"]
         if (elem == "H" && ionization != "I") || (elem == "He" && ionization == "III")
