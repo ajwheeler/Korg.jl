@@ -162,6 +162,53 @@ function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fra
     nₑ, neutral_fractions
 end
 
+# handle the case where a derivative is being taken with respect to T and ntot, but not abundances
+function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::ForwardDiff.Dual{T, V, P},
+                                    absolute_abundances::Vector{Float64},  # not duals!
+                                    neutral_fraction_guess::Vector{ForwardDiff.Dual{T, V, P}},
+                                    nₑ_guess, ionization_energies, partition_fns, log_equilibrium_constants
+                                    ) where {T, V, P}
+    vtemp = ForwardDiff.value(temp)
+    vnₜ = ForwardDiff.value(nₜ)
+
+    ptemp = ForwardDiff.partials(temp)
+    pnₜ = ForwardDiff.partials(nₜ)
+    partials = [ptemp; pnₜ] 
+
+    #numerically solve for equlibrium.
+    residuals! = chemical_equilibrium_equations(vtemp, vnₜ, absolute_abundances, ionization_energies, 
+                                                partition_fns, log_equilibrium_constants)
+
+    # peel partials off of initial guess
+    x0 = ForwardDiff.value.([neutral_fraction_guess; nₑ_guess / nₜ * 1e5])
+    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+
+    if !sol.f_converged
+        error("Molecular equlibrium unconverged. \n", sol)
+    elseif !all(isfinite, sol.zero)
+        error("Molecular equlibrium solution contains non-finite values.")
+    end
+
+    tmp = similar(sol.zero) # for storing results of residuals!. jacobian handles this nicely.
+    drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, sol.zero)
+    drdp = ForwardDiff.jacobian(tmp, [vtemp, vnₜ]) do tmp, p
+        r! = chemical_equilibrium_equations(p[1], p[1], absolute_abundances, ionization_energies, 
+                                            partition_fns, log_equilibrium_constants)
+        r!(tmp, sol.zero)
+    end
+    dxdp = -(drdx \ drdp)
+    partial_zero = dxdp * partials
+
+    dual_zero = map(sol.zero, partial_zero) do v, p
+        ForwardDiff.Dual{T}(v, p...)
+    end
+
+    #TODO move this back into caller
+    nₑ = abs(dual_zero[end]) * nₜ * 1e-5
+    neutral_fractions = abs.(dual_zero[1:end-1])
+    nₑ, neutral_fractions
+end
+
 
 
 function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
