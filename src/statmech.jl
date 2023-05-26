@@ -105,9 +105,7 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
                               partition_fns, log_equilibrium_constants;  
                               electron_number_density_warn_threshold=0.25)
-    # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
-    # if that is going on.  I'm sure there's a better way...
-    #x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
+   
 
     #compute good first guess by neglecting molecules
     neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
@@ -148,7 +146,12 @@ function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fra
     #numerically solve for equlibrium.
     residuals! = chemical_equilibrium_equations(temp, nₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
+
     x0 = [neutral_fraction_guess; nₑ_guess / nₜ * 1e5]
+    # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
+    # if that is going on.  I'm sure there's a better way...
+    x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
+
     sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
 
     if !sol.f_converged
@@ -203,7 +206,6 @@ function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::Forwa
         ForwardDiff.Dual{T}(v, p...)
     end
 
-    #TODO move this back into caller
     nₑ = abs(dual_zero[end]) * nₜ * 1e-5
     neutral_fractions = abs.(dual_zero[1:end-1])
     nₑ, neutral_fractions
