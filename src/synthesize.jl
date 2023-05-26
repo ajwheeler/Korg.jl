@@ -250,10 +250,11 @@ You can specify abundance with these positional arguments.  All are optional, bu
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
 function format_A_X(default_metals_H::Real=0.0, default_alpha_H::Real=default_metals_H, 
-                    abundances::Dict=Dict(); 
-                    solar_relative=true, solar_abundances=default_solar_abundances)
+                    abundances::Dict{K, V}=Dict{UInt8, Float64}();  
+                    solar_relative=true, solar_abundances=default_solar_abundances
+                    ) where {K, V}
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
-    clean_abundances = Dict()
+    clean_abundances = Dict{UInt8, V}()
     for (el, abund) in abundances
         if el isa AbstractString
             if ! (el in keys(Korg.atomic_numbers))
