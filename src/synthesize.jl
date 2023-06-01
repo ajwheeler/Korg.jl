@@ -24,6 +24,7 @@ The ranges can be any Julia `AbstractRange`, for example: `5000:0.01:5010`.
 # Returns 
 A named tuple with keys:
 - `flux`: the output spectrum
+- `cntm`: the continuum at each wavelength
 - `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
    size (layers x wavelengths)
 - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
@@ -73,6 +74,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `electron_number_density_warn_threshold` (default: `0.25`): if the relative difference between the 
    calculated electron number density and the input electron number density is greater than this value,
    a warning is printed.
+- `return_cntm` (default: `true`): whether or not to return the continuum at each wavelength.  If 
+   this is false, `solution.cntm` will be `nothing`.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
@@ -93,7 +96,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
-                    electron_number_density_warn_threshold=0.25,
+                    electron_number_density_warn_threshold=0.25, 
+                    return_cntm=true,
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants)
@@ -198,6 +202,15 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
 
+    cntm = nothing
+    if return_cntm
+        cntm,  = if bezier_radiative_transfer
+            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
+        else
+            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+        end
+    end
+
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
     
@@ -217,7 +230,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
         wl_lb_ind += length(λs)
     end
 
-    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
+    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
     electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
 
