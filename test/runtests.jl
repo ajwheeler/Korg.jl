@@ -285,6 +285,16 @@ end
     @test sol_two_lines.flux == sol_one_lines.flux
 end
 
+@testset "continuum" begin
+    atm = read_model_atmosphere("data/sun.mod") 
+    linelist = [Korg.Line(6560, 1.0, Korg.species"Na I", 0.0)]
+    A_X = format_A_X()
+    sol = synthesize(atm, linelist, A_X, 6555, 6560)
+    cntm_sol = synthesize(atm, [], A_X, 6555, 6560; hydrogen_lines=false, return_cntm=false)
+    @test all(sol.cntm .≈ cntm_sol.flux)
+    @test isnothing(sol.cntm)
+end
+
 @testset "autodiff" begin
     using ForwardDiff
 

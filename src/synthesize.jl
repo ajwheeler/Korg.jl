@@ -202,9 +202,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
 
+    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
     if return_cntm
-        cntm,  = if bezier_radiative_transfer
+        cntm, _ = if bezier_radiative_transfer
             RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
         else
             RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
@@ -214,7 +215,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
     
-    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
