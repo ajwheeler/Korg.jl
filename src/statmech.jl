@@ -144,7 +144,7 @@ end
 function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
                                     ionization_energies, partition_fns, log_equilibrium_constants)
     #numerically solve for equlibrium.
-    residuals! = chemical_equilibrium_equations(temp, nₜ, absolute_abundances, ionization_energies, 
+    residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
 
     x0 = [neutral_fraction_guess; nₑ_guess / nₜ * 1e5]
@@ -169,7 +169,14 @@ end
 function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::ForwardDiff.Dual{T, V, P},
                                     absolute_abundances::Vector{Float64},  # not duals!
                                     neutral_fraction_guess::Vector{ForwardDiff.Dual{T, V, P}},
-                                    nₑ_guess, ionization_energies, partition_fns, log_equilibrium_constants
+                                    nₑ_guess, 
+                                    # Require that the types of the following be the same as the 
+                                    # default, thus containing no duals. This is over-restrictive,
+                                    # but I'm not sure how to enforce the more general condition
+                                    # via the type system.
+                                    ionization_energies::typeof(Korg.ionization_energies),
+                                    partition_fns::typeof(Korg.default_partition_funcs),
+                                    log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)
                                     ) where {T, V, P}
     vtemp = ForwardDiff.value(temp)
     vnₜ = ForwardDiff.value(nₜ)
@@ -179,7 +186,7 @@ function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::Forwa
     partials = [ptemp pnₜ]'
 
     #numerically solve for equlibrium.
-    residuals! = chemical_equilibrium_equations(vtemp, vnₜ, absolute_abundances, ionization_energies, 
+    residuals! = setup_chemical_equilibrium_residuals(vtemp, vnₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
 
     # peel partials off of initial guess
@@ -195,7 +202,7 @@ function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::Forwa
     tmp = similar(sol.zero) # for storing results of residuals!. jacobian handles this nicely.
     drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, sol.zero)
     drdp = ForwardDiff.jacobian(tmp, [vtemp, vnₜ]) do tmp, p
-        r! = chemical_equilibrium_equations(p[1], p[2], absolute_abundances, ionization_energies, 
+        r! = setup_chemical_equilibrium_residuals(p[1], p[2], absolute_abundances, ionization_energies, 
                                             partition_fns, log_equilibrium_constants)
         r!(tmp, sol.zero)
     end
@@ -213,7 +220,7 @@ end
 
 
 
-function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
+function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
     molecules = collect(keys(log_equilibrium_constants))
     atom_number_densities = nₜ .* absolute_abundances
