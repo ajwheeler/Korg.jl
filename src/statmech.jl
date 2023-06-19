@@ -105,8 +105,6 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
                               partition_fns, log_equilibrium_constants;  
                               electron_number_density_warn_threshold=0.25)
-   
-
     #compute good first guess by neglecting molecules
     neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
         wII, wIII =  saha_ion_weights(temp, model_atm_nₑ, Z, ionization_energies, partition_fns)
@@ -166,10 +164,11 @@ function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fra
 end
 
 # handle the case where a derivative is being taken with respect to T and ntot, but not abundances
-function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::ForwardDiff.Dual{T, V, P},
-                                    absolute_abundances::Vector{Float64},  # not duals!
-                                    neutral_fraction_guess::Vector{ForwardDiff.Dual{T, V, P}},
-                                    nₑ_guess, 
+function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V1, P}, 
+                                    nₜ::ForwardDiff.Dual{T, V2, P},
+                                    absolute_abundances::Vector{F},  # not duals!
+                                    neutral_fraction_guess::Vector{ForwardDiff.Dual{T, V3, P}},
+                                    nₑ_guess, # this type doesn't matter if the solver converges
                                     # Require that the types of the following be the same as the 
                                     # default, thus containing no duals. This is over-restrictive,
                                     # but I'm not sure how to enforce the more general condition
@@ -177,7 +176,7 @@ function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V, P}, nₜ::Forwa
                                     ionization_energies::typeof(Korg.ionization_energies),
                                     partition_fns::typeof(Korg.default_partition_funcs),
                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)
-                                    ) where {T, V, P}
+                                    ) where {T, P, V1 <: AbstractFloat, V2 <: AbstractFloat, V3 <: AbstractFloat, F <: AbstractFloat}
     vtemp = ForwardDiff.value(temp)
     vnₜ = ForwardDiff.value(nₜ)
 
