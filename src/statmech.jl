@@ -150,11 +150,21 @@ end
 
 function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
                                     ionization_energies, partition_fns, log_equilibrium_constants)
+
+    @info "using unspecialized _solve_chemical_equilibrium"
+    @info "type of temp: $(typeof(temp))"
+    @info "type of nₜ: $(typeof(nₜ))"
+    @info "type of absolute_abundances: $(typeof(absolute_abundances))"
+    @info "type of neutral_fraction_guess: $(typeof(neutral_fraction_guess))"
+    @info "type of nₑ_guess: $(typeof(nₑ_guess))"
+
     #numerically solve for equlibrium.
     residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
 
     x0 = [neutral_fraction_guess; nₑ_guess / nₜ * 1e5]
+
+    return x0
     # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
     # if that is going on.  I'm sure there's a better way...
     x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
@@ -184,6 +194,7 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V1, P},
                                     partition_fns::typeof(Korg.default_partition_funcs),
                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)
                                     ) where {T, V1, V2, V3, P, F <: AbstractFloat}
+    @info "using ForwardDiff-specialized _solve_chemical_equilibrium"
     vtemp = ForwardDiff.value(temp)
     vnₜ = ForwardDiff.value(nₜ)
     vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
@@ -215,8 +226,6 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V1, P},
 
     dual_zero
 end
-
-
 
 function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
