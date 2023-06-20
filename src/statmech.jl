@@ -141,6 +141,15 @@ end
 
 function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
                                     ionization_energies, partition_fns, log_equilibrium_constants)
+    zero = _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
+                                    ionization_energies, partition_fns, log_equilibrium_constants)
+    nₑ = abs(zero[end]) * nₜ * 1e-5
+    neutral_fractions = abs.(zero[1:end-1])
+    nₑ, neutral_fractions 
+end
+
+function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
+                                    ionization_energies, partition_fns, log_equilibrium_constants)
     #numerically solve for equlibrium.
     residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
@@ -158,13 +167,11 @@ function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fra
         error("Molecular equlibrium solution contains non-finite values.")
     end
 
-    nₑ = abs(sol.zero[end]) * nₜ * 1e-5
-    neutral_fractions = abs.(sol.zero[1:end-1])
-    nₑ, neutral_fractions
+    sol.zero
 end
 
 # handle the case where a derivative is being taken with respect to T and ntot, but not abundances
-function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V1, P}, 
+function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V1, P}, 
                                     nₜ::ForwardDiff.Dual{T, V2, P},
                                     absolute_abundances::Vector{F},  # not duals!
                                     neutral_fraction_guess::Vector{ForwardDiff.Dual{T, V3, P}},
@@ -176,45 +183,37 @@ function solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V1, P},
                                     ionization_energies::typeof(Korg.ionization_energies),
                                     partition_fns::typeof(Korg.default_partition_funcs),
                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)
-                                    ) where {T, P, V1 <: AbstractFloat, V2 <: AbstractFloat, V3 <: AbstractFloat, F <: AbstractFloat}
+                                    ) where {T, V1, V2, V3, P, F <: AbstractFloat}
     vtemp = ForwardDiff.value(temp)
     vnₜ = ForwardDiff.value(nₜ)
+    vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
+    vnₑ_guess = ForwardDiff.value(nₑ_guess)
 
     ptemp = ForwardDiff.partials(temp)
     pnₜ = ForwardDiff.partials(nₜ)
     partials = [ptemp pnₜ]'
 
-    #numerically solve for equlibrium.
+    zero = _solve_chemical_equilibrium(vtemp, vnₜ, absolute_abundances, vneutral_fraction_guess, vnₑ_guess,
+                                      ionization_energies, partition_fns, log_equilibrium_constants)
+    
     residuals! = setup_chemical_equilibrium_residuals(vtemp, vnₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
 
-    # peel partials off of initial guess
-    x0 = ForwardDiff.value.([neutral_fraction_guess; nₑ_guess / nₜ * 1e5])
-    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
-
-    if !sol.f_converged
-        error("Molecular equlibrium unconverged. \n", sol)
-    elseif !all(isfinite, sol.zero)
-        error("Molecular equlibrium solution contains non-finite values.")
-    end
-
-    tmp = similar(sol.zero) # for storing results of residuals!. jacobian handles this nicely.
-    drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, sol.zero)
+    tmp = similar(zero) # for storing results of residuals!. jacobian handles this nicely.
+    drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, zero)
     drdp = ForwardDiff.jacobian(tmp, [vtemp, vnₜ]) do tmp, p
         r! = setup_chemical_equilibrium_residuals(p[1], p[2], absolute_abundances, ionization_energies, 
                                             partition_fns, log_equilibrium_constants)
-        r!(tmp, sol.zero)
+        r!(tmp, zero)
     end
     dxdp = -(drdx \ drdp)
     partial_zero = dxdp * partials
 
-    dual_zero = map(sol.zero, eachrow(partial_zero)) do v, p
+    dual_zero = map(zero, eachrow(partial_zero)) do v, p
         ForwardDiff.Dual{T}(v, p...)
     end
 
-    nₑ = abs(dual_zero[end]) * nₜ * 1e-5
-    neutral_fractions = abs.(dual_zero[1:end-1])
-    nₑ, neutral_fractions
+    dual_zero
 end
 
 
