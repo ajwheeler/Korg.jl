@@ -418,11 +418,17 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
     else
         tentotheOrMissing(tryparse(Float64, toks[7]))
     end
+    Elower = parse(Float64, toks[2])
+
+    wltrans = vacuum ? identity : air_to_vacuum
+    wl = wltrans(parse(Float64, toks[1])*1e-8)
+
     fdamp = parse(Float64, toks[4])
     if 0 < fdamp < 20
-        error("fdamp parameter ($fdamp) is an enhancement factor for the damping constant, which is not supported by Korg. Please open an issue or get in contact if this is a problem for you.")
+        fdamp *= approximate_gammas(wl, species, Elower)[2]
+        #error("fdamp parameter ($fdamp) is an enhancement factor for the damping constant, which is not supported by Korg. Please open an issue or get in contact if this is a problem for you.")
     end
-    wltrans = vacuum ? identity : air_to_vacuum
+
     Line(wltrans(parse(Float64, toks[1])*1e-8),
          log_gf + Δloggf,
          species, 
