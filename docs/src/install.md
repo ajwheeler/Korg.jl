@@ -12,7 +12,8 @@ if you would like to use Julia from the command line.
 
 ## 2. Install Korg
 
-1. Lauch a julia session (either by launching the app, or typing `julia` on the command line if you have that set up). 2. Type `]` to enter `Pkg` mode.
+1. Lauch a julia session (either by launching the app, or typing `julia` on the command line if you have that set up). 
+2. Type `]` to enter `Pkg` mode.
 3. Type `add Korg` to install Korg and its dependencies.
 4. Press backspace or `CTRL+C` to exit `Pkg` mode (and return to the Julia REPL)
 
