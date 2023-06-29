@@ -6,48 +6,12 @@ Functions for fitting to data.
 """
 module Fit
 using ..Korg, ProgressMeter, ForwardDiff, LineSearches, Optim
-using SparseArrays: spzeros
 using Statistics: mean
 using Interpolations: LinearInterpolation
 using InteractiveUtils: @code_warntype
 
 # TODO specify versions in Project.toml
 # TODO derivatives are zero at grid points (perturbing in one direction would be bad???)
-
-"""
-    compute_LSF_matrix(synth_wls, obs_wls, R; window_size=3)
-
-Construct a sparse matrix, which when multiplied with a flux vector defined over wavelenths 
-`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
-The LSF has a constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
-``\\Delta\\lambda`` is the LSF FWHM.  The `window_size` argument specifies how far out to extend
-the convolution kernel in standard deviations.
-
-For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
-the region you are going to compare.
-
-[`Korg.constant_R_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
-relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
-resolution via multiplication is fast.
-"""
-function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
-    if !(first(synth_wls) < first(obs_wls) < last(obs_wls) < last(synth_wls))
-        @warn raw"Synthesis wavelenths are not superset of observation wavelenths."
-    end
-    convM = spzeros((length(obs_wls), length(synth_wls)))
-    lb, ub = 1,1 #initialize window bounds
-    nwls = length(obs_wls)
-    p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
-    for i in 1:length(obs_wls)
-        λ0 = obs_wls[i]
-        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
-        lb, ub = Korg.move_bounds(synth_wls, lb, ub, λ0, window_size*σ)
-        ϕ = Korg.normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
-        @. convM[i, lb:ub] += ϕ
-        next!(p)
-    end
-    convM 
-end
 
 tan_scale(p, lower, upper) = tan(π * (((p-lower)/(upper-lower))-0.5))
 tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower

@@ -204,24 +204,42 @@ end
 end
 
 @testset "LSF" begin
-    wls = 5000:0.35:6000
+    wls = 5900:0.35:6100
     R = 1800.0
+    spike_ind = 286 #in the middle
     flux = zeros(Float64, length(wls))
-    flux[500] = 5.0
+    flux[spike_ind] = 5.0
 
     convF = Korg.constant_R_LSF(flux, wls, R)
-    convF_4sigma = Korg.constant_R_LSF(flux, wls, R; window_size=4)
+    convF_5sigma = Korg.constant_R_LSF(flux, wls, R; window_size=5)
+    convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
+    convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
+    downsampled_wls = 5950:0.4:6050
+    convF_mat_downsample = Korg.compute_LSF_matrix(wls, downsampled_wls, R; window_size=5) * flux
 
-    #normalized?
-    @test sum(flux) ≈ sum(convF)
-    @test sum(flux) ≈ sum(convF_4sigma)
+    # normalized?
+    @test sum(flux) ≈ sum(convF)  rtol=1e-3
+    @test sum(flux) ≈ sum(convF_5sigma) rtol=1e-3
+    @test sum(flux) ≈ sum(convF_mat) rtol=1e-3
+    @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
+    @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
+    @test sum(flux) * step(wls) ≈ sum(convF_mat_downsample) * step(downsampled_wls) rtol=1e-3
+    
 
-    #preserves line center?
-    @test argmax(convF) == 500
-    @test argmax(convF_4sigma) == 500
+    # preserves line center?
+    @test argmax(convF) == spike_ind
+    @test argmax(convF_5sigma) == spike_ind
+    @test argmax(convF_mat) == spike_ind
+    @test argmax(convF_mat5) == spike_ind
 
-    #make sure the window_size argument is doing something
-    @test !(convF ≈ convF_4sigma)
+    # make sure the default window_size values are OK
+    @test assert_allclose(convF, convF_mat5; atol=1e-4)
+    @test assert_allclose(convF_5sigma, convF_mat5; atol=1e-4)
+    @test assert_allclose(convF_mat, convF_mat5; atol=1e-4)
+
+    # but also check that they are definitely doing something
+    @test !(convF ≈ convF_5sigma)
+    @test !(convF_mat ≈ convF_mat5)
 end
 
 @testset "air <--> vacuum" begin

@@ -41,7 +41,7 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     end
 
     # return promptly if the check passes
-    if all(diff .<= rtol .* abs.(reference) .+ atol)
+    if all((diff .== 0) .| (diff .<= rtol .* abs.(reference) .+ atol))
         return true
     end
 

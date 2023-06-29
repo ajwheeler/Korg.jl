@@ -1,5 +1,7 @@
 using Statistics: quantile
 using Interpolations: LinearInterpolation, Flat
+using SparseArrays: spzeros 
+using ProgressMeter
 
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
@@ -56,7 +58,7 @@ function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVect
 end
 
 """
-    constant_R_LSF(flux, wls, R; window_size=3)
+    constant_R_LSF(flux, wls, R; window_size=4)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
 vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
@@ -76,12 +78,12 @@ will get much better performance using [`downsampled_LSF_matrix`](@ref).
        It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
        otherwise desired) grid.
 """
-function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=3) where F <: Real
+function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=4) where F <: Real
     #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
     lb, ub = 1,1 #initialize window bounds
-    for i in 1:length(wls)
+    for i in eachindex(wls)
         λ0 = wls[i]
         σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
         lb, ub = move_bounds(wls, lb, ub, λ0, window_size*σ)
@@ -91,6 +93,44 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=3) where F 
     end
     convF .* normalization_factor
 end
+
+"""
+    compute_LSF_matrix(synth_wls, obs_wls, R; window_size=3)
+
+Construct a sparse matrix, which when multiplied with a flux vector defined over wavelenths 
+`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
+The LSF has a constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
+``\\Delta\\lambda`` is the LSF FWHM.  The `window_size` argument specifies how far out to extend
+the convolution kernel in standard deviations.
+
+For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
+the region you are going to compare.
+
+[`Korg.constant_R_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
+relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
+resolution via multiplication is fast.
+"""
+function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
+    if !(first(synth_wls) < first(obs_wls) < last(obs_wls) < last(synth_wls))
+        @warn raw"Synthesis wavelenths are not superset of observation wavelenths."
+    end
+    convM = spzeros((length(obs_wls), length(synth_wls)))
+    lb, ub = 1,1 #initialize window bounds
+    nwls = length(obs_wls)
+    p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
+    for i in eachindex(obs_wls)
+        λ0 = obs_wls[i]
+        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
+        lb, ub = move_bounds(synth_wls, lb, ub, λ0, window_size*σ)
+        ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
+        # don't include the normalization factor?
+        @. convM[i, lb:ub] += ϕ
+        next!(p)
+    end
+    convM 
+end
+
+
 
 """
     rectify(flux, wls; bandwidth=50, q=0.95, wl_step=1.0)
