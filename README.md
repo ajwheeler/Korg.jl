@@ -21,4 +21,22 @@ plot(sol.wavelengths, sol.flux, "k-")
 xlabel(L"$\lambda$ [Å]")
 ylabel(L"$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-5}$]");
 ```
+
 ![image](https://user-images.githubusercontent.com/711963/199083747-9d9d89b4-10a5-42f7-9273-11e9f6d2dfa1.png)
+
+## You can also call Korg from python
+See [the documentation](https://ajwheeler.github.io/Korg.jl/stable/install/) for setup instructions.
+```python
+import matplotlib.pyplot as plt
+from julia import Korg
+
+lines = Korg.read_linelist("linelist.vald", format="vald")
+atm = Korg.read_model_atmosphere("s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
+A_X = Korg.format_A_X(0)
+sol = Korg.synthesize(atm, lines, A_X, 5000, 5030)
+
+fig, ax = plt.subplots(figsize=(12, 4))
+ax.plot(sol.wavelengths, sol.flux, "k-")
+ax.set_xlabel("$\lambda$ [Å]")
+ax.set_ylabel("$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-5}$]")
+```

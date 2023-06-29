@@ -28,6 +28,7 @@ A named tuple with keys:
    size (layers x wavelengths)
 - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
    atmospheric layer
+- `electron_number_density`: the electron number density at each atmospheric layer
 - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
   `air_wavelengths=true` this will not be the same as the input wavelenths.
 - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum 
@@ -69,6 +70,9 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
    The default value should effect final spectra below the 10^-3 level.
+- `electron_number_density_warn_threshold` (default: `0.25`): if the relative difference between the 
+   calculated electron number density and the input electron number density is greater than this value,
+   a warning is printed.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
@@ -89,6 +93,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
+                    electron_number_density_warn_threshold=0.25,
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants)
@@ -149,7 +154,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     end
 
     abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
-    abs_abundances ./= sum(abs_abundances) #normalize so that sum(N_x/N_total) = 1
+    abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
     #float-like type general to handle dual numbers
     α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, 
@@ -159,44 +164,42 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     # each layer's absorption at reference λ (5000 Å)
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
-    pairs = map(enumerate(atm.layers)) do (i, layer)
-        n_dict = chemical_equilibrium(layer.temp, layer.number_density, layer.electron_number_density, 
-                                      abs_abundances, ionization_energies, 
-                                      partition_funcs, log_equilibrium_constants)
+    triples = map(enumerate(atm.layers)) do (i, layer)
+        nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
+                                          layer.electron_number_density, 
+                                          abs_abundances, ionization_energies, 
+                                          partition_funcs, log_equilibrium_constants; 
+                                          electron_number_density_warn_threshold=electron_number_density_warn_threshold)
 
-        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp,
-                                                         layer.electron_number_density,
-                                                         n_dict, partition_funcs))
+        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
+                                                         partition_funcs))
         α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer.(all_λs)
 
         if ! bezier_radiative_transfer
-            α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, 
-                                               layer.electron_number_density, n_dict,
-                                               partition_funcs)[1]
+            α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
         end
 
         if hydrogen_lines
-            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, layer.electron_number_density, 
+            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, nₑ,
                                       n_dict[species"H_I"],  n_dict[species"He I"],
                                       partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
                                       hydrogen_line_window_size*1e-8; 
                                       use_MHD=use_MHD_for_hydrogen_lines)
         end
 
-        n_dict, α_cntm_layer
+        nₑ, n_dict, α_cntm_layer
     end
+    nₑs = first.(triples)
     #put number densities in a dict of vectors, rather than a vector of dicts.
-    n_dicts = first.(pairs)
+    n_dicts = getindex.(triples, 2)
     number_densities = Dict([spec=>[n[spec] for n in n_dicts] for spec in keys(n_dicts[1]) 
                              if spec != species"H III"])
     #vector of continuum-absorption interpolators
-    α_cntm = last.(pairs) 
+    α_cntm = last.(triples) 
 
-    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], 
-                    [layer.electron_number_density for layer in atm.layers], number_densities,
-                    partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
-
+    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
+        number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
     
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     flux, intensity = if bezier_radiative_transfer
@@ -215,7 +218,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     end
 
     (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
-     wavelengths=all_λs.*1e8, subspectra=subspectra)
+    electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
 
 """
@@ -247,10 +250,11 @@ You can specify abundance with these positional arguments.  All are optional, bu
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
 function format_A_X(default_metals_H::Real=0.0, default_alpha_H::Real=default_metals_H, 
-                    abundances::Dict=Dict(); 
-                    solar_relative=true, solar_abundances=default_solar_abundances)
+                    abundances::Dict{K, V}=Dict{UInt8, Float64}();  
+                    solar_relative=true, solar_abundances=default_solar_abundances
+                    ) where {K, V}
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
-    clean_abundances = Dict()
+    clean_abundances = Dict{UInt8, V}()
     for (el, abund) in abundances
         if el isa AbstractString
             if ! (el in keys(Korg.atomic_numbers))

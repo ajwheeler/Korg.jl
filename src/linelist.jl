@@ -424,7 +424,7 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
     end
     wltrans = vacuum ? identity : air_to_vacuum
     Line(wltrans(parse(Float64, toks[1])*1e-8),
-         log_gf,
+         log_gf + Δloggf,
          species, 
          parse(Float64, toks[2]), 
          gamma_rad,

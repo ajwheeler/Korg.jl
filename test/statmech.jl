@@ -52,27 +52,34 @@ end
         nX_ntot ./= sum(nX_ntot)
 
         nₜ = 1e15 
-        nₑ = 1e-3 * nₜ #arbitrary
+        nₑ_initial_guess = 1e12
         T = 5700
-        n = Korg.chemical_equilibrium(T, nₜ, nₑ, nX_ntot, Korg.ionization_energies, 
-                                      Korg.default_partition_funcs, 
-                                      Korg.default_log_equilibrium_constants; x0=nothing)
+        nₑ, n_dict = Korg.chemical_equilibrium(T, nₜ, nₑ_initial_guess, nX_ntot, 
+                                               Korg.ionization_energies, Korg.default_partition_funcs, 
+                                               Korg.default_log_equilibrium_constants)
+
+        @test_logs (:warn, r"Electron number density differs") Korg.chemical_equilibrium(
+                                            T, nₜ, 1.0, nX_ntot, Korg.ionization_energies, 
+                                            Korg.default_partition_funcs, 
+                                            Korg.default_log_equilibrium_constants)
+        
+
+        # plasma is net-neutral
+        positive_charge_density =  mapreduce(+, pairs(n_dict)) do (species, n)
+            n * species.charge
+        end
+        @test nₑ ≈ positive_charge_density rtol=1e-5
 
         #make sure number densities are sensible
-        @test (n[Korg.species"C_III"] < n[Korg.species"C_II"] < n[Korg.species"C_I"] < 
-               n[Korg.species"H_II"] < n[Korg.species"H_I"])
+        @test (n_dict[Korg.species"C_III"] < n_dict[Korg.species"C_II"] < n_dict[Korg.species"C_I"] < 
+               n_dict[Korg.species"H_II"] < n_dict[Korg.species"H_I"])
 
-        #total number of carbons is correct
-        total_C = map(collect(keys(n))) do species
-            if species == Korg.species"C2"
-                n[species] * 2
-            elseif 0x06 in Korg.get_atoms(species.formula)
-                n[species]
-            else
-                0.0
+        @testset "conservation of nuclei: $(Korg.atomic_symbols[Z])" for Z in 1:Korg.MAX_ATOMIC_NUMBER
+            total_n = mapreduce(+, collect(keys(n_dict))) do species
+                sum(Korg.get_atoms(species.formula) .== Z) * n_dict[species]
             end
-        end |> sum
-        @test total_C ≈ nX_ntot[Korg.atomic_numbers["C"]] * nₜ
+            @test total_n ≈ nX_ntot[Z] * nₜ
+        end
     end
 
     @testset "compare to Barklem and Collet partiion functions" begin

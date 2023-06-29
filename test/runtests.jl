@@ -17,8 +17,13 @@ include("statmech.jl")
 include("linelist.jl")
 
 @testset "atomic data" begin 
-    @test (Korg.MAX_ATOMIC_NUMBER == length(Korg.atomic_masses) == length(Korg.asplund_2009_solar_abundances) 
-            == length(Korg.asplund_2020_solar_abundances))
+    @test (Korg.MAX_ATOMIC_NUMBER 
+            == length(Korg.atomic_masses) 
+            == length(Korg.asplund_2009_solar_abundances) 
+            == length(Korg.asplund_2020_solar_abundances) 
+            == length(Korg.grevesse_2007_solar_abundances) 
+            == length(Korg.magg_2022_solar_abundances))
+
     @test (Korg.get_mass(Korg.Formula("CO")) ≈ 
            Korg.get_mass(Korg.Formula("C")) + Korg.get_mass(Korg.Formula("O")))
     @test Korg.get_mass(Korg.Formula("C2")) ≈ 2Korg.get_mass(Korg.Formula("C"))
@@ -303,11 +308,14 @@ end
 
     linelist = read_linelist("data/linelists/5000-5005.vald")
     wls = [6564:0.01:6565]
-    for atm_file in ["data/sun.mod",
-             "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"]
+    for (atm_file, threshold) in [("data/sun.mod", 0.1),
+             ("data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod", 100)]
         atm = read_model_atmosphere(atm_file)
-        flux(p) = synthesize(atm, linelist, format_A_X(p[1], Dict("Ni"=>p[2])), 
-                             wls; vmic=p[3]).flux
+        # the second model atmosphere happens to be in a weird (probably unphysical) part of 
+        # parameter space where the electron number densities calculated doesn't match the marcs
+        # numbers.  We suppress the warnings in this case by setting the threshold to 100.
+        flux(p) = synthesize(atm, linelist, format_A_X(p[1], Dict("Ni"=>p[2])), wls; 
+                             vmic=p[3], electron_number_density_warn_threshold=threshold).flux
         #make sure this works.
         J = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
         @test .! any(isnan.(J))
