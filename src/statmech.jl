@@ -1,4 +1,4 @@
-using NLsolve
+using NLsolve, ForwardDiff
 
 """
     saha_ion_weights(T, nₑ, atom, ionization_energies, partition_functions)
@@ -102,49 +102,36 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 
     K(OH)  ==  (p(O) p(H)) / p(OH)  ==  (n(O) n(H)) / n(OH)) kT
 """
-function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
-                              partition_fns, log_equilibrium_constants;  x0=nothing,
+function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies, 
+                              partition_fns, log_equilibrium_constants;  
                               electron_number_density_warn_threshold=0.25)
-    if x0 === nothing
-        #compute good first guess by neglecting molecules
-        x0 = map(1:MAX_ATOMIC_NUMBER) do Z
-            wII, wIII =  saha_ion_weights(T, model_atm_nₑ, Z, ionization_energies, partition_fns)
-            1 / (1 + wII + wIII) 
-        end
-        # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
-        # if that is going on.  I'm sure there's a better way...
-        x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
-        push!(x0, model_atm_nₑ / nₜ * 1e5)
+    #compute good first guess by neglecting molecules
+    neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
+        wII, wIII =  saha_ion_weights(temp, model_atm_nₑ, Z, ionization_energies, partition_fns)
+        1 / (1 + wII + wIII) 
     end
 
-    #numerically solve for equlibrium.
-    residuals! = chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
-                                                partition_fns, log_equilibrium_constants)
-    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
-    if !sol.f_converged
-        error("Molecular equlibrium unconverged. \n", sol)
-    elseif !all(isfinite, sol.zero)
-        error("Molecular equlibrium solution contains non-finite values.")
-    end
+    nₑ, neutral_fractions = solve_chemical_equilibrium(temp, nₜ, absolute_abundances, 
+                                                       neutral_fraction_guess, model_atm_nₑ,
+                                                       ionization_energies, partition_fns, 
+                                                       log_equilibrium_constants)
 
-    #  Only the absolute value of sol.zero is necessarilly correct.
-    nₑ = abs(sol.zero[end]) * nₜ * 1e-5
     if abs((nₑ - model_atm_nₑ) / model_atm_nₑ) > electron_number_density_warn_threshold
         @warn "Electron number density differs from model atmosphere by a factor greater than $electron_number_density_warn_threshold. (calculated nₑ = $nₑ, model atmosphere nₑ = $model_atm_nₑ)"
     end 
 
     # start with the neutral atomic species.
     number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) 
-                            .=> nₜ .* absolute_abundances .* abs.(sol.zero[1:end-1]))
+                            .=> nₜ .* absolute_abundances .* neutral_fractions)
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
-        wII, wIII = saha_ion_weights(T, nₑ, a, ionization_energies, partition_fns)
+        wII, wIII = saha_ion_weights(temp, nₑ, a, ionization_energies, partition_fns)
         number_densities[Species(Formula(a), 1)] = wII  * number_densities[Species(Formula(a), 0)]
         number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
     #now the molecules
     for mol in keys(log_equilibrium_constants)
-        log_nK = get_log_nK(mol, T, log_equilibrium_constants)
+        log_nK = get_log_nK(mol, temp, log_equilibrium_constants)
         element_log_ns = (log10(number_densities[Species(Formula(el), 0)]) for el in get_atoms(mol.formula))
         number_densities[mol] = 10^(sum(element_log_ns) - log_nK)
     end
@@ -152,7 +139,85 @@ function chemical_equilibrium(T, nₜ, model_atm_nₑ, absolute_abundances, ioni
     nₑ, number_densities
 end
 
-function chemical_equilibrium_equations(T, nₜ, absolute_abundances, ionization_energies, 
+function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
+                                    ionization_energies, partition_fns, log_equilibrium_constants)
+    zero = _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
+                                    ionization_energies, partition_fns, log_equilibrium_constants)
+    nₑ = abs(zero[end]) * nₜ * 1e-5
+    neutral_fractions = abs.(zero[1:end-1])
+    nₑ, neutral_fractions 
+end
+
+function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
+                                    ionization_energies, partition_fns, log_equilibrium_constants)
+    #numerically solve for equlibrium.
+    residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances, ionization_energies, 
+                                                partition_fns, log_equilibrium_constants)
+
+    x0 = [neutral_fraction_guess; nₑ_guess / nₜ * 1e5]
+
+    # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
+    # if that is going on.  I'm sure there's a better way...
+    x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
+
+    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+
+    if !sol.f_converged
+        error("Molecular equlibrium unconverged. \n", sol)
+    elseif !all(isfinite, sol.zero)
+        error("Molecular equlibrium solution contains non-finite values.")
+    end
+
+    sol.zero
+end
+
+# handle the case where a derivative is being taken with respect to T and ntot, but not abundances
+function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T, V1, P}, 
+                                    nₜ::ForwardDiff.Dual{T, V2, P},
+                                    absolute_abundances::Vector{F},  # not duals!
+                                    neutral_fraction_guess::Vector{ForwardDiff.Dual{T, V3, P}},
+                                    nₑ_guess, # this type doesn't matter if the solver converges
+                                    # Require that the types of the following be the same as the 
+                                    # default, thus containing no duals. This is over-restrictive,
+                                    # but I'm not sure how to enforce the more general condition
+                                    # via the type system.
+                                    ionization_energies::typeof(Korg.ionization_energies),
+                                    partition_fns::typeof(Korg.default_partition_funcs),
+                                    log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)
+                                    ) where {T, V1, V2, V3, P, F <: AbstractFloat}
+    vtemp = ForwardDiff.value(temp)
+    vnₜ = ForwardDiff.value(nₜ)
+    vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
+    vnₑ_guess = ForwardDiff.value(nₑ_guess)
+
+    ptemp = ForwardDiff.partials(temp)
+    pnₜ = ForwardDiff.partials(nₜ)
+    partials = [ptemp pnₜ]'
+
+    zero = _solve_chemical_equilibrium(vtemp, vnₜ, absolute_abundances, vneutral_fraction_guess, vnₑ_guess,
+                                      ionization_energies, partition_fns, log_equilibrium_constants)
+
+    residuals! = setup_chemical_equilibrium_residuals(vtemp, vnₜ, absolute_abundances, ionization_energies, 
+                                                partition_fns, log_equilibrium_constants)
+
+    tmp = similar(zero) # for storing results of residuals!. jacobian handles this nicely.
+    drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, zero)
+    drdp = ForwardDiff.jacobian(tmp, [vtemp, vnₜ]) do tmp, p
+        r! = setup_chemical_equilibrium_residuals(p[1], p[2], absolute_abundances, ionization_energies, 
+                                            partition_fns, log_equilibrium_constants)
+        r!(tmp, zero)
+    end
+    dxdp = -(drdx \ drdp)
+    partial_zero = dxdp * partials
+
+    dual_zero = map(zero, eachrow(partial_zero)) do v, p
+        ForwardDiff.Dual{T}(v, p...)
+    end
+
+    dual_zero
+end
+
+function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
     molecules = collect(keys(log_equilibrium_constants))
     atom_number_densities = nₜ .* absolute_abundances

@@ -1,4 +1,4 @@
-using Korg, Test, HDF5
+using Korg, Test, HDF5, ForwardDiff, FiniteDiff
 
 @testset "Korg tests" begin
 
