@@ -130,7 +130,48 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
     convM 
 end
 
+"""
+Gray equation 8.14
 
+TODO
+"""
+function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
+    vsini *= 1e5 # km/s to cm/s
+    newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
+    newF = zeros(newFtype, length(flux))
+    
+    c1 = 2(1-ε)
+    c2 = π * ε / 2
+    
+    # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot 
+    # (because we are working in wavelenths) and moves inside the loop
+    denominator = π * (1-ε/3) / step(wls) 
+    
+    for i in 1:length(flux)
+        Δλrot = wls[i] * vsini / Korg.c_cgs
+        nwls = Int(floor(Δλrot / step(wls)))
+        window = max(1, i-nwls) : min(length(flux), i+nwls)
+                
+        x = (wls[i] .- wls[window]) ./ Δλrot
+        one_less_x2 = @. 1 - x^2
+        
+        @. newF[window] .+= flux[i] * (c1*sqrt(one_less_x2) + c2*one_less_x2) / (denominator * Δλrot)
+    end
+    newF
+end
+#handle case where wavelengths are provided as a vector of ranges.
+function apply_rotation(flux, wl_ranges::Vector{R}, vsini, ε=0.6) where R <: AbstractRange
+    newflux = similar(flux)
+    lower_index = 1
+    upper_index = length(wl_ranges[1])
+    newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index), wl_ranges[1], vsini, ε)
+    for i in 2:length(wl_ranges)
+        lower_index = upper_index + 1
+        upper_index = lower_index + length(wl_ranges[i]) - 1
+        newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index), wl_ranges[i], vsini, ε)
+    end
+    newflux
+end
 
 """
     rectify(flux, wls; bandwidth=50, q=0.95, wl_step=1.0)
