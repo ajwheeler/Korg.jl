@@ -157,8 +157,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
     #float-like type general to handle dual numbers
-    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, 
-                            all_λs[1], vmic, abs_abundances[1])[1])
+    α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
+                          eltype(all_λs), typeof(vmic), eltype(abs_abundances))
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(all_λs))
     # each layer's absorption at reference λ (5000 Å)
