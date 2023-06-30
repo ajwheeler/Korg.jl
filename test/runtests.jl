@@ -15,6 +15,7 @@ include("continuum_absorption.jl") # test this after the "Interval" testset
 include("partition_funcs.jl")
 include("statmech.jl")
 include("linelist.jl")
+include("fit.jl")
 
 @testset "atomic data" begin 
     @test (Korg.MAX_ATOMIC_NUMBER 

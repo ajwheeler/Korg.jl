@@ -2,33 +2,41 @@
 Functions for fitting to data.
 
 !!! warning
-    This submodule is in alpha. Do not use it for science.
+    This submodule is in beta. It's API may change.
 """
 module Fit
-using ..Korg, ProgressMeter, ForwardDiff, LineSearches, Optim
-using Statistics: mean
+using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
-using InteractiveUtils: @code_warntype
 
 # TODO specify versions in Project.toml
 # TODO derivatives are zero at grid points (perturbing in one direction would be bad???)
 
-tan_scale(p, lower, upper) = tan(π * (((p-lower)/(upper-lower))-0.5))
+# used by scale and unscale for some parameters
+function tan_scale(p, lower, upper) 
+    if !(lower <= p <= upper)
+        raise(ArgumentError("p=$p is not in the range $lower to $upper"))
+    end
+    tan(π * (((p-lower)/(upper-lower))-0.5))
+end
 tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
+
+# these are the parmeters which are scaled by tan_scale
+const tan_scale_params = Dict(
+    map(enumerate([:Teff, :logg, :m_H])) do (ind, p)
+        lower = first(Korg.get_atmosphere_archive()[1][ind])
+        upper = last(Korg.get_atmosphere_archive()[1][ind])
+        p => (lower, upper)
+    end...
+)
 
 """
 Rescale each parameter so that it lives on (-∞, ∞) instead of the finite range of the atmosphere 
 grid.
 """
 function scale(params::NamedTuple)
-    atm_params = [:Teff, :logg, :m_H]
     new_pairs = map(collect(pairs(params))) do (name, p)
-        name => if name in atm_params
-            ind = findfirst(name .== atm_params)
-            lower = first(Korg.get_atmosphere_archive()[1][ind])
-            upper = last(Korg.get_atmosphere_archive()[1][ind])
-            @assert lower <= p <= upper
-            tan_scale(p, lower, upper)
+        name => if name in keys(tan_scale_params)
+            tan_scale(p, tan_scale_params[name]...)
         elseif name in [:vmic, :vsini]
             sqrt(p)
         elseif string(name) in Korg.atomic_symbols
@@ -45,13 +53,9 @@ Unscale each parameter so that it lives on the finite range of the atmosphere gr
 (-∞, ∞).
 """
 function unscale(params)
-    atm_params = [:Teff, :logg, :m_H]
     new_pairs = map(collect(pairs(params))) do (name, p)
-        name => if name in atm_params
-            ind = findfirst(name .== atm_params)
-            lower = first(Korg.get_atmosphere_archive()[1][ind])
-            upper = last(Korg.get_atmosphere_archive()[1][ind])
-            tan_unscale(p, lower, upper)
+        name => if name in keys(tan_scale_params)
+            tan_unscale(p, tan_scale_params[name]...)
         elseif name in [:vmic, :vsini]
             p^2
         elseif string(name) in Korg.atomic_symbols
