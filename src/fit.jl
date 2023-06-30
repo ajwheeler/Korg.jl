@@ -74,7 +74,7 @@ used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as
 TODO remove obs_wls ?
 """
 function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
-                     line_buffer=10) :: Vector{<:Real}
+                     line_buffer=10)
     # interpolate_marcs (really deeper in the atm code) wants the types of its args to be the same
     # TODO maybe that requirement should just be lifted instead.
 
@@ -85,33 +85,43 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
     atm = Korg.interpolate_marcs(params.Teff, params.logg, A_X; clamp_abundances=true)
 
-    F = try
-        Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer).flux
-    catch e
-        ones(sum(length.(synthesis_wls)))
-    end
+    F = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer, 
+                        electron_number_density_warn_threshold=1e100).flux
+    println(typeof(F))
     if params.vsini != 0
-        F .= apply_rotation(F, synthesis_wls, params.vsini)
+        F .= Korg.apply_rotation(F, synthesis_wls, params.vsini)
     end
     LSF_matrix * F
 end
 
 """
 validate fitting parameters, and insert default values when needed.
+
+these can be specified in either initial_guesses or fixed_params, but if they are not, these values are inserted into fixed_params
 """
-function validate_fitting_params(initial_guesses, fixed_params)
-    required_params = [:Teff, :logg] # these must be specified in either initial_guesses or fixed_params
-    let all_params = keys(initial_guesses) ∪ keys(fixed_params)
-        for param in required_params
-            if !(param in all_params)
-                throw(ArgumentError("Must specify $param in either starting_params or fixed_params. (Did you get the capitalization right?)"))
-            end
+function validate_fitting_params(initial_guesses, fixed_params;
+                                 required_params = [:Teff, :logg],
+                                 default_params = (m_H=0.0, vsini=0.0, vmic=1.0),
+                                 allowed_params = Set([required_params ; 
+                                                       keys(default_params)... ; 
+                                                       Symbol.(Korg.atomic_symbols)]))
+    # check that all required params are specified
+    all_params = keys(initial_guesses) ∪ keys(fixed_params)
+    for param in required_params
+        if !(param in all_params)
+            throw(ArgumentError("Must specify $param in either starting_params or fixed_params. (Did you get the capitalization right?)"))
         end
     end
 
-    # these can be specified in either initial_guesses or fixed_params, but if they are not, 
-    # these values are inserted into fixed_params
-    default_params = (m_H=0.0, vsini=0.0, vmic=1.0)
+    # check that all the params are recognized
+    unknown_params = filter!(all_params) do param
+        param ∉ allowed_params
+    end
+    if length(unknown_params) > 0
+        throw(ArgumentError("These parameters are not recognized: $(unknown_params)"))
+    end 
+
+    # filter out those that the user specified, and fill in the rest
     default_params = filter(collect(pairs(default_params))) do (k, v)
         !(k in keys(initial_guesses)) && !(k in keys(fixed_params))
     end
@@ -120,11 +130,9 @@ function validate_fitting_params(initial_guesses, fixed_params)
     # check that no params are both fixed and initial guesses
     let keys_in_both = collect(keys(initial_guesses) ∩ keys(fixed_params))
         if length(keys_in_both) > 0
-            throw(ArgumentError("Theses parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
+            throw(ArgumentError("These parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
         end 
     end
-
-    # TODO check for unknown keys?
 
     initial_guesses, fixed_params
 end
@@ -139,9 +147,12 @@ TODO what is buffer and how should it be set?
 TODO fit or fix limb darkening epsilon 
 TODO test case where windows is unspecified
 """
-function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthesis_wls, 
-                                   LSF_matrix, initial_guesses, fixed_params=(;);
-                                   windows=[(obs_wls[1], obs_wls[end])], buffer=1.0)
+function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
+                              windows=[(obs_wls[1], obs_wls[end])],
+                              synthesis_wls = windows[1][1] : 0.01 : windows[end][end] + 10,
+                              R=nothing, 
+                              LSF_matrix=Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R),
+                              buffer=1.0)
     initial_guesses, fixed_params = validate_fitting_params(initial_guesses, fixed_params)
     @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
@@ -153,16 +164,21 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthes
     obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
         calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, buffer)
 
-    chi2 = let obs_wls=obs_wls[obs_wl_mask], data=obs_flux[obs_wl_mask], 
-               obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
-               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist,
-               fixed_params=fixed_params
+    chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
+               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, fixed_params=fixed_params
         scaled_p -> begin
             guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
             params = merge(guess, fixed_params)
-            flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
-            cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, params)
-            flux ./= cntm
+            flux = try
+                flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
+                cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, params)
+                flux ./= cntm
+            catch e
+                rethrow(e)
+                # This is a nice huge chi2 value, but not too big.  It's what you get if difference at each 
+                # pixel in the (rectified) spectra is 1, which is more-or-less an upper bound.
+                return sum(1 ./ obs_err) 
+            end
             sum(((flux .- data)./obs_err).^2)
         end
     end 
@@ -175,57 +191,12 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthes
 
     solution = unscale((; zip(keys(initial_guesses), res.minimizer)...))
     full_solution = merge(solution, fixed_params)
-    flux = synthetic_spectrum(multi_synth_wls,  linelist,
-                 LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
-    cntm = synthetic_spectrum(multi_synth_wls, [],
-                 LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
+
+    flux = synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
+    cntm = synthetic_spectrum(multi_synth_wls, [], LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
     best_fit_flux = flux ./ cntm
 
     solution, res, obs_wl_mask, best_fit_flux
-end
-
-function find_best_fit_abundance(obs_wls, obs_flux, obs_err, linelist, synthesis_wls, LSF_matrix, 
-                                windows, element, initial_guess,fixed_params
-                                ; buffer=1.0)
-    obs_flux, obs_err, obs_wls, LSF_matrix = mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
-    _, fixed_params = validate_fitting_params((;), fixed_params)
-
-    # TODO if this code remains duplicated between fitting functions, this shoudl be split into
-    # a method or modification of calculate_multilocal_masks_and_ranges.  (the merging probably 
-    # should as well.)
-    # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
-    windows = merge_bounds(windows, 2buffer)
-    obs_wl_inds = map(windows) do (ll, ul)
-        (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
-    end
-    obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
-        calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, buffer)
-
-    chi2 = let obs_wls=obs_wls[obs_wl_mask], data=obs_flux[obs_wl_mask], 
-               obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
-               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist,
-               element=element, fixed_params=fixed_params
-               
-        scaled_abund -> begin
-            abund = unscale((; Symbol(element) => scaled_abund[1]))
-            flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, merge(abund, fixed_params))
-            cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, merge(abund, fixed_params))
-            flux ./= cntm
-            sum(((flux .- data)./obs_err).^2)
-        end
-    end
-    
-    # put scaled initial abundance guess in singleton vector
-    p0 = collect(scale((; Symbol(element)=>initial_guess)))
-    res = optimize(chi2, p0, autodiff=:forward,
-                   Optim.Options(time_limit=10_000, store_trace=true, extended_trace=true))
-
-    best_fit_abund = unscale((; Symbol(element)=>res.minimizer[1]))
-    flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, merge(best_fit_abund, fixed_params))
-    cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, merge(best_fit_abund, fixed_params))
-    best_fit_flux = flux ./ cntm
-
-    best_fit_abund[1], res, obs_wl_mask, best_fit_flux
 end
 
 """

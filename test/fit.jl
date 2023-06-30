@@ -5,4 +5,8 @@
         uparams = Korg.Fit.unscale(sparams)
         @test all(isapprox.(values(uparams), values(params); rtol=1e-3))
     end
+
+    @testset "fit param validation" begin
+        
+    end
 end
