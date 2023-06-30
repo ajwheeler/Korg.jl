@@ -26,6 +26,10 @@ const tan_scale_params = Dict(
         lower = first(Korg.get_atmosphere_archive()[1][ind])
         upper = last(Korg.get_atmosphere_archive()[1][ind])
         p => (lower, upper)
+    end...,
+    map(Korg.atomic_symbols) do el
+        A_X_sun = Korg.default_solar_abundances[Korg.atomic_numbers[el]]
+        Symbol(el) => (A_X_sun - 10, A_X_sun + 2)
     end...
 )
 
@@ -39,8 +43,6 @@ function scale(params::NamedTuple)
             tan_scale(p, tan_scale_params[name]...)
         elseif name in [:vmic, :vsini]
             sqrt(p)
-        elseif string(name) in Korg.atomic_symbols
-            tan_scale(p, -12, 12)
         else
             @error "$name is not a parameter I know how to scale."
         end
@@ -58,8 +60,6 @@ function unscale(params)
             tan_unscale(p, tan_scale_params[name]...)
         elseif name in [:vmic, :vsini]
             p^2
-        elseif string(name) in Korg.atomic_symbols
-            tan_unscale(p, -12, 12)
         else
             @error "$name is not a parameter I know how to unscale."
         end
@@ -73,16 +73,16 @@ used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as
 
 TODO remove obs_wls ?
 """
-function basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, params;
+function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
                      line_buffer=10) :: Vector{<:Real}
     # interpolate_marcs (really deeper in the atm code) wants the types of its args to be the same
     # TODO maybe that requirement should just be lifted instead.
-    alpha_els = ["Ne", "Mg", "Si", "S", "Ar", "Ca", "Ti"]
 
     specified_abundances = Dict([String(p.first)=>p.second for p in pairs(params) if String(p.first) in Korg.atomic_symbols])
     alpha_H = :alpha_H in keys(params) ? params.alpha_H : params.m_H
     A_X = Korg.format_A_X(params.m_H, alpha_H, specified_abundances; solar_relative=false)
 
+    # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
     atm = Korg.interpolate_marcs(params.Teff, params.logg, A_X; clamp_abundances=true)
 
     F = try
@@ -100,7 +100,6 @@ end
 validate fitting parameters, and insert default values when needed.
 """
 function validate_fitting_params(initial_guesses, fixed_params)
-
     required_params = [:Teff, :logg] # these must be specified in either initial_guesses or fixed_params
     let all_params = keys(initial_guesses) ∪ keys(fixed_params)
         for param in required_params
@@ -161,8 +160,8 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthes
         scaled_p -> begin
             guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
             params = merge(guess, fixed_params)
-            flux = basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, params)
-            cntm = basic_synth(synthesis_wls, obs_wls, [], LSF_matrix, params)
+            flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
+            cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, params)
             flux ./= cntm
             sum(((flux .- data)./obs_err).^2)
         end
@@ -176,9 +175,9 @@ function find_best_params_windowed(obs_wls, obs_flux, obs_err, linelist, synthes
 
     solution = unscale((; zip(keys(initial_guesses), res.minimizer)...))
     full_solution = merge(solution, fixed_params)
-    flux = basic_synth(multi_synth_wls, obs_wls[obs_wl_mask], linelist,
+    flux = synthetic_spectrum(multi_synth_wls,  linelist,
                  LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
-    cntm = basic_synth(multi_synth_wls, obs_wls[obs_wl_mask], [],
+    cntm = synthetic_spectrum(multi_synth_wls, [],
                  LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
     best_fit_flux = flux ./ cntm
 
@@ -209,8 +208,8 @@ function find_best_fit_abundance(obs_wls, obs_flux, obs_err, linelist, synthesis
                
         scaled_abund -> begin
             abund = unscale((; Symbol(element) => scaled_abund[1]))
-            flux = basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, merge(abund, fixed_params))
-            cntm = basic_synth(synthesis_wls, obs_wls, [], LSF_matrix, merge(abund, fixed_params))
+            flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, merge(abund, fixed_params))
+            cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, merge(abund, fixed_params))
             flux ./= cntm
             sum(((flux .- data)./obs_err).^2)
         end
@@ -222,8 +221,8 @@ function find_best_fit_abundance(obs_wls, obs_flux, obs_err, linelist, synthesis
                    Optim.Options(time_limit=10_000, store_trace=true, extended_trace=true))
 
     best_fit_abund = unscale((; Symbol(element)=>res.minimizer[1]))
-    flux = basic_synth(synthesis_wls, obs_wls, linelist, LSF_matrix, merge(best_fit_abund, fixed_params))
-    cntm = basic_synth(synthesis_wls, obs_wls, [], LSF_matrix, merge(best_fit_abund, fixed_params))
+    flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, merge(best_fit_abund, fixed_params))
+    cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, merge(best_fit_abund, fixed_params))
     best_fit_flux = flux ./ cntm
 
     best_fit_abund[1], res, obs_wl_mask, best_fit_flux
@@ -298,7 +297,5 @@ function mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
     mask = @. !isnan(obs_flux) && !isnan(obs_err)
     obs_flux[mask], obs_err[mask], obs_wls[mask], LSF_matrix[mask, :]
 end
-
-
 
 end # module
