@@ -55,7 +55,7 @@ struct Line{F1, F2, F3, F4, F5, F6}
             end
         end 
 
-        new{F1, F2, F3, typeof(gamma_rad), typeof(gamma_stark), typeof(vdW)}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+        new{F1, F2, F3, typeof(gamma_rad), typeof(gamma_stark), eltype(vdW)}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
     end
 end
 
