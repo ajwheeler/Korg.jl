@@ -80,8 +80,14 @@ function setup_partition_funcs_and_equilibrium_constants()
         end
         spec => calculate_logK
     end |> Dict
-    equilibrium_constants = merge(BC_Ks, polyatomic_Ks)
+
+    # We do this rather than merge(BC_Ks, polyatomic_Ks) because the latter would produce a valtype
+    # of Any.
+    equilibrium_constants = Dict{Korg.Species, Union{valtype(BC_Ks), valtype(polyatomic_Ks)}}()
+    merge!(equilibrium_constants, BC_Ks)
+    merge!(equilibrium_constants, polyatomic_Ks)
     
+
     partition_funcs, equilibrium_constants
 end
 

@@ -1,14 +1,14 @@
 using CSV
 
 #This type represents an individual line.
-struct Line{F} 
-    wl::F                     #cm
-    log_gf::F                 #unitless
+struct Line{F1, F2, F3, F4, F5, F6} 
+    wl::F1                       #cm
+    log_gf::F2                   #unitless
     species::Species           
-    E_lower::F                #eV (also called the excitation potential)
-    gamma_rad::F              #s^-1
-    gamma_stark::F            #s^-1
-    vdW::Union{F, Tuple{F,F}} #either γ_vdW [s^-1] per electron or (σ, α) from ABO theory
+    E_lower::F3                  #eV (also called the excitation potential)
+    gamma_rad::F4                #s^-1
+    gamma_stark::F5              #s^-1
+    vdW::Union{F6, Tuple{F6,F6}} #either γ_vdW [s^-1] per electron or (σ, α) from ABO theory
 
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F, 
@@ -31,9 +31,9 @@ struct Line{F}
     Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
     profile, and are in units of s⁻¹.
     """
-    function Line(wl::F, log_gf::F, species::Species, E_lower::F, 
-                  gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
-                  vdW::Union{F, Tuple{F, F}, Missing}=missing) where F <: Real
+    function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3, 
+                  gamma_rad::Union{F4, Missing}=missing, gamma_stark::Union{F5, Missing}=missing, 
+                  vdW::Union{F6, Tuple{F6, F6}, Missing}=missing) where {F1 <: Real, F2 <: Real, F3 <: Real, F4 <: Real, F5 <: Real, F6 <: Real}
         if ismissing(gamma_stark) || ismissing(vdW)
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
             if ismissing(gamma_stark)
@@ -47,7 +47,7 @@ struct Line{F}
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
         
-        if vdW isa F
+        if !ismissing(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
             if vdW < 0 #if vdW is negative, assume it's log(Γ_vdW) 
                 vdW = 10^vdW
             elseif vdW > 1 #if it's > 1 assume it's packed ABO params
@@ -55,7 +55,7 @@ struct Line{F}
             end
         end 
 
-        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+        new{F1, F2, F3, typeof(gamma_rad), typeof(gamma_stark), eltype(vdW)}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
     end
 end
 

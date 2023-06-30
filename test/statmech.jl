@@ -100,5 +100,25 @@ end
                                        print_rachet_info=false)
         end
     end
+
+    @testset "ForwardDiff.Dual-specific methods" begin
+        A_X = format_A_X()
+        abs_abundances = 10 .^ (A_X .- 12)
+        abs_abundances ./= sum(abs_abundances)
+
+        g(x) = Korg.chemical_equilibrium(x[1], x[2], x[2]*1e-20, abs_abundances, Korg.ionization_energies, 
+                    Korg.default_partition_funcs, Korg.default_log_equilibrium_constants;
+                    electron_number_density_warn_threshold=1e100)[1]
+
+        x = [5000 ; 1e12]
+        
+        g1 = ForwardDiff.gradient(g, x)
+        g2 = FiniteDiff.finite_difference_gradient(g, x)
+        @test isapprox(g1, g2, rtol=1e-5)
+
+        h1 = ForwardDiff.hessian(g, x)
+        h2 = FiniteDiff.finite_difference_hessian(g, x)
+        @test isapprox(h1, h2, rtol=1e-5)
+    end
 end
 

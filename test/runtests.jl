@@ -1,4 +1,4 @@
-using Korg, Test, HDF5
+using Korg, Test, HDF5, ForwardDiff, FiniteDiff
 
 @testset "Korg tests" begin
 
@@ -304,7 +304,7 @@ end
 end
 
 @testset "autodiff" begin
-    using ForwardDiff
+    using ForwardDiff, FiniteDiff
 
     linelist = read_linelist("data/linelists/5000-5005.vald")
     wls = [6564:0.01:6565]
@@ -320,6 +320,16 @@ end
         J = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
         @test .! any(isnan.(J))
     end
+
+    @testset "line params" begin
+        atm = read_model_atmosphere("data/sun.mod")
+        function f(loggf)
+            linelist = [Korg.Line(5000e-8, loggf, Korg.species"Na I", 0.0)]
+            synthesize(atm, linelist, format_A_X(), 5000, 5000).flux[1]
+        end
+        @test FiniteDiff.finite_difference_derivative(f, 0.0) ≈ ForwardDiff.derivative(f, 0.0) rtol=1e-4
+    end
+
 end
 
 end #top-level testset
