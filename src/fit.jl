@@ -78,7 +78,9 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
     # interpolate_marcs (really deeper in the atm code) wants the types of its args to be the same
     # TODO maybe that requirement should just be lifted instead.
 
-    specified_abundances = Dict([String(p.first)=>p.second for p in pairs(params) if String(p.first) in Korg.atomic_symbols])
+    specified_abundances = Dict{String, Float64}([String(p.first)=>p.second 
+                                                  for p in pairs(params) 
+                                                  if String(p.first) in Korg.atomic_symbols])
     alpha_H = :alpha_H in keys(params) ? params.alpha_H : params.m_H
     A_X = Korg.format_A_X(params.m_H, alpha_H, specified_abundances; solar_relative=false)
 
@@ -87,7 +89,7 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
 
     F = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer, 
                         electron_number_density_warn_threshold=1e100).flux
-    println(typeof(F))
+    #println(typeof(F))
     if params.vsini != 0
         F .= Korg.apply_rotation(F, synthesis_wls, params.vsini)
     end

@@ -158,7 +158,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
 
     #float-like type general to handle dual numbers
     α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
-                          eltype(all_λs), typeof(vmic), eltype(abs_abundances))
+                          eltype(all_λs), typeof(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(all_λs))
     # each layer's absorption at reference λ (5000 Å)
@@ -249,10 +249,10 @@ You can specify abundance with these positional arguments.  All are optional, bu
   use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function format_A_X(default_metals_H::Real=0.0, default_alpha_H::Real=default_metals_H, 
+function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals_H, 
                     abundances::Dict{K, V}=Dict{UInt8, Float64}();  
                     solar_relative=true, solar_abundances=default_solar_abundances
-                    ) where {K, V}
+                    ) where {K, V, R1 <: Real, R2 <: Real}
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
     clean_abundances = Dict{UInt8, V}()
     for (el, abund) in abundances
@@ -305,8 +305,8 @@ end
 # handle case where metallicity and alpha aren't specified but individual abundances are
 format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
 # handle case where alpha isn't specified but individual abundances are
-format_A_X(default_metallicity::Real, abundances::Dict; kwargs...) = 
-    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...)
+format_A_X(default_metallicity::R, abundances::Dict; kwargs...) where R <: Real = 
+    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...) 
 
 """
     get_metals_H(A_X)

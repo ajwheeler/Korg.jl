@@ -7,6 +7,6 @@
     end
 
     @testset "fit param validation" begin
-        
+
     end
 end
