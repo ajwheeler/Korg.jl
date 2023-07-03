@@ -15,6 +15,7 @@ include("continuum_absorption.jl") # test this after the "Interval" testset
 include("partition_funcs.jl")
 include("statmech.jl")
 include("linelist.jl")
+include("autodiff.jl")
 
 @testset "atomic data" begin 
     @test (Korg.MAX_ATOMIC_NUMBER 
@@ -283,35 +284,6 @@ end
 
     @test sol_no_lines.flux != sol_one_lines.flux
     @test sol_two_lines.flux == sol_one_lines.flux
-end
-
-@testset "autodiff" begin
-    using ForwardDiff, FiniteDiff
-
-    linelist = read_linelist("data/linelists/5000-5005.vald")
-    wls = [6564:0.01:6565]
-    for (atm_file, threshold) in [("data/sun.mod", 0.1),
-             ("data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod", 100)]
-        atm = read_model_atmosphere(atm_file)
-        # the second model atmosphere happens to be in a weird (probably unphysical) part of 
-        # parameter space where the electron number densities calculated doesn't match the marcs
-        # numbers.  We suppress the warnings in this case by setting the threshold to 100.
-        flux(p) = synthesize(atm, linelist, format_A_X(p[1], Dict("Ni"=>p[2])), wls; 
-                             vmic=p[3], electron_number_density_warn_threshold=threshold).flux
-        #make sure this works.
-        J = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
-        @test .! any(isnan.(J))
-    end
-
-    @testset "line params" begin
-        atm = read_model_atmosphere("data/sun.mod")
-        function f(loggf)
-            linelist = [Korg.Line(5000e-8, loggf, Korg.species"Na I", 0.0)]
-            synthesize(atm, linelist, format_A_X(), 5000, 5000).flux[1]
-        end
-        @test FiniteDiff.finite_difference_derivative(f, 0.0) ≈ ForwardDiff.derivative(f, 0.0) rtol=1e-4
-    end
-
 end
 
 end #top-level testset
