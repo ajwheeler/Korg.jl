@@ -268,6 +268,7 @@ variable.
 - `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to 
    clamp the abundance paramerters to be within the range of the MARCS grid to avoid throwing an out 
    of bounds error. Use with caution.
+- `perturb_at_grid_values`: TODO
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
@@ -291,11 +292,18 @@ function interpolate_marcs(Teff, logg, A_X::Vector;
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           archive=get_atmosphere_archive())
+                           perturb_at_grid_values=false, archive=get_atmosphere_archive())
     nodes, exists, grid = archive
 
     params = [Teff, logg, M_H, alpha_M, C_M]
     param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
+
+    if perturb_at_grid_values
+        # add small offset to each parameter which is exactly at grid value
+        # this prevents the derivatives from being exactly zero
+        params .+= 1e-10 .* (in.(params, nodes))
+        println(params)
+    end
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
         if !(p_nodes[1] <= p <= p_nodes[end])

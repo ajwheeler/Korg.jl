@@ -9,7 +9,6 @@ using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
 
 # TODO specify versions in Project.toml
-# TODO derivatives are zero at grid points (perturbing in one direction would be bad???)
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
@@ -85,7 +84,7 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
     A_X = Korg.format_A_X(params.m_H, alpha_H, specified_abundances; solar_relative=false)
 
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
-    atm = Korg.interpolate_marcs(params.Teff, params.logg, A_X; clamp_abundances=true)
+    atm = Korg.interpolate_marcs(params.Teff, params.logg, A_X; clamp_abundances=true, perturb_at_grid_values=true)
 
     F = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer, 
                         electron_number_density_warn_threshold=1e100).flux
