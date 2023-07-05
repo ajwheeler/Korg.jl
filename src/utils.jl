@@ -131,15 +131,27 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
 end
 
 """
-Gray equation 8.14
+    apply_rotation(flux, wls, vsini, ε=0.6)
 
-TODO
+Applies a rotational kernel assuming a TODO limb-darkening law, and a gray dependence of the flux on 
+viewing angle, (e.g. Gray equation 18.14).  `wls` can be in either Å or cm.  If its first element is
+greater than 1, it is assumed to be in Å, and in cm otherwise. 
 """
 function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
+    if first(wls) > 1
+        wls *= 1e-8 # Å to cm
+    end
     vsini *= 1e5 # km/s to cm/s
+    
+    # if the rotational kernel is small compared to the step size, don't apply it because the lack 
+    # of flux conservation is worse than absense of the small broadening effect
+    if (last(wls) * vsini / Korg.c_cgs) < 3*step(wls)
+        return flux
+    end
+
     newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
     newF = zeros(newFtype, length(flux))
-    
+
     c1 = 2(1-ε)
     c2 = π * ε / 2
     

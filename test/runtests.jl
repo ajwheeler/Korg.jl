@@ -248,6 +248,26 @@ end
     @test !(convF_mat ≈ convF_mat5)
 end
 
+@testset "rotation" begin
+    wls = 4090:0.01:5010
+    flux = zeros(length(wls))
+    flux[990:1010] .= 1
+
+    for vsini in [0.0, 1.0, 5.0, 10.0, 20.0], ε in [0.1, 0.6, 0.9]
+        # also test handling of multiple wl ranges
+        for wls in [wls, [4090:0.01:5007, 5007.01:0.01:5010]]
+            rflux = Korg.apply_rotation(flux, wls, vsini, ε)
+            rflux2 = Korg.apply_rotation(flux, wls * 1e-8, vsini, ε)
+
+            # rotational kernel is normalized
+            @test sum(flux) ≈ sum(rflux) rtol=1e-2
+            @test sum(flux) ≈ sum(rflux2) rtol=1e-2
+
+            @test rflux == rflux2 # wl units shouldn't matter
+        end
+    end
+end
+
 @testset "air <--> vacuum" begin
     wls = collect(2000.0:π:10000.0)
     @test Korg.vacuum_to_air.(Korg.air_to_vacuum.(wls)) ≈ wls rtol=1e-3

@@ -7,6 +7,7 @@ Functions for fitting to data.
 module Fit
 using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
+using ForwardDiff
 
 # TODO specify versions in Project.toml
 
@@ -33,15 +34,14 @@ const tan_scale_params = Dict(
 )
 
 """
-Rescale each parameter so that it lives on (-∞, ∞) instead of the finite range of the atmosphere 
-grid.
+Rescale each parameter so that it lives on (-∞, ∞).
 """
 function scale(params::NamedTuple)
     new_pairs = map(collect(pairs(params))) do (name, p)
         name => if name in keys(tan_scale_params)
             tan_scale(p, tan_scale_params[name]...)
         elseif name in [:vmic, :vsini]
-            sqrt(p)
+            tan_scale(sqrt(p), 0, sqrt(250))
         else
             @error "$name is not a parameter I know how to scale."
         end
@@ -50,15 +50,14 @@ function scale(params::NamedTuple)
 end
 
 """
-Unscale each parameter so that it lives on the finite range of the atmosphere grid instead of 
-(-∞, ∞).
+Unscale each parameter so that it lives on the appropriate range instead of (-∞, ∞).
 """
 function unscale(params)
     new_pairs = map(collect(pairs(params))) do (name, p)
         name => if name in keys(tan_scale_params)
             tan_unscale(p, tan_scale_params[name]...)
         elseif name in [:vmic, :vsini]
-            p^2
+            tan_unscale(p, 0, sqrt(250))^2
         else
             @error "$name is not a parameter I know how to unscale."
         end
@@ -169,13 +168,16 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, fixed_params=fixed_params
         scaled_p -> begin
             guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
+            display([k=>ForwardDiff.value(v) for (k, v) in pairs(guess)])
             params = merge(guess, fixed_params)
             flux = try
                 flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
                 cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, params)
                 flux ./= cntm
             catch e
-                rethrow(e)
+                #TODO only catch moleq errors
+                #println(e)
+                println("err")
                 # This is a nice huge chi2 value, but not too big.  It's what you get if difference at each 
                 # pixel in the (rectified) spectra is 1, which is more-or-less an upper bound.
                 return sum(1 ./ obs_err) 
@@ -193,9 +195,13 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
     solution = unscale((; zip(keys(initial_guesses), res.minimizer)...))
     full_solution = merge(solution, fixed_params)
 
-    flux = synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
-    cntm = synthetic_spectrum(multi_synth_wls, [], LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
-    best_fit_flux = flux ./ cntm
+    best_fit_flux = try
+        flux = synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
+        cntm = synthetic_spectrum(multi_synth_wls, [], LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
+        flux ./ cntm
+    catch e
+        println(e)
+    end
 
     solution, res, obs_wl_mask, best_fit_flux
 end
