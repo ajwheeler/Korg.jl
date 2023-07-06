@@ -138,7 +138,7 @@ that would emerge given projected rotational velocity `vsini` and linear limb-da
 `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example, 
 Gray equation 18.14.
 """
-function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
+function apply_rotation(flux, wls::R, vsini, ε=0.6; broadening_threshold=6) where R <: AbstractRange
     if first(wls) > 1
         wls *= 1e-8 # Å to cm
     end
@@ -146,7 +146,7 @@ function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
     
     # if the rotational kernel is small compared to the step size, don't apply it because the lack 
     # of flux conservation is worse than absense of the small broadening effect
-    if (last(wls) * vsini / Korg.c_cgs) < 3*step(wls)
+    if (last(wls) * vsini / Korg.c_cgs) < broadening_threshold*step(wls)
         return flux
     end
 

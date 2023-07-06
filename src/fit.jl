@@ -76,7 +76,7 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
                                                   for p in pairs(params) 
                                                   if String(p.first) in Korg.atomic_symbols])
     alpha_H = :alpha_H in keys(params) ? params.alpha_H : params.m_H
-    A_X = Korg.format_A_X(params.m_H, alpha_H, specified_abundances; solar_relative=false)
+    A_X = Korg.format_A_X(params.m_H, alpha_H, specified_abundances; solar_relative=true)
 
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
     atm = Korg.interpolate_marcs(params.Teff, params.logg, A_X; clamp_abundances=true, perturb_at_grid_values=true)
@@ -84,10 +84,7 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
     sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer, 
                         electron_number_density_warn_threshold=1e100)
     F = sol.flux ./ sol.cntm
-
-    if params.vsini != 0
-        F .= Korg.apply_rotation(F, synthesis_wls, params.vsini, params.epsilon)
-    end
+    F = Korg.apply_rotation(F, synthesis_wls, params.vsini, params.epsilon)
     LSF_matrix * F
 end
 
