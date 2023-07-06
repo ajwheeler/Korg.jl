@@ -133,9 +133,10 @@ end
 """
     apply_rotation(flux, wls, vsini, ε=0.6)
 
-Applies a rotational kernel assuming a TODO limb-darkening law, and a gray dependence of the flux on 
-viewing angle, (e.g. Gray equation 18.14).  `wls` can be in either Å or cm.  If its first element is
-greater than 1, it is assumed to be in Å, and in cm otherwise. 
+Given a spectrum `flux` sampled at wavelengths `wls` for a non-rotating star, compute the spectrum 
+that would emerge given projected rotational velocity `vsini` and linear limb-darkening coefficient
+`ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example, 
+Gray equation 18.14.
 """
 function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
     if first(wls) > 1

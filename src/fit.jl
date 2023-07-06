@@ -68,15 +68,10 @@ end
 """
 Synthesize a spectrum, returning the flux, with LSF applied, resampled, and rectified.  This is 
 used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
-
-TODO remove obs_wls ?
 """
 function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
                      line_buffer=10)
-    # interpolate_marcs (really deeper in the atm code) wants the types of its args to be the same
-    # TODO maybe that requirement should just be lifted instead.
-
-    specified_abundances = Dict{String, Float64}([String(p.first)=>p.second 
+    specified_abundances = Dict([String(p.first)=>p.second 
                                                   for p in pairs(params) 
                                                   if String(p.first) in Korg.atomic_symbols])
     alpha_H = :alpha_H in keys(params) ? params.alpha_H : params.m_H
@@ -143,8 +138,16 @@ TODO
 Given a list of windows in the form of wavelength pairs, find the best stellar parameters by 
 synthesizing and fitting within them.
 
-TODO what is buffer and how should it be set?
-TODO fit or fix limb darkening epsilon 
+
+- `windows` (optional) is a vector of wavelength pairs, each of which specifies a wavelength 
+  "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is used. 
+- `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
+- `precision` specifies the tolerance for the solver to accept a solution. The solver operates on 
+   transformed parameters, so `precision` doesn't translate straitforwardly to Teff, logg, etc, but 
+   the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
+   0.001 in `m_H`, and 0.004 in detailed abundances.
+
+TODO include limb-darkening epsilon in fit or fix limb darkening epsilon 
 TODO test case where windows is unspecified
 """
 function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
@@ -152,21 +155,22 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
                               synthesis_wls = windows[1][1] : 0.01 : windows[end][end] + 10,
                               R=nothing, 
                               LSF_matrix=Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R),
-                              buffer=1.0)
+                              wl_buffer=1.0, precision=1e-3)
     initial_guesses, fixed_params = validate_fitting_params(initial_guesses, fixed_params)
     @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
-    windows = merge_bounds(windows, 2buffer)
+    windows = merge_bounds(windows, 2wl_buffer)
     obs_wl_inds = map(windows) do (ll, ul)
         (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
     end
     obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
-        calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, buffer)
+        calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, wl_buffer)
 
     chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, fixed_params=fixed_params
         scaled_p -> begin
+            negative_log_scaled_prior = sum(v^2/100^2 for v in values(scaled_p))
             guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
             display([k=>ForwardDiff.value(v) for (k, v) in pairs(guess)])
             params = merge(guess, fixed_params)
@@ -180,16 +184,16 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
                 println("err")
                 # This is a nice huge chi2 value, but not too big.  It's what you get if difference at each 
                 # pixel in the (rectified) spectra is 1, which is more-or-less an upper bound.
-                return sum(1 ./ obs_err) 
+                return sum(1 ./ obs_err.^2) 
             end
-            sum(((flux .- data)./obs_err).^2)
+            sum(((flux .- data)./obs_err).^2) + negative_log_scaled_prior
         end
     end 
     
     # the initial guess must be supplied as a vector to optimize
     p0 = collect(values(scale(initial_guesses)))
     res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),  
-                   Optim.Options(x_tol=1e-5, time_limit=10_000, store_trace=true, 
+                   Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
                    extended_trace=true), autodiff=:forward)
 
     solution = unscale((; zip(keys(initial_guesses), res.minimizer)...))
@@ -266,14 +270,6 @@ function calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthes
         synthesis_wls[synth_wl_lb:synth_wl_ub]
     end
     obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls
-end
-
-"""
-TODO
-"""
-function mask_out_nans(obs_flux, obs_err, obs_wls, LSF_matrix)
-    mask = @. !isnan(obs_flux) && !isnan(obs_err)
-    obs_flux[mask], obs_err[mask], obs_wls[mask], LSF_matrix[mask, :]
 end
 
 end # module

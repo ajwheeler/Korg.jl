@@ -268,7 +268,9 @@ variable.
 - `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to 
    clamp the abundance paramerters to be within the range of the MARCS grid to avoid throwing an out 
    of bounds error. Use with caution.
-- `perturb_at_grid_values`: TODO
+- `perturb_at_grid_values`: when true this will add or a subtract a very small number to each 
+   parameter which is exactly at a grid value. This prevents null derivatives, which can cause 
+   problems for minimizers.  
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
