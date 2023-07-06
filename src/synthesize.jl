@@ -184,14 +184,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
         end
 
-        if hydrogen_lines
-            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, nₑ,
-                                      n_dict[species"H_I"],  n_dict[species"He I"],
-                                      partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
-                                      hydrogen_line_window_size*1e-8; 
-                                      use_MHD=use_MHD_for_hydrogen_lines)
-        end
-
         nₑ, n_dict, α_cntm_layer
     end
     nₑs = first.(triples)
@@ -209,6 +201,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
             RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
         else
             RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+        end
+    end
+
+    if hydrogen_lines
+        for (i, (layer, n_dict, nₑ)) in enumerate(zip(atm.layers, n_dicts, nₑs))
+            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, nₑ,
+                                      n_dict[species"H_I"],  n_dict[species"He I"],
+                                      partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
+                                      hydrogen_line_window_size*1e-8; 
+                                      use_MHD=use_MHD_for_hydrogen_lines)
         end
     end
 
