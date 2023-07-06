@@ -22,6 +22,7 @@ tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
 
 # these are the parmeters which are scaled by tan_scale
 const tan_scale_params = Dict(
+    :epsilon => (0, 1),
     map(enumerate([:Teff, :logg, :m_H])) do (ind, p)
         lower = first(Korg.get_atmosphere_archive()[1][ind])
         upper = last(Korg.get_atmosphere_archive()[1][ind])
@@ -80,11 +81,12 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
     atm = Korg.interpolate_marcs(params.Teff, params.logg, A_X; clamp_abundances=true, perturb_at_grid_values=true)
 
-    F = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer, 
-                        electron_number_density_warn_threshold=1e100).flux
-    #println(typeof(F))
+    sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer, 
+                        electron_number_density_warn_threshold=1e100)
+    F = sol.flux ./ sol.cntm
+
     if params.vsini != 0
-        F .= Korg.apply_rotation(F, synthesis_wls, params.vsini)
+        F .= Korg.apply_rotation(F, synthesis_wls, params.vsini, params.epsilon)
     end
     LSF_matrix * F
 end
@@ -96,7 +98,7 @@ these can be specified in either initial_guesses or fixed_params, but if they ar
 """
 function validate_fitting_params(initial_guesses, fixed_params;
                                  required_params = [:Teff, :logg],
-                                 default_params = (m_H=0.0, vsini=0.0, vmic=1.0),
+                                 default_params = (m_H=0.0, vsini=0.0, vmic=1.0, epsilon=0.6),
                                  allowed_params = Set([required_params ; 
                                                        keys(default_params)... ; 
                                                        Symbol.(Korg.atomic_symbols)]))
@@ -147,7 +149,6 @@ synthesizing and fitting within them.
    the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
    0.001 in `m_H`, and 0.004 in detailed abundances.
 
-TODO include limb-darkening epsilon in fit or fix limb darkening epsilon 
 TODO test case where windows is unspecified
 """
 function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
@@ -175,9 +176,7 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
             display([k=>ForwardDiff.value(v) for (k, v) in pairs(guess)])
             params = merge(guess, fixed_params)
             flux = try
-                flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
-                cntm = synthetic_spectrum(synthesis_wls, [], LSF_matrix, params)
-                flux ./= cntm
+                synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
             catch e
                 #TODO only catch moleq errors
                 #println(e)
@@ -200,9 +199,7 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
     full_solution = merge(solution, fixed_params)
 
     best_fit_flux = try
-        flux = synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
-        cntm = synthetic_spectrum(multi_synth_wls, [], LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
-        flux ./ cntm
+        synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
     catch e
         println(e)
     end
