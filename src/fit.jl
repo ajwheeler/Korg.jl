@@ -21,11 +21,12 @@ tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
 # these are the parmeters which are scaled by tan_scale
 const tan_scale_params = Dict(
     :epsilon => (0, 1),
-    map(enumerate([:Teff, :logg, :m_H])) do (ind, p)
-        lower = first(Korg.get_atmosphere_archive()[1][ind])
-        upper = last(Korg.get_atmosphere_archive()[1][ind])
-        p => (lower, upper)
-    end...,
+    # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the 
+    # test environent, but they are simply the boundaries of the SDSS marcs grid used by
+    # Korg.interpolate_marcs.
+    :Teff => (2800, 8000),
+    :logg => (-0.5, 5.5),
+    :m_H => (-2.5, 1),
     map(Korg.atomic_symbols) do el
         A_X_sun = Korg.default_solar_abundances[Korg.atomic_numbers[el]]
         Symbol(el) => (A_X_sun - 10, A_X_sun + 2)
