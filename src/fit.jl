@@ -9,8 +9,6 @@ using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
 using ForwardDiff
 
-# TODO specify versions in Project.toml
-
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
     if !(lower <= p <= upper)
@@ -132,21 +130,61 @@ function validate_fitting_params(initial_guesses, fixed_params;
 end
 
 """
-TODO
+    find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params; kwargs...)
 
-Given a list of windows in the form of wavelength pairs, find the best stellar parameters by 
-synthesizing and fitting within them.
+Find the parameters and abundances that best match a rectified observed spectrum.
 
+# Arguments:
+- `obs_wls`: the wavelengths of the observed spectrum in Å
+- `obs_flux`: the rectified flux of the observed spectrum
+- `obs_err`: uncertainty in `flux`
+- `linelist`: a linelist to use for the synthesis
+- `initial_guesses`: a NamedTuple specifying initial guesses for the parameters to be fit.  See 
+  "Specifying parameters" below.
+- `fixed_params`: a NamedTuple specifying parameters to be held fixed. See "Specifying parameters" 
+  below.
 
+# Specifying parameters
+Parameters are specified as NamedTuples, which look like this: `(Teff=5000, logg=4.5, m_H=0.0)`.
+Single-element NamedTuples require a semicolon: `(; Teff=5000)`. 
+## Required parameters
+`Teff` and `logg` *must* be specified in either `initial_guesses` or `fixed_params`.
+## Optional Parameters
+These can be specified in either `initial_guesses` or `fixed_params`, but if they are not default 
+values are used.
+- `m_H`: the metallicity of the star, in dex. Default: `0.0`
+- `vmic`: the microturbulence velocity, in km/s. Default: `1.0`
+- `vsini`: the projected rotational velocity of the star, in km/s. Default: `0.0`. 
+   See [`Korg.apply_rotation`](@ref) for details.
+- `epsilon`: the linear limb-darkening coefficient. Default: `0.6`. Used for applying rotational 
+  broadening only.  See [`Korg.apply_rotation`](@ref) for details.
+- Individual elements, e.g. `Na`, specify the solar-relative ([X/H]) abundance of that element. 
+
+# Keyword arguments
 - `windows` (optional) is a vector of wavelength pairs, each of which specifies a wavelength 
   "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is used. 
+- `LSF_matrix` (optional) is a matrix which maps the synthesized spectrum to the observed spectrum. 
+  If not specified, it is calculated using `Korg.compute_LSF_matrix`.  Computing the LSF matrix can 
+  be expensive, so you may want to precompute it if you are fitting many spectra with the same LSF.
+- `synthesis_wls`: the wavelengths to synthesize.  If not specified, the wavelengths of the first 
+  window are used. If you pass in a precomputed LSF matrix, you must make sure that the synthesis
+  wavelengths match it.
 - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
 - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on 
    transformed parameters, so `precision` doesn't translate straitforwardly to Teff, logg, etc, but 
    the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
    0.001 in `m_H`, and 0.004 in detailed abundances.
 
-TODO test case where windows is unspecified
+
+# Returns
+A NamedTuple with the following fields:
+- `best_fit_params`: the best-fit parameters
+- `best_fit_flux`: the best-fit flux, with LSF applied, resampled, and rectified.  
+- `obs_wl_mask`: a bitmask for `obs_wls` which selects the wavelengths used in the fit (i.e. those 
+  in the `windows`)
+- `solver_result`: the result object from `Optim.jl`
+- `trace`: a vector of NamedTuples, each of which contains the parameters at each step of the 
+  optimization.
 """
 function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                               windows=[(obs_wls[1], obs_wls[end])],
@@ -168,19 +206,20 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
     chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, fixed_params=fixed_params
         scaled_p -> begin
-            negative_log_scaled_prior = sum(v^2/100^2 for v in values(scaled_p))
+            negative_log_scaled_prior = sum(@. scaled_p^2/100^2)
             guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
-            display([k=>ForwardDiff.value(v) for (k, v) in pairs(guess)])
             params = merge(guess, fixed_params)
             flux = try
                 synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
             catch e
-                #TODO only catch moleq errors
-                #println(e)
-                println("err")
-                # This is a nice huge chi2 value, but not too big.  It's what you get if difference at each 
-                # pixel in the (rectified) spectra is 1, which is more-or-less an upper bound.
-                return sum(1 ./ obs_err.^2) 
+                if e isa Korg.ChemicalEquilibriumError
+                    # This is a nice huge chi2 value, but not too big.  It's what you get if 
+                    # difference at each pixel in the (rectified) spectra is 1, which is 
+                    # more-or-less an upper bound.
+                    return sum(1 ./ obs_err.^2) 
+                else
+                    rethrow(e)
+                end
             end
             sum(((flux .- data)./obs_err).^2) + negative_log_scaled_prior
         end
@@ -188,12 +227,21 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
     
     # the initial guess must be supplied as a vector to optimize
     p0 = collect(values(scale(initial_guesses)))
-    res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),  
-                   Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
-                   extended_trace=true), autodiff=:forward)
-
-    solution = unscale((; zip(keys(initial_guesses), res.minimizer)...))
+    res, solution = if length(p0) == 1
+        # if we are fitting a single parameter, experimentation shows that Nelder-Mead (the default)
+        # is faster than BFGS
+        res = optimize(chi2, p0)
+        res, unscale((; first(keys(initial_guesses)) => first(res.minimizer)))
+    else
+        # if we are fitting a multiple parameters, use BFGS with autodiff
+        res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
+                 Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
+                   extended_trace=true); autodiff=:forward)
+        res, unscale((; zip(keys(initial_guesses), res.minimizer)...))
+    end
     full_solution = merge(solution, fixed_params)
+
+    trace = [(; (keys(initial_guesses) .=> t.metadata["x"])...) for t in res.trace]
 
     best_fit_flux = try
         synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
@@ -201,7 +249,8 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
         println(e)
     end
 
-    solution, res, obs_wl_mask, best_fit_flux
+    (best_fit_params=solution, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask, 
+     solver_result=res, trace=trace)
 end
 
 """

@@ -60,6 +60,12 @@ function get_log_nK(mol, T, log_equilibrium_constants)
     log_equilibrium_constants[mol](log(T)) - (n_atoms(mol) - 1)*log10(kboltz_cgs*T) 
 end
 
+struct ChemicalEquilibriumError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::ChemicalEquilibriumError) = 
+    print(io, "Chemical equillibrium failed: ",  e.msg)
+
 """
     chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
                          partition_fns, log_equilibrium_constants; x0=nothing)
@@ -163,9 +169,9 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
 
     if !sol.f_converged
-        error("Molecular equlibrium unconverged. \n", sol)
+        throw(ChemicalEquilibriumError("unconverged"))
     elseif !all(isfinite, sol.zero)
-        error("Molecular equlibrium solution contains non-finite values.")
+        throw(ChemicalEquilibriumError("solution contains non-finite values"))
     end
 
     sol.zero
