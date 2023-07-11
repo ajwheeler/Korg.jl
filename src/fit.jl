@@ -92,12 +92,11 @@ validate fitting parameters, and insert default values when needed.
 
 these can be specified in either initial_guesses or fixed_params, but if they are not, these values are inserted into fixed_params
 """
-function validate_fitting_params(initial_guesses, fixed_params;
-                                 required_params = [:Teff, :logg],
-                                 default_params = (m_H=0.0, vsini=0.0, vmic=1.0, epsilon=0.6),
-                                 allowed_params = Set([required_params ; 
-                                                       keys(default_params)... ; 
-                                                       Symbol.(Korg.atomic_symbols)]))
+function validate_params(initial_guesses, fixed_params;
+                         required_params = [:Teff, :logg],
+                         default_params = (m_H=0.0, vsini=0.0, vmic=1.0, epsilon=0.6),
+                         allowed_params = Set([required_params ; keys(default_params)... ; 
+                                               Symbol.(Korg.atomic_symbols)]))
     # check that all required params are specified
     all_params = keys(initial_guesses) ∪ keys(fixed_params)
     for param in required_params
@@ -163,7 +162,8 @@ values are used.
 
 # Keyword arguments
 - `windows` (optional) is a vector of wavelength pairs, each of which specifies a wavelength 
-  "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is used. 
+  "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is 
+  used. Overlapping windows are automatically merged.
 - `LSF_matrix` (optional) is a matrix which maps the synthesized spectrum to the observed spectrum. 
   If not specified, it is calculated using `Korg.compute_LSF_matrix`.  Computing the LSF matrix can 
   be expensive, so you may want to precompute it if you are fitting many spectra with the same LSF.
@@ -193,7 +193,7 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
                               R=nothing, 
                               LSF_matrix=Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R),
                               wl_buffer=1.0, precision=1e-3)
-    initial_guesses, fixed_params = validate_fitting_params(initial_guesses, fixed_params)
+    initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
     @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
@@ -201,7 +201,7 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
     obs_wl_inds = map(windows) do (ll, ul)
         (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
     end
-    obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls = 
+    obs_wl_mask,  synth_wl_mask, multi_synth_wls = 
         calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, wl_buffer)
 
     chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
@@ -255,7 +255,7 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
 end
 
 """
-Sort a vector of lower-bound, uppoer-bound pairs and merge overlapping ranges.  Used by 
+Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
 find_best_params_multilocally.
 """
 function merge_bounds(bounds, merge_distance)
@@ -280,32 +280,31 @@ end
 Given a vector of target synthesis ranges in the observbed spectrum, return the masks, etc required.
 
 Arguments:
-    - `obs_bounds_inds`: a vector of tuples of the form `(lower_bound_index, upper_bound_index)`
+    - `windows`: a vector of pairs of wavelenght lower and upper bounds.
     - `obs_wls`: the wavelengths of the observed spectrum
     - `synthesis_wls`: the wavelengths of the synthesis spectrum
     - `wl_buffer`: the number of Å to add to each side of the synthesis range
 
 Returns:
     - `obs_wl_mask`: a bitmask for `obs_wls` which selects the observed wavelengths
-    - `masked_obs_wls_range_inds`: a vector of ranges which select each subspectrum in the masked 
-       observed spectrum. 
     - `synthesis_wl_mask`: a bitmask for `synthesis_wls` which selects the synthesis wavelengths 
        needed to generated the masked observed spectrum.
     - `multi_synth_wls`: The vector of ranges to pass to `Korg.synthesize`.
 """
 function calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls, wl_buffer)
+    obs_wl_inds = map(windows) do (ll, ul)
+        (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
+    end
+
+
     obs_wl_mask = zeros(Bool, length(obs_wls)) 
     for (lb, ub) in obs_bounds_inds
         obs_wl_mask[lb:ub] .= true
     end
-    # these ranges each select a subsprectrum from obs_wls[obs_wl_mask]
-    masked_obs_wls_range_inds = [(1 : obs_bounds_inds[1][2] - obs_bounds_inds[1][1] + 1)]
-    for (lb, ub) in obs_bounds_inds[2:end]
-        prev_ub = masked_obs_wls_range_inds[end][end]
-        push!(masked_obs_wls_range_inds, prev_ub+1 : prev_ub+ub-lb+1)
-    end
+
     # bitmask for synthesis_wls to isolate the subspectra
     synth_wl_mask = zeros(Bool, length(synthesis_wls)) 
+
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
     multi_synth_wls = map(obs_bounds_inds) do (lb, ub)
         synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb] - wl_buffer)
@@ -313,7 +312,7 @@ function calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthes
         synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
         synthesis_wls[synth_wl_lb:synth_wl_ub]
     end
-    obs_wl_mask, masked_obs_wls_range_inds, synth_wl_mask, multi_synth_wls
+    obs_wl_mask, synth_wl_mask, multi_synth_wls
 end
 
 end # module
