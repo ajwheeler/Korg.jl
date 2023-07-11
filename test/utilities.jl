@@ -27,6 +27,8 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     # log if the comparison can be racheted down
     diff = abs.(actual .- reference)
     relative_diff = diff ./ abs.(reference)
+    # handle the case where reference and computed value are both 0, avoid NaNs
+    relative_diff[diff .== 0] .= 0 
 
     if print_rachet_info
         if all(diff .< 0.5*atol)

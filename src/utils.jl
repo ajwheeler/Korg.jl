@@ -138,37 +138,36 @@ that would emerge given projected rotational velocity `vsini` and linear limb-da
 `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example, 
 Gray equation 18.14.
 """
-function apply_rotation(flux, wls::R, vsini, ε=0.6; broadening_threshold=6) where R <: AbstractRange
+function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
+    if vsini == 0
+        return copy(flux)
+    end
+
     if first(wls) > 1
         wls *= 1e-8 # Å to cm
     end
     vsini *= 1e5 # km/s to cm/s
     
-    # if the rotational kernel is small compared to the step size, don't apply it because the lack 
-    # of flux conservation is worse than absense of the small broadening effect
-    if (last(wls) * vsini / Korg.c_cgs) < broadening_threshold*step(wls)
-        return flux
-    end
-
     newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
     newF = zeros(newFtype, length(flux))
 
+    # precompute constants
     c1 = 2(1-ε)
     c2 = π * ε / 2
-    
-    # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot 
-    # (because we are working in wavelenths) and moves inside the loop
-    denominator = π * (1-ε/3) / step(wls) 
+    # c3 is the denomicator.  the factor of v_L in Gray becomes Δλrot (because we are working in 
+    # wavelenths) and moves inside the loop
+    c3 = π * (1-ε/3)
     
     for i in 1:length(flux)
-        Δλrot = wls[i] * vsini / Korg.c_cgs
-        nwls = Int(floor(Δλrot / step(wls)))
-        window = max(1, i-nwls) : min(length(flux), i+nwls)
-                
-        x = (wls[i] .- wls[window]) ./ Δλrot
-        one_less_x2 = @. 1 - x^2
-        
-        @. newF[window] .+= flux[i] * (c1*sqrt(one_less_x2) + c2*one_less_x2) / (denominator * Δλrot)
+        Δλrot = wls[i] * vsini / Korg.c_cgs # Å
+
+        lb, ub = move_bounds(wls, 0, 0, wls[i], Δλrot)
+        Fwindow = flux[lb:ub]
+
+        detunings = [-Δλrot ; (lb-i+1/2 : ub-i-1/2)*step(wls) ; Δλrot]
+
+        ks = _rotation_kernel_integral_kernel.(c1, c2, c3 * Δλrot, detunings, Δλrot)
+        newF[i] = sum(ks[2:end] .* Fwindow) - sum(ks[1:end-1] .* Fwindow)
     end
     newF
 end
@@ -184,6 +183,12 @@ function apply_rotation(flux, wl_ranges::Vector{R}, vsini, ε=0.6) where R <: Ab
         newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index), wl_ranges[i], vsini, ε)
     end
     newflux
+end
+
+function _rotation_kernel_integral_kernel(c1, c2, c3, detuning, Δλrot)
+    (0.5 * c1 * detuning * sqrt(1 - detuning^2/Δλrot^2) 
+    + 0.5 * c1 * Δλrot * asin(detuning/Δλrot) 
+    + c2 * (detuning - detuning^3/(3 * Δλrot^2))) / c3
 end
 
 """
