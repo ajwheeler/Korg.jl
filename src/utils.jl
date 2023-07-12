@@ -69,7 +69,7 @@ For the best match to data, your wavelength range should extend a couple ``\\Del
 the region you are going to compare.
 
 If you are convolving many spectra defined on the same wavelenths to observational resolution, you 
-will get much better performance using [`downsampled_LSF_matrix`](@ref).
+will get much better performance using [`compute_LSF_matrix`](@ref).
 
 !!! warning
     - This is a naive, slow implementation.  Do not use it when performance matters.
@@ -210,6 +210,11 @@ Experiments on real spectra show an agreement between the interpolated rectified
     alternative which doesn't have this issue.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
+    @warn """Korg.rectify is deprecated and will be removed in a future release.  You can obtain a 
+          rectified spectrum by dividing the continuum from the flux:
+              sol = synthesize( ...your params... )
+              rectified_flux = sol.flux ./ sol.cntm
+          """
     #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
     if wl_step == 0
         inds = eachindex(wls)
