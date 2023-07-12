@@ -1,5 +1,6 @@
 module Korg
-    export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs, format_A_X
+    export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs, format_A_X, 
+        find_best_fit_params
 
     _data_dir = joinpath(@__DIR__, "../data") 
 

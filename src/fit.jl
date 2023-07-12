@@ -8,6 +8,7 @@ module Fit
 using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
 using ForwardDiff
+export find_best_fit_params
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
@@ -198,11 +199,8 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
     windows = merge_bounds(windows, 2wl_buffer)
-    obs_wl_inds = map(windows) do (ll, ul)
-        (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
-    end
-    obs_wl_mask,  synth_wl_mask, multi_synth_wls = 
-        calculate_multilocal_masks_and_ranges(obs_wl_inds, obs_wls, synthesis_wls, wl_buffer)
+    obs_wl_mask, synth_wl_mask, multi_synth_wls = 
+        calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
 
     chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, fixed_params=fixed_params
@@ -280,7 +278,7 @@ end
 Given a vector of target synthesis ranges in the observbed spectrum, return the masks, etc required.
 
 Arguments:
-    - `windows`: a vector of pairs of wavelenght lower and upper bounds.
+    - `windows`: a vector of pairs of wavelength lower and upper bounds.
     - `obs_wls`: the wavelengths of the observed spectrum
     - `synthesis_wls`: the wavelengths of the synthesis spectrum
     - `wl_buffer`: the number of Å to add to each side of the synthesis range
@@ -291,25 +289,21 @@ Returns:
        needed to generated the masked observed spectrum.
     - `multi_synth_wls`: The vector of ranges to pass to `Korg.synthesize`.
 """
-function calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls, wl_buffer)
-    obs_wl_inds = map(windows) do (ll, ul)
-        (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
-    end
-
-
+function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
+    # bitmasks for obs_wls synthesis_wls to isolate the subspectra
     obs_wl_mask = zeros(Bool, length(obs_wls)) 
-    for (lb, ub) in obs_bounds_inds
-        obs_wl_mask[lb:ub] .= true
-    end
-
-    # bitmask for synthesis_wls to isolate the subspectra
     synth_wl_mask = zeros(Bool, length(synthesis_wls)) 
 
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
-    multi_synth_wls = map(obs_bounds_inds) do (lb, ub)
+    multi_synth_wls = map(windows) do (ll, ul)
+        lb, ub = (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
+
+        obs_wl_mask[lb:ub] .= true
+
         synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb] - wl_buffer)
         synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub] + wl_buffer) - 1
         synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
+
         synthesis_wls[synth_wl_lb:synth_wl_ub]
     end
     obs_wl_mask, synth_wl_mask, multi_synth_wls

@@ -206,8 +206,7 @@ Experiments on real spectra show an agreement between the interpolated rectified
 !!! warning
     This function should not be applied to data with observational error, as taking a quantile will
     bias the rectification relative to the noiseless case.  It is intended as a fast way to compute
-    nice-looking rectified theoretical spectra.  See [`Korg.Fit.data_safe_rectify`](@ref) for an 
-    alternative which doesn't have this issue.
+    nice-looking rectified theoretical spectra.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
     @warn """Korg.rectify is deprecated and will be removed in a future release.  You can obtain a 
