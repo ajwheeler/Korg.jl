@@ -1,8 +1,4 @@
 module Korg
-    using .Fit: find_best_fit_params
-    export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs, format_A_X, 
-        find_best_fit_params
-
     _data_dir = joinpath(@__DIR__, "../data") 
 
     include("CubicSplines.jl")             # 1D cubic Splines
@@ -21,4 +17,7 @@ module Korg
     include("synthesize.jl")                                # top-level API
     include("fit.jl")                                  # routines to infer stellar params from data
 
+    using .Fit: find_best_fit_params
+    export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs, format_A_X, 
+        find_best_fit_params
 end # module

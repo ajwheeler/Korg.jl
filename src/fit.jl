@@ -161,6 +161,10 @@ values are used.
   broadening only.  See [`Korg.apply_rotation`](@ref) for details.
 - Individual elements, e.g. `Na`, specify the solar-relative ([X/H]) abundance of that element. 
 
+!!! tip
+    If you are doing more than a few fits, you will save a lot of time by precomputing the LSF 
+    matrix and synthesis wavelengths.  See the keyword arguments below for how to do that.
+
 # Keyword arguments
 - `windows` (optional) is a vector of wavelength pairs, each of which specifies a wavelength 
   "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is 
@@ -168,9 +172,9 @@ values are used.
 - `LSF_matrix` (optional) is a matrix which maps the synthesized spectrum to the observed spectrum. 
   If not specified, it is calculated using `Korg.compute_LSF_matrix`.  Computing the LSF matrix can 
   be expensive, so you may want to precompute it if you are fitting many spectra with the same LSF.
-- `synthesis_wls`: the wavelengths to synthesize.  If not specified, the wavelengths of the first 
-  window are used. If you pass in a precomputed LSF matrix, you must make sure that the synthesis
-  wavelengths match it.
+- `synthesis_wls`: a superset of the wavelengths to synthesize, as a range.  If not specified, 
+   wavelengths spanning the first and last windows are used. If you pass in a precomputed 
+   LSF matrix, you must make sure that the synthesis wavelengths match it.
 - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
 - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on 
    transformed parameters, so `precision` doesn't translate straitforwardly to Teff, logg, etc, but 
@@ -266,7 +270,7 @@ function merge_bounds(bounds, merge_distance)
     for i in 2:length(bounds)
         # if these bounds are within merge_distance of the previous, extend the previous, 
         # otherwise add them to the list
-        if bounds[i][1] < new_bounds[end][2] + merge_distance 
+        if bounds[i][1] <= new_bounds[end][2] + merge_distance 
             new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
         else
             push!(new_bounds, bounds[i])
@@ -300,11 +304,11 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
 
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
     multi_synth_wls = map(windows) do (ll, ul)
-        lb, ub = (findfirst(obs_wls .> ll), findfirst(obs_wls .> ul)-1)
+        lb, ub = (findfirst(obs_wls .>= ll), findfirst(obs_wls .> ul)-1)
 
         obs_wl_mask[lb:ub] .= true
 
-        synth_wl_lb = findfirst(synthesis_wls .> obs_wls[lb] - wl_buffer)
+        synth_wl_lb = findfirst(synthesis_wls .>= obs_wls[lb] - wl_buffer)
         synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub] + wl_buffer) - 1
         synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
 

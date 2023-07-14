@@ -16,8 +16,21 @@
         @test fixed_params.vmic == 1
     end
 
-    @testset "merge bounds" begin
+    @testset "merge bounds, masks etc" begin
         @test Korg.Fit.merge_bounds([(1, 3), (2, 4), (5,6)], 0) == [(1, 4), (5,6)]
         @test Korg.Fit.merge_bounds([(1, 3), (2, 6), (5,7)], 1.0) == [(1, 7)]
+
+        obs_wls = 5000:1.0:5010
+        synth_wls = 5000 : 0.01 : 5012
+        windows = [(5001.0, 5002.0), (5003.0, 5004.0), (5007.0, 5008.0)]
+
+        windows = Korg.Fit.merge_bounds(windows, 1.0)
+        obs_wl_mask, synth_wl_mask, multi_synth_wls = 
+            Korg.Fit.calculate_multilocal_masks_and_ranges(windows, obs_wls, synth_wls, 1.0)
+
+        @test issorted(multi_synth_wls, by=first)
+        @test multi_synth_wls == [5000.0:0.01:5005.0, 5006.0:0.01:5009.0]
+        @test obs_wl_mask == Bool[0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0]
+        @test synth_wls[synth_wl_mask] == [(5000.0:0.01:5005.0)... ;  (5006.0:0.01:5009.0)...]
     end
 end
