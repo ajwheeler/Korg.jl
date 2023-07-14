@@ -1,4 +1,5 @@
 module Korg
+    using .Fit: find_best_fit_params
     export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs, format_A_X, 
         find_best_fit_params
 

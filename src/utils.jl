@@ -185,7 +185,11 @@ function apply_rotation(flux, wl_ranges::Vector{R}, vsini, ε=0.6) where R <: Ab
     newflux
 end
 
+# the indefinite integral of the rotation kernel 
 function _rotation_kernel_integral_kernel(c1, c2, c3, detuning, Δλrot)
+    if abs(detuning) == Δλrot
+        return sign(detuning) * 0.5 # make it nan-safe for ForwardDiff
+    end
     (0.5 * c1 * detuning * sqrt(1 - detuning^2/Δλrot^2) 
     + 0.5 * c1 * Δλrot * asin(detuning/Δλrot) 
     + c2 * (detuning - detuning^3/(3 * Δλrot^2))) / c3

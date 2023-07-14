@@ -239,8 +239,12 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
         res, unscale((; zip(keys(initial_guesses), res.minimizer)...))
     end
     full_solution = merge(solution, fixed_params)
+    initial_chi2 = chi2(p0)
 
-    trace = [(; (keys(initial_guesses) .=> t.metadata["x"])...) for t in res.trace]
+    scaled_trace = [(; (keys(initial_guesses) .=> t.metadata["x"])...) for t in res.trace]
+    trace = map(scaled_trace, res.trace) do p, t
+        (; unscale(p)..., chi2=t.value)
+    end
 
     best_fit_flux = try
         synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
