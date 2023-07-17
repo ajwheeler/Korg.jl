@@ -256,11 +256,10 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         E = Eup - Elo
         λ0 = Korg.hplanck_eV * Korg.c_cgs / E # cm
 
-        σ = Korg.doppler_width(λ0, T, Korg.get_mass(Korg.species"H"), ξ)
-        γ = brackett_profile_halfwidths(n, m, NaN, λ0, T, nₑ, nH_I, nHe_I, NaN)[1] * λ0 / (4π) 
+        #σ = Korg.doppler_width(λ0, T, Korg.get_mass(Korg.species"H"), ξ)
         #γ *= 3e4 #TODO remove
 
-        levels_factor = ws[m] *  (exp(-β*Elo) - exp(-β*Eup)) / UH_I
+        levels_factor = ws[m] * (exp(-β*Elo) - exp(-β*Eup)) / UH_I
 
         gf = n^2 * hydrogen_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
@@ -273,11 +272,16 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         #if lb > ub
         #    continue
         #end
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ0, 100.0*1e-8)
+        #TODO can we choose this dynamically?
+
+        #w = brackett_profile_halfwidths(n, m, NaN, λ0, T, nₑ, nH_I, nHe_I, NaN)[2] * λ0 / (4π) 
+        #lb, ub = move_bounds(wl_ranges, 0, 0, λ0, 10w)
+        lb, ub = move_bounds(wl_ranges, 0, 0, λ0, window_size)
+        #println(w, " ", window_size)
 
         #@inbounds view(αs, lb:ub) .+= line_profile.(λ0, σ, γ, amplitude, view(λs, lb:ub))
-        prof = brackett_stark_profile.(n, m, view(λs, lb:ub), λ0, T, nₑ)
-        prof ./= sum(prof) * (λs[lb+1] - λs[lb]) #normalize (fix)
+        prof = brackett_line_profile.(n, m, view(λs, lb:ub), λ0, T, nₑ, ξ)
+        #prof ./= sum(prof) * (λs[lb+1] - λs[lb]) #normalize (fix)
         @inbounds view(αs, lb:ub) .+= prof .* amplitude
     end
 end
@@ -379,6 +383,7 @@ function brackett_profile_halfwidths(n, m, λ, central_wl, T, nₑ, n_H_I, n_He_
     lorentz_halfwidth, stark_halfwidth
 end
 
+
 # TODO refactor
 function hydrogen_oscillator_strength(n, m)
     @assert n < m
@@ -404,16 +409,15 @@ Mostly follows Griem 1960, ApJ, 132, 883, and Griem 1967 with corrections to app
 #TODO
 Area normalised to unity with frequency.
 """
-function brackett_stark_profile(n,m,λ,λ₀,T,nₑ)
-    CLIGHT = c_cgs #* 1e8
+function brackett_line_profile(n,m,λ,λ₀,T,nₑ,ξ)
     ν = Korg.c_cgs / λ
     
     # Variables depending on conditions
-    XNE16 = nₑ^0.1666667
-    PP = XNE16*0.08989/sqrt(T) # the shielding parameter 
-    FO = XNE16^4*1.25E-9       # Holtsmark normal field strength
+    ne_1_6 = nₑ^(1/6)
+    PP = ne_1_6*0.08989/sqrt(T) # the shielding parameter 
+    F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
     T4 = T/10000.
-    Y1S = T4^0.3 / XNE16
+    Y1S = T4^0.3 / ne_1_6
     GCON1 = 0.2+0.09*sqrt(T4)/(1+nₑ/1.E13)
     GCON2 = 0.2/(1+nₑ/1.E15)
     
@@ -459,16 +463,16 @@ function brackett_stark_profile(n,m,λ,λ₀,T,nₑ)
     Y1B = 2/(1+0.012/T*sqrt(nₑ/T))
     Y1SCAL = Y1NUM*Y1S*WTY1+Y1B*(1-WTY1)
 
-    C1D = FO*78940/ T
+    C1D = F0*78940/ T
     C1 = C1D*C1CON*Y1SCAL
 
-    C2D = FO^2/5.96E-23/nₑ
+    C2D = F0^2/5.96E-23/nₑ
     C2 = C2D*C2CON
 
     G1 = 6.77*sqrt(C1)
 
     # Griem 1960 eqn 23
-    β = abs(λ-λ₀)/FO/Knm * 1e8 # convert factor of cm to Å
+    β = abs(λ-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å
 
     # y1 is the velocity where the minimum impact parameter and the Lewis cutoff are equal. 
     #   - second order perturbation theory breaks down at the minimum impact parameter
@@ -482,16 +486,15 @@ function brackett_stark_profile(n,m,λ,λ₀,T,nₑ)
     impact_profile_half_width = if (y2 <= 1e-4) && (y1 <= 1e-5)
         G1*max(0, 0.2114 + log(sqrt(C2)/C1)) * (1-GCON1-GCON2)
     else
-        GAM = (G1*(0.5*exp(-min(80, y1))+VCSE1F(y1)-0.5*VCSE1F(y2))*
+        GAM = (G1*(0.5*exp(-min(80, y1))+exponential_integral_1(y1)-0.5*exponential_integral_1(y2))*
                        (1-GCON1/(1+(90*y1)^3)-GCON2/(1+2000*y1)))
         GAM <= 1e-20 ? 0.0 : GAM
     end
     
     # Compute individual quasistatic and impact profiles.
     # called PRQS in Kurucz
-
-    # CHECK HERE
-    quasistatic_ion_contribution = SOFBET(β,PP,n,m)
+    quasistatic_ion_contribution = holtsmark_profile(β,PP)
+    # called F in Kurucz
     impact_electron_contribution = if impact_profile_half_width > 0
         impact_profile_half_width/π/(impact_profile_half_width*impact_profile_half_width+β*β)
     else
@@ -504,104 +507,98 @@ function brackett_stark_profile(n,m,λ,λ₀,T,nₑ)
     # called FNS in Kurucz
     relative_quasistatic_electron_contribution = (P1+0.03*sqrt(y1)) / (P1+1)
 
-    #  DBETA (=dBeta/dfreq) changes the area normalisation. 
-    #  DSQRT(WAVE/WAVEH) corrects the long range part to dfreq**-5/2
-    #  asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
-    DBETA = CLIGHT/ν/ν/Knm/FO
-    STARK1 = (quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
-                 + impact_electron_contribution)*DBETA * sqrt(λ/λ₀)
-
-    #println("GAM: ", impact_profile_half_width)
-    #println("PRQS: ", quasistatic_ion_contribution)
-    #println("F: ", impact_electron_contribution)
-    #println("FNS: ", relative_quasistatic_electron_contribution)
+    # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
+    # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
+    dβ_dν = c_cgs/ν/ν/Knm/F0
+    # called STARK1 in Kurucz
+    profile = (quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
+                 + impact_electron_contribution)*dβ_dν * sqrt(λ/λ₀)
 
     # The red wing is multiplied by the Boltzmann factor to roughly account
     # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
     # absorption case.  If emission do for Δν > 0.
-    Δν = ν - CLIGHT/λ₀
+    Δν = ν - c_cgs/λ₀
     if Δν < 0 
-        STARK1 = STARK1 * exp(-abs(hplanck_cgs*Δν)/kboltz_cgs/T)
+        profile *= exp(-abs(hplanck_cgs*Δν)/kboltz_cgs/T)
     end
 
-    # λ^2/c is |dλ/dν|
-    λ^2 / c_cgs * STARK1 * 1e8 #fix units
-    #STARK1 * 1e8 #fix units
+    # convert from dν to dλ and from cm^-1 to Å^-1
+    # TODO where does the factor of 1/2 come from?
+    1e8 * c_cgs / λ^2 * profile * 0.5
 end
 
-function VCSE1F(X)
-    # E1 function calculator for VCS approximation. It's rough, but 
-    # arranged to be fast. X must be >=0.
-    #
-    # From Kurucz codes.
-    if X < 0
+"""
+    exponential_integral_1(x)
+
+Compute the first exponential integral, E1(x).  This is a rough approximation lifted from Kurucz's
+VCSE1F.
+"""
+function exponential_integral_1(x)
+    if x < 0
         0.0
-    elseif X <= 0.01 
-        -log(X)-0.577215+X
-    elseif X <= 1.0
-        -log(X)-0.57721566+X*(0.99999193+X*(-0.24991055+ X*(0.05519968+X*(-0.00976004+ X*0.00107857))))
-    elseif X <= 30. 
-        (X*(X+2.334733)+0.25062)/(X*(X+3.330657)+ 1.681534)/X*exp(-X)
+    elseif x <= 0.01 
+        -log(x)-0.577215+x
+    elseif x <= 1.0
+        -log(x)-0.57721566+x*(0.99999193+x*(-0.24991055+ x*(0.05519968+x*(-0.00976004+ x*0.00107857))))
+    elseif x <= 30. 
+        (x*(x+2.334733)+0.25062)/(x*(x+3.330657)+ 1.681534)/x*exp(-x)
     else
         0.0
     end
 end
 
-"""
-TODO 
+#TODO deal with these constants used in holtsmark_profile
+PROB7 = [ 0.005  0.128  0.260  0.389  0.504 
+          0.004  0.109  0.220  0.318  0.389
+         -0.007  0.079  0.162  0.222  0.244
+         -0.018  0.041  0.089  0.106  0.080
+         -0.026 -0.003  0.003 -0.023 -0.086
+         -0.025 -0.048 -0.087 -0.148 -0.234
+         -0.008 -0.085 -0.165 -0.251 -0.343
+          0.018 -0.111 -0.223 -0.321 -0.407
+          0.032 -0.130 -0.255 -0.354 -0.431
+          0.014 -0.148 -0.269 -0.359 -0.427
+         -0.005 -0.140 -0.243 -0.323 -0.386
+          0.005 -0.095 -0.178 -0.248 -0.307
+         -0.002 -0.068 -0.129 -0.187 -0.241
+         -0.007 -0.049 -0.094 -0.139 -0.186
+         -0.010 -0.036 -0.067 -0.103 -0.143]
+C7 = [511.318,  1.532,  4.044, 19.266, 41.812]
+D7 = [-6.070, -4.528, -8.759,-14.984,-23.956]
+PP = [0.,.2,.4,.6,.8]
 
-Calculates S(BETA,P) for Hydrogen lines ie. the Holtsmark profile for
-quasistatic charged particles.  The alpha and beta lines of the first
-three series are explicitly included. All other cases use the H18 
-profile. Profiles are normalised to full oscillator strength. Method 
-is based on Griem (1960, ApJ 132, 883).
-
-By Deane Peterson and Bob Kurucz.
 """
-function SOFBET(β,P,N,M) #TODO REMOVE N, M?
-    #println("BP ", β, " ", P)
-    PROB7 = [ 0.005  0.128  0.260  0.389  0.504 
-              0.004  0.109  0.220  0.318  0.389
-             -0.007  0.079  0.162  0.222  0.244
-             -0.018  0.041  0.089  0.106  0.080
-             -0.026 -0.003  0.003 -0.023 -0.086
-             -0.025 -0.048 -0.087 -0.148 -0.234
-             -0.008 -0.085 -0.165 -0.251 -0.343
-              0.018 -0.111 -0.223 -0.321 -0.407
-              0.032 -0.130 -0.255 -0.354 -0.431
-              0.014 -0.148 -0.269 -0.359 -0.427
-             -0.005 -0.140 -0.243 -0.323 -0.386
-              0.005 -0.095 -0.178 -0.248 -0.307
-             -0.002 -0.068 -0.129 -0.187 -0.241
-             -0.007 -0.049 -0.094 -0.139 -0.186
-             -0.010 -0.036 -0.067 -0.103 -0.143]
-     C7 = [511.318,  1.532,  4.044, 19.266, 41.812]
-     D7 = [-6.070, -4.528, -8.759,-14.984,-23.956]
-     PP = [0.,.2,.4,.6,.8]
+    holtsmark_profile(β, P)    
+
+Calculates the Holtsmark profile for broadening of hydrogen lines by quasistatic charged particles.
+Adapted from SOFBET in HLINOP by Peterson and Kurucz. Draws heavilly from Griem 1960, ApJ, 132, 883.
+
+TODO: what does this mean?
+Profiles are normalised to full oscillator strength. 
+"""
+function holtsmark_profile(β,P)
 
     if β > 500 # Very large B
         return (1.5/sqrt(β) + 27/β^2)/β^2
     end
 
-    sqrtB = sqrt(β)
-    INDX=7
-
     # Determine relevant Debye range
     # fortran translation note: INT floors floats, not rounds
     IM = min(Int(floor((5*P)+1)),4)
     IP = IM+1
-    #println("Is: ", IP, " ", IM)
     WTPP = 5*(P-PP[IM])
     WTPM = 1-WTPP
-    β_boundaries = [1.,1.259,1.585,1.995,2.512,3.162,3.981,5.012,6.310,
-            7.943,10.,12.59,15.85,19.95,25.12]
+    β_knots = [1.,1.259,1.585,1.995,2.512,3.162,3.981,
+                    5.012,6.310,7.943,10.,12.59,15.85,19.95,25.12]
+
     if β <= 25.12
         # Indicies into β_boundaries which bound the value of β
-        JP = max(2, findfirst(β .<= β_boundaries))
+        JP = max(2, findfirst(β .<= β_knots))
         JM = JP - 1
         #println("Js: ", JP, " ", JM)
 
-        WTBP=(β-β_boundaries[JM])/(β_boundaries[JP]-β_boundaries[JM])
+        #this is linear interpolation into PROB7 wrt β_knots
+        WTBP = (β-β_knots[JM])/(β_knots[JP]-β_knots[JM])
         WTBM = 1 - WTBP
         CBP = PROB7[JP, IP]*WTPP + PROB7[JP, IM]*WTPM
         CBM = PROB7[JM, IP]*WTPP + PROB7[JM, IM]*WTPM
@@ -616,7 +613,7 @@ function SOFBET(β,P,N,M) #TODO REMOVE N, M?
             0.0
         end
         PR2 = if β >= 8
-            PR2 = (1.5/sqrtB+27/β^2)/β^2
+            PR2 = (1.5/sqrt(β)+27/β^2)/β^2
         else 
             0.0
         end
@@ -630,8 +627,8 @@ function SOFBET(β,P,N,M) #TODO REMOVE N, M?
         # Asymptotic part for medium B's (25.12 < B < 500)
         CC=C7[IP]*WTPP + C7[IM]*WTPM
         DD=D7[IP]*WTPP + D7[IM]*WTPM
-        CORR = 1 + DD/(CC + β*sqrtB)
-        (1.5/sqrtB + 27/β^2)/β^2*CORR
+        CORR = 1 + DD/(CC + β*sqrt(β))
+        (1.5/sqrt(β) + 27/β^2)/β^2*CORR
     end
 end
 
