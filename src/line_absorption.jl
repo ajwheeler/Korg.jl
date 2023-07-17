@@ -277,10 +277,11 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         #w = brackett_profile_halfwidths(n, m, NaN, λ0, T, nₑ, nH_I, nHe_I, NaN)[2] * λ0 / (4π) 
         #lb, ub = move_bounds(wl_ranges, 0, 0, λ0, 10w)
         lb, ub = move_bounds(wl_ranges, 0, 0, λ0, window_size)
+        lb >= ub && continue
         #println(w, " ", window_size)
 
         #@inbounds view(αs, lb:ub) .+= line_profile.(λ0, σ, γ, amplitude, view(λs, lb:ub))
-        prof = brackett_line_profile.(n, m, view(λs, lb:ub), λ0, T, nₑ, ξ)
+        prof = brackett_line_profile(n, m, view(λs, lb:ub), λ0, T, nₑ, ξ)
         #prof ./= sum(prof) * (λs[lb+1] - λs[lb]) #normalize (fix)
         @inbounds view(αs, lb:ub) .+= prof .* amplitude
     end
@@ -409,8 +410,9 @@ Mostly follows Griem 1960, ApJ, 132, 883, and Griem 1967 with corrections to app
 #TODO
 Area normalised to unity with frequency.
 """
-function brackett_line_profile(n,m,λ,λ₀,T,nₑ,ξ)
-    ν = Korg.c_cgs / λ
+function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
+    νs = c_cgs ./ λs
+    ν₀ = c_cgs / λ₀
     
     # Variables depending on conditions
     ne_1_6 = nₑ^(1/6)
@@ -420,7 +422,6 @@ function brackett_line_profile(n,m,λ,λ₀,T,nₑ,ξ)
     Y1S = T4^0.3 / ne_1_6
     GCON1 = 0.2+0.09*sqrt(T4)/(1+nₑ/1.E13)
     GCON2 = 0.2/(1+nₑ/1.E15)
-    
 
     # Knm constants as defined by Griem (1960, ApJ 132, 883) for the long 
     # range Holtsmark profile (due to ions only). Lyman and Balmer series 
@@ -472,59 +473,64 @@ function brackett_line_profile(n,m,λ,λ₀,T,nₑ,ξ)
     G1 = 6.77*sqrt(C1)
 
     # Griem 1960 eqn 23
-    β = abs(λ-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å
+    βs = @. abs(λs-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å
 
     # y1 is the velocity where the minimum impact parameter and the Lewis cutoff are equal. 
     #   - second order perturbation theory breaks down at the minimum impact parameter
     #   - the impact approximation breaks down at the Lewis cutoff
     # y2 is the where the Lewis cutoff is equal to the Debye length
     # Greim 1967 EQs 6 and 7
-    y1 = C1*β
-    y2 = C2*β^2
+    y1 = @. C1*βs
+    y2 = @. C2*βs^2
 
-    # called GAM in Kurucz.  See the  equation between Griem 1967 eqns 13a and 13b.
-    impact_profile_half_width = if (y2 <= 1e-4) && (y1 <= 1e-5)
-        G1*max(0, 0.2114 + log(sqrt(C2)/C1)) * (1-GCON1-GCON2)
-    else
-        GAM = (G1*(0.5*exp(-min(80, y1))+exponential_integral_1(y1)-0.5*exponential_integral_1(y2))*
-                       (1-GCON1/(1+(90*y1)^3)-GCON2/(1+2000*y1)))
-        GAM <= 1e-20 ? 0.0 : GAM
+    # called F in Kurucz
+    impact_electron_contribution = map(y1, y2, βs) do y1, y2, β
+        # called GAM in Kurucz.  See the  equation between Griem 1967 eqns 13a and 13b.
+        hw = if (y2 <= 1e-4) && (y1 <= 1e-5)
+            G1*max(0, 0.2114 + log(sqrt(C2)/C1)) * (1-GCON1-GCON2)
+        else
+            GAM = (G1*(0.5*exp(-min(80, y1))+exponential_integral_1(y1)-0.5*exponential_integral_1(y2))*
+                           (1-GCON1/(1+(90*y1)^3)-GCON2/(1+2000*y1)))
+            GAM <= 1e-20 ? 0.0 : GAM
+        end
+        if hw > 0
+            # Kurucz source was
+            #          F = GAM/PI/(GAM*GAM+BETA*BETA)
+            # is this a typo?
+            hw/π/(hw*hw+β*β)
+        else
+            0.0
+        end
     end
     
     # Compute individual quasistatic and impact profiles.
     # called PRQS in Kurucz
-    quasistatic_ion_contribution = holtsmark_profile(β,PP)
-    # called F in Kurucz
-    impact_electron_contribution = if impact_profile_half_width > 0
-        impact_profile_half_width/π/(impact_profile_half_width*impact_profile_half_width+β*β)
-    else
-        0.0
-    end
-
+    quasistatic_ion_contribution = holtsmark_profile.(βs,PP)
     # Fraction of electrons which count as quasistatic. A fit to eqn 8 
     # (2nd term) of Griem (1967, ApJ 147, 1092).
-    P1 = (0.9*y1)^2
+    P1 = @. (0.9*y1)^2
     # called FNS in Kurucz
-    relative_quasistatic_electron_contribution = (P1+0.03*sqrt(y1)) / (P1+1)
+    relative_quasistatic_electron_contribution = @. (P1+0.03*sqrt(y1)) / (P1+1)
 
     # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
     # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
-    dβ_dν = c_cgs/ν/ν/Knm/F0
+    dβ_dν = @. c_cgs / (νs^2 * Knm * F0)
     # called STARK1 in Kurucz
-    profile = (quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
-                 + impact_electron_contribution)*dβ_dν * sqrt(λ/λ₀)
+    profile = (@. (quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
+                 + impact_electron_contribution)*dβ_dν * sqrt(λs/λ₀))
 
     # The red wing is multiplied by the Boltzmann factor to roughly account
     # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
     # absorption case.  If emission do for Δν > 0.
-    Δν = ν - c_cgs/λ₀
-    if Δν < 0 
-        profile *= exp(-abs(hplanck_cgs*Δν)/kboltz_cgs/T)
+    @assert issorted(νs, rev=true)
+    i = findlast(νs .< ν₀)
+    if !isnothing(i)
+        @. profile[begin:i] *= exp((hplanck_cgs*(νs[begin:i] - ν₀))/kboltz_cgs/T)
     end
 
     # convert from dν to dλ and from cm^-1 to Å^-1
     # TODO where does the factor of 1/2 come from?
-    1e8 * c_cgs / λ^2 * profile * 0.5
+    @. 1e8 * c_cgs / λs^2 * profile * 0.5
 end
 
 """
@@ -547,8 +553,7 @@ function exponential_integral_1(x)
     end
 end
 
-#TODO deal with these constants used in holtsmark_profile
-PROB7 = [ 0.005  0.128  0.260  0.389  0.504 
+const _holtsmark_PROB7 = [ 0.005  0.128  0.260  0.389  0.504 
           0.004  0.109  0.220  0.318  0.389
          -0.007  0.079  0.162  0.222  0.244
          -0.018  0.041  0.089  0.106  0.080
@@ -563,10 +568,11 @@ PROB7 = [ 0.005  0.128  0.260  0.389  0.504
          -0.002 -0.068 -0.129 -0.187 -0.241
          -0.007 -0.049 -0.094 -0.139 -0.186
          -0.010 -0.036 -0.067 -0.103 -0.143]
-C7 = [511.318,  1.532,  4.044, 19.266, 41.812]
-D7 = [-6.070, -4.528, -8.759,-14.984,-23.956]
-PP = [0.,.2,.4,.6,.8]
-
+const _holtsmark_C7 = [511.318,  1.532,  4.044, 19.266, 41.812]
+const _holtsmark_D7 = [-6.070, -4.528, -8.759,-14.984,-23.956]
+const _holtsmark_PP = [0.,.2,.4,.6,.8]
+const _holtsmark_β_knots = [1.,1.259,1.585,1.995,2.512,3.162,3.981,
+                5.012,6.310,7.943,10.,12.59,15.85,19.95,25.12]
 """
     holtsmark_profile(β, P)    
 
@@ -586,22 +592,20 @@ function holtsmark_profile(β,P)
     # fortran translation note: INT floors floats, not rounds
     IM = min(Int(floor((5*P)+1)),4)
     IP = IM+1
-    WTPP = 5*(P-PP[IM])
+    WTPP = 5*(P-_holtsmark_PP[IM])
     WTPM = 1-WTPP
-    β_knots = [1.,1.259,1.585,1.995,2.512,3.162,3.981,
-                    5.012,6.310,7.943,10.,12.59,15.85,19.95,25.12]
 
     if β <= 25.12
         # Indicies into β_boundaries which bound the value of β
-        JP = max(2, findfirst(β .<= β_knots))
+        JP = max(2, findfirst(β .<= _holtsmark_β_knots))
         JM = JP - 1
         #println("Js: ", JP, " ", JM)
 
         #this is linear interpolation into PROB7 wrt β_knots
-        WTBP = (β-β_knots[JM])/(β_knots[JP]-β_knots[JM])
+        WTBP = (β-_holtsmark_β_knots[JM])/(_holtsmark_β_knots[JP]-_holtsmark_β_knots[JM])
         WTBM = 1 - WTBP
-        CBP = PROB7[JP, IP]*WTPP + PROB7[JP, IM]*WTPM
-        CBM = PROB7[JM, IP]*WTPP + PROB7[JM, IM]*WTPM
+        CBP = _holtsmark_PROB7[JP, IP]*WTPP + _holtsmark_PROB7[JP, IM]*WTPM
+        CBM = _holtsmark_PROB7[JM, IP]*WTPP + _holtsmark_PROB7[JM, IM]*WTPM
         CORR = 1 + CBP*WTBP + CBM*WTBM
 
         # Get approximate profile for the inner part
@@ -625,8 +629,8 @@ function holtsmark_profile(β,P)
         (PR1*WT + PR2*(1 - WT))*CORR
     else
         # Asymptotic part for medium B's (25.12 < B < 500)
-        CC=C7[IP]*WTPP + C7[IM]*WTPM
-        DD=D7[IP]*WTPP + D7[IM]*WTPM
+        CC=_holtsmark_C7[IP]*WTPP + _holtsmark_C7[IM]*WTPM
+        DD=_holtsmark_D7[IP]*WTPP + _holtsmark_D7[IM]*WTPM
         CORR = 1 + DD/(CC + β*sqrt(β))
         (1.5/sqrt(β) + 27/β^2)/β^2*CORR
     end
