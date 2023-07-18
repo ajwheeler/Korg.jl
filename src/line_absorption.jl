@@ -250,7 +250,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
     # now do the Brackett series
-    n = 4
+    n = 4 
     for m in 5:n_max
         Elo = Korg.RydbergH_eV * (1 - 1/n^2)
         Eup = Korg.RydbergH_eV * (1 - 1/m^2)
@@ -263,9 +263,11 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
 
         lb, ub = move_bounds(wl_ranges, 0, 0, λ0, window_size)
         lb >= ub && continue
-        prof = brackett_line_profile(n, m, view(λs, lb:ub), λ0, T, nₑ, ξ)
+
+        prof = brackett_line_profile(m, view(λs, lb:ub), λ0, T, nₑ, amplitude)
+        #prof .+= normal_pdf.(λs[lb:ub] .- λ0, doppler_width(λ0, T, Hmass, ξ)) #TODO remove
         #prof ./= sum(prof) * (λs[lb+1] - λs[lb]) #normalize TODO
-        @inbounds view(αs, lb:ub) .+= prof .* amplitude
+        @inbounds view(αs, lb:ub) .+= prof 
     end
 end
 
@@ -299,7 +301,8 @@ Mostly follows Griem 1960, ApJ, 132, 883, and Griem 1967 with corrections to app
 
 1967 doi.org/10.1086/149097
 """
-function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
+function brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
+    n = 4 # Brackett lines only
     νs = c_cgs ./ λs
     ν₀ = c_cgs / λ₀
     
@@ -309,20 +312,7 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
     GCON1 = 0.2+0.09*sqrt(T/10_0004)/(1+nₑ/1.E13)
     GCON2 = 0.2/(1+nₑ/1.E15)
 
-    # Knm constants as defined by Griem (1960, ApJ 132, 883) for the long 
-    # range Holtsmark profile (due to ions only). Lyman and Balmer series 
-    # are from VCS, higher series from elsewhere.
-    Knm = if (m-n <= 3) && (n<=4)
-        Knm_table = [0.0001716 0.0090190 0.1001000 0.5820000
-                     0.0005235 0.0177200 0.1710000 0.8660000
-                     0.0008912 0.0250700 0.2230000 1.0200000]
-        Knm_table[m-n, n]
-    else
-        # Greim 1960 equation 33 (a=n, b=m, Z=1)
-        # 1 / (1 + 0.13(m-n)) is probably a Kurucz addition.  In HLINOP, comment speculates that 
-        # it was added to better match the tables.
-        5.5e-5 * n^4 * m^4 /(m^2 - n^2) / (1+0.13/(m - n))
-    end
+    Knm = greim_1960_Knm(n, m)
 
     Y1WHT = if (m - n <= 2) && (n <= 2)
         Y1WTM = [1.e18 1e17
@@ -376,10 +366,7 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
             GAM <= 1e-20 ? 0.0 : GAM
         end
         if hw > 0
-            # Kurucz source was
-            #          F = GAM/PI/(GAM*GAM+BETA*BETA)
-            # is this a typo?
-            hw/π/(hw*hw+β*β)
+            hw / (π*(hw^2 + β^2))
         else
             0.0
         end
@@ -410,9 +397,29 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
 
     # convert from dν to dλ and from cm^-1 to Å^-1
     # TODO where does the factor of 1/2 come from?
-    @. 1e8 * c_cgs / λs^2 * profile * 0.5
+    @. 1e8 * c_cgs / λs^2 * profile * 0.5 * amplitude
 end
 
+const _greim_Kmn_table = [
+    0.0001716 0.0090190 0.1001000 0.5820000
+    0.0005235 0.0177200 0.1710000 0.8660000
+    0.0008912 0.0250700 0.2230000 1.0200000
+    ]
+
+"""
+Knm constants as defined by Griem (1960, ApJ 132, 883) for the long range Holtsmark profile (due to 
+ions only). Does not include the preferred values for non-Brackett lines.
+"""
+function greim_1960_Knm(n, m)
+    if (m-n <= 3) && (n<=4)
+        _greim_Kmn_table[m-n, n]
+    else
+        # Greim 1960 equation 33 (a=n, b=m, Z=1)
+        # 1 / (1 + 0.13(m-n)) is probably a Kurucz addition.  In Barklem's HLINOP, comment 
+        # speculates that it was added to better match the tables.
+        5.5e-5 * n^4 * m^4 /(m^2 - n^2) / (1+0.13/(m - n))
+    end
+end
 """
     exponential_integral_1(x)
 
