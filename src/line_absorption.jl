@@ -258,7 +258,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         λ0 = Korg.hplanck_eV * Korg.c_cgs / E # cm
 
         levels_factor = ws[m] * (exp(-β*Elo) - exp(-β*Eup)) / UH_I
-        gf = n^2 * hydrogen_oscillator_strength(n, m)
+        gf = 2 * n^2 * hydrogen_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
 
         lb, ub = move_bounds(wl_ranges, 0, 0, λ0, window_size)
@@ -303,7 +303,6 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
     νs = c_cgs ./ λs
     ν₀ = c_cgs / λ₀
     
-    # Variables depending on conditions
     ne_1_6 = nₑ^(1/6)
     shielding_parameter = ne_1_6*0.08989/sqrt(T) # the shielding parameter. Called PP in Kurucz
     F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
@@ -325,13 +324,6 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
         5.5e-5 * n^4 * m^4 /(m^2 - n^2) / (1+0.13/(m - n))
     end
 
-    Y1NUM = if m == 2
-       550
-    elseif (m==3) 
-       380
-    else
-       320
-    end
     Y1WHT = if (m - n <= 2) && (n <= 2)
         Y1WTM = [1.e18 1e17
                  1.e16 1e14]
@@ -341,20 +333,23 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
     else
        1e13
     end
-    C1CON = Knm / λ₀ * (m^2 - n^2)^2 / (n^2 * m^2) * 1e-8 # convert factors of cm to Å
-    C2CON = (Knm/λ₀)^2 * 1e-16 # convert factors of cm to Å
-
     WTY1 = 1/(1+nₑ/Y1WHT)
     Y1B = 2/(1+0.012/T*sqrt(nₑ/T))
+    C1CON = Knm / λ₀ * (m^2 - n^2)^2 / (n^2 * m^2) * 1e-8 # convert factors of cm to Å
+    Y1NUM = if m == 2
+           550
+        elseif (m==3) 
+           380
+        else
+           320
+        end
     Y1SCAL = Y1NUM * ((T/10_000)^0.3 / ne_1_6) * WTY1 + Y1B * (1-WTY1)
+    C1 = F0*78940/T * C1CON * Y1SCAL
 
-    C1D = F0*78940/ T
-    C1 = C1D*C1CON*Y1SCAL
+    C2 = F0^2 / (5.96E-23*nₑ) * (Knm/λ₀)^2 * 1e-16 # convert factors of cm to Å
 
-    C2D = F0^2/5.96E-23/nₑ
-    C2 = C2D*C2CON
-
-    # Griem 1960 eqn 23
+    # Griem 1960 eqn 23.  This is the argument of the Holtsmark profile.
+    # β = a / Kₙₘ 
     βs = @. abs(λs-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å
 
     # y1 is the velocity where the minimum impact parameter and the Lewis cutoff are equal. 
@@ -365,9 +360,13 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
     y1 = @. C1*βs
     y2 = @. C2*βs^2
 
+    # TODO: how do these relate to Eqns 6 and 7 in Greim 1967?
+    #my_y1 = @. n^2 * hplanck_eV^2 * abs(νs - ν₀) / (2 * kboltz_eV * T)
+
     G1 = 6.77*sqrt(C1)
     # called F in Kurucz
     impact_electron_contribution = map(y1, y2, βs) do y1, y2, β
+        # half-width of the electron impact profile
         # called GAM in Kurucz.  See the  equation between Griem 1967 eqns 13a and 13b.
         hw = if (y2 <= 1e-4) && (y1 <= 1e-5)
             G1*max(0, 0.2114 + log(sqrt(C2)/C1)) * (1-GCON1-GCON2)
@@ -391,8 +390,7 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
     # According to Barklem, a fit eqn 8 of (2nd term) of Griem (1967, ApJ 147, 1092).
     quasistatic_electron_fraction = @. (0.9*y1)^2
     # called FNS in Kurucz
-    relative_quasistatic_electron_contribution = (@. (quasistatic_electron_fraction+0.03*sqrt(y1))
-                                                            / (quasistatic_electron_fraction+1))
+    relative_quasistatic_electron_contribution = (@. (quasistatic_electron_fraction+0.03*sqrt(y1)) / (quasistatic_electron_fraction+1))
 
     # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
     # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
