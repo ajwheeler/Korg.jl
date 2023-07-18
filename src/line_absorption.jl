@@ -305,11 +305,9 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
     
     # Variables depending on conditions
     ne_1_6 = nₑ^(1/6)
-    PP = ne_1_6*0.08989/sqrt(T) # the shielding parameter 
+    shielding_parameter = ne_1_6*0.08989/sqrt(T) # the shielding parameter. Called PP in Kurucz
     F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
-    T4 = T/10000.
-    Y1S = T4^0.3 / ne_1_6
-    GCON1 = 0.2+0.09*sqrt(T4)/(1+nₑ/1.E13)
+    GCON1 = 0.2+0.09*sqrt(T/10_0004)/(1+nₑ/1.E13)
     GCON2 = 0.2/(1+nₑ/1.E15)
 
     # Knm constants as defined by Griem (1960, ApJ 132, 883) for the long 
@@ -335,31 +333,26 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
        320
     end
     Y1WHT = if (m - n <= 2) && (n <= 2)
-       Y1WTM = [1.e18 1e17
-                1.e16 1e14]
-       Y1WTM[m-n, n]
+        Y1WTM = [1.e18 1e17
+                 1.e16 1e14]
+        Y1WTM[m-n, n]
     elseif m-n <= 3
        1e14
     else
        1e13
     end
-    GNM = (m^2-n^2) / (n^2 * m^2)
-    XM2MN2 = m^2 - n^2
-    # convert factors of cm to Å
-    C1CON = Knm/λ₀*GNM*XM2MN2 * 1e-8
-    C2CON = (Knm/λ₀)^2 * 1e-16
+    C1CON = Knm / λ₀ * (m^2 - n^2)^2 / (n^2 * m^2) * 1e-8 # convert factors of cm to Å
+    C2CON = (Knm/λ₀)^2 * 1e-16 # convert factors of cm to Å
 
     WTY1 = 1/(1+nₑ/Y1WHT)
     Y1B = 2/(1+0.012/T*sqrt(nₑ/T))
-    Y1SCAL = Y1NUM*Y1S*WTY1+Y1B*(1-WTY1)
+    Y1SCAL = Y1NUM * ((T/10_000)^0.3 / ne_1_6) * WTY1 + Y1B * (1-WTY1)
 
     C1D = F0*78940/ T
     C1 = C1D*C1CON*Y1SCAL
 
     C2D = F0^2/5.96E-23/nₑ
     C2 = C2D*C2CON
-
-    G1 = 6.77*sqrt(C1)
 
     # Griem 1960 eqn 23
     βs = @. abs(λs-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å
@@ -372,6 +365,7 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
     y1 = @. C1*βs
     y2 = @. C2*βs^2
 
+    G1 = 6.77*sqrt(C1)
     # called F in Kurucz
     impact_electron_contribution = map(y1, y2, βs) do y1, y2, β
         # called GAM in Kurucz.  See the  equation between Griem 1967 eqns 13a and 13b.
@@ -392,14 +386,13 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
         end
     end
     
-    # Compute individual quasistatic and impact profiles.
     # called PRQS in Kurucz
-    quasistatic_ion_contribution = holtsmark_profile.(βs,PP)
-    # Fraction of electrons which count as quasistatic. A fit to eqn 8 
-    # (2nd term) of Griem (1967, ApJ 147, 1092).
-    P1 = @. (0.9*y1)^2
+    quasistatic_ion_contribution = holtsmark_profile.(βs,shielding_parameter)
+    # According to Barklem, a fit eqn 8 of (2nd term) of Griem (1967, ApJ 147, 1092).
+    quasistatic_electron_fraction = @. (0.9*y1)^2
     # called FNS in Kurucz
-    relative_quasistatic_electron_contribution = @. (P1+0.03*sqrt(y1)) / (P1+1)
+    relative_quasistatic_electron_contribution = (@. (quasistatic_electron_fraction+0.03*sqrt(y1))
+                                                            / (quasistatic_electron_fraction+1))
 
     # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
     # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
@@ -410,7 +403,7 @@ function brackett_line_profile(n,m,λs,λ₀,T,nₑ,ξ)
 
     # The red wing is multiplied by the Boltzmann factor to roughly account
     # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
-    # absorption case.  If emission do for Δν > 0.
+    # absorption case. If emission do for Δν > 0.
     @assert issorted(νs, rev=true)
     i = findlast(νs .< ν₀)
     if !isnothing(i)
@@ -442,21 +435,22 @@ function exponential_integral_1(x)
     end
 end
 
-const _holtsmark_PROB7 = [ 0.005  0.128  0.260  0.389  0.504 
-          0.004  0.109  0.220  0.318  0.389
-         -0.007  0.079  0.162  0.222  0.244
-         -0.018  0.041  0.089  0.106  0.080
-         -0.026 -0.003  0.003 -0.023 -0.086
-         -0.025 -0.048 -0.087 -0.148 -0.234
-         -0.008 -0.085 -0.165 -0.251 -0.343
-          0.018 -0.111 -0.223 -0.321 -0.407
-          0.032 -0.130 -0.255 -0.354 -0.431
-          0.014 -0.148 -0.269 -0.359 -0.427
-         -0.005 -0.140 -0.243 -0.323 -0.386
-          0.005 -0.095 -0.178 -0.248 -0.307
-         -0.002 -0.068 -0.129 -0.187 -0.241
-         -0.007 -0.049 -0.094 -0.139 -0.186
-         -0.010 -0.036 -0.067 -0.103 -0.143]
+const _holtsmark_PROB7 = [ 
+     0.005  0.128  0.260  0.389  0.504 
+     0.004  0.109  0.220  0.318  0.389
+    -0.007  0.079  0.162  0.222  0.244
+    -0.018  0.041  0.089  0.106  0.080
+    -0.026 -0.003  0.003 -0.023 -0.086
+    -0.025 -0.048 -0.087 -0.148 -0.234
+    -0.008 -0.085 -0.165 -0.251 -0.343
+     0.018 -0.111 -0.223 -0.321 -0.407
+     0.032 -0.130 -0.255 -0.354 -0.431
+     0.014 -0.148 -0.269 -0.359 -0.427
+    -0.005 -0.140 -0.243 -0.323 -0.386
+     0.005 -0.095 -0.178 -0.248 -0.307
+    -0.002 -0.068 -0.129 -0.187 -0.241
+    -0.007 -0.049 -0.094 -0.139 -0.186
+    -0.010 -0.036 -0.067 -0.103 -0.143]
 const _holtsmark_C7 = [511.318,  1.532,  4.044, 19.266, 41.812]
 const _holtsmark_D7 = [-6.070, -4.528, -8.759,-14.984,-23.956]
 const _holtsmark_PP = [0.,.2,.4,.6,.8]
@@ -507,10 +501,6 @@ function holtsmark_profile(β,P)
         else 
             0.0
         end
-
-        #println("CBP: ", CBP)
-        #println("CBM: ", CBM)
-        #println("CORR: ", CORR)
 
         (PR1*WT + PR2*(1 - WT))*CORR
     else
