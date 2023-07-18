@@ -264,8 +264,34 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         lb, ub = move_bounds(wl_ranges, 0, 0, λ0, window_size)
         lb >= ub && continue
 
-        prof = brackett_line_profile(m, view(λs, lb:ub), λ0, T, nₑ, amplitude)
-        #prof .+= normal_pdf.(λs[lb:ub] .- λ0, doppler_width(λ0, T, Hmass, ξ)) #TODO remove
+        # following Kurucz, we model the line core with a doppler profile when the doppler profile
+        # has a larger half-width than the (approximate) stark profile half-width.
+        # √2 makes it a HWHM, in wavelenth units, not uniteless as in Kurucz
+        dopper_halfwidth = √(2) * Korg.doppler_width(λ0, T, Korg.get_mass(Korg.species"H"), ξ)
+        F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
+        Knm = Korg.greim_1960_Knm(n, m)
+        # this isn't a HWHM, but it is a characteristic halfwidth
+        stark_halfwidth = 1.6678E-18 * Knm * F0 * Korg.c_cgs
+        if stark_halfwidth > dopper_halfwidth
+            # only model the stark profile as it dominates everywhere
+            prof = brackett_line_profile(m, view(λs, lb:ub), λ0, T, nₑ, amplitude)
+        else 
+            prof = zeros(ub-lb+1)
+            # in the line core, treat model the profile as Doppler
+            core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ0, dopper_halfwidth)
+            # handle the case where the line core is outside the window
+            core_lb = min(core_lb, ub)
+            core_ub = max(core_ub, lb)
+            if core_lb <= core_ub # the core
+                prof[core_lb-lb+1:core_ub-lb+1] .+= normal_pdf.(λs[core_lb:core_ub] .- λ0, doppler_width(λ0, T, Hmass, ξ)) .* amplitude
+            end
+            if lb <= core_lb # the blue wing
+                prof[1:core_lb-lb+1] .+= brackett_line_profile(m, view(λs, lb:core_lb), λ0, T, nₑ, amplitude)
+            end
+            if core_ub <= ub # the red wing
+                prof[core_ub-lb+1:end] .+= brackett_line_profile(m, view(λs, core_ub:ub), λ0, T, nₑ, amplitude)
+            end
+        end
         #prof ./= sum(prof) * (λs[lb+1] - λs[lb]) #normalize TODO
         @inbounds view(αs, lb:ub) .+= prof 
     end
