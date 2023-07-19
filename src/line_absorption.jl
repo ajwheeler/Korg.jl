@@ -276,7 +276,8 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
             # only model the stark profile as it dominates everywhere
             prof = brackett_line_profile(m, view(λs, lb:ub), λ0, T, nₑ, amplitude)
         else 
-            prof = zeros(ub-lb+1)
+            prof_type = promote_type(typeof(T), typeof(nₑ), typeof(amplitude), typeof(ξ))
+            prof = zeros(prof_type, ub-lb+1)
             # in the line core, treat model the profile as Doppler
             core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ0, dopper_halfwidth)
             # handle the case where the line core is outside the window
