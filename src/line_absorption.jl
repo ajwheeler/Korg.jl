@@ -392,7 +392,7 @@ function brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
             GAM <= 1e-20 ? 0.0 : GAM
         end
         if hw > 0
-            hw / (π*(hw^2 + β^2))
+            hw / (π*(hw^2 + β^2)) # Lorentz density with width hw
         else
             0.0
         end
@@ -422,8 +422,8 @@ function brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
     end
 
     # convert from dν to dλ and from cm^-1 to Å^-1
-    # TODO where does the factor of 1/2 come from?
-    @. 1e8 * c_cgs / λs^2 * profile * 0.5 * amplitude
+    # TODO why on earth must I cancel this factor of 2 (or not)?
+    @. 1e8 * c_cgs / λs^2 * profile * amplitude # * 0.5
 end
 
 const _greim_Kmn_table = [
