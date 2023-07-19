@@ -323,7 +323,16 @@ end
 
 Normalize stark-broadened line profile (specialized to Brackett series).  Translated and heavily
 adapted from HLINOP.f by Barklem, who adapted it from Peterson and Kurucz.  Mostly follows 
-[Griem 1960](doi.org/10.1086/146987), and [Griem 1967](doi.org/10.1086/149097).
+[Griem 1960](doi.org/10.1086/146987), and [Griem 1967](doi.org/10.1086/149097).  Ions and distant
+electrons have E fields which can be treated quasi-statically, leading to a
+[Holtsmark broadening profile](https://doi.org/10.1002/andp.19193630702).
+
+I model the profiles in essentially the same way as `HLINOP.f` by Barklem, but specialized to the 
+Brackett series, for which the Lorentz component doesn't matter. For conditions where the Balmer 
+profile HWHM is larger than width of the Stark profile, I model the core as Doppler and the wings as 
+Stark.  When the Stark profile is broader, I model the whole thing as stark. The effect of including 
+the Doppler cores is sub-1%.
+
 Arguents:
 - `m`: the upper level of the transition
 - `λs`: the wavelengths at which to calculate the profile [cm]
