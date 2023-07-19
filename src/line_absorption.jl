@@ -319,13 +319,20 @@ function hydrogen_oscillator_strength(n, m)
 end
 
 """
+    brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
+
 Normalize stark-broadened line profile (specialized to Brackett series).  Translated and heavily
-adapted from HLINOP.f by Peterson and Kurucz via Barklem.
+adapted from HLINOP.f by Barklem, who adapted it from Peterson and Kurucz.  Mostly follows 
+[Griem 1960](doi.org/10.1086/146987), and [Griem 1967](doi.org/10.1086/149097).
 
-Mostly follows Griem 1960, ApJ, 132, 883, and Griem 1967 with corrections to approximate the Vidal, Cooper & Smith 
-(1973, ApJS 25, 37) profiles.
-
-1967 doi.org/10.1086/149097
+Arguents:
+- `m`: the upper level of the transition
+- `λs`: the wavelengths at which to calculate the profile [cm]
+- `λ₀`: the line center [cm]
+- `T`: temperature [K]
+- `nₑ`: electron number density [cm^-3]
+- `amplitude`: the wavelength-integrated absorption coefficient to multiply by the normalized 
+   profile.
 """
 function brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
     n = 4 # Brackett lines only
@@ -433,8 +440,8 @@ const _greim_Kmn_table = [
     ]
 
 """
-Knm constants as defined by Griem (1960, ApJ 132, 883) for the long range Holtsmark profile (due to 
-ions only). Does not include the preferred values for non-Brackett lines.
+Knm constants as defined by [Griem 1960](doi.org/10.1086/146987) for the long range Holtsmark 
+profile. Does not include the preferred values for non-Brackett lines.
 """
 function greim_1960_Knm(n, m)
     if (m-n <= 3) && (n<=4)
@@ -446,11 +453,12 @@ function greim_1960_Knm(n, m)
         5.5e-5 * n^4 * m^4 /(m^2 - n^2) / (1+0.13/(m - n))
     end
 end
+
 """
     exponential_integral_1(x)
 
 Compute the first exponential integral, E1(x).  This is a rough approximation lifted from Kurucz's
-VCSE1F.
+VCSE1F. Used in `brackett_line_profile`.
 """
 function exponential_integral_1(x)
     if x < 0
@@ -491,7 +499,8 @@ const _holtsmark_β_knots = [1.,1.259,1.585,1.995,2.512,3.162,3.981,
     holtsmark_profile(β, P)    
 
 Calculates the Holtsmark profile for broadening of hydrogen lines by quasistatic charged particles.
-Adapted from SOFBET in HLINOP by Peterson and Kurucz. Draws heavilly from Griem 1960, ApJ, 132, 883.
+Adapted from SOFBET in HLINOP by Peterson and Kurucz. Draws heavily from 
+[Griem 1960](doi.org/10.1086/146987).
 """
 function holtsmark_profile(β,P)
 
