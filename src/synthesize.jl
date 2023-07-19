@@ -87,7 +87,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_s
     wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
     synthesize(atm, linelist, A_X, wls; kwargs...)
 end
-function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, 
+function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real}, 
                     wl_ranges::AbstractVector{<:AbstractRange}; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
