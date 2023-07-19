@@ -56,7 +56,13 @@ end
     @test Korg.move_bounds(a, 0, 0, 3, 1) == (1, 2)
     @test Korg.move_bounds(a, 0, 0, 5, 6) == (1, 4)
     @test Korg.move_bounds(a, 0, 0, 12.5, 0.6) == (6, 7)
-    @test Korg.move_bounds(a, 0, 0, 50, 5) == (1, 0)
+    @test Korg.move_bounds(a, 0, 0, 50, 5) == (13, 12)
+
+    # check that indices are appropriately out of order when the range is outside a
+    for a in [1:10, collect(1:10), [1:5, 6:10]]
+        @test Korg.move_bounds(a, 1, 1, 13.5, 0.2) == (11, 10)
+        @test Korg.move_bounds(a, 1, 1, -5, 0.2) == (1, 0)
+    end
 end
 
 @testset "line profiles" begin

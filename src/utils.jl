@@ -12,10 +12,17 @@ Using `lb0` and `ub0` as initial guesses, return the indices of `λs`, `(lb, ub)
 - Range, in which case `lb` and `ub` are ignored and the bounds are computed directly
 - Vector of Ranges, in which case `lb` and `ub` are also ignored.  In this case, the bounds returned
   are indices into the concatenation of the ranges.
+
+If the windows is outside the range of `λs`, the lb will be greater than ub.
+!!! warning
+    Be careful with the values returned by this function. Indices into arrays and ranges work 
+    differently. For example, if `lb = 1` and `ub = 0` (as happens if the window is entirely below
+    `λs`) then `λs[lb:ub]` will return an empty array if `λs` is an array and a non-empty array if 
+    `λs` is a range.  Make sure to explicitly check that lb <= ub when appropriate.
 """
 function move_bounds(λs::R, lb, ub, λ₀, window_size) where R <: AbstractRange
     len = length(λs)
-    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
+    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len+1)
     ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 0, len)
     lb,ub
 end
@@ -25,7 +32,7 @@ function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R <
     # index of the first range for which the last element is greater than λ₀ - window_size
     range_ind = searchsortedfirst(last.(wl_ranges), λ₀ - window_size)
     if range_ind == length(wl_ranges) + 1
-        return lb, ub
+        return cumulative_lengths[end]+1, cumulative_lengths[end]
     end
     lb, ub = move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size) 
     if range_ind > 1
@@ -40,7 +47,7 @@ function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R <
 end
 function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVector
     #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
-    while lb+1 < length(λs) && λs[lb] < λ₀ - window_size
+    while lb <= length(λs) && λs[lb] < λ₀ - window_size
         lb += 1
     end
     while lb > 1 && λs[lb-1] > λ₀ - window_size
@@ -49,7 +56,7 @@ function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVect
     while ub < length(λs) && λs[ub+1] < λ₀ + window_size
         ub += 1
     end
-    while ub > 1 && λs[ub] > λ₀ + window_size
+    while ub >= 1 && λs[ub] > λ₀ + window_size
         ub -= 1
     end
     lb, ub
