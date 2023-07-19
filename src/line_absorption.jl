@@ -292,7 +292,6 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
                 prof[core_ub-lb+1:end] .+= brackett_line_profile(m, view(λs, core_ub:ub), λ0, T, nₑ, amplitude)
             end
         end
-        #prof ./= sum(prof) * (λs[lb+1] - λs[lb]) #normalize TODO
         @inbounds view(αs, lb:ub) .+= prof 
     end
 end
@@ -324,7 +323,6 @@ end
 Normalize stark-broadened line profile (specialized to Brackett series).  Translated and heavily
 adapted from HLINOP.f by Barklem, who adapted it from Peterson and Kurucz.  Mostly follows 
 [Griem 1960](doi.org/10.1086/146987), and [Griem 1967](doi.org/10.1086/149097).
-
 Arguents:
 - `m`: the upper level of the transition
 - `λs`: the wavelengths at which to calculate the profile [cm]
@@ -379,12 +377,10 @@ function brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
     #   - second order perturbation theory breaks down at the minimum impact parameter
     #   - the impact approximation breaks down at the Lewis cutoff
     # y2 is the where the Lewis cutoff is equal to the Debye length
-    # Greim 1967 EQs 6 and 7
+    # Greim 1967 EQs 6 and 7 defines these quantities, but I'm slightly confused about how they
+    # are related to these definitions.
     y1 = @. C1*βs
     y2 = @. C2*βs^2
-
-    # TODO: how do these relate to Eqns 6 and 7 in Greim 1967?
-    #my_y1 = @. n^2 * hplanck_eV^2 * abs(νs - ν₀) / (2 * kboltz_eV * T)
 
     G1 = 6.77*sqrt(C1)
     # called F in Kurucz
@@ -429,7 +425,7 @@ function brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
     end
 
     # convert from dν to dλ and from cm^-1 to Å^-1
-    # TODO why on earth must I cancel this factor of 2 (or not)?
+    # why on earth must I cancel this factor of 2 (or not)?
     @. 1e8 * c_cgs / λs^2 * profile * amplitude # * 0.5
 end
 
