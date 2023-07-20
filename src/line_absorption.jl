@@ -250,51 +250,20 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
     # now do the Brackett series
-    n = 4 
     for m in 5:n_max
+        n = 4
         Elo = Korg.RydbergH_eV * (1 - 1/n^2)
         Eup = Korg.RydbergH_eV * (1 - 1/m^2)
         E = Eup - Elo
         λ0 = Korg.hplanck_eV * Korg.c_cgs / E # cm
-
+    
         levels_factor = ws[m] * (exp(-β*Elo) - exp(-β*Eup)) / UH_I
         gf = 2 * n^2 * hydrogen_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
 
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ0, window_size)
-        lb >= ub && continue
-
-        # following Kurucz, we model the line core with a doppler profile when the doppler profile
-        # has a larger half-width than the (approximate) stark profile half-width.
-        # √2 makes it a HWHM, in wavelenth units, not uniteless as in Kurucz
-        dopper_halfwidth = √(2) * Korg.doppler_width(λ0, T, Korg.get_mass(Korg.species"H"), ξ)
-        F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
-        Knm = Korg.greim_1960_Knm(n, m)
-        # this isn't a HWHM, but it is a characteristic halfwidth
-        stark_halfwidth = 1.6678E-18 * Knm * F0 * Korg.c_cgs
-        if stark_halfwidth > dopper_halfwidth
-            # only model the stark profile as it dominates everywhere
-            prof = brackett_line_profile(m, view(λs, lb:ub), λ0, T, nₑ, amplitude)
-        else 
-            prof_type = promote_type(typeof(T), typeof(nₑ), typeof(amplitude), typeof(ξ))
-            prof = zeros(prof_type, ub-lb+1)
-            # in the line core, treat model the profile as Doppler
-            core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ0, dopper_halfwidth)
-            # handle the case where the line core is outside the window
-            core_lb = min(core_lb, ub)
-            core_ub = max(core_ub, lb)
-            if core_lb <= core_ub # the core
-                prof[core_lb-lb+1:core_ub-lb+1] .+= normal_pdf.(λs[core_lb:core_ub] .- λ0, doppler_width(λ0, T, Hmass, ξ)) .* amplitude
-            end
-            if lb <= core_lb # the blue wing
-                prof[1:core_lb-lb+1] .+= brackett_line_profile(m, view(λs, lb:core_lb), λ0, T, nₑ, amplitude)
-            end
-            if core_ub <= ub # the red wing
-                prof[core_ub-lb+1:end] .+= brackett_line_profile(m, view(λs, core_ub:ub), λ0, T, nₑ, amplitude)
-            end
-        end
-        @inbounds view(αs, lb:ub) .+= prof 
+        brackett_line_absorption!(αs, m, λ0, wl_ranges, λs, T, nₑ, ξ, amplitude, window_size)
     end
+
 end
 
 """
@@ -319,9 +288,55 @@ function hydrogen_oscillator_strength(n, m)
 end
 
 """
-    brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
+TODO
+"""
+function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, amplitude, window_size)
+    n = 4 # this is the brackett series
 
-Normalize stark-broadened line profile (specialized to Brackett series).  Translated and heavily
+    lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, window_size)
+    lb >= ub && return
+
+    # following Barklem, we model the line core with a doppler profile when the doppler profile has 
+    # a larger half-width than the (approximate) stark profile half-width.  
+
+    # √2 makes it a HWHM, in wavelenth units, not uniteless as in Kurucz
+    dopper_halfwidth = √(2) * Korg.doppler_width(λ₀, T, Korg.get_mass(Korg.species"H"), ξ)
+
+    F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
+    Knm = Korg.greim_1960_Knm(n, m)
+    # this isn't a HWHM, but it is a characteristic halfwidth
+    stark_halfwidth = 1.6678E-18 * Knm * F0 * Korg.c_cgs
+
+    if stark_halfwidth > dopper_halfwidth
+        # only model the stark profile as it dominates everywhere
+        prof = brackett_line_stark_profile(m, view(λs, lb:ub), λ₀, T, nₑ, amplitude)
+    else 
+        prof_type = promote_type(typeof(T), typeof(nₑ), typeof(amplitude), typeof(ξ))
+        prof = zeros(prof_type, ub-lb+1)
+        # in the line core, treat model the profile as Doppler
+        core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
+        # handle the case where the line core is outside the window
+        core_lb = min(core_lb, ub)
+        core_ub = max(core_ub, lb)
+        if core_lb <= core_ub # the core
+            prof[core_lb-lb+1:core_ub-lb+1] .+= normal_pdf.(λs[core_lb:core_ub] .- λ₀, doppler_width(λ₀, T, get_mass(species"H"), ξ)) .* amplitude
+        end
+        if lb <= core_lb # the blue wing
+            prof[1:core_lb-lb+1] .+= brackett_line_stark_profile(m, view(λs, lb:core_lb), λ₀, T, nₑ, amplitude)
+        end
+        if core_ub <= ub # the red wing
+            prof[core_ub-lb+1:end] .+= brackett_line_stark_profile(m, view(λs, core_ub:ub), λ₀, T, nₑ, amplitude)
+        end
+    end
+
+    @inbounds view(αs, lb:ub) .+= prof 
+    return # return nothing to make this type stable, as we return nothing when lb > ub.
+end
+
+"""
+    brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
+
+Stark-broadened line profile (specialized to Brackett series).  Translated and heavily
 adapted from HLINOP.f by Barklem, who adapted it from Peterson and Kurucz.  Mostly follows 
 [Griem 1960](doi.org/10.1086/146987), and [Griem 1967](doi.org/10.1086/149097).  Ions and distant
 electrons have E fields which can be treated quasi-statically, leading to a
@@ -342,7 +357,7 @@ Arguents:
 - `amplitude`: the wavelength-integrated absorption coefficient to multiply by the normalized 
    profile.
 """
-function brackett_line_profile(m, λs, λ₀, T, nₑ, amplitude)
+function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
     n = 4 # Brackett lines only
     νs = c_cgs ./ λs
     ν₀ = c_cgs / λ₀
