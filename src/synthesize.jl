@@ -10,7 +10,7 @@ Compute a synthetic spectrum.
 
 # Arguments
 - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
-- `linelist`: A vector of [`Line]`(@ref)s (see [`read_linelist`](@ref))
+- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref))
 - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
   uranium.  (see [`format_A_X`](@ref))
 - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
