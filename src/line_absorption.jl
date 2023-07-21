@@ -310,6 +310,13 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
     if stark_halfwidth > dopper_halfwidth
         # only model the stark profile as it dominates everywhere
         prof = brackett_line_stark_profile(m, view(λs, lb:ub), λ₀, T, nₑ, amplitude)
+
+        # # in the line core, divide the profile by 2
+        # core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
+        # # handle the case where the line core is outside the window
+        # core_lb = min(core_lb, ub)
+        # core_ub = max(core_ub, lb)
+        # prof[core_lb-lb+1:core_ub-lb+1] ./= 2
     else 
         prof_type = promote_type(typeof(T), typeof(nₑ), typeof(amplitude), typeof(ξ))
         prof = zeros(prof_type, ub-lb+1)
