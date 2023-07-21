@@ -303,9 +303,9 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg <
     if perturb_at_grid_values
         # add small offset to each parameter which is exactly at grid value
         # this prevents the derivatives from being exactly zero
-        params .+= 1e-10 .* (in.(params, nodes))
+        params .+= 1e-30 .* (in.(params, nodes))
         # take care of the case where the parameter is at the last grid value
-        params .-= 2e-10 .* (params .> last.(nodes))
+        params .-= 2e-30 .* (params .> last.(nodes))
     end
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
