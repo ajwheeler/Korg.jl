@@ -110,9 +110,12 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, n_μ_points)
         I[μ_ind, λ_ind] = ray_transfer_integral(view(τ_λ,1:i), view(S,1:i,λ_ind))
 
         #this branch could be factored out of this loop, which might speed things up.
-        if i < length(radii)
+        if (i < length(radii)) && (τ_λ[i] < 100.0)
             #if the ray never leaves the model atmosphere, include the contribution from the 
-            #other side of the star.  Calculate the optical depths you get by reversing the τ_λ.
+            #other side of the star.  We also check that τ is not ridiculously large, because
+            #numerical precision can lead to adjacent layers getting equal τ on the other side of 
+            #the star
+            
             #This is less accurate than actually integrating to find τ, but the effect is small.
             #This should probably by audited for off-by-one errors.  It's also inneficient.
             τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]

@@ -121,9 +121,11 @@ function spherical_transfer(α, S, radii, n_μ_points)
 
         # At the lower boundary, we either integrate through to the back of the star or stop. 
         # This could be factored out of this loop, which might speed things up.
-        if i < length(radii)
-            # if the ray never leaves the model atmosphere, include the contribution from the 
-            # other side of the star.
+        if (i < length(radii)) && (τ_λ[i] < 100.0)
+            #if the ray never leaves the model atmosphere, include the contribution from the 
+            #other side of the star.  We also check that τ is not ridiculously large, because
+            #numerical precision can lead to adjacent layers getting equal τ on the other side of 
+            #the star
             
             # could preallocate for efficiency (make τ_λ one bigger to hold reversed tau)
             l_prime = [l[i, μ_ind] ; -view(l, i:-1:1, μ_ind)]
