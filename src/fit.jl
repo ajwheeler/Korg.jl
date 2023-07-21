@@ -131,11 +131,11 @@ function validate_params(initial_guesses, fixed_params;
 end
 
 """
+    find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params; kwargs...)
+
+
 !!! warning
     This is in beta. It's API may change.  Use at your own risk.
-
-
-    find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params; kwargs...)
 
 Find the parameters and abundances that best match a rectified observed spectrum.
 

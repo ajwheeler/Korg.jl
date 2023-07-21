@@ -96,10 +96,6 @@ get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.laye
 
 Parse the provided model atmosphere file in MARCS ".mod" format.  Returns either a 
 `PlanarAtmosphere` or a `ShellAtmosphere`.
-
-!!! warning
-    Korg does not yet support cool (``\\lesssim`` 3500 K) stars.  While it will happily parse their
-    model atmospheres, it may crash when you feed them into `synthesize`.
 """
 function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
     open(fname) do f

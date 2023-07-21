@@ -303,7 +303,7 @@ end
 The oscillator strength of the transition from the nth to the mth energy level of hydrogen. 
 Adapted from HLINOP.f by Peterson and Kurucz. Used for Brackett lines only.
 
-Comparison to the values in [Goldwire 1968](doi.org/10.1086/190180) indicates that this is accurate 
+Comparison to the values in [Goldwire 1968](https://doi.org/10.1086/190180) indicates that this is accurate 
 to 10^-4 for the Brackett series.
 """
 function hydrogen_oscillator_strength(n, m)
@@ -323,7 +323,7 @@ end
 
 Normalize stark-broadened line profile (specialized to Brackett series).  Translated and heavily
 adapted from HLINOP.f by Barklem, who adapted it from Peterson and Kurucz.  Mostly follows 
-[Griem 1960](doi.org/10.1086/146987), and [Griem 1967](doi.org/10.1086/149097).  Ions and distant
+[Griem 1960](https://doi.org/10.1086/146987), and [Griem 1967](https://doi.org/10.1086/149097).  Ions and distant
 electrons have E fields which can be treated quasi-statically, leading to a
 [Holtsmark broadening profile](https://doi.org/10.1002/andp.19193630702).
 
@@ -446,7 +446,7 @@ const _greim_Kmn_table = [
     ]
 
 """
-Knm constants as defined by [Griem 1960](doi.org/10.1086/146987) for the long range Holtsmark 
+Knm constants as defined by [Griem 1960](https://doi.org/10.1086/146987) for the long range Holtsmark 
 profile. Does not include the preferred values for non-Brackett lines.
 """
 function greim_1960_Knm(n, m)
@@ -506,7 +506,7 @@ const _holtsmark_β_knots = [1.,1.259,1.585,1.995,2.512,3.162,3.981,
 
 Calculates the Holtsmark profile for broadening of hydrogen lines by quasistatic charged particles.
 Adapted from SOFBET in HLINOP by Peterson and Kurucz. Draws heavily from 
-[Griem 1960](doi.org/10.1086/146987).
+[Griem 1960](https://doi.org/10.1086/146987).
 """
 function holtsmark_profile(β,P)
 
