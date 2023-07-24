@@ -273,7 +273,7 @@ variable.
     Teff ≈ 4250 K. We do not endorse using it for science in that regime. See 
     https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
 """
-function interpolate_marcs(Teff, logg, A_X::Vector; 
+function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; 
                            solar_abundances=grevesse_2007_solar_abundances, 
                            clamp_abundances=false, kwargs...)
     M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
