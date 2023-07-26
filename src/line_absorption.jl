@@ -442,11 +442,11 @@ function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
 
     # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
     # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
-    dβ_dν = @. c_cgs / (νs^2 * Knm * F0)
     # called STARK1 in Kurucz
     profile = (@. (quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
-                 + impact_electron_contribution)*dβ_dν * sqrt(λs/λ₀))
+                 + impact_electron_contribution) * sqrt(λs/λ₀))
 
+    #TODO put back!
     # The red wing is multiplied by the Boltzmann factor to roughly account
     # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
     # absorption case. If emission do for Δν > 0.
@@ -456,9 +456,12 @@ function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
         @. profile[begin:i] *= exp((hplanck_cgs*(νs[begin:i] - ν₀))/kboltz_cgs/T)
     end
 
-    # convert from dν to dλ and from cm^-1 to Å^-1
-    # why on earth must I cancel this factor of 2 (or not)?
-    @. 1e8 * c_cgs / λs^2 * profile * amplitude # * 0.5
+
+    # dβ/dλ.  Why multiply by this instead of divide!?  
+    # TODO
+    unit_factor = 1e8 / (Knm * F0)
+
+    @. unit_factor * profile * amplitude
 end
 
 const _greim_Kmn_table = [
@@ -532,7 +535,7 @@ Adapted from SOFBET in HLINOP by Peterson and Kurucz. Draws heavily from
 """
 function holtsmark_profile(β,P)
 
-    if β > 500 # Very large B
+    if β > 500 # Very large β
         return (1.5/sqrt(β) + 27/β^2)/β^2
     end
 
