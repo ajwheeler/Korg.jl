@@ -446,7 +446,7 @@ function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
     profile = (@. (quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
                  + impact_electron_contribution) * sqrt(λs/λ₀))
 
-    #TODO put back!
+    # TODO put back!
     # The red wing is multiplied by the Boltzmann factor to roughly account
     # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
     # absorption case. If emission do for Δν > 0.
@@ -456,12 +456,8 @@ function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
         @. profile[begin:i] *= exp((hplanck_cgs*(νs[begin:i] - ν₀))/kboltz_cgs/T)
     end
 
-
-    # dβ/dλ.  Why multiply by this instead of divide!?  
-    # TODO
-    unit_factor = 1e8 / (Knm * F0)
-
-    @. unit_factor * profile * amplitude
+    dβ_dλ = 1e8 / (Knm * F0)
+    @. dβ_dλ * profile * amplitude
 end
 
 const _greim_Kmn_table = [
