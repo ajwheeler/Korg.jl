@@ -309,7 +309,8 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
 
     if stark_halfwidth > dopper_halfwidth
         # only model the stark profile as it dominates everywhere
-        prof = brackett_line_stark_profile(m, view(λs, lb:ub), λ₀, T, nₑ, amplitude)
+        ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:ub), λ₀, T, nₑ)
+        prof = @. (ϕ_impact + ϕ_quasistatic)*amplitude
 
         # # in the line core, divide the profile by 2
         # core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
@@ -329,10 +330,12 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
             prof[core_lb-lb+1:core_ub-lb+1] .+= normal_pdf.(λs[core_lb:core_ub] .- λ₀, doppler_width(λ₀, T, get_mass(species"H"), ξ)) .* amplitude
         end
         if lb <= core_lb # the blue wing
-            prof[1:core_lb-lb+1] .+= brackett_line_stark_profile(m, view(λs, lb:core_lb), λ₀, T, nₑ, amplitude)
+            ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:core_lb), λ₀, T, nₑ)
+            prof[1:core_lb-lb+1] .+= @. (ϕ_impact + ϕ_quasistatic)*amplitude
         end
         if core_ub <= ub # the red wing
-            prof[core_ub-lb+1:end] .+= brackett_line_stark_profile(m, view(λs, core_ub:ub), λ₀, T, nₑ, amplitude)
+            ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, core_ub:ub), λ₀, T, nₑ)
+            prof[core_ub-lb+1:end] .+= @. (ϕ_impact + ϕ_quasistatic)*amplitude
         end
     end
 
@@ -364,7 +367,7 @@ Arguents:
 - `amplitude`: the wavelength-integrated absorption coefficient to multiply by the normalized 
    profile.
 """
-function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
+function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     n = 4 # Brackett lines only
     νs = c_cgs ./ λs
     ν₀ = c_cgs / λ₀
@@ -416,7 +419,7 @@ function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
 
     G1 = 6.77*sqrt(C1)
     # called F in Kurucz
-    impact_electron_contribution = map(y1, y2, βs) do y1, y2, β
+    impact_electron_profile = map(y1, y2, βs) do y1, y2, β
         # half-width of the electron impact profile
         # called GAM in Kurucz.  See the  equation between Griem 1967 eqns 13a and 13b.
         hw = if (y2 <= 1e-4) && (y1 <= 1e-5)
@@ -439,25 +442,27 @@ function brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
     quasistatic_electron_fraction = @. (0.9*y1)^2
     # called FNS in Kurucz
     relative_quasistatic_electron_contribution = (@. (quasistatic_electron_fraction+0.03*sqrt(y1)) / (quasistatic_electron_fraction+1))
-
-    # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
-    # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
-    # called STARK1 in Kurucz
-    profile = (@. (quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
-                 + impact_electron_contribution) * sqrt(λs/λ₀))
-
-    # TODO put back!
-    # The red wing is multiplied by the Boltzmann factor to roughly account
-    # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
-    # absorption case. If emission do for Δν > 0.
-    @assert issorted(νs, rev=true)
-    i = findlast(νs .< ν₀)
-    if !isnothing(i)
-        @. profile[begin:i] *= exp((hplanck_cgs*(νs[begin:i] - ν₀))/kboltz_cgs/T)
-    end
+    total_quasistatic_profile = @. quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
 
     dβ_dλ = 1e8 / (Knm * F0)
-    @. dβ_dλ * profile * amplitude
+    for profile in [impact_electron_profile, total_quasistatic_profile]
+        # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
+        # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
+        @. profile .*= sqrt(λs/λ₀)
+
+        # The red wing is multiplied by the Boltzmann factor to roughly account
+        # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
+        # absorption case. If emission do for Δν > 0.
+        @assert issorted(νs, rev=true)
+        i = findlast(νs .< ν₀)
+        if !isnothing(i)
+            profile[begin:i] .*= @. exp((hplanck_cgs*(νs[begin:i] - ν₀))/kboltz_cgs/T)
+        end
+
+        profile .*= dβ_dλ
+    end
+
+    impact_electron_profile, total_quasistatic_profile
 end
 
 const _greim_Kmn_table = [
