@@ -1,4 +1,4 @@
-using CSV
+using CSV, HDF5
 
 #This type represents an individual line.
 struct Line{F1, F2, F3, F4, F5, F6} 
@@ -430,4 +430,44 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
          gamma_rad,
          stark_log_gamma,
          fdamp)
+end
+
+"""
+    get_VALD_solar_linelist()
+
+Get a VALD "extract stellar" linelist produced at solar parameters, with the "threshold" value 
+set to 0.01.  It was downloaded on 2021-05-20. It is intended to be used for quick tests only.
+"""
+get_VALD_solar_linelist() = 
+    read_linelist(joinpath(_data_dir, "linelists", "vald_extract_stellar_solar_threshold001.vald"))
+
+"""
+    get_APOGEE_DR17_linelist(; include_water=true)
+
+The APOGEE DR 17 linelist.  It ranges from roughly 15,000 Å to 17,000 Å.  It is 
+nearly the same at the DR 16 linelist described in 
+[Smith+ 2021](https://ui.adsabs.harvard.edu/abs/2021AJ....161..254S/abstract).
+"""
+function get_APOGEE_DR17_linelist(; include_water=true)
+    dir = joinpath(_data_dir, "linelists", "APOGEE_DR17")
+
+    
+    atoms = read_linelist(joinpath(dir, "turbospec.20180901t20.atoms_no_ba"), format="turbospectrum")
+    mols = read_linelist(joinpath(dir, "turbospec.20180901t20.molec"), format="turbospectrum")
+
+    linelists = if include_water
+        waterfile = joinpath(dir, "pokazatel_water_lines.h5")
+        waterlines = Line.(
+            h5read(waterfile, "wl"),
+            h5read(waterfile, "log_gf"),
+            Ref(species"H2O_I"),
+            h5read(waterfile, "E_lower"),
+            h5read(waterfile, "gamma_rad")
+        )
+        [atoms ; mols ; waterlines]
+    else
+        [atoms ; mols]
+    end
+
+    sort!(linelists, by=l->l.wl)
 end
