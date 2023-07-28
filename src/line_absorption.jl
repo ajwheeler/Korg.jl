@@ -1,5 +1,6 @@
 using Interpolations: LinearInterpolation, Flat, lbounds, ubounds
 using SpecialFunctions: gamma
+using DSP: conv
 using HDF5
 
 """
@@ -309,8 +310,13 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
 
     if stark_halfwidth > dopper_halfwidth
         # only model the stark profile as it dominates everywhere
-        ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:ub), λ₀, T, nₑ)
-        prof = @. (ϕ_impact + ϕ_quasistatic)*amplitude
+        stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ)
+        lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, stark_window)
+        prof = stark_profile_itp.(view(λs, lb:ub)) * amplitude
+
+        #conv via add
+        #ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:ub), λ₀, T, nₑ)
+        #prof = @. (ϕ_impact + ϕ_quasistatic)*amplitude
 
         # # in the line core, divide the profile by 2
         # core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
@@ -344,7 +350,34 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
 end
 
 """
-    brackett_line_stark_profile(m, λs, λ₀, T, nₑ, amplitude)
+TODO
+"""
+function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ; n_wavelength_points=301)
+    @assert isodd(n_wavelength_points) #TODO
+
+    n = 4
+    # First get doppler and stark halfwidths
+    # √2 makes it a HWHM
+    doppler_halfwidth = √(2) * Korg.doppler_width(λ₀, T, Korg.get_mass(Korg.species"H"), ξ)
+    F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
+    Knm = Korg.greim_1960_Knm(n, m)
+    # this isn't a HWHM, but it is a characteristic halfwidth
+    stark_halfwidth = 1.6678E-18 * Knm * F0 * Korg.c_cgs
+    #halfwidth = max(doppler_halfwidth, stark_halfwidth)
+    halfwidth = stark_halfwidth
+
+    window = 5 * halfwidth
+    wls = range(λ₀ .- window, λ₀ .+ window; length=n_wavelength_points)
+
+    ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, wls, λ₀, T, nₑ)
+    ϕ_conv = conv(ϕ_impact, ϕ_quasistatic) * step(wls)
+    start_ind = (n_wavelength_points-1) ÷ 2
+    itp = LinearInterpolation(wls, ϕ_conv[start_ind:start_ind+n_wavelength_points-1])
+    itp, window
+end
+
+"""
+    brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
 
 Stark-broadened line profile (specialized to Brackett series).  Translated and heavily
 adapted from HLINOP.f by Barklem, who adapted it from Peterson and Kurucz.  Mostly follows 
