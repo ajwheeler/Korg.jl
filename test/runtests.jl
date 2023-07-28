@@ -15,6 +15,7 @@ include("continuum_absorption.jl") # test this after the "Interval" testset
 include("partition_funcs.jl")
 include("statmech.jl")
 include("linelist.jl")
+include("fit.jl")
 include("autodiff.jl")
 
 @testset "atomic data" begin 
@@ -216,24 +217,94 @@ end
 end
 
 @testset "LSF" begin
-    wls = 5000:0.35:6000
+    wls = 5900:0.35:6100
     R = 1800.0
+    spike_ind = 286 #in the middle
     flux = zeros(Float64, length(wls))
-    flux[500] = 5.0
+    flux[spike_ind] = 5.0
 
     convF = Korg.constant_R_LSF(flux, wls, R)
-    convF_4sigma = Korg.constant_R_LSF(flux, wls, R; window_size=4)
+    convF_5sigma = Korg.constant_R_LSF(flux, wls, R; window_size=5)
+    convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
+    convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
+    downsampled_wls = 5950:0.4:6050
+    convF_mat_downsample = Korg.compute_LSF_matrix(wls, downsampled_wls, R; window_size=5) * flux
 
-    #normalized?
-    @test sum(flux) ≈ sum(convF)
-    @test sum(flux) ≈ sum(convF_4sigma)
+    # normalized?
+    @test sum(flux) ≈ sum(convF)  rtol=1e-3
+    @test sum(flux) ≈ sum(convF_5sigma) rtol=1e-3
+    @test sum(flux) ≈ sum(convF_mat) rtol=1e-3
+    @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
+    @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
+    @test sum(flux) * step(wls) ≈ sum(convF_mat_downsample) * step(downsampled_wls) rtol=1e-3
+    
 
-    #preserves line center?
-    @test argmax(convF) == 500
-    @test argmax(convF_4sigma) == 500
+    # preserves line center?
+    @test argmax(convF) == spike_ind
+    @test argmax(convF_5sigma) == spike_ind
+    @test argmax(convF_mat) == spike_ind
+    @test argmax(convF_mat5) == spike_ind
 
-    #make sure the window_size argument is doing something
-    @test !(convF ≈ convF_4sigma)
+    # make sure the default window_size values are OK
+    @test assert_allclose(convF, convF_mat5; atol=1e-4)
+    @test assert_allclose(convF_5sigma, convF_mat5; atol=1e-4)
+    @test assert_allclose(convF_mat, convF_mat5; atol=1e-4)
+
+    # but also check that they are definitely doing something
+    @test !(convF ≈ convF_5sigma)
+    @test !(convF_mat ≈ convF_mat5)
+end
+
+@testset "rotation" begin
+    # this implementation is less accurate than the one in Korg, but it produces correct-ish results
+    function naive_apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
+        vsini *= 1e5 # km/s to cm/s
+        newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
+        newF = zeros(newFtype, length(flux))
+        
+        c1 = 2(1-ε)
+        c2 = π * ε / 2
+        
+        # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot 
+        # (because we are working in wavelenths) and moves inside the loop
+        denominator = π * (1-ε/3) / step(wls) 
+        
+        for i in 1:length(flux)
+            Δλrot = wls[i] * vsini / Korg.c_cgs
+            nwls = Int(floor(Δλrot / step(wls)))
+            window = max(1, i-nwls) : min(length(flux), i+nwls)
+                    
+            x = (wls[i] .- wls[window]) ./ Δλrot
+            one_less_x2 = @. 1 - x^2
+            
+            @. newF[window] .+= flux[i] * (c1*sqrt(one_less_x2) + c2*one_less_x2) / (denominator * Δλrot)
+        end
+        newF
+    end
+
+    wls = 4090:0.01:5010
+    flux = zeros(length(wls))
+    flux[990:1010] .= 1
+
+    @testset for vsini in [0.0, 1e-10, 1.0, 5.0, 10.0, 20.0], ε in [0.1, 0.6, 0.9]
+        # also test handling of multiple wl ranges
+        @testset for wls in [wls, [4090:0.01:5007, 5007.01:0.01:5010]]
+            rflux = Korg.apply_rotation(flux, wls, vsini, ε)
+            rflux2 = Korg.apply_rotation(flux, wls * 1e-8, vsini, ε)
+
+
+            # rotational kernel is normalized
+            @test sum(flux) ≈ sum(rflux) rtol=1e-2
+            @test sum(flux) ≈ sum(rflux2) rtol=1e-2
+
+            @test rflux == rflux2 # wl units shouldn't matter
+
+            if vsini > 1.0 && wls isa AbstractRange
+                @test assert_allclose_grid(rflux, naive_apply_rotation(flux, wls, vsini, ε), 
+                                           [("λ", wls*1e8, "Å")]; atol=1e-2, print_rachet_info=false)
+            end
+        end
+    end
 end
 
 @testset "air <--> vacuum" begin

@@ -96,10 +96,6 @@ get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.laye
 
 Parse the provided model atmosphere file in MARCS ".mod" format.  Returns either a 
 `PlanarAtmosphere` or a `ShellAtmosphere`.
-
-!!! warning
-    Korg does not yet support cool (``\\lesssim`` 3500 K) stars.  While it will happily parse their
-    model atmospheres, it may crash when you feed them into `synthesize`.
 """
 function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
     open(fname) do f
@@ -268,6 +264,9 @@ variable.
 - `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to 
    clamp the abundance paramerters to be within the range of the MARCS grid to avoid throwing an out 
    of bounds error. Use with caution.
+- `perturb_at_grid_values`: when true this will add or a subtract a very small number to each 
+   parameter which is exactly at a grid value. This prevents null derivatives, which can cause 
+   problems for minimizers.  
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
@@ -291,11 +290,19 @@ function interpolate_marcs(Teff, logg, A_X::Vector;
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           archive=get_atmosphere_archive())
+                           perturb_at_grid_values=false, archive=get_atmosphere_archive())
     nodes, exists, grid = archive
 
     params = [Teff, logg, M_H, alpha_M, C_M]
     param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
+
+    if perturb_at_grid_values
+        # add small offset to each parameter which is exactly at grid value
+        # this prevents the derivatives from being exactly zero
+        params .+= 1e-30 .* (in.(params, nodes))
+        # take care of the case where the parameter is at the last grid value
+        params .-= 2e-30 .* (params .> last.(nodes))
+    end
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
         if !(p_nodes[1] <= p <= p_nodes[end])
