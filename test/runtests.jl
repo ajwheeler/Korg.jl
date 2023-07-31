@@ -363,4 +363,10 @@ end
     @test sol_two_lines.flux == sol_one_lines.flux
 end
 
+@testset "linelists" begin
+    @testset for linelist_fn in [Korg.get_VALD_solar_linelist, Korg.get_APOGEE_DR17_linelist]
+        @test issorted(linelist_fn(), by=l->l.wl)
+    end
+end
+
 end #top-level testset
