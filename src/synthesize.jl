@@ -72,9 +72,9 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
    The default value should effect final spectra below the 10^-3 level.
-- `electron_number_density_warn_threshold` (default: `0.25`): if the relative difference between the 
+- `electron_number_density_warn_threshold` (default: `1.0`): if the relative difference between the 
    calculated electron number density and the input electron number density is greater than this value,
-   a warning is printed.
+   a warning is printed.  Set to `Inf` to suppress this warning.
 - `return_cntm` (default: `true`): whether or not to return the continuum at each wavelength.  If 
    this is false, `solution.cntm` will be `nothing`.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
@@ -97,7 +97,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
-                    electron_number_density_warn_threshold=0.25, 
+                    electron_number_density_warn_threshold=1.0, 
                     return_cntm=true,
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
