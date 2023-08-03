@@ -15,6 +15,15 @@
             @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
             @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
         end
+
+        fname = "kurucz_cn.txt"
+        kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")
+        @test issorted(kurucz_ll, by=l->l.wl)
+        @test length(kurucz_ll) == 10
+        @test kurucz_ll[1].wl ≈ 2.9262621445487408e-5
+        @test kurucz_ll[1].log_gf == -7.204
+        @test kurucz_ll[1].species == Korg.species"CN"
+        @test kurucz_ll[1].E_lower ≈ 1.1177309389190437
     end
 
     @testset "vald short format, ABO, missing params" begin

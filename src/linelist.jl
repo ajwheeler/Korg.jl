@@ -252,7 +252,6 @@ function parse_kurucz_molecular_linelist(f; vacuum=false)
     lines = Line[]
     for row in eachline(f)
         row == "" && continue #skip empty lines
-        #println(row)
 
         #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
         #determined by parity
