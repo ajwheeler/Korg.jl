@@ -143,8 +143,8 @@ The `format` keyword argument can be used to specify one of these linelist forma
    These can be either "short" or "long" format, 
    "extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
    wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
-- `"kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
-   (format=kurucz_vac if it uses vacuum wavelengths; Be warned that Korg will not assume that 
+- `"kurucz"` for an atomic or molecular [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
+   (format=kurucz_vac if it uses vacuum wavelengths; be warned that Korg will not assume that 
    wavelengths are vacuum below 2000 Å),
 - `"moog"` for a [MOOG linelist](http://www.as.utexas.edu/~chris/moog.html)
    (doesn't support broadening parameters or dissociation energies).  
@@ -171,10 +171,15 @@ radiative broadening from log(gf) is not accurate.
 function read_linelist(fname::String; format="vald", isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
     linelist = open(fname) do f
-        if format == "kurucz"
-            parse_kurucz_linelist(f; vacuum=false)
-        elseif format == "kurucz_vac"
-            parse_kurucz_linelist(f; vacuum=true)
+        if startswith(format, "kurucz")
+            vac = endswith(format, "_vac")
+            # open a new reader so we dont chomp the first line
+            firstline = open(first_nonempty_line, fname) 
+            if length(firstline) > 100
+                parse_kurucz_linelist(f; vacuum=vac)
+            else
+                parse_kurucz_molecular_linelist(f; vacuum=vac)
+            end
         elseif format == "vald"
             parse_vald_linelist(f, isotopic_abundances)
         elseif format == "moog"
@@ -198,6 +203,15 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
     end
 
     linelist
+end
+
+function first_nonempty_line(io)
+    while !eof(io)
+        line = readline(io; keep=true)
+        if !all(isspace, line) 
+            return line
+        end
+    end
 end
 
 #used to handle missing gammas in vald and kurucz lineslist parsers
@@ -233,6 +247,30 @@ function parse_kurucz_linelist(f; vacuum=false)
     end
     lines
 end
+
+function parse_kurucz_molecular_linelist(f; vacuum=false)
+    lines = Line[]
+    for row in eachline(f)
+        row == "" && continue #skip empty lines
+        #println(row)
+
+        #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
+        #determined by parity
+        E_levels = map((row[23:32], row[39:48])) do s
+            #abs because Kurucz multiplies predicted values by -1
+            abs(parse(Float64,s)) * c_cgs * hplanck_eV
+        end
+
+        wl_transform = vacuum ? identity : air_to_vacuum
+
+        push!(lines, Line(wl_transform(parse(Float64, row[1:10])*1e-7), #convert from nm to cm
+                     parse(Float64, row[11:17]),
+                     Species(row[49:52]),
+                     min(E_levels...)))
+    end
+    lines
+end
+
 
 function parse_vald_linelist(f, isotopic_abundances)
     lines = filter!(collect(eachline(f))) do line
