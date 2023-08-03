@@ -249,6 +249,7 @@ function parse_kurucz_linelist(f; vacuum=false)
 end
 
 function parse_kurucz_molecular_linelist(f; vacuum=false)
+    @error "Kurucz linelists are not yet supported for molecules"
     lines = Line[]
     for row in eachline(f)
         row == "" && continue #skip empty lines
