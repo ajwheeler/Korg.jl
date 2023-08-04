@@ -149,6 +149,9 @@ Find the parameters and abundances that best match a rectified observed spectrum
 - `fixed_params`: a NamedTuple specifying parameters to be held fixed. See "Specifying parameters" 
   below.
 
+`initial_guesses` and `fixed_params` can also be specified as Dicts instead of NamedTuples, which is 
+more convienient when calling Korg from python.
+
 # Specifying parameters
 Parameters are specified as NamedTuples, which look like this: `(Teff=5000, logg=4.5, m_H=0.0)`.
 Single-element NamedTuples require a semicolon: `(; Teff=5000)`. 
@@ -196,8 +199,8 @@ A NamedTuple with the following fields:
 - `trace`: a vector of NamedTuples, each of which contains the parameters at each step of the 
   optimization.
 """
-function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
-                              windows=[(obs_wls[1], obs_wls[end])],
+function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
+                              fixed_params::NamedTuple=(;); windows=[(obs_wls[1], obs_wls[end])],
                               synthesis_wls = windows[1][1] : 0.01 : windows[end][end] + 10,
                               R=nothing, 
                               LSF_matrix=Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R),
@@ -247,7 +250,6 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
         res, unscale((; zip(keys(initial_guesses), res.minimizer)...))
     end
     full_solution = merge(solution, fixed_params)
-    initial_chi2 = chi2(p0)
 
     scaled_trace = [(; (keys(initial_guesses) .=> t.metadata["x"])...) for t in res.trace]
     trace = map(scaled_trace, res.trace) do p, t
@@ -263,6 +265,11 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
     (best_fit_params=solution, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask, 
      solver_result=res, trace=trace)
 end
+# make it possible to use dicts instead of NamedTuples for the python people
+find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Dict, 
+                              fixed_params::Dict=Dict{String, Float64}(); kwargs...) = 
+    find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, NamedTuple(pairs(initial_guesses)...), 
+                         NamedTuple(pairs(fixed_params)...); kwargs...)
 
 """
 Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
