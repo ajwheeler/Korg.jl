@@ -28,8 +28,8 @@ A named tuple with keys:
 - `cntm`: the continuum at each wavelength
 - `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
    size (layers x wavelengths)
-- `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
-   atmospheric layer
+- `number_densities`: A dictionary mapping species (as strings) to vectors of number densities at 
+   each atmospheric layer
 - `electron_number_density`: the electron number density at each atmospheric layer
 - `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
   `air_wavelengths=true` this will not be the same as the input wavelenths.
@@ -233,7 +233,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         wl_lb_ind += length(λs)
     end
 
-    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
+    # contruct a dict with strings instead of Korg.Species as keys (facilitates use from python)
+    ns = Dict([string(spec) => n for (spec, n) in pairs(number_densities)])
+
+    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=ns, 
     electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
 
