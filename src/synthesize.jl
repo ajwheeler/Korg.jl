@@ -325,21 +325,41 @@ format_A_X(default_metallicity::R, abundances::Dict; kwargs...) where R <: Real 
     format_A_X(default_metallicity, default_metallicity, abundances; kwargs...) 
 
 """
-    get_metals_H(A_X)
+    get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
 
 Calculate [metals/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_M/n_\\mathrm{H})``.
 See also [`get_alpha_H`](@ref).
+
+# Keyword Arguments
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
+  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
+  convienience.
+- `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating 
+  [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`, 
+  the alpha elements (here defined as O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
 """
-function get_metals_H(A_X; solar_abundances=default_solar_abundances)
-   _get_multi_X_H(A_X, 3:MAX_ATOMIC_NUMBER, solar_abundances)
+function get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
+    els = if ignore_alpha
+        [3:8 ; 9:2:21 ; 33:MAX_ATOMIC_NUMBER] 
+    else
+        3:MAX_ATOMIC_NUMBER
+    end
+   _get_multi_X_H(A_X, els, solar_abundances)
 end
 
 """
-    get_alpha_H(A_X)
+    get_alpha_H(A_X; solar_abundances=default_solar_abundances)
 
 Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_α/n_\\mathrm{H})``.
 Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
 [`get_alpha_H`](@ref).
+
+# Keyword Arguments
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
+  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
+  convienience.
 """
 function get_alpha_H(A_X; solar_abundances=default_solar_abundances)
     _get_multi_X_H(A_X, 8:2:22, solar_abundances)
