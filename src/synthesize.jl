@@ -337,11 +337,11 @@ See also [`get_alpha_H`](@ref).
   convienience.
 - `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating 
   [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`, 
-  the alpha elements (here defined as O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
+  the alpha elements (here defined as C, O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
 """
 function get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
     els = if ignore_alpha
-        [3:8 ; 9:2:21 ; 33:MAX_ATOMIC_NUMBER] 
+        [3:5 ; 7:2:21 ; 33:MAX_ATOMIC_NUMBER] 
     else
         3:MAX_ATOMIC_NUMBER
     end
@@ -352,7 +352,7 @@ end
     get_alpha_H(A_X; solar_abundances=default_solar_abundances)
 
 Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_α/n_\\mathrm{H})``.
-Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
+Here, the alpha elements are defined to be C, O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
 [`get_alpha_H`](@ref).
 
 # Keyword Arguments
