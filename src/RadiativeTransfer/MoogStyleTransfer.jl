@@ -121,7 +121,7 @@ function spherical_transfer(α, S, τ_ref, α_ref, radii, n_μ_points)
             τ_prime = τ_λ[i] .+ [cumsum(reverse(diff(view(τ_λ,1:i)))) ; 0]
             I[μ_ind, λ_ind] += ray_transfer_integral(view(τ_prime, 1:i), view(S,1:i,λ_ind))
         else #otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-            I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
+            I[μ_ind, λ_ind] += exp(-τ_λ[i]) * S[end, λ_ind]
         end
     end
     #calculate 2π∫μIdμ to get astrophysical flux
