@@ -138,7 +138,7 @@ function spherical_transfer(α, S, radii, n_μ_points)
             I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, S_prime)
         else 
             # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-            I[μ_ind, λ_ind] += exp(-τ_λ[end]) * S[end, λ_ind]
+            I[μ_ind, λ_ind] += exp(-τ_λ[i]) * S[end, λ_ind]
         end
     end
 
