@@ -364,8 +364,15 @@ end
 end
 
 @testset "linelists" begin
+    atm = read_model_atmosphere("data/sun.mod")
+
+    # iterate over fns, not lists, because they make the output of the test suite way too long
     @testset for linelist_fn in [Korg.get_VALD_solar_linelist, Korg.get_APOGEE_DR17_linelist]
-        @test issorted(linelist_fn(), by=l->l.wl)
+        linelist = linelist_fn()
+        @test issorted(linelist, by=l->l.wl)
+
+        # make sure things run (types have caused problems in the past)
+        synthesize(atm, linelist, format_A_X(), 5000, 5000)
     end
 end
 

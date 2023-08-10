@@ -59,7 +59,6 @@ struct Line{F1, F2, F3, F4, F5, F6}
     end
 end
 
-# it's important that this produces something parsable by the constructor
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
     show(io, line.species)
     print(io, " ", round(line.wl*1e8, digits=6), " Å (log gf = ", round(line.log_gf, digits=2) ,")")
@@ -496,11 +495,11 @@ function get_APOGEE_DR17_linelist(; include_water=true)
     linelists = if include_water
         waterfile = joinpath(dir, "pokazatel_water_lines.h5")
         waterlines = Line.(
-            h5read(waterfile, "wl"),
-            h5read(waterfile, "log_gf"),
+            Float64.(h5read(waterfile, "wl")),
+            Float64.(h5read(waterfile, "log_gf")),
             Ref(species"H2O_I"),
-            h5read(waterfile, "E_lower"),
-            h5read(waterfile, "gamma_rad")
+            Float64.(h5read(waterfile, "E_lower")),
+            Float64.(h5read(waterfile, "gamma_rad"))
         )
         [atoms ; mols ; waterlines]
     else
