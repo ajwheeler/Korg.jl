@@ -59,7 +59,7 @@ function positive_ion_ff_absorption!(α_out::AbstractVector{<:Real}, νs::Abstra
             D = departure_coefficients[spec]
             # photon energy in Rydberg*Zeff^2, see equation (5) in Peach 1967 (NOT Peach 1970)
             # https://articles.adsabs.harvard.edu/pdf/1967MmRAS..71....1P
-            σs = @. νs / spec.charge^2 * (hplanck_eV / Rydberg_eV) 
+            σs = @. νs[idx] / spec.charge^2 * (hplanck_eV / Rydberg_eV) 
             # add directly to α_out if there is a departure coefficient
             @. α_out[idx] += (hydrogenic_ff_absorption(νs[idx], T, spec.charge, 
                                                        number_densities[spec], ne)*(1+D(T, σs)))
