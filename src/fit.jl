@@ -201,10 +201,15 @@ A NamedTuple with the following fields:
 """
 function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
                               fixed_params::NamedTuple=(;); windows=[(obs_wls[1], obs_wls[end])],
-                              synthesis_wls = windows[1][1] : 0.01 : windows[end][end] + 10,
+                              synthesis_wls = windows[1][1] - 10 : 0.01 : windows[end][end] + 10,
                               R=nothing, 
-                              LSF_matrix=Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R),
+                              LSF_matrix = if isnothing(R)
+                                throw(ArgumentError("Either R or LSF_matrix must be specified."))
+                              else
+                                  Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
+                              end,
                               wl_buffer=1.0, precision=1e-3)
+
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
     @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
@@ -212,6 +217,7 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
     windows = merge_bounds(windows, 2wl_buffer)
     obs_wl_mask, synth_wl_mask, multi_synth_wls = 
         calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
+
 
     chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, fixed_params=fixed_params
@@ -315,7 +321,10 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
 
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
     multi_synth_wls = map(windows) do (ll, ul)
-        lb, ub = (findfirst(obs_wls .>= ll), findfirst(obs_wls .> ul)-1)
+        lb, ub = (findfirst(obs_wls .>= ll), findlast(obs_wls .>= ul))
+        if isnothing(lb) || isnothing(ub)
+            error("The range $ll to $ul is outside the observed spectrum")
+        end
 
         obs_wl_mask[lb:ub] .= true
 
