@@ -201,7 +201,7 @@ A NamedTuple with the following fields:
 """
 function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
                               fixed_params::NamedTuple=(;); windows=[(obs_wls[1], obs_wls[end])],
-                              synthesis_wls = windows[1][1] - 10 : 0.01 : windows[end][end] + 10,
+                              synthesis_wls = obs_wls[1] - 10 : 0.01 : obs_wls[end] + 10,
                               R=nothing, 
                               LSF_matrix = if isnothing(R)
                                 throw(ArgumentError("Either R or LSF_matrix must be specified."))
@@ -321,7 +321,7 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
 
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
     multi_synth_wls = map(windows) do (ll, ul)
-        lb, ub = (findfirst(obs_wls .>= ll), findlast(obs_wls .>= ul))
+        lb, ub = (findfirst(obs_wls .>= ll), findlast(obs_wls .<= ul))
         if isnothing(lb) || isnothing(ub)
             error("The range $ll to $ul is outside the observed spectrum")
         end
