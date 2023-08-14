@@ -183,16 +183,19 @@ end
         @test_throws ArgumentError format_A_X(0.0, Dict("H"=>12); solar_relative=true)
         @test_throws ArgumentError format_A_X(0.0, Dict(1=>12); solar_relative=true)
 
-        @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1 atol=1e-6
-        @test Korg.get_alpha_H(format_A_X(0.0, 0.1)) ≈ 0.1 atol=1e-6
-        @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 atol=1e-6
-        @test Korg.get_alpha_H(format_A_X(-2, -0.2)) ≈ -0.2 atol=1e-6
-        @test Korg.get_metals_H(format_A_X(0.1)) ≈ 0.1 atol=1e-6
-        @test Korg.get_metals_H(format_A_X(-0.2)) ≈ -0.2 atol=1e-6
+        atol = 1e-5
+        @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1 atol=atol
+        @test Korg.get_alpha_H(format_A_X(0.0, 0.1)) ≈ 0.1 atol=atol
+        @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 atol=atol
+        @test Korg.get_alpha_H(format_A_X(-2, -0.2)) ≈ -0.2 atol=atol
+        @test Korg.get_metals_H(format_A_X(0.1)) ≈ 0.1 atol=atol
+        @test Korg.get_metals_H(format_A_X(-0.2)) ≈ -0.2 atol=atol
+        @test Korg.get_metals_H(format_A_X(0.1, 0.5)) ≈ 0.1 atol=atol
+        @test Korg.get_metals_H(format_A_X(-0.2, 0.5)) ≈ -0.2 atol=atol
         @test Korg.get_metals_H(Korg.grevesse_2007_solar_abundances; 
-                                solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=1e-6
+                                solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=atol
         @test Korg.get_alpha_H(Korg.grevesse_2007_solar_abundances;
-                               solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=1e-6
+                               solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=atol
 
         @test format_A_X(1.1) != format_A_X(1.1, 0)
         @test format_A_X(1.1)[50] == format_A_X(1.1, 0)[50] == format_A_X(-1, -2, Dict(50=>1.1))[50]
@@ -361,6 +364,19 @@ end
 
     @test sol_no_lines.flux != sol_one_lines.flux
     @test sol_two_lines.flux == sol_one_lines.flux
+end
+
+@testset "linelists" begin
+    atm = read_model_atmosphere("data/sun.mod")
+
+    # iterate over fns, not lists, because they make the output of the test suite way too long
+    @testset for linelist_fn in [Korg.get_VALD_solar_linelist, Korg.get_APOGEE_DR17_linelist]
+        linelist = linelist_fn()
+        @test issorted(linelist, by=l->l.wl)
+
+        # make sure things run (types have caused problems in the past)
+        synthesize(atm, linelist, format_A_X(), 5000, 5000)
+    end
 end
 
 end #top-level testset

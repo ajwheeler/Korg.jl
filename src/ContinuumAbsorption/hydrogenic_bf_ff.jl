@@ -1,5 +1,4 @@
 using Interpolations: LinearInterpolation, Throw
-using StaticArrays: SA
 
 """
     _load_gauntff_table([fname])

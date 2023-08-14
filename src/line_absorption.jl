@@ -171,9 +171,8 @@ Arguments:
 - `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
    are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
    doppler profile.
-- `window_size`: the max distance from each line center [cm] at which to calculate the stark
-   and self broadening profiles
-   absorption for Hα-Hγ (those dominated by self-broadening).
+- `window_size`: the max distance from each line center [cm] at which to calculate the Stark and 
+   self-broadening profiles absorption for Hα-Hγ (those dominated by self-broadening).
 
 Keyword arguments:
 - `stark_profiles` (default: `Korg._hline_stark_profiles`): tables from which to interpolate Stark 

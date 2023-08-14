@@ -6,6 +6,7 @@
 [Code paper](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract) (please cite this if you use Korg)
 
 [Tutorial](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/Tutorial.ipynb)
+[(Python version)](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/Python%20Tutorial.ipynb)
 
 [Documentation](https://ajwheeler.github.io/Korg.jl/stable/)
 

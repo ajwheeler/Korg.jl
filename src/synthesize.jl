@@ -10,7 +10,8 @@ Compute a synthetic spectrum.
 
 # Arguments
 - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
-- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref))
+- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref), 
+   [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
 - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
   uranium.  (see [`format_A_X`](@ref))
 - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
@@ -71,9 +72,9 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
    The default value should effect final spectra below the 10^-3 level.
-- `electron_number_density_warn_threshold` (default: `0.25`): if the relative difference between the 
+- `electron_number_density_warn_threshold` (default: `1.0`): if the relative difference between the 
    calculated electron number density and the input electron number density is greater than this value,
-   a warning is printed.
+   a warning is printed.  Set to `Inf` to suppress this warning.
 - `return_cntm` (default: `true`): whether or not to return the continuum at each wavelength.  If 
    this is false, `solution.cntm` will be `nothing`.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
@@ -96,7 +97,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
-                    electron_number_density_warn_threshold=0.25, 
+                    electron_number_density_warn_threshold=1.0, 
                     return_cntm=true,
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
@@ -324,21 +325,41 @@ format_A_X(default_metallicity::R, abundances::Dict; kwargs...) where R <: Real 
     format_A_X(default_metallicity, default_metallicity, abundances; kwargs...) 
 
 """
-    get_metals_H(A_X)
+    get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
 
 Calculate [metals/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_M/n_\\mathrm{H})``.
 See also [`get_alpha_H`](@ref).
+
+# Keyword Arguments
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
+  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
+  convienience.
+- `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating 
+  [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`, 
+  the alpha elements (here defined as C, O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
 """
-function get_metals_H(A_X; solar_abundances=default_solar_abundances)
-   _get_multi_X_H(A_X, 3:MAX_ATOMIC_NUMBER, solar_abundances)
+function get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
+    els = if ignore_alpha
+        [3:5 ; 7:2:21 ; 33:MAX_ATOMIC_NUMBER] 
+    else
+        3:MAX_ATOMIC_NUMBER
+    end
+   _get_multi_X_H(A_X, els, solar_abundances)
 end
 
 """
-    get_alpha_H(A_X)
+    get_alpha_H(A_X; solar_abundances=default_solar_abundances)
 
 Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_α/n_\\mathrm{H})``.
-Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
+Here, the alpha elements are defined to be C, O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
 [`get_alpha_H`](@ref).
+
+# Keyword Arguments
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
+  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
+  convienience.
 """
 function get_alpha_H(A_X; solar_abundances=default_solar_abundances)
     _get_multi_X_H(A_X, 8:2:22, solar_abundances)
