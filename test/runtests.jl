@@ -17,6 +17,7 @@ include("statmech.jl")
 include("linelist.jl")
 include("fit.jl")
 include("autodiff.jl")
+include("autodiffable_conv.jl")
 
 @testset "atomic data" begin 
     @test (Korg.MAX_ATOMIC_NUMBER 
