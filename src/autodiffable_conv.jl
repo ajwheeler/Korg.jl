@@ -33,23 +33,5 @@ function autodiffable_conv(f::Vector{ForwardDiff.Dual{T, V, P}},
 end
 
 # handle cases where only one array contains duals
-autodiffable_conv(f, g::Vector{ForwardDiff.Dual{T, V, P}}) where {T, V, P} = autodiffable_conv(promote(f, g)...)
 autodiffable_conv(f::Vector{ForwardDiff.Dual{T, V, P}}, g) where {T, V, P} = autodiffable_conv(promote(f, g)...)
-
-#function autodiffable_conv(f::Vector{ForwardDiff.Dual{T, V, P}}, g) where {T, V, P}
-#    vf = ForwardDiff.value.(f)
-#    vconv = conv(vf, g) # do convolution on the values
-#                        
-#    pf = ForwardDiff.partials.(f)
-#
-#    # P is the number of partial dims in the dual type (see signature)
-#    pconv = Matrix{V}(undef, length(vconv), P)
-#    for i in 1:P 
-#        pconv[:, i] = conv([p[i] for p in pf], vg)
-#    end
-#
-#    map(vconv, eachrow(pconv)) do v, p
-#        ForwardDiff.Dual{T}(v, p...)
-#    end
-#end
-#
+autodiffable_conv(f, g::Vector{ForwardDiff.Dual{T, V, P}}) where {T, V, P} = autodiffable_conv(promote(f, g)...)
