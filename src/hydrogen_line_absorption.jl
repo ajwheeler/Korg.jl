@@ -1,5 +1,7 @@
 using HDF5
-using Interpolations
+# LinearInterpolation is now deprecated in favor of linear_interpolation, but we'll keep using the 
+# old version for a while for compatibility
+using Interpolations: LinearInterpolation, lbounds, ubounds, Flat
 
 #load Stark broadening profiles from disk
 function _load_stark_profiles(fname)
@@ -15,12 +17,11 @@ function _load_stark_profiles(fname)
             # -700 is slightly larger than log(-floatmax())
             logP[logP .== -Inf] .= -700 
             
-            profile = Interpolations.LinearInterpolation(
-                (temps, nes, [-floatmax() ; log.(delta_nu_over_F0[2:end])]), 
-                logP;
-                extrapolation_bc=Interpolations.Flat())
+            profile = LinearInterpolation((temps, nes, [-floatmax() ; log.(delta_nu_over_F0[2:end])]), 
+                                          logP;
+                                          extrapolation_bc=Flat())
 
-            λ0 = Interpolations.LinearInterpolation((temps, nes), read(fid[transition], "lambda0") * 1e-8) 
+            λ0 = LinearInterpolation((temps, nes), read(fid[transition], "lambda0") * 1e-8) 
              
             (
              temps=temps, 
@@ -142,17 +143,14 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
     # now do the Brackett series
+    n = 4
+    E_low = RydbergH_eV * (1 - 1/n^2)
     for m in 5:n_max
-        n = 4
-        Elo = RydbergH_eV * (1 - 1/n^2)
-        Eup = RydbergH_eV * (1 - 1/m^2)
-        E = Eup - Elo
+        E = RydbergH_eV * (1/n^2 - 1/m^2)
         λ0 = hplanck_eV * c_cgs / E # cm
-    
-        levels_factor = ws[m] * (exp(-β*Elo) - exp(-β*Eup)) / UH_I
+        levels_factor = ws[m] * exp(-β*E_low) * (1 - exp(-β*E)) / UH_I
         gf = 2 * n^2 * hydrogen_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
-
         brackett_line_absorption!(αs, m, λ0, wl_ranges, λs, T, nₑ, ξ, amplitude, window_size)
     end
 
@@ -203,11 +201,12 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
         # only model the stark profile as it dominates everywhere
         stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ)
         lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, stark_window)
-        prof = stark_profile_itp.(view(λs, lb:ub)) * amplitude
+        #println(λs[lb], " ", λs[ub])
+        prof = stark_profile_itp.(view(λs, lb:ub)) 
 
         #conv via add
         #ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:ub), λ₀, T, nₑ)
-        #prof = @. (ϕ_impact + ϕ_quasistatic)*amplitude
+        #prof = @. (ϕ_impact + ϕ_quasistatic)
 
         # # in the line core, divide the profile by 2
         # core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
@@ -216,7 +215,7 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
         # core_ub = max(core_ub, lb)
         # prof[core_lb-lb+1:core_ub-lb+1] ./= 2
     else 
-        prof_type = promote_type(typeof(T), typeof(nₑ), typeof(amplitude), typeof(ξ))
+        prof_type = promote_type(typeof(T), typeof(nₑ), typeof(ξ))
         prof = zeros(prof_type, ub-lb+1)
         # in the line core, treat model the profile as Doppler
         core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
@@ -224,43 +223,49 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
         core_lb = min(core_lb, ub)
         core_ub = max(core_ub, lb)
         if core_lb <= core_ub # the core
-            prof[core_lb-lb+1:core_ub-lb+1] .+= normal_pdf.(λs[core_lb:core_ub] .- λ₀, doppler_width(λ₀, T, get_mass(species"H"), ξ)) .* amplitude
+            prof[core_lb-lb+1:core_ub-lb+1] .+= normal_pdf.(λs[core_lb:core_ub] .- λ₀, doppler_width(λ₀, T, get_mass(species"H"), ξ))
         end
         if lb <= core_lb # the blue wing
             ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:core_lb), λ₀, T, nₑ)
-            prof[1:core_lb-lb+1] .+= @. (ϕ_impact + ϕ_quasistatic)*amplitude
+            prof[1:core_lb-lb+1] .+= @. (ϕ_impact + ϕ_quasistatic)
         end
         if core_ub <= ub # the red wing
             ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, core_ub:ub), λ₀, T, nₑ)
-            prof[core_ub-lb+1:end] .+= @. (ϕ_impact + ϕ_quasistatic)*amplitude
+            prof[core_ub-lb+1:end] .+= @. (ϕ_impact + ϕ_quasistatic)
         end
     end
 
-    @inbounds view(αs, lb:ub) .+= prof 
+    @inbounds view(αs, lb:ub) .+= prof .* amplitude
     return # return nothing to make this type stable, as we return nothing when lb > ub.
 end
 
 """
-TODO
-"""
-function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ; n_wavelength_points=301)
-    @assert isodd(n_wavelength_points) #TODO
+    TODO
 
+# Keyword Arguments
+- `n_wavelength_points` (default=301): the number of wavelengths at which to sample the impact and 
+  quasistatic profiles to be convolved
+- `window_size` (default=5): the size of the wavelength range over which the profiles should be 
+ calculated, in units of the characteristic profile width
+"""
+function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ; n_wavelength_points=301, window_size=5)
+    @assert isodd(n_wavelength_points) #TODO
     n = 4
+
     # First get doppler and stark halfwidths
     # √2 makes it a HWHM
-    doppler_halfwidth = √(2) * doppler_width(λ₀, T, get_mass(species"H"), ξ)
+    #doppler_halfwidth = √(2) * doppler_width(λ₀, T, get_mass(species"H"), ξ)
+    # TODO delete?
+
     F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
     Knm = greim_1960_Knm(n, m)
-    # this isn't a HWHM, but it is a characteristic halfwidth
-    stark_halfwidth = 1.6678E-18 * Knm * F0 * c_cgs
-    #halfwidth = max(doppler_halfwidth, stark_halfwidth)
-    halfwidth = stark_halfwidth
+    stark_width = 1.6678E-18 * Knm * F0 * c_cgs
 
-    window = 5 * halfwidth
+    window = window_size * stark_width
     wls = range(λ₀ .- window, λ₀ .+ window; length=n_wavelength_points)
 
     ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, wls, λ₀, T, nₑ)
+    #TODO audit index math
     ϕ_conv = autodiffable_conv(ϕ_impact, ϕ_quasistatic) * step(wls)
     start_ind = (n_wavelength_points-1) ÷ 2
     itp = LinearInterpolation(wls, ϕ_conv[start_ind:start_ind+n_wavelength_points-1])
@@ -281,6 +286,7 @@ Brackett series, for which the Lorentz component doesn't matter. For conditions 
 profile HWHM is larger than width of the Stark profile, I model the core as Doppler and the wings as 
 Stark.  When the Stark profile is broader, I model the whole thing as stark. The effect of including 
 the Doppler cores is sub-1%.
+TODO check that paragraph
 
 Arguents:
 - `m`: the upper level of the transition
@@ -369,6 +375,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     total_quasistatic_profile = @. quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
 
     dβ_dλ = 1e8 / (Knm * F0)
+    # TODO is this the appropriate treatment? document.
     for profile in [impact_electron_profile, total_quasistatic_profile]
         # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
         # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
@@ -410,27 +417,6 @@ function greim_1960_Knm(n, m)
     end
 end
 
-const _holtsmark_PROB7 = [ 
-     0.005  0.128  0.260  0.389  0.504 
-     0.004  0.109  0.220  0.318  0.389
-    -0.007  0.079  0.162  0.222  0.244
-    -0.018  0.041  0.089  0.106  0.080
-    -0.026 -0.003  0.003 -0.023 -0.086
-    -0.025 -0.048 -0.087 -0.148 -0.234
-    -0.008 -0.085 -0.165 -0.251 -0.343
-     0.018 -0.111 -0.223 -0.321 -0.407
-     0.032 -0.130 -0.255 -0.354 -0.431
-     0.014 -0.148 -0.269 -0.359 -0.427
-    -0.005 -0.140 -0.243 -0.323 -0.386
-     0.005 -0.095 -0.178 -0.248 -0.307
-    -0.002 -0.068 -0.129 -0.187 -0.241
-    -0.007 -0.049 -0.094 -0.139 -0.186
-    -0.010 -0.036 -0.067 -0.103 -0.143]
-const _holtsmark_C7 = [511.318,  1.532,  4.044, 19.266, 41.812]
-const _holtsmark_D7 = [-6.070, -4.528, -8.759,-14.984,-23.956]
-const _holtsmark_PP = [0.,.2,.4,.6,.8]
-const _holtsmark_β_knots = [1.,1.259,1.585,1.995,2.512,3.162,3.981,
-                5.012,6.310,7.943,10.,12.59,15.85,19.95,25.12]
 """
     holtsmark_profile(β, P)    
 
@@ -487,3 +473,27 @@ function holtsmark_profile(β,P)
         (1.5/sqrt(β) + 27/β^2)/β^2*CORR
     end
 end
+
+# used in holtsmark_profile
+const _holtsmark_PROB7 = [ 
+     0.005  0.128  0.260  0.389  0.504 
+     0.004  0.109  0.220  0.318  0.389
+    -0.007  0.079  0.162  0.222  0.244
+    -0.018  0.041  0.089  0.106  0.080
+    -0.026 -0.003  0.003 -0.023 -0.086
+    -0.025 -0.048 -0.087 -0.148 -0.234
+    -0.008 -0.085 -0.165 -0.251 -0.343
+     0.018 -0.111 -0.223 -0.321 -0.407
+     0.032 -0.130 -0.255 -0.354 -0.431
+     0.014 -0.148 -0.269 -0.359 -0.427
+    -0.005 -0.140 -0.243 -0.323 -0.386
+     0.005 -0.095 -0.178 -0.248 -0.307
+    -0.002 -0.068 -0.129 -0.187 -0.241
+    -0.007 -0.049 -0.094 -0.139 -0.186
+    -0.010 -0.036 -0.067 -0.103 -0.143]
+const _holtsmark_C7 = [511.318,  1.532,  4.044, 19.266, 41.812]
+const _holtsmark_D7 = [-6.070, -4.528, -8.759,-14.984,-23.956]
+const _holtsmark_PP = [0.,.2,.4,.6,.8]
+const _holtsmark_β_knots = [1.,1.259,1.585,1.995,2.512,3.162,3.981,
+                5.012,6.310,7.943,10.,12.59,15.85,19.95,25.12]
+
