@@ -1,7 +1,4 @@
-using Interpolations: LinearInterpolation, Flat, lbounds, ubounds
 using SpecialFunctions: gamma
-using DSP: conv
-using HDF5
 
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
