@@ -328,7 +328,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
         if hw > 0
             hw / (π*(hw^2 + β^2)) # Lorentz density with width hw
         else
-            0.0
+            zero(typeof(β)) #make it type-stable
         end
     end
     
@@ -407,7 +407,6 @@ function holtsmark_profile(β,P)
         # Indicies into β_boundaries which bound the value of β
         JP = max(2, findfirst(β .<= _holtsmark_β_knots))
         JM = JP - 1
-        #println("Js: ", JP, " ", JM)
 
         #this is linear interpolation into PROB7 wrt β_knots
         WTBP = (β-_holtsmark_β_knots[JM])/(_holtsmark_β_knots[JP]-_holtsmark_β_knots[JM])
