@@ -201,22 +201,11 @@ function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, a
         # only model the stark profile as it dominates everywhere
         stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ)
         lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, stark_window)
-        #println(λs[lb], " ", λs[ub])
         prof = stark_profile_itp.(view(λs, lb:ub)) 
-
-        #conv via add
-        #ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:ub), λ₀, T, nₑ)
-        #prof = @. (ϕ_impact + ϕ_quasistatic)
-
-        # # in the line core, divide the profile by 2
-        # core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
-        # # handle the case where the line core is outside the window
-        # core_lb = min(core_lb, ub)
-        # core_ub = max(core_ub, lb)
-        # prof[core_lb-lb+1:core_ub-lb+1] ./= 2
     else 
         prof_type = promote_type(typeof(T), typeof(nₑ), typeof(ξ))
         prof = zeros(prof_type, ub-lb+1)
+
         # in the line core, treat model the profile as Doppler
         core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
         # handle the case where the line core is outside the window
