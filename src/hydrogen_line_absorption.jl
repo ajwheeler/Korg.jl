@@ -337,7 +337,9 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     # According to Barklem, a fit eqn 8 of (2nd term) of Griem (1967, ApJ 147, 1092).
     quasistatic_electron_fraction = @. (0.9*y1)^2
     # called FNS in Kurucz
+    # TODO is this denominator correct?
     relative_quasistatic_electron_contribution = (@. (quasistatic_electron_fraction+0.03*sqrt(y1)) / (quasistatic_electron_fraction+1))
+    relative_quasistatic_electron_contribution[relative_quasistatic_electron_contribution .== 0] .= 0 #avoid NaN partials
     total_quasistatic_profile = @. quasistatic_ion_contribution * (1+relative_quasistatic_electron_contribution) 
 
     dβ_dλ = 1e8 / (Knm * F0)
