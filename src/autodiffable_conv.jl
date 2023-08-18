@@ -1,5 +1,6 @@
 using DSP: conv
 using ForwardDiff
+using Interpolations: LinearInterpolation # deprecated, but we will use for now for backwards compat
 
 """
     autodiffable_conv(f, g)

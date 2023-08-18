@@ -178,58 +178,23 @@ function hydrogen_oscillator_strength(n, m)
 end
 
 """
-TODO
+TODO delete?
 """
 function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, amplitude, window_size)
     n = 4 # this is the brackett series
 
-    lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, window_size)
-    lb >= ub && return
+    # only model the stark profile as it dominates everywhere
+    stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ)
+    lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, stark_window)
+    ϕ = stark_profile_itp.(view(λs, lb:ub))
+    # TODO renormalize profile?
 
-    # following Barklem, we model the line core with a doppler profile when the doppler profile has 
-    # a larger half-width than the (approximate) stark profile half-width.  
-
-    # √2 makes it a HWHM, in wavelenth units, not uniteless as in Kurucz
-    dopper_halfwidth = √(2) * doppler_width(λ₀, T, get_mass(species"H"), ξ)
-
-    F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
-    Knm = greim_1960_Knm(n, m)
-    # this isn't a HWHM, but it is a characteristic halfwidth
-    stark_halfwidth = 1.6678E-18 * Knm * F0 * c_cgs
-
-    if stark_halfwidth > dopper_halfwidth
-        # only model the stark profile as it dominates everywhere
-        stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ)
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, stark_window)
-        prof = stark_profile_itp.(view(λs, lb:ub)) 
-    else 
-        prof_type = promote_type(typeof(T), typeof(nₑ), typeof(ξ))
-        prof = zeros(prof_type, ub-lb+1)
-
-        # in the line core, treat model the profile as Doppler
-        core_lb, core_ub = move_bounds(wl_ranges, 0, 0, λ₀, dopper_halfwidth)
-        # handle the case where the line core is outside the window
-        core_lb = min(core_lb, ub)
-        core_ub = max(core_ub, lb)
-        if core_lb <= core_ub # the core
-            prof[core_lb-lb+1:core_ub-lb+1] .+= normal_pdf.(λs[core_lb:core_ub] .- λ₀, doppler_width(λ₀, T, get_mass(species"H"), ξ))
-        end
-        if lb <= core_lb # the blue wing
-            ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, lb:core_lb), λ₀, T, nₑ)
-            prof[1:core_lb-lb+1] .+= @. (ϕ_impact + ϕ_quasistatic)
-        end
-        if core_ub <= ub # the red wing
-            ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, view(λs, core_ub:ub), λ₀, T, nₑ)
-            prof[core_ub-lb+1:end] .+= @. (ϕ_impact + ϕ_quasistatic)
-        end
-    end
-
-    @inbounds view(αs, lb:ub) .+= prof .* amplitude
+    @inbounds view(αs, lb:ub) .+= ϕ .* amplitude
     return # return nothing to make this type stable, as we return nothing when lb > ub.
 end
 
 """
-    TODO
+    TODO change name?
 
 # Keyword Arguments
 - `n_wavelength_points` (default=301): the number of wavelengths at which to sample the impact and 
@@ -237,26 +202,38 @@ end
 - `window_size` (default=5): the size of the wavelength range over which the profiles should be 
  calculated, in units of the characteristic profile width
 """
-function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ; n_wavelength_points=301, window_size=5)
+function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ; 
+                                         n_wavelength_points=201, window_size=5, 
+                                         include_doppler_threshold=0.25)
     @assert isodd(n_wavelength_points) #TODO
     n = 4
 
-    # First get doppler and stark halfwidths
-    # √2 makes it a HWHM
-    #doppler_halfwidth = √(2) * doppler_width(λ₀, T, get_mass(species"H"), ξ)
-    # TODO delete?
-
+    # get stark width
     F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
     Knm = greim_1960_Knm(n, m)
     stark_width = 1.6678E-18 * Knm * F0 * c_cgs
 
-    window = window_size * stark_width
-    wls = range(λ₀ .- window, λ₀ .+ window; length=n_wavelength_points)
+    # get doppler width
+    σdop = doppler_width(λ₀, T, atomic_masses[1], ξ)
 
+    # set wavelengths for calculations and convolutions
+    window = window_size * max(σdop, stark_width)
+    wls = range(λ₀ .- window, λ₀ .+ window; length=n_wavelength_points)
+    start_ind = (n_wavelength_points-1) ÷ 2 # used to get indices corresponding to original wls
+
+    # compute stark profiles
     ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, wls, λ₀, T, nₑ)
-    #TODO audit index math
+
+    # possibly include doppler by convolving it with the quasistatic profile
+    if σdop / stark_width > include_doppler_threshold
+        ϕ_dop = normal_pdf.(wls .- λ₀, σdop)
+        ϕ_quasistatic = autodiffable_conv(ϕ_quasistatic, ϕ_dop) * step(wls)
+        ϕ_quasistatic = ϕ_quasistatic[start_ind:start_ind+n_wavelength_points-1]
+    end
+
+    # convolve impact and quasistatic profiles
     ϕ_conv = autodiffable_conv(ϕ_impact, ϕ_quasistatic) * step(wls)
-    start_ind = (n_wavelength_points-1) ÷ 2
+
     itp = LinearInterpolation(wls, ϕ_conv[start_ind:start_ind+n_wavelength_points-1])
     itp, window
 end
