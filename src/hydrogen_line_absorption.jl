@@ -151,7 +151,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         levels_factor = ws[m] * exp(-β*E_low) * (1 - exp(-β*E)) / UH_I
         gf = 2 * n^2 * hydrogen_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
-        brackett_line_absorption!(αs, m, λ0, wl_ranges, λs, T, nₑ, ξ, amplitude, window_size)
+        brackett_line_absorption!(αs, m, λ0, wl_ranges, λs, T, nₑ, ξ, amplitude)
     end
 
 end
@@ -180,11 +180,11 @@ end
 """
 TODO delete?
 """
-function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, amplitude, window_size)
+function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, amplitude)
     n = 4 # this is the brackett series
 
     # only model the stark profile as it dominates everywhere
-    stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ)
+    stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ, wl_ranges[1][1], wl_ranges[end][end])
     lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, stark_window)
     ϕ = stark_profile_itp.(view(λs, lb:ub))
     # TODO renormalize profile?
@@ -202,7 +202,7 @@ end
 - `window_size` (default=5): the size of the wavelength range over which the profiles should be 
  calculated, in units of the characteristic profile width
 """
-function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ; 
+function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ, λmin, λmax; 
                                          n_wavelength_points=201, window_size=5, 
                                          include_doppler_threshold=0.25)
     @assert isodd(n_wavelength_points) #TODO
@@ -218,7 +218,14 @@ function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ;
 
     # set wavelengths for calculations and convolutions
     window = window_size * max(σdop, stark_width)
-    wls = range(λ₀ .- window, λ₀ .+ window; length=n_wavelength_points)
+    λstart = max(λmin, λ₀ - window)
+    λend = min(λ₀ + window, λmax)
+    if λstart > λmax || λend < λmin
+        # if the calculated wavelength window is entirely outside the synthesis range, return a noop
+        # interpolator and a null window (for type stability)
+        return LinearInterpolation([], []), 0.0
+    end
+    wls = range(λstart, λend; length=n_wavelength_points)
     start_ind = (n_wavelength_points-1) ÷ 2 # used to get indices corresponding to original wls
 
     # compute stark profiles
@@ -371,8 +378,13 @@ const _greim_Kmn_table = [
     ]
 
 """
+    greim_1960_Knm(n, m)
+
 Knm constants as defined by [Griem 1960](https://doi.org/10.1086/146987) for the long range Holtsmark 
-profile. Does not include the preferred values for non-Brackett lines.
+profile. This function includes only the values for Brackett lines.
+
+``K_{nm}`` is defined to be: ``K_{nm} = C_{nm} 2 \\pi c / \\lambda^2``
+where ``C_{nm} F = \\Delta\\omega`` and ``F`` is the ion field. 
 """
 function greim_1960_Knm(n, m)
     if (m-n <= 3) && (n<=4)
