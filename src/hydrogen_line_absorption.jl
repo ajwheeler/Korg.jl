@@ -1,4 +1,5 @@
 using HDF5
+using SpecialFunctions: gamma
 # LinearInterpolation is now deprecated in favor of linear_interpolation, but we'll keep using the 
 # old version for a while for compatibility
 using Interpolations: LinearInterpolation, lbounds, ubounds, Flat
@@ -149,7 +150,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         E = RydbergH_eV * (1/n^2 - 1/m^2)
         λ0 = hplanck_eV * c_cgs / E # cm
         levels_factor = ws[m] * exp(-β*E_low) * (1 - exp(-β*E)) / UH_I
-        gf = 2 * n^2 * hydrogen_oscillator_strength(n, m)
+        gf = 2 * n^2 * brackett_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
 
         stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, wl_ranges[1][1], wl_ranges[end][end])
@@ -162,15 +163,15 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
 end
 
 """
-    hydrogen_oscillator_strength(n, m)
+    brackett_oscillator_strength(n, m)
 
-The oscillator strength of the transition from the nth to the mth energy level of hydrogen. 
-Adapted from HLINOP.f by Peterson and Kurucz. Used for Brackett lines only.
+The oscillator strength of the transition from the 4th to the mth energy level of hydrogen. 
+Adapted from HLINOP.f by Peterson and Kurucz. 
 
-Comparison to the values in [Goldwire 1968](https://doi.org/10.1086/190180) indicates that this is accurate 
-to 10^-4 for the Brackett series.
+Comparison to the values in [Goldwire 1968](https://doi.org/10.1086/190180) indicates that this is 
+accurate to 10^-4 for the Brackett series.
 """
-function hydrogen_oscillator_strength(n, m)
+function brackett_oscillator_strength(n, m)
     @assert n < m
     GINF = 0.2027/n^0.71
     GCA = 0.124/n
@@ -201,14 +202,13 @@ containing the interpolator and the distance from the line center at which it is
 
 # Keyword Arguments
 - `n_wavelength_points` (default=201): the number of wavelengths at which to sample the profiles
-  quasistatic profiles to be convolved. Must be odd so that one point is at the line center.
+  quasistatic profiles to be convolved.
 - `window_size` (default=5): the size of the wavelength range over which the profiles should be 
  calculated, in units of the characteristic profile width
 """
-function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin, λmax; 
+function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin=0, λmax=Inf; 
                                    n_wavelength_points=201, window_size=5, 
                                    include_doppler_threshold=0.25)
-    @assert isodd(n_wavelength_points) #TODO
     n = 4
 
     # get stark width
@@ -304,9 +304,9 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     C2 = F0^2 / (5.96E-23*nₑ) * (Knm/λ₀)^2 * 1e-16 # convert factors of cm to Å
 
     # Griem 1960 eqn 23.  This is the argument of the Holtsmark profile.
-    # β = a / Kₙₘ 
-    βs = @. abs(λs-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å
+    βs = @. abs(λs-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å, for the calculations below
 
+    # y, introduced in Griem 1967 EQ 5, is the ratio of 
     # y1 is the velocity where the minimum impact parameter and the Lewis cutoff are equal. 
     #   - second order perturbation theory breaks down at the minimum impact parameter
     #   - the impact approximation breaks down at the Lewis cutoff
@@ -320,7 +320,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     # called F in Kurucz
     impact_electron_profile = map(y1, y2, βs) do y1, y2, β
         # half-width of the electron impact profile
-        # called GAM in Kurucz.  See the  equation between Griem 1967 eqns 13a and 13b.
+        # called GAM in Kurucz.  See the equation between Griem 1967 eqns 13a and 13b.
         hw = if (y2 <= 1e-4) && (y1 <= 1e-5)
             G1*max(0, 0.2114 + log(sqrt(C2)/C1)) * (1-GCON1-GCON2)
         else
@@ -379,8 +379,9 @@ const _greim_Kmn_table = [
 Knm constants as defined by [Griem 1960](https://doi.org/10.1086/146987) for the long range Holtsmark 
 profile. This function includes only the values for Brackett lines.
 
-``K_{nm}`` is defined to be: ``K_{nm} = C_{nm} 2 \\pi c / \\lambda^2``
-where ``C_{nm} F = \\Delta\\omega`` and ``F`` is the ion field. 
+``K_{nm} = C_{nm} 2 π c / λ^2`` where ``C_{nm} F = Δω`` and ``F`` is the ion field.  
+See Griem 1960 EQs 7 and 12.
+This works out to ``K_{nm} = λ/F``.
 """
 function greim_1960_Knm(n, m)
     if (m-n <= 3) && (n<=4)
