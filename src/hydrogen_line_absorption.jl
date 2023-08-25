@@ -96,7 +96,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
 
     β = 1/(kboltz_eV * T)
 
-    #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
+    #This is the Holtsmark field, by which the frequency-unit-detunings are divided for the 
     #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2/3)
     for line in stark_profiles
@@ -187,7 +187,7 @@ end
     bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin, λmax; kwargs...)
 
 This routine numerically convolves the two components of the Brackett line stark profile 
-(quasistatic/Holtzmark and impact) and the doppler profile, if necessary.  It returns a pair 
+(quasistatic/Holtsmark and impact) and the doppler profile, if necessary.  It returns a pair 
 containing the interpolator and the distance from the line center at which it is defined.
 
 # Arguments
@@ -212,7 +212,7 @@ function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin=0, λmax=Inf;
     n = 4
 
     # get stark width
-    F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
+    F0 = 1.25e-9 * nₑ^(2/3) # the Holtsmark field
     Knm = greim_1960_Knm(n, m)
     stark_width = 1.6678E-18 * Knm * F0 * c_cgs
 
@@ -272,18 +272,13 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     ν₀ = c_cgs / λ₀
     
     ne_1_6 = nₑ^(1/6)
-    shielding_parameter = ne_1_6*0.08989/sqrt(T) # the shielding parameter. Called PP in Kurucz
-    F0 = 1.25e-9 * nₑ^(2/3) # the Holtzmark field
+    F0 = 1.25e-9 * nₑ^(2/3) # the Holtsmark field
     GCON1 = 0.2+0.09*sqrt(T/10_0004)/(1+nₑ/1.E13)
     GCON2 = 0.2/(1+nₑ/1.E15)
 
     Knm = greim_1960_Knm(n, m)
 
-    Y1WHT = if (m - n <= 2) && (n <= 2)
-        Y1WTM = [1.e18 1e17
-                 1.e16 1e14]
-        Y1WTM[m-n, n]
-    elseif m-n <= 3
+    Y1WHT = if m-n <= 3
        1e14
     else
        1e13
@@ -306,8 +301,9 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     # Griem 1960 eqn 23.  This is the argument of the Holtsmark profile.
     βs = @. abs(λs-λ₀)/F0/Knm * 1e8 # convert factor of cm to Å, for the calculations below
 
-    # y, introduced in Griem 1967 EQ 5, is the ratio of 
-    # y1 is the velocity where the minimum impact parameter and the Lewis cutoff are equal. 
+    # y, introduced in Griem 1967 EQ 5, is the ratio of particle kinetic energy to average kinetic 
+    # energy: (1/2 mv^2) / (kT)
+    # y1 corresponds to velocity where the minimum impact parameter and the Lewis cutoff are equal. 
     #   - second order perturbation theory breaks down at the minimum impact parameter
     #   - the impact approximation breaks down at the Lewis cutoff
     # y2 is the where the Lewis cutoff is equal to the Debye length
@@ -319,27 +315,29 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     G1 = 6.77*sqrt(C1)
     # called F in Kurucz
     impact_electron_profile = map(y1, y2, βs) do y1, y2, β
-        # half-width of the electron impact profile
+        # width of the electron impact profile
         # called GAM in Kurucz.  See the equation between Griem 1967 eqns 13a and 13b.
-        hw = if (y2 <= 1e-4) && (y1 <= 1e-5)
+        width = if (y2 <= 1e-4) && (y1 <= 1e-5)
             G1*max(0, 0.2114 + log(sqrt(C2)/C1)) * (1-GCON1-GCON2)
         else
             GAM = (G1*(0.5*exp(-min(80, y1))+exponential_integral_1(y1)-0.5*exponential_integral_1(y2))*
                            (1-GCON1/(1+(90*y1)^3)-GCON2/(1+2000*y1)))
             GAM <= 1e-20 ? 0.0 : GAM
         end
-        if hw > 0
-            hw / (π*(hw^2 + β^2)) # Lorentz density with width hw
+
+        if width > 0
+            width / (π*(width^2 + β^2)) # Lorentz density
         else
             zero(typeof(β)) #make it type-stable
         end
     end
     
-    # called PRQS in Kurucz
-    quasistatic_ion_contribution = holtsmark_profile.(βs,shielding_parameter)
+    shielding_parameter = ne_1_6*0.08989/sqrt(T) # the shielding parameter. Called PP in Kurucz
+    quasistatic_ion_contribution = holtsmark_profile.(βs,shielding_parameter) # called PRQS in Kurucz
 
     # the second term in eqn 8 of Griem (1967, ApJ 147, 1092). The sum in Greim is an expansion of 
-    # the gamma function.
+    # the gamma function.  Kurucz/HLINOP handle this with a simpler expression which is 
+    # approximately equal.
     quasistatic_e_contrib = @. (sqrt(π) - 2*gamma(3/2, y1))/sqrt(π)
     total_quasistatic_profile = @. quasistatic_ion_contribution * (1+quasistatic_e_contrib) 
 
