@@ -151,7 +151,12 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         levels_factor = ws[m] * exp(-β*E_low) * (1 - exp(-β*E)) / UH_I
         gf = 2 * n^2 * hydrogen_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
-        brackett_line_absorption!(αs, m, λ0, wl_ranges, λs, T, nₑ, ξ, amplitude)
+
+        stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, wl_ranges[1][1], wl_ranges[end][end])
+        lb, ub = move_bounds(wl_ranges, 0, 0, λ0, stark_window)
+
+        # TODO renormalize profile?
+        @inbounds view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
     end
 
 end
@@ -178,33 +183,31 @@ function hydrogen_oscillator_strength(n, m)
 end
 
 """
-TODO delete?
-"""
-function brackett_line_absorption!(αs, m, λ₀, wl_ranges, λs, T, nₑ, ξ, amplitude)
-    n = 4 # this is the brackett series
+    bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin, λmax; kwargs...)
 
-    # only model the stark profile as it dominates everywhere
-    stark_profile_itp, stark_window = bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ, wl_ranges[1][1], wl_ranges[end][end])
-    lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, stark_window)
-    ϕ = stark_profile_itp.(view(λs, lb:ub))
-    # TODO renormalize profile?
+This routine numerically convolves the two components of the Brackett line stark profile 
+(quasistatic/Holtzmark and impact) and the doppler profile, if necessary.  It returns a pair 
+containing the interpolator and the distance from the line center at which it is defined.
 
-    @inbounds view(αs, lb:ub) .+= ϕ .* amplitude
-    return # return nothing to make this type stable, as we return nothing when lb > ub.
-end
-
-"""
-    TODO change name?
+# Arguments
+- `m`: the principle quantum number of the upper level
+- `λ₀`: the line center in Å
+- `T`: the temperature [K]
+- `nₑ`: the electron number density [cm^-3]
+- `ξ`: the microturbulence [cm/s]
+- `λmin`: the minimum wavelength at which the profile should be computed (used to avoid calculations 
+   outside the required region)
+- `λmax`: the mxinimum wavelength at which the profile should be computed 
 
 # Keyword Arguments
-- `n_wavelength_points` (default=301): the number of wavelengths at which to sample the impact and 
-  quasistatic profiles to be convolved
+- `n_wavelength_points` (default=201): the number of wavelengths at which to sample the profiles
+  quasistatic profiles to be convolved. Must be odd so that one point is at the line center.
 - `window_size` (default=5): the size of the wavelength range over which the profiles should be 
  calculated, in units of the characteristic profile width
 """
-function bracket_line_stark_interpolator(m, λ₀, T, nₑ, ξ, λmin, λmax; 
-                                         n_wavelength_points=201, window_size=5, 
-                                         include_doppler_threshold=0.25)
+function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin, λmax; 
+                                   n_wavelength_points=201, window_size=5, 
+                                   include_doppler_threshold=0.25)
     @assert isodd(n_wavelength_points) #TODO
     n = 4
 
@@ -254,12 +257,7 @@ adapted from HLINOP.f by Barklem, who adapted it from Peterson and Kurucz.  Most
 electrons have E fields which can be treated quasi-statically, leading to a
 [Holtsmark broadening profile](https://doi.org/10.1002/andp.19193630702).
 
-I model the profiles in essentially the same way as `HLINOP.f` by Barklem, but specialized to the 
-Brackett series, for which the Lorentz component doesn't matter. For conditions where the Balmer 
-profile HWHM is larger than width of the Stark profile, I model the core as Doppler and the wings as 
-Stark.  When the Stark profile is broader, I model the whole thing as stark. The effect of including 
-the Doppler cores is sub-1%.
-TODO check that paragraph
+Returns a pair of vectors containing the impact and quasistatic profiles, respectively.
 
 Arguents:
 - `m`: the upper level of the transition
@@ -267,8 +265,6 @@ Arguents:
 - `λ₀`: the line center [cm]
 - `T`: temperature [K]
 - `nₑ`: electron number density [cm^-3]
-- `amplitude`: the wavelength-integrated absorption coefficient to multiply by the normalized 
-   profile.
 """
 function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     n = 4 # Brackett lines only
