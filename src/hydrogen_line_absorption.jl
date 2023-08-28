@@ -329,10 +329,13 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     shielding_parameter = ne_1_6*0.08989/sqrt(T) # the shielding parameter. Called PP in Kurucz
     quasistatic_ion_contribution = holtsmark_profile.(βs,shielding_parameter) # called PRQS in Kurucz
 
+
+    # quasistatic_e_contrib is a fit to (sqrt(π) - 2*gamma(3/2, y1))/sqrt(π) (taken from HLINOP/Kurucz), 
     # the second term in eqn 8 of Griem (1967, ApJ 147, 1092). The sum in Greim is an expansion of 
-    # the gamma function.  Kurucz/HLINOP handle this with a simpler expression which is 
-    # approximately equal.
-    quasistatic_e_contrib = @. (sqrt(π) - 2*gamma(3/2, y1))/sqrt(π)
+    # the gamma function. 
+    ps = (0.9*y1).^2
+    quasistatic_e_contrib = @. (ps+0.03*sqrt(y1))/(ps+1.)
+
     total_quasistatic_profile = @. quasistatic_ion_contribution * (1+quasistatic_e_contrib) 
     # this correction makes the profile not normalized.  It's unclear to me that we should be 
     # scaling the profile and not the number of perturbers used to calculate it.
