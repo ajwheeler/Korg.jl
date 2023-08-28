@@ -278,7 +278,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
 
     Knm = greim_1960_Knm(n, m)
 
-    Y1WHT = if m-n <= 3
+    Y1WHT = if m-n <= 3 
        1e14
     else
        1e13
@@ -286,13 +286,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     WTY1 = 1/(1+nₑ/Y1WHT)
     Y1B = 2/(1+0.012/T*sqrt(nₑ/T))
     C1CON = Knm / λ₀ * (m^2 - n^2)^2 / (n^2 * m^2) * 1e-8 # convert factors of cm to Å
-    Y1NUM = if m == 2
-           550
-        elseif (m==3) 
-           380
-        else
-           320
-        end
+    Y1NUM = 320 # specialized to m=4
     Y1SCAL = Y1NUM * ((T/10_000)^0.3 / ne_1_6) * WTY1 + Y1B * (1-WTY1)
     C1 = F0*78940/T * C1CON * Y1SCAL
 
