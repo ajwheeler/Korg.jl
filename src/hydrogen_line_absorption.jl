@@ -223,7 +223,7 @@ function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin=0, λmax=Inf;
     window = window_size * max(σdop, stark_width)
     λstart = max(λmin, λ₀ - window)
     λend = min(λ₀ + window, λmax)
-    if λstart > λmax || λend < λmin
+    if λstart > λmax || λend < λmin || λstart == λend # 3rd case for one-wavelength synthesis
         # if the calculated wavelength window is entirely outside the synthesis range, return a noop
         # interpolator and a null window (for type stability)
         return LinearInterpolation([], []), 0.0
