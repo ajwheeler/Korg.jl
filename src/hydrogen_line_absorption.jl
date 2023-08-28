@@ -156,7 +156,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, wl_ranges[1][1], wl_ranges[end][end])
         lb, ub = move_bounds(wl_ranges, 0, 0, λ0, stark_window)
 
-        # TODO renormalize profile?
+        # renormalize profile?
         @inbounds view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
     end
 
@@ -334,11 +334,11 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     # approximately equal.
     quasistatic_e_contrib = @. (sqrt(π) - 2*gamma(3/2, y1))/sqrt(π)
     total_quasistatic_profile = @. quasistatic_ion_contribution * (1+quasistatic_e_contrib) 
-
-    #this correction makes the profile not normalized? TODO.
+    # this correction makes the profile not normalized.  It's unclear to me that we should be 
+    # scaling the profile and not the number of perturbers used to calculate it.
 
     dβ_dλ = 1e8 / (Knm * F0)
-    # TODO is this the appropriate treatment? document.
+    # is this the appropriate treatment? document.
     for profile in [impact_electron_profile, total_quasistatic_profile]
         # sqrt(λ/λ₀) corrects the long range part to Δν^(5/2)
         # asymptote, (see Stehle and Hutcheon 1999, A&AS 140, 93).
