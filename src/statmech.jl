@@ -70,8 +70,8 @@ Base.showerror(io::IO, e::ChemicalEquilibriumError) =
     chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
                          partition_fns, log_equilibrium_constants; x0=nothing)
 
-Iteratively solve for the number density of each species. Returns a `Dict` mapping species to number 
-densities.
+Iteratively solve for the number density of each species. Returns a pair containing the electron 
+number density and `Dict` mapping species to number densities.
 
 arguments:
 - the temperature, `T`, in K
