@@ -284,7 +284,7 @@ end
 
 
 """
-    hummer_mihalas_w(T, n, E_level, nH, nHe, ne)
+    hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=false)
 
 Calculate the corection, w, to the occupation fraction of a hydrogen energy level using the 
 occupation probability formalism from Hummer and Mihalas 1988, optionally with the generalization by 
