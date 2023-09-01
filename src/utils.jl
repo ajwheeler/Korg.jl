@@ -102,40 +102,68 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=4) where F 
 end
 
 """
-    compute_LSF_matrix(synth_wls, obs_wls, R; window_size=3)
+    compute_LSF_matrix(synth_wls, obs_wls, R; kwargs...)
 
 Construct a sparse matrix, which when multiplied with a flux vector defined over wavelenths 
 `synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
-The LSF has a constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
-``\\Delta\\lambda`` is the LSF FWHM.  The `window_size` argument specifies how far out to extend
-the convolution kernel in standard deviations.
+
+# Arguments
+- `synth_wls`: the synthesis wavelengths. (Either a range or a vector of ranges.)
+- `obs_wls`: the wavelengths of the observed spectrum
+- `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
+
+# Keyword Arguments
+- `window_size` (default: 4): how far out to extend the convolution kernel in units of the LSF width (σ, not HWHM)
+- `verbose` (default: `true`): whether or not to emit warnings and information to stdout/stderr.
+- `renormalize_edge` (default: `true`): whether or not to renormalize the LSF at the edge of the wl 
+  range.  This doen't matter as long as `synth_wls` extends to large and small enough wavelengths.
 
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
-the region you are going to compare.
+the region you are going to compare. 
 
 [`Korg.constant_R_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
-resolution via multiplication is fast.
+resolution via matrix multiplication is fast.
 """
-function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
-    if !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
+function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true, renormalize_edge=true)
+    if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
     end
     convM = spzeros((length(obs_wls), length(synth_wls)))
     lb, ub = 1,1 #initialize window bounds
     nwls = length(obs_wls)
-    normalization_factor = zeros(length(obs_wls))
+    normalization_factor = if renormalize_edge
+        zeros(length(obs_wls))
+    else
+        ones(length(obs_wls))
+    end
     p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
     for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
         σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
         lb, ub = move_bounds(synth_wls, lb, ub, λ0, window_size*σ)
         ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
-        normalization_factor[i] = 1 ./ sum(ϕ)
+        if renormalize_edge
+            normalization_factor[i] = 1 ./ sum(ϕ)
+        end
         @. convM[i, lb:ub] += ϕ
         next!(p)
     end
     convM .* normalization_factor
+end
+function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractRange}, obs_wls, R; 
+                            renormalize_edge=true, verbose=false, kwargs...)
+    LSFmats = map(synth_wl_windows) do wls
+        # don't renormalize here, do it to the total LSF matrix
+        Korg.compute_LSF_matrix(wls, obs_wls, R; verbose=verbose, renormalize_edge=false, kwargs...)
+    end
+    LSF = hcat(LSFmats...)
+    if renormalize_edge
+        for i in 1:size(LSF, 1)
+            LSF[i, :] ./= sum(LSF[i, :])
+        end
+    end
+    LSF
 end
 
 """

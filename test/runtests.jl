@@ -224,13 +224,17 @@ end
     wls = 5900:0.35:6100
     R = 1800.0
     spike_ind = 286 #in the middle
-    flux = zeros(Float64, length(wls))
+    flux = zeros(length(wls))
     flux[spike_ind] = 5.0
+
+    # should't matter if you split wls into 2 ranges
+    @test Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) ≈ Korg.compute_LSF_matrix(wls, wls, R) 
 
     convF = Korg.constant_R_LSF(flux, wls, R)
     convF_5sigma = Korg.constant_R_LSF(flux, wls, R; window_size=5)
     convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
     convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
+    convF_mat_vec = Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) * flux
     downsampled_wls = 5950:0.4:6050
     convF_mat_downsample = Korg.compute_LSF_matrix(wls, downsampled_wls, R; window_size=5) * flux
 
@@ -240,14 +244,15 @@ end
     @test sum(flux) ≈ sum(convF_mat) rtol=1e-3
     @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
     @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
+    @test sum(flux) ≈ sum(convF_mat_vec) rtol=1e-3
     @test sum(flux) * step(wls) ≈ sum(convF_mat_downsample) * step(downsampled_wls) rtol=1e-3
-    
 
     # preserves line center?
     @test argmax(convF) == spike_ind
     @test argmax(convF_5sigma) == spike_ind
     @test argmax(convF_mat) == spike_ind
     @test argmax(convF_mat5) == spike_ind
+    @test argmax(convF_mat_vec) == spike_ind
 
     # make sure the default window_size values are OK
     @test assert_allclose(convF, convF_mat5; atol=1e-4)
