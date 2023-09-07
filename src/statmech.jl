@@ -75,7 +75,7 @@ number density and `Dict` mapping species to number densities.
 
 arguments:
 - the temperature, `T`, in K
-- the number density of non-electron particles `nₜ`
+- the total number density `nₜ`
 - the electron number density `nₑ`
 - A Dict of `absolute_abundances`, N_X/N_total
 - a Dict of ionization energies, `ionization_energies`.  The keys of act as a list of all atoms.
@@ -226,7 +226,6 @@ end
 function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
     molecules = collect(keys(log_equilibrium_constants))
-    atom_number_densities = nₜ .* absolute_abundances
                                     
     # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
     # pressure, unlike those in equilibrium_constants.
@@ -239,7 +238,7 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
     end
     wII_ne, wIII_ne2 = first.(pairs), last.(pairs)
 
-    let nₜ=nₜ, log_nKs=log_nKs, molecules=molecules, atom_number_densities=atom_number_densities, wII_ne=wII_ne, wIII_ne2=wIII_ne2
+    let nₜ=nₜ, log_nKs=log_nKs, molecules=molecules, absolute_abundances=absolute_abundances, wII_ne=wII_ne, wIII_ne2=wIII_ne2
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
@@ -250,6 +249,7 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
             # the first 92 elements of x are the fraction of each element in it's neutral atomic form
             # the last is the electron number density in units of n_tot/10^5. The scaling allows us to 
             # better specify the tolerance for the solver.
+            atom_number_densities = absolute_abundances .* (nₜ - nₑ)
             neutral_number_densities = atom_number_densities .* abs.(view(x, 1:MAX_ATOMIC_NUMBER))
             F[end] = 0
 
