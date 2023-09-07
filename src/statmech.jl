@@ -265,14 +265,27 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
             end
             F[end] -= nₑ #LHS: total electron number density
 
-            # now the first 92 elements of x are log10(neutral number densities)
+            # from here on, the first 92 elements of x are log10(neutral number densities)
+            # we reuse the variable to save memory
             neutral_number_densities .= log10.(neutral_number_densities)
             for (m, log_nK) in zip(molecules, log_nKs)
-                els = get_atoms(m.formula)
-                n_mol = 10^(sum(neutral_number_densities[el] for el in els) - log_nK)
-                # RHS: atoms which are part of molecules
-                for el in els
-                    F[el] -= n_mol
+                if m.charge == 1 # chared diatomic
+                    # the first element has a lower atomic number.  That is the charged one.
+                    Z1, Z2 = get_atoms(m.formula)
+                    wII = wII_ne[Z1] / nₑ
+                    n1_II = neutral_number_densities[Z1] + log10(wII)
+                    n2_I = neutral_number_densities[Z2]
+                    n_mol = 10 ^ (n1_II + n2_I - log_nK)
+                    # RHS 
+                    F[Z1] -= n_mol
+                    F[Z2] -= n_mol
+                else # neutral molecule, possibly polyatomic
+                    els = get_atoms(m.formula)
+                    n_mol = 10^(sum(neutral_number_densities[el] for el in els) - log_nK)
+                    # RHS: atoms which are part of molecules
+                    for el in els
+                        F[el] -= n_mol
+                    end
                 end
             end
 

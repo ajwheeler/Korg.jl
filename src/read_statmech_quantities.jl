@@ -99,7 +99,7 @@ function read_Barklem_Collet_logKs(fname)
     logKs = h5read(fname, "logKs")
     map(mols, eachrow(lnTs), eachrow(logKs)) do mol, lnTs, logKs
         mask = isfinite.(lnTs)
-        mol => CubicSplines.CubicSpline(lnTs[mask], logKs[mask])
+        mol => CubicSplines.CubicSpline(lnTs[mask], logKs[mask], extrapolate=true)
     end |> Dict
 end
 

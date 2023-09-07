@@ -36,8 +36,8 @@ for row in eachrow(charged_mol_constituents)
         Korg.get_atoms(row.el2)[1], Korg.get_atoms(row.el1)[1]
     end
     
-    #Korg.ionization_energies[charged_el][1] < Korg.ionization_energies[neutral_el][1] && continue
-    charged_el < neutral_el && continue
+    # only continue if the lower Z is not the charged atom
+    charged_el <= neutral_el && continue
     
     logKs = bclogKs[row.mol][2]
     
@@ -58,7 +58,8 @@ for row in eachrow(charged_mol_constituents)
     lTs = copy(lnTs)
     lTs[.! lnTmask] .= -Inf
     logKs[.! lnTmask] .= NaN
-    logKs[lnTmask] .*= U_fac .* χ_fac
+    logKs[lnTmask] .+= U_fac .+ χ_fac
+
     
     bclogKs[row.mol] = (lTs, logKs)
 end
