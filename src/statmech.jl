@@ -128,7 +128,7 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
 
     # start with the neutral atomic species.
     number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) 
-                            .=> nₜ .* absolute_abundances .* neutral_fractions)
+                            .=> (nₜ - nₑ) .* absolute_abundances .* neutral_fractions)
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
         wII, wIII = saha_ion_weights(temp, nₑ, a, ionization_energies, partition_fns)
@@ -243,15 +243,14 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to 
-            # better specify the tolerance for the solver.
             # Don't allow negative number densities.  This is a trick to bound the possible values 
             # of x. Taking the log was less performant in tests.
             nₑ = abs(x[end]) * nₜ * 1e-5 
 
             # the first 92 elements of x are the fraction of each element in it's neutral atomic form
+            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to 
+            # better specify the tolerance for the solver.
             neutral_number_densities = atom_number_densities .* abs.(view(x, 1:MAX_ATOMIC_NUMBER))
-
             F[end] = 0
 
             # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
