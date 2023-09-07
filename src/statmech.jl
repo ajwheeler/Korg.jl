@@ -36,7 +36,7 @@ end
 """
     translational_U(m, T)
 
-The (inverse) contribution to the partition function from the free movement of a particle.
+The (possibly inverse) contribution to the partition function from the free movement of a particle.
 Used in the Saha equation.
 
 arguments
@@ -50,11 +50,11 @@ function translational_U(m, T)
 end
 
 """
-    get_inv_nK(mol, T, log_equilibrium_constants)
+    get_log_nK(mol, T, log_equilibrium_constants)
 
 Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilbrium constants in partial
-pressure form, return the inverse equilibrium constant in number density form, i.e. `1/nK` where 
-`nK = n(A)n(B)/n(AB)`.
+pressure form, return the base-10 log equilibrium constant in number density form, i.e. `log10(nK)` 
+where `nK = n(A)n(B)/n(AB)`.
 """
 function get_log_nK(mol, T, log_equilibrium_constants) 
     log_equilibrium_constants[mol](log(T)) - (n_atoms(mol) - 1)*log10(kboltz_cgs*T) 
