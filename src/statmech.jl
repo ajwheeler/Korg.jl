@@ -138,7 +138,13 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
     #now the molecules
     for mol in keys(log_equilibrium_constants)
         log_nK = get_log_nK(mol, temp, log_equilibrium_constants)
-        element_log_ns = (log10(number_densities[Species(Formula(el), 0)]) for el in get_atoms(mol.formula))
+        element_log_ns = if mol.charge == 0
+            (log10(number_densities[Species(Formula(el), 0)]) for el in get_atoms(mol.formula))
+        else # singly ionized diatomic
+            Z1, Z2 = get_atoms(mol.formula)
+            # the first atom has the lower atomic number.  That is the charged component for out Ks.
+            log10(number_densities[Species(Formula(Z1), 1)]) + log10(number_densities[Species(Formula(Z2), 0)])
+        end
         number_densities[mol] = 10^(sum(element_log_ns) - log_nK)
     end
 
@@ -278,6 +284,7 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
                     # RHS 
                     F[Z1] -= n_mol
                     F[Z2] -= n_mol
+                    F[end] += n_mol
                 else # neutral molecule, possibly polyatomic
                     els = get_atoms(m.formula)
                     n_mol = 10^(sum(neutral_number_densities[el] for el in els) - log_nK)

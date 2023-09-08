@@ -68,7 +68,7 @@ end
         positive_charge_density =  mapreduce(+, pairs(n_dict)) do (species, n)
             n * species.charge
         end
-        @test nₑ ≈ positive_charge_density rtol=1e-5
+        @test nₑ ≈ positive_charge_density atol=nₜ * 1e-5 # this is the tollerance of the solver in Korg
 
         #make sure number densities are sensible
         @test (n_dict[Korg.species"C_III"] < n_dict[Korg.species"C_II"] < n_dict[Korg.species"C_I"] < 
@@ -78,7 +78,7 @@ end
             total_n = mapreduce(+, collect(keys(n_dict))) do species
                 sum(Korg.get_atoms(species.formula) .== Z) * n_dict[species]
             end
-            @test total_n ≈ nX_ntot[Z] * nₜ
+            @test total_n ≈ nX_ntot[Z] * (nₜ - nₑ) rtol=1e-4
         end
     end
 
