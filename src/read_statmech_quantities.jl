@@ -7,7 +7,7 @@ using HDF5, CSV
 Parses the table of ionization energies and returns it as a dictionary mapping elements to
 their ionization energies, `[χ₁, χ₂, χ₃]` in eV.
 """
-function setup_ionization_energies(fname=joinpath(_data_dir, 
+function setup_ionization_energies(fname=joinpath(_data_dir, "barklem_collet_2016", 
                                                   "BarklemCollet2016-ionization_energies.dat"))
     open(fname, "r") do f
         d = Dict{UInt8, Vector{Float64}}()
@@ -49,13 +49,12 @@ Korg's equilbrum constants are in terms of partial pressures, since that's what 
 provide.
 """
 function setup_partition_funcs_and_equilibrium_constants()
-    mol_U_path = joinpath(_data_dir, "BarklemCollet2016-molecular_partition.dat")
+    mol_U_path = joinpath(_data_dir, "barklem_collet_2016", "BarklemCollet2016-molecular_partition.dat")
     partition_funcs = merge(read_Barklem_Collet_table(mol_U_path), 
                            load_atomic_partition_functions(),
                            load_exomol_partition_functions())
 
-    BC_Ks = read_Barklem_Collet_table(joinpath(_data_dir, "BarklemCollet2016-equilibrium_constants.dat"),
-                                      transform=x->x+1) #convert from log(mks) to log(cgs)
+    BC_Ks = read_Barklem_Collet_logKs(joinpath(_data_dir, "barklem_collet_2016", "barklem_collet_ks.h5"))
 
     # equlibrium constants for polyatomics (done here because the partition functions are used)
     atomization_Es = CSV.File(joinpath(_data_dir, "polyatomic_partition_funcs", "atomization_energies.csv"))
@@ -92,7 +91,20 @@ function setup_partition_funcs_and_equilibrium_constants()
 end
 
 """
-    functon read_Barklem_Collet_table(;transform=identity)
+TODO
+"""
+function read_Barklem_Collet_logKs(fname)
+    mols = Korg.Species.(h5read(fname, "mols"))
+    lnTs = h5read(fname, "lnTs")
+    logKs = h5read(fname, "logKs")
+    map(mols, eachrow(lnTs), eachrow(logKs)) do mol, lnTs, logKs
+        mask = isfinite.(lnTs)
+        mol => CubicSplines.CubicSpline(lnTs[mask], logKs[mask], extrapolate=true)
+    end |> Dict
+end
+
+"""
+    functon read_Barklem_Collet_table(fname; transform=identity)
 
 Constructs a Dict holding tables containing partition function or equilibrium constant values across
 ln(temperature).  Applies transform (which you can use to, e.g. change units) to each example.
@@ -109,8 +121,8 @@ function read_Barklem_Collet_table(fname; transform=identity)
             else # add entries to the dictionary
                 row_entries = split(strip(line))
                 species_code = popfirst!(row_entries)
-                # ignore deuterium and ionized molecules
-                if species_code[1:2] != "D_" && species_code[end] != '+' && species_code[end] != '-' 
+                # ignore deuterium - Korg cant parse "D"
+                if species_code[1:2] != "D_" 
                     push!(data_pairs, (Species(species_code), 
                                        transform.(parse.(Float64, row_entries))))
                 end

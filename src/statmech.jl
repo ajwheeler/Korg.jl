@@ -36,7 +36,7 @@ end
 """
     translational_U(m, T)
 
-The (inverse) contribution to the partition function from the free movement of a particle.
+The (possibly inverse) contribution to the partition function from the free movement of a particle.
 Used in the Saha equation.
 
 arguments
@@ -50,11 +50,11 @@ function translational_U(m, T)
 end
 
 """
-    get_inv_nK(mol, T, log_equilibrium_constants)
+    get_log_nK(mol, T, log_equilibrium_constants)
 
 Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilbrium constants in partial
-pressure form, return the inverse equilibrium constant in number density form, i.e. `1/nK` where 
-`nK = n(A)n(B)/n(AB)`.
+pressure form, return the base-10 log equilibrium constant in number density form, i.e. `log10(nK)` 
+where `nK = n(A)n(B)/n(AB)`.
 """
 function get_log_nK(mol, T, log_equilibrium_constants) 
     log_equilibrium_constants[mol](log(T)) - (n_atoms(mol) - 1)*log10(kboltz_cgs*T) 
@@ -75,7 +75,7 @@ number density and `Dict` mapping species to number densities.
 
 arguments:
 - the temperature, `T`, in K
-- the number density of non-electron particles `nₜ`
+- the total number density `nₜ`
 - the electron number density `nₑ`
 - A Dict of `absolute_abundances`, N_X/N_total
 - a Dict of ionization energies, `ionization_energies`.  The keys of act as a list of all atoms.
@@ -128,7 +128,7 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
 
     # start with the neutral atomic species.
     number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) 
-                            .=> nₜ .* absolute_abundances .* neutral_fractions)
+                            .=> (nₜ - nₑ) .* absolute_abundances .* neutral_fractions)
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
         wII, wIII = saha_ion_weights(temp, nₑ, a, ionization_energies, partition_fns)
@@ -138,7 +138,13 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
     #now the molecules
     for mol in keys(log_equilibrium_constants)
         log_nK = get_log_nK(mol, temp, log_equilibrium_constants)
-        element_log_ns = (log10(number_densities[Species(Formula(el), 0)]) for el in get_atoms(mol.formula))
+        element_log_ns = if mol.charge == 0
+            (log10(number_densities[Species(Formula(el), 0)]) for el in get_atoms(mol.formula))
+        else # singly ionized diatomic
+            Z1, Z2 = get_atoms(mol.formula)
+            # the first atom has the lower atomic number.  That is the charged component for out Ks.
+            log10(number_densities[Species(Formula(Z1), 1)]) + log10(number_densities[Species(Formula(Z2), 0)])
+        end
         number_densities[mol] = 10^(sum(element_log_ns) - log_nK)
     end
 
@@ -226,7 +232,6 @@ end
 function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ionization_energies, 
                                         partition_fns, log_equilibrium_constants)
     molecules = collect(keys(log_equilibrium_constants))
-    atom_number_densities = nₜ .* absolute_abundances
                                     
     # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
     # pressure, unlike those in equilibrium_constants.
@@ -239,19 +244,19 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
     end
     wII_ne, wIII_ne2 = first.(pairs), last.(pairs)
 
-    let nₜ=nₜ, log_nKs=log_nKs, molecules=molecules, atom_number_densities=atom_number_densities, wII_ne=wII_ne, wIII_ne2=wIII_ne2
+    let nₜ=nₜ, log_nKs=log_nKs, molecules=molecules, absolute_abundances=absolute_abundances, wII_ne=wII_ne, wIII_ne2=wIII_ne2
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to 
-            # better specify the tolerance for the solver.
             # Don't allow negative number densities.  This is a trick to bound the possible values 
             # of x. Taking the log was less performant in tests.
             nₑ = abs(x[end]) * nₜ * 1e-5 
 
             # the first 92 elements of x are the fraction of each element in it's neutral atomic form
+            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to 
+            # better specify the tolerance for the solver.
+            atom_number_densities = absolute_abundances .* (nₜ - nₑ)
             neutral_number_densities = atom_number_densities .* abs.(view(x, 1:MAX_ATOMIC_NUMBER))
-
             F[end] = 0
 
             # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
@@ -265,14 +270,28 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
             end
             F[end] -= nₑ #LHS: total electron number density
 
-            # now the first 92 elements of x are log10(neutral number densities)
+            # from here on, the first 92 elements of x are log10(neutral number densities)
+            # we reuse the variable to save memory
             neutral_number_densities .= log10.(neutral_number_densities)
             for (m, log_nK) in zip(molecules, log_nKs)
-                els = get_atoms(m.formula)
-                n_mol = 10^(sum(neutral_number_densities[el] for el in els) - log_nK)
-                # RHS: atoms which are part of molecules
-                for el in els
-                    F[el] -= n_mol
+                if m.charge == 1 # chared diatomic
+                    # the first element has a lower atomic number.  That is the charged one.
+                    Z1, Z2 = get_atoms(m.formula)
+                    wII = wII_ne[Z1] / nₑ
+                    n1_II = neutral_number_densities[Z1] + log10(wII)
+                    n2_I = neutral_number_densities[Z2]
+                    n_mol = 10 ^ (n1_II + n2_I - log_nK)
+                    # RHS 
+                    F[Z1] -= n_mol
+                    F[Z2] -= n_mol
+                    F[end] += n_mol
+                else # neutral molecule, possibly polyatomic
+                    els = get_atoms(m.formula)
+                    n_mol = 10^(sum(neutral_number_densities[el] for el in els) - log_nK)
+                    # RHS: atoms which are part of molecules
+                    for el in els
+                        F[el] -= n_mol
+                    end
                 end
             end
 
