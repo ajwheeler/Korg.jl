@@ -335,6 +335,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     # the gamma function. 
     ps = (0.9*y1).^2
     quasistatic_e_contrib = @. (ps+0.03*sqrt(y1))/(ps+1.)
+    quasistatic_e_contrib[quasistatic_e_contrib .== 0] .= 0 # fix autodiff NaNs from 0/0
 
     total_quasistatic_profile = @. quasistatic_ion_contribution * (1+quasistatic_e_contrib) 
     # this correction makes the profile not normalized.  It's unclear to me that we should be 
