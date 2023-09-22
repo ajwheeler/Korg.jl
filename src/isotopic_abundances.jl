@@ -3,7 +3,7 @@
 # element sum to 1)
 # this isn't an array, because not every element is present
 const isotopic_abundances = Dict(
-    1 => Dict(1=>0.999885, 2=>0.000115, ),
+    1 => Dict(1=>1.0, 2=>1e-10, ), #tiny non-zero number to avoid -Inf when you take the log
     2 => Dict(3=>1.34e-6, 4=>0.99999866, ),
     3 => Dict(6=>0.0759, 7=>0.9241, ),
     4 => Dict(9=>1.0, ),

@@ -182,7 +182,7 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
         elseif format == "vald"
             parse_vald_linelist(f, isotopic_abundances)
         elseif format == "moog"
-            parse_moog_linelist(f)
+            parse_moog_linelist(f, isotopic_abundances)
         elseif format == "turbospectrum"
             parse_turbospectrum_linelist(f, isotopic_abundances, false)
         elseif format == "turbospectrum_vac"
@@ -360,14 +360,35 @@ function parse_vald_linelist(f, isotopic_abundances)
 end
 
 #todo support moog linelists with broadening parameters?
-function parse_moog_linelist(f)
+function parse_moog_linelist(f, isotopic_abundances)
     lines = collect(eachline(f))
-    #moog format requires blank first line
+    # The first line is ignored.  It's for human-readability only.
     linelist = map(lines[2:end]) do line
         toks = split(line)
+
+        # special hanlding for the decimal part of species strings.  MOOG uses the first digit only
+        # to represent the charge.  The rest contains isotopic info.
+        dotind = findfirst('.', toks[2])
+        spec = Species(toks[2][1:dotind+1])
+
+        isostring = toks[2][dotind+2:end]
+        #Note: this will fail if the atoms species code are not in order of atomic number.  This is always 
+        #the case in the linelists I've seen.
+        Δ_log_gf = if isostring == "" || !isnothing(match(r"^0+$", isostring)) #if all 0s
+            0.0
+        else
+            natoms = length(get_atoms(spec))
+            @assert length(isostring) % natoms == 0
+            digits_per = length(isostring) ÷ natoms
+            map(get_atoms(spec), 1:digits_per:length(isostring)-digits_per+1) do el, i
+                m = parse(Int, isostring[i:i+digits_per-1])
+                log10(isotopic_abundances[el][m])
+            end |> sum
+        end
+
         Line(parse(Float64, toks[1]) * 1e-8, #convert Å to cm
-             parse(Float64, toks[4]),
-             Species(toks[2]),
+             parse(Float64, toks[4]) + Δ_log_gf,
+             spec,
              parse(Float64, toks[3]))
     end
     linelist
