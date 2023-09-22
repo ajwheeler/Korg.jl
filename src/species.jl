@@ -176,6 +176,10 @@ representing the sepcies.
 !!! note
     To parse at compile time, use the `species` string macro, i.e. `species"H I"`.  This is 
     important in hot inner loops.
+
+!!! warning
+    MOOG codes which include isotopic information will not be parsed correctly by this function, 
+    though [`read_linelist`](@ref) handles them correctly.
 """
 function Species(code::AbstractString)
     code = strip(code, ['0', ' ']) # leading 0s are safe to remove
