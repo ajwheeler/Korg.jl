@@ -8,6 +8,8 @@ module Fit
 using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
 using ForwardDiff
+using Trapz
+
 export find_best_fit_params
 
 # used by scale and unscale for some parameters
@@ -335,6 +337,96 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
         synthesis_wls[synth_wl_lb:synth_wl_ub]
     end
     obs_wl_mask, synth_wl_mask, multi_synth_wls
+end
+
+"""
+    linelist_neighbourhood_indices(linelist, line_buffer)
+
+Group lines together such that no two lines are closer than twice the value of `line_buffer`.
+
+# Arguments:
+- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref), 
+   [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+- `line_buffer`: half the minimum separation (in Å) of lines in a group
+
+# Returns
+A vector of vectors, where each inner vector contains the indices of lines in a group.
+"""
+function linelist_neighbourhood_indices(linelist, line_buffer)
+    linelist_neighbourhood_indices = []        
+    current_group = [1]    
+    line_buffer_overlap_cm = 2 * 1e-8 * line_buffer
+    for i in 2:length(linelist)
+        if (linelist[i].wl - linelist[current_group[end]].wl) > line_buffer_overlap_cm
+            push!(current_group, i)
+        else
+            push!(linelist_neighbourhood_indices, current_group)
+            current_group = [i]  
+        end
+    end
+    push!(linelist_neighbourhood_indices, current_group)
+end
+
+"""
+    ews_to_abundances(atm, linelist, A_X, ews; kwargs... )
+
+Compute per-line abundances given a model atmosphere and a list of lines with equivalent widths.
+
+# Arguments:
+- `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
+- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref), 
+   [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+- `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
+  uranium.  (see [`format_A_X`](@ref))
+- `ews`: a vector of equivalent widths (in mÅ)
+
+# Returns
+A vector of abundances (log10(X/H) + 12 format) for each line in `linelist`.
+
+# Optional arguments:
+- `vmic` (default: 1.0) is the microturbulent velocity, ``\\xi``, in km/s.
+- `line_buffer` (default: 2): the farthest (in Å) to consider contributions from any line.
+- `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
+   be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
+   wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
+   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
+   wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
+- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
+"""
+function ews_to_abundances(atm, linelist, A_X, ews; 
+                           vmic::Real=1.0, line_buffer::Real=2.0, cntm_step::Real=1.0, 
+                           air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+
+    if !issorted(linelist; by=l->l.wl) 
+        throw(ArgumentError("linelist must be sorted"))
+    end
+
+    # Group lines together ensuring that no λ is closer to it's neighbour than twice the line_buffer.
+    group_indices = linelist_neighbourhood_indices(linelist, line_buffer)
+
+    d_A = Array{Float64}(undef, length(linelist))
+    for indices in group_indices
+        wl_ranges = map(linelist[indices]) do line
+            λ_start, λ_stop = (1e8 * line.wl - line_buffer, 1e8 * line.wl + line_buffer)
+            wls = StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)
+        end
+
+        spectrum = Korg.synthesize(
+            atm, linelist, A_X, wl_ranges, 
+            vmic=vmic, line_buffer=line_buffer, cntm_step=cntm_step,
+            air_wavelengths=air_wavelengths, wavelength_conversion_warn_threshold=wavelength_conversion_warn_threshold
+        )
+
+        for (i, (idx, line)) in enumerate(zip(spectrum.subspectra, linelist[indices]))
+            y = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
+            ew = trapz(spectrum.wavelengths[idx], y) # Angstrom
+            rew = log10(ew / (line.wl * 1e8))    
+            d_A[indices[i]] = rew - A_X[Korg.atomic_numbers[string(line.species.formula)]]
+        end
+    end
+
+    # Assume measured EWs are in mA (as astronomers usually report them), hence the 10^8 -> 10^11
+    return log10.(ews ./ [1e11 * line.wl for line in linelist]) .- d_A
 end
 
 end # module
