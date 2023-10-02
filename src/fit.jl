@@ -422,7 +422,7 @@ function ews_to_abundances(atm, linelist, A_X, ews;
             y = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
             ew = trapz(spectrum.wavelengths[idx], y) # Angstrom
             rew = log10(ew / (line.wl * 1e8))    
-            d_A[indices[i]] = rew - A_X[Korg.atomic_numbers[string(line.species.formula)]]
+            d_A[indices[i]] = rew - A_X[Korg.get_atoms(line.species)[1]] # species is atomic
         end
     end
 
