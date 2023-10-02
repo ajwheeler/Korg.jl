@@ -133,7 +133,7 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
             Pg = Pg * (Pg > 0)
 
             nₑ = Pe / (temp*kboltz_cgs) # electron number density
-            n = Pg/ (temp*kboltz_cgs)   # non-electron number density
+            n = Pg/ (temp*kboltz_cgs)   # total number density
 
             if planar
                 PlanarAtmosphereLayer(10^logτ5, -depth, temp, nₑ, n)
