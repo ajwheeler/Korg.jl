@@ -381,7 +381,7 @@ Compute per-line abundances given a model atmosphere and a list of lines with eq
 - `ews`: a vector of equivalent widths (in mÅ)
 
 # Returns
-A vector of abundances (log10(X/H) + 12 format) for each line in `linelist`.
+A vector of abundances (log10(n_X/n_H) + 12 format) for each line in `linelist`.
 
 # Optional arguments:
 - `vmic` (default: 1.0) is the microturbulent velocity, ``\\xi``, in km/s.
