@@ -365,6 +365,7 @@ function linelist_neighbourhood_indices(linelist, line_buffer)
         end
     end
     push!(linelist_neighbourhood_indices, current_group)
+    linelist_neighbourhood_indices
 end
 
 """
