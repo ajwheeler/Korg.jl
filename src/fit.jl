@@ -425,7 +425,7 @@ function ews_to_abundances(atm, linelist, A_X, ews;
         end
     end
 
-    # Assume measured EWs are in mA (as astronomers usually report them), hence the 10^8 -> 10^11
+    # measured EWs are in mA, factor of 10^11 converts from cm
     return log10.(ews ./ [1e11 * line.wl for line in linelist]) .- d_A
 end
 
