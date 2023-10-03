@@ -158,9 +158,13 @@ function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractRange}, o
         Korg.compute_LSF_matrix(wls, obs_wls, R; verbose=verbose, renormalize_edge=false, kwargs...)
     end
     LSF = hcat(LSFmats...)
+    s = 0.0
     if renormalize_edge
-        for i in 1:size(LSF, 1)
-            LSF[i, :] ./= sum(LSF[i, :])
+        @showprogress for i in 1:size(LSF, 1)
+            s = sum(LSF[i, :])
+            if s != 0 
+                LSF[i, :] ./= sum(LSF[i, :])
+            end
         end
     end
     LSF
