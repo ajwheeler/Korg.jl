@@ -76,3 +76,4 @@ const magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56, 7.98, 8.
 
 
 const default_solar_abundances = asplund_2020_solar_abundances
+

@@ -1,0 +1,9 @@
+BNL_nuclear_wallet_card.dat was downloaded from the BNL "nuclear wallet card search" 
+https://www.nndc.bnl.gov/nudat3/indx_sigma.jsp
+
+We use it to get the nuclear spins of each isotope, so that we can adjust molecular partition 
+functions from the "physical" convention, which includes nuclear spin degeneracy, to the 
+"astrophysical" convention, which doesn't.
+
+reformat_nuclear_wallet_card.jl is a script that parses the file and outputs a nicely formatted 
+Julia dictionary, which is appended to src/isotopic_data.jl.

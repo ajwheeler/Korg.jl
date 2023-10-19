@@ -180,8 +180,19 @@ function load_exomol_partition_functions()
     h5open(joinpath(_data_dir, "polyatomic_partition_funcs", "polyatomic_partition_funcs.h5")) do f
         map(f) do group
             spec = Korg.Species(HDF5.name(group)[2:end]) # cut off leading '/'
+
+            # total nuclear spin degeneracy, which must be divided out to convert from the 
+            # "physics" convention for the parititon function to the "astrophysics" convention
+            total_g_ns = map(get_atoms(spec)) do Z
+                # at the moment, we assume all molecules are the most common isotopologue internally
+                # difference isotopologues are handled by scaling the log_gf values when parsing 
+                # the linelist
+                most_abundant_A = argmax(isotopic_abundances[Z])
+                g_ns = isotopic_nuclear_spin_degeneracies[Z][most_abundant_A]
+            end |> prod
+
             Ts, Us = read(group["temp"]), read(group["partition_function"])
-            spec, CubicSpline(log.(Ts), Us, extrapolate=true)
+            spec, CubicSpline(log.(Ts), Us ./ total_g_ns, extrapolate=true)
         end |> Dict
     end
 end
