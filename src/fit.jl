@@ -402,6 +402,10 @@ function ews_to_abundances(atm, linelist, A_X, ews;
         throw(ArgumentError("linelist must be sorted"))
     end
 
+    if any(l -> Korg.ismolecule(l.species), molec)
+        throw(ArgumentError("linelist contains molecular species"))
+    end
+
     # Group lines together ensuring that no λ is closer to it's neighbour than twice the line_buffer.
     group_indices = linelist_neighbourhood_indices(linelist, line_buffer)
 
@@ -419,8 +423,8 @@ function ews_to_abundances(atm, linelist, A_X, ews;
         )
 
         for (i, (idx, line)) in enumerate(zip(spectrum.subspectra, linelist[indices]))
-            y = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
-            ew = trapz(spectrum.wavelengths[idx], y) # Angstrom
+            depth = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
+            ew = trapz(spectrum.wavelengths[idx], depth) # Angstrom
             rew = log10(ew / (line.wl * 1e8))    
             d_A[indices[i]] = rew - A_X[Korg.get_atoms(line.species)[1]] # species is atomic
         end
