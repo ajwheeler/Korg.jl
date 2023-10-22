@@ -409,7 +409,7 @@ function ews_to_abundances(atm, linelist, A_X, ews;
     for indices in group_indices
         wl_ranges = map(linelist[indices]) do line
             λ_start, λ_stop = (1e8 * line.wl - line_buffer, 1e8 * line.wl + line_buffer)
-            wls = StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)
+            wls = range(λ_start, λ_end; length=Int(round((λ_stop - λ_start)/λ_step))+1)
         end
 
         spectrum = Korg.synthesize(
