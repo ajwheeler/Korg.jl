@@ -427,7 +427,8 @@ function ews_to_abundances(atm, linelist, A_X, ews;
     end
 
     # measured EWs are in mA, factor of 10^11 converts from cm
-    return log10.(ews ./ [1e11 * line.wl for line in linelist]) .- d_A
+    measured_REW = log10.(ews ./ [1e11 * line.wl for line in linelist])
+    measured_REW .- d_A
 end
 
 end # module
