@@ -345,8 +345,8 @@ end
 Group lines together such that no two lines are closer than twice the value of `line_buffer`.
 
 # Arguments:
-- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref), 
-   [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+- `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref), 
+   [`Korg.get_APOGEE_DR17_linelist`](@ref), and [`Korg.get_VALD_solar_linelist`](@ref)).
 - `ew_window_size`: the minimum separation (in Å) either side of lines in a group
 
 # Returns
@@ -374,11 +374,11 @@ end
 Compute per-line abundances given a model atmosphere and a list of lines with equivalent widths.
 
 # Arguments:
-- `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
-- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref), 
-   [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+- `atm`: the model atmosphere (see [`Korg.read_model_atmosphere`](@ref))
+- `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref), 
+   [`Korg.get_APOGEE_DR17_linelist`](@ref), and [`Korg.get_VALD_solar_linelist`](@ref)).
 - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
-  uranium.  (see [`format_A_X`](@ref))
+  uranium.  (see [`Korg.format_A_X`](@ref))
 - `ews`: a vector of equivalent widths (in mÅ)
 
 # Returns
@@ -391,7 +391,7 @@ A vector of abundances (log10(n_X/n_H) + 12 format) for each line in `linelist`.
    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
    wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
-   wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
+   wavelength conversions yourself, see [`Korg.air_to_vacuum`](@ref) and [`Korg.vacuum_to_air`](@ref).)
 - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
 """
 function ews_to_abundances(atm, linelist, A_X, ews, ew_window_size::Real=2.0, λ_step=0.01; synthesize_kwargs...)
