@@ -400,8 +400,11 @@ function ews_to_abundances(atm, linelist, A_X, ews, ew_window_size::Real=2.0, λ
     if get(synthesize_kwargs, :hydrogen_lines, false)
         throw(ArgumentError("hydrogen_lines must be disabled"))
     end
-    print(synthesize_kwargs)
 
+    if length(linelist) != length(ews)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(ews)))"))
+    end
+    
     if !issorted(linelist; by=l->l.wl) 
         throw(ArgumentError("linelist must be sorted"))
     end
