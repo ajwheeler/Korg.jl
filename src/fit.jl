@@ -340,24 +340,24 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
 end
 
 """
-    linelist_neighbourhood_indices(linelist, line_buffer)
+    linelist_neighbourhood_indices(linelist, ew_window_size)
 
 Group lines together such that no two lines are closer than twice the value of `line_buffer`.
 
 # Arguments:
 - `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref), 
    [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
-- `line_buffer`: half the minimum separation (in Å) of lines in a group
+- `ew_window_size`: the minimum separation (in Å) either side of lines in a group
 
 # Returns
 A vector of vectors, where each inner vector contains the indices of lines in a group.
 """
-function linelist_neighbourhood_indices(linelist, line_buffer)
+function linelist_neighbourhood_indices(linelist, ew_window_size)
     linelist_neighbourhood_indices = []        
     current_group = [1]    
-    line_buffer_overlap_cm = 2 * 1e-8 * line_buffer
+    ew_window_size_overlap_cm = 2 * 1e-8 * ew_window_size
     for i in 2:length(linelist)
-        if (linelist[i].wl - linelist[current_group[end]].wl) > line_buffer_overlap_cm
+        if (linelist[i].wl - linelist[current_group[end]].wl) > ew_window_size_overlap_cm
             push!(current_group, i)
         else
             push!(linelist_neighbourhood_indices, current_group)
@@ -386,7 +386,7 @@ A vector of abundances (log10(n_X/n_H) + 12 format) for each line in `linelist`.
 
 # Optional arguments:
 - `vmic` (default: 1.0) is the microturbulent velocity, ``\\xi``, in km/s.
-- `line_buffer` (default: 2): the farthest (in Å) to consider contributions from any line.
+- `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for any line.
 - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
    wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
@@ -394,32 +394,41 @@ A vector of abundances (log10(n_X/n_H) + 12 format) for each line in `linelist`.
    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
 - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
 """
-function ews_to_abundances(atm, linelist, A_X, ews; 
-                           vmic::Real=1.0, line_buffer::Real=2.0, cntm_step::Real=1.0, 
-                           air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+function ews_to_abundances(atm, linelist, A_X, ews, ew_window_size::Real=2.0, λ_step=0.01; synthesize_kwargs...)
+
+    synthesize_kwargs = Dict(synthesize_kwargs)
+    if get(synthesize_kwargs, :hydrogen_lines, false)
+        throw(ArgumentError("hydrogen_lines must be disabled"))
+    end
+    print(synthesize_kwargs)
 
     if !issorted(linelist; by=l->l.wl) 
         throw(ArgumentError("linelist must be sorted"))
     end
 
-    if any(l -> Korg.ismolecule(l.species), molec)
+    if any(l -> Korg.ismolecule(l.species), linelist)
         throw(ArgumentError("linelist contains molecular species"))
     end
 
-    # Group lines together ensuring that no λ is closer to it's neighbour than twice the line_buffer.
-    group_indices = linelist_neighbourhood_indices(linelist, line_buffer)
+    # Check that the user is supplying EWs in mA
+    if 1 > maximum(ews)
+        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mA (*not* A)."
+    end
+
+    # Group lines together ensuring that no λ is closer to it's neighbour than twice the ew_window_size.
+    group_indices = linelist_neighbourhood_indices(linelist, ew_window_size)
 
     d_A = Array{Float64}(undef, length(linelist))
     for indices in group_indices
         wl_ranges = map(linelist[indices]) do line
-            λ_start, λ_stop = (1e8 * line.wl - line_buffer, 1e8 * line.wl + line_buffer)
-            wls = range(λ_start, λ_end; length=Int(round((λ_stop - λ_start)/λ_step))+1)
+            λ_start, λ_stop = (1e8 * line.wl - ew_window_size, 1e8 * line.wl + ew_window_size)
+            wls = range(λ_start, λ_stop; length=Int(round((λ_stop - λ_start)/λ_step))+1)
         end
 
         spectrum = Korg.synthesize(
-            atm, linelist, A_X, wl_ranges, 
-            vmic=vmic, line_buffer=line_buffer, cntm_step=cntm_step,
-            air_wavelengths=air_wavelengths, wavelength_conversion_warn_threshold=wavelength_conversion_warn_threshold
+            atm, linelist[indices], A_X, wl_ranges,
+            hydrogen_lines=false;
+            synthesize_kwargs...
         )
 
         for (i, (idx, line)) in enumerate(zip(spectrum.subspectra, linelist[indices]))
