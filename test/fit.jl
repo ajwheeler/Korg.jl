@@ -34,13 +34,6 @@
         @test synth_wls[synth_wl_mask] == [(5000.0:0.01:5005.0)... ;  (5006.0:0.01:5009.0)...]
     end
 
-    @testset "check the neighbourhood grouping" begin
-
-        @test_throws ArgumentError()
-
-
-    end
-
     @testset "don't allow hydrogen lines in ew_to_abundances" begin
         sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
         sun_A_X = Korg.format_A_X(sun_Fe_H)
