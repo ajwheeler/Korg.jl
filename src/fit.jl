@@ -365,40 +365,40 @@ function linelist_neighbourhood_indices(linelist, ew_window_size)
 end
 
 """
-    ews_to_abundances(atm, linelist, A_X, ews; kwargs... )
+    ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs... )
 
-Compute per-line abundances given a model atmosphere and a list of lines with equivalent widths.
+Compute per-line abundances on the linear part of the curve of growth given a model atmosphere and a
+list of lines with equivalent widths.
 
 # Arguments:
-- `atm`: the model atmosphere (see [`Korg.read_model_atmosphere`](@ref))
-- `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref), 
-   [`Korg.get_APOGEE_DR17_linelist`](@ref), and [`Korg.get_VALD_solar_linelist`](@ref)).
-- `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
-  uranium.  (see [`Korg.format_A_X`](@ref))
-- `ews`: a vector of equivalent widths (in mÅ)
+- `atm`: the model atmosphere (see [`Korg.read_model_atmosphere`](@ref) and 
+  [`Korg.interpolate_marcs`](@ref)).
+- `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref)).  The lines must 
+  be sorted by wavelength.
+- `A_X`: a vector containing the A(X) abundances (log(n_X/n_H) + 12) for elements from hydrogen to 
+  uranium (see [`Korg.format_A_X`](@ref)). All syntheses are done with these abundances, so if the 
+  resulting abundances deviate significantly from these, you may wish to iterate.
+- `measured_EWs`: a vector of equivalent widths (in mÅ)
 
 # Returns
-A vector of abundances (log10(n_X/n_H) + 12 format) for each line in `linelist`.
+A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `linelist`.
 
 # Optional arguments:
-- `vmic` (default: 1.0) is the microturbulent velocity, ``\\xi``, in km/s.
-- `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for any line.
-- `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
-   be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
-   wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
-   error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
-   wavelength conversions yourself, see [`Korg.air_to_vacuum`](@ref) and [`Korg.vacuum_to_air`](@ref).)
-- `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
+- `wl_step` (default: 0.01) is the resolution in Å at which to synthesize the spectrum around each 
+   line. 
+- `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for 
+   each line.
+All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
-function ews_to_abundances(atm, linelist, A_X, ews, ew_window_size::Real=2.0, λ_step=0.01; synthesize_kwargs...)
-
+function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0, wl_step=0.01; 
+                           synthesize_kwargs...)
     synthesize_kwargs = Dict(synthesize_kwargs)
     if get(synthesize_kwargs, :hydrogen_lines, false)
         throw(ArgumentError("hydrogen_lines must be disabled"))
     end
 
-    if length(linelist) != length(ews)
-        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(ews)))"))
+    if length(linelist) != length(measured_EWs)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
     
     if !issorted(linelist; by=l->l.wl) 
@@ -410,37 +410,32 @@ function ews_to_abundances(atm, linelist, A_X, ews, ew_window_size::Real=2.0, λ
     end
 
     # Check that the user is supplying EWs in mA
-    if 1 > maximum(ews)
-        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mA (*not* A)."
+    if 1 > maximum(measured_EWs)
+        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
     # Group lines together ensuring that no λ is closer to it's neighbour than twice the ew_window_size.
     group_indices = linelist_neighbourhood_indices(linelist, ew_window_size)
 
-    d_A = Array{Float64}(undef, length(linelist))
+    A0_minus_log10W0 = Array{Float64}(undef, length(linelist))
     for indices in group_indices
         wl_ranges = map(linelist[indices]) do line
+            # constructing the range this way ensures that the last point is exactly λ_stop
+            # and there is always a point on the line center
             λ_start, λ_stop = (1e8 * line.wl - ew_window_size, 1e8 * line.wl + ew_window_size)
-            wls = range(λ_start, λ_stop; length=Int(round((λ_stop - λ_start)/λ_step))+1)
+            range(λ_start, λ_stop; length=Int(round((λ_stop - λ_start)/wl_step))+1)
         end
 
-        spectrum = Korg.synthesize(
-            atm, linelist[indices], A_X, wl_ranges,
-            hydrogen_lines=false;
-            synthesize_kwargs...
-        )
+        spectrum = Korg.synthesize(atm, linelist[indices], A_X, wl_ranges; synthesize_kwargs...)
 
         for (i, (idx, line)) in enumerate(zip(spectrum.subspectra, linelist[indices]))
             depth = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
-            ew = trapz(spectrum.wavelengths[idx], depth) # Angstrom
-            rew = log10(ew / (line.wl * 1e8))    
-            d_A[indices[i]] = rew - A_X[Korg.get_atoms(line.species)[1]] # species is atomic
+            logEW = log10(trapz(spectrum.wavelengths[idx], depth) * 1e3) # convert to mÅ
+            A0_minus_log10W0[indices[i]] = A_X[Korg.get_atoms(line.species)[1]] - logEW
         end
     end
 
-    # measured EWs are in mA, factor of 10^11 converts from cm
-    measured_REW = log10.(ews ./ [1e11 * line.wl for line in linelist])
-    measured_REW .- d_A
+    log10.(measured_EWs) .+ A0_minus_log10W0
 end
 
 end # module
