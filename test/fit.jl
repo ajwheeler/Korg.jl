@@ -114,9 +114,12 @@
             Korg.Line(5127.679 * 1e-8, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
             Korg.Line(5197.577 * 1e-8, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33),
         ]
-        
+        foo = Korg.Fit.linelist_neighbourhood_indices(linelist, 10)
+        @test length(foo) == 3 
+        @test foo[1] == [1]
+        @test foo[2] == [2, 3]
+        @test foo[3] == [4, 5]
         @test length(Korg.Fit.linelist_neighbourhood_indices(linelist, 2)) == 2
-        @test length(Korg.Fit.linelist_neighbourhood_indices(linelist, 10)) == 4 # (5044, 5054, 5127.3, (5127.6, 5197.5))
         @test length(Korg.Fit.linelist_neighbourhood_indices(linelist[1:3], 2)) == 1
     end
 
