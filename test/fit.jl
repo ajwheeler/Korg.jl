@@ -33,4 +33,94 @@
         @test obs_wl_mask == Bool[0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0]
         @test synth_wls[synth_wl_mask] == [(5000.0:0.01:5005.0)... ;  (5006.0:0.01:5009.0)...]
     end
+
+    @testset "don't allow hydrogen lines in ew_to_abundances" begin
+        sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+        sun_A_X = Korg.format_A_X(sun_Fe_H)
+        sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+
+        linelist = [Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31)]
+        sun_ews = [74.3]
+        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews, vmic=sun_vmic, hydrogen_lines=true)        
+    end
+    @testset "require sorted linelists" begin
+        sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+        sun_A_X = Korg.format_A_X(sun_Fe_H)
+        sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+
+        linelist = [
+            Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
+            Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
+        ]
+        sun_ews = [74.3, 40.5]
+        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews, vmic=sun_vmic)
+    end
+
+    @testset "length of linelist and ews should match" begin
+        sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+        sun_A_X = Korg.format_A_X(sun_Fe_H)
+        sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+        linelist = [Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31)]
+        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, [], vmic=sun_vmic)
+    end
+
+    @testset "disallow molecules" begin
+        sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+        sun_A_X = Korg.format_A_X(sun_Fe_H)
+        sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+        linelist = [
+            Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
+            Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("106.0"), 2.8512, 2.71e-31)
+
+        ]
+        sun_ews = [74.3, 40.5]
+        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews, vmic=sun_vmic)
+    end    
+
+    @testset "Melendez et al. (2014) sanity check" begin
+
+        sun_ews = [74.3, 40.5, 96.1, 19.1, 80.7]
+        sco_ews = [74.8, 40.9, 97.5, 18.9, 84.0]
+        linelist = [
+            Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
+            Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
+            Korg.Line(5127.359 * 1e-8, -3.30700, Korg.Species("26.0"), 0.915, 1.84e-32),
+            Korg.Line(5127.679 * 1e-8, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
+            Korg.Line(5197.577 * 1e-8, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33),
+        ]
+        sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+        sun_A_X = Korg.format_A_X(sun_Fe_H)
+        sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+
+        sco_teff, sco_logg, sco_fe_h, sco_vmic = (5823, 4.45, 0.054, sun_vmic + 0.02)
+        sco_A_X = Korg.format_A_X(sco_fe_h)
+        # Note: NOT true, but just for testing the whole performance
+        sco_atm = sun_atm
+        
+        sun_abundances = Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews, vmic=sun_vmic)
+        sco_abundances = Korg.Fit.ews_to_abundances(sco_atm, linelist, sco_A_X, sco_ews, vmic=sco_vmic)        
+        diff_abundances = sco_abundances .- sun_abundances
+
+        mean_diff_abundances = sum(diff_abundances) / length(diff_abundances)
+        @test abs(mean_diff_abundances) < 0.05
+        # TODO: test for stddev?        
+    end
+
+    @testset "test neighbourhood grouping" begin
+        linelist = [
+            Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
+            Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
+            Korg.Line(5127.359 * 1e-8, -3.30700, Korg.Species("26.0"), 0.915, 1.84e-32),
+            Korg.Line(5127.679 * 1e-8, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
+            Korg.Line(5197.577 * 1e-8, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33),
+        ]
+        foo = Korg.Fit.linelist_neighbourhood_indices(linelist, 10)
+        @test length(foo) == 3 
+        @test foo[1] == [1]
+        @test foo[2] == [2, 3]
+        @test foo[3] == [4, 5]
+        @test length(Korg.Fit.linelist_neighbourhood_indices(linelist, 2)) == 2
+        @test length(Korg.Fit.linelist_neighbourhood_indices(linelist[1:3], 2)) == 1
+    end
+
 end
