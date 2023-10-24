@@ -5,6 +5,8 @@ test/Manifest.toml
 docs/Manifest.toml
 sanity_checks/Manifest.toml
 *.jl~
+misc/Tutorial\ notebooks/Project.toml
+misc/Tutorial\ notebooks/Manifest.toml
 misc/Playground.ipynb
 misc/statprof/*
 misc/a.pdf
