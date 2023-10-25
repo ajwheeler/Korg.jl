@@ -85,8 +85,9 @@
             Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
             Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
             Korg.Line(5127.359 * 1e-8, -3.30700, Korg.Species("26.0"), 0.915, 1.84e-32),
-            Korg.Line(5127.679 * 1e-8, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
-            Korg.Line(5197.577 * 1e-8, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33),
+            # don't convert these ones to cm.  It should still work.
+            Korg.Line(5127.679, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
+            Korg.Line(5197.577, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33),
         ]
         sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
         sun_A_X = Korg.format_A_X(sun_Fe_H)
