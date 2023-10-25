@@ -2,6 +2,10 @@
     @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
                                                       format="abc")
 
+    @testset "wls in either cm or Å" begin
+        @test Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0) == Korg.Line(5e-5, 0.0, Korg.species"Fe I", 1.0) 
+    end
+
     @testset "kurucz linelist parsing" begin
         for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
             kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")

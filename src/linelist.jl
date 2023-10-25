@@ -16,7 +16,7 @@ struct Line{F1, F2, F3, F4, F5, F6}
              vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
 
     Arguments:
-     - `wl`: wavelength, in cm
+     - `wl`: wavelength (Assumed to be in cm if < 1, otherwise in Å)
      - `log_gf`: (log base 10) oscillator strength (unitless)
      - `species`: the `Species` associated with the line
      - `E_lower`: The energy (excitiation potential) of the lower energy level (eV)
@@ -34,6 +34,9 @@ struct Line{F1, F2, F3, F4, F5, F6}
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3, 
                   gamma_rad::Union{F4, Missing}=missing, gamma_stark::Union{F5, Missing}=missing, 
                   vdW::Union{F6, Tuple{F6, F6}, Missing}=missing) where {F1 <: Real, F2 <: Real, F3 <: Real, F4 <: Real, F5 <: Real, F6 <: Real}
+        if wl >= 1
+            wl *= 1e-8 #convert Å to cm
+        end
         if ismissing(gamma_stark) || ismissing(vdW)
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
             if ismissing(gamma_stark)
