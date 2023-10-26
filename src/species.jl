@@ -154,10 +154,10 @@ struct Species
 end
 
 """
-    Species(code::AbstractString)
+    Species(code)
 
 Parse the "species code" in many of the forms in which it is often specifieds and return an object 
-representing the sepcies.
+representing the sepcies. `code` can be either a string or a float.
 
 # Examples
  - "H I" -> H I
@@ -219,6 +219,7 @@ function Species(code::AbstractString)
     end
     Species(formula, charge)
 end
+Species(code::AbstractFloat) = Species(string(code))
 
 #used to contruct Species at compile time and avoid parsing in hot loops
 macro species_str(s)

@@ -12,6 +12,10 @@
         @test Korg.species"0608.00" == Korg.species"CO I"
         @test Korg.species"812.0"   == Korg.species"MgO"
         @test Korg.species"822.0"   == Korg.species"TiO"
+        @test Korg.Species(1.0)      == Korg.species"H"
+        @test Korg.Species(101.0)    == Korg.species"H2 I"
+        @test Korg.Species(2.1)     == Korg.species"He II"
+        @test Korg.Species(2.01)     == Korg.species"He II"
 
         @test Korg.species"010108" == Korg.species"10108"== Korg.species"H2O"
         @test Korg.species"060606" == Korg.species"60606"== Korg.species"C3"
