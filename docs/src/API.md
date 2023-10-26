@@ -17,7 +17,8 @@ format_A_X
 
 # Fitting
 ```@docs
-find_best_fit_params
+ews_to_abundances
+fit_spectrum
 ```
 
 # Secondary functions
