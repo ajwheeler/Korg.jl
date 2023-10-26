@@ -172,7 +172,11 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     # if that is going on.  I'm sure there's a better way...
     x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
 
-    sol = nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+    sol = try
+        nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+    catch e
+        throw(ChemicalEquilibriumError("solver failed: $e"))
+    end
 
     if !sol.f_converged
         throw(ChemicalEquilibriumError("unconverged"))
