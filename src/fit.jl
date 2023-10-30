@@ -10,8 +10,6 @@ using Interpolations: LinearInterpolation
 using ForwardDiff
 using Trapz
 
-export find_best_fit_params
-
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
     if !(lower <= p <= upper)
@@ -133,7 +131,7 @@ function validate_params(initial_guesses, fixed_params;
 end
 
 """
-    find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params; kwargs...)
+    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params; kwargs...)
 
 Find the parameters and abundances that best match a rectified observed spectrum.
 
@@ -197,7 +195,7 @@ A NamedTuple with the following fields:
 - `trace`: a vector of NamedTuples, each of which contains the parameters at each step of the 
   optimization.
 """
-function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
+function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
                               fixed_params::NamedTuple=(;); windows=[(obs_wls[1], obs_wls[end])],
                               synthesis_wls = obs_wls[1] - 10 : 0.01 : obs_wls[end] + 10,
                               R=nothing, 
@@ -270,14 +268,20 @@ function find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_gues
      solver_result=res, trace=trace)
 end
 # make it possible to use dicts instead of NamedTuples for the python people
-find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Dict, 
-                              fixed_params::Dict=Dict{String, Float64}(); kwargs...) = 
-    find_best_fit_params(obs_wls, obs_flux, obs_err, linelist, NamedTuple(pairs(initial_guesses)...), 
-                         NamedTuple(pairs(fixed_params)...); kwargs...)
+fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
+             fixed_params::Dict; kwargs...) = 
+    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, 
+                 _dict_to_namedtuple(fixed_params); kwargs...)
+fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Dict, 
+             fixed_params::NamedTuple=(;); kwargs...) = 
+    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, _dict_to_namedtuple(initial_guesses), 
+                 fixed_params; kwargs...)
+
+_dict_to_namedtuple(d::Dict) = (;(Symbol(p.first) => p.second for p in d)...)
 
 """
 Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
-find_best_params_multilocally.
+fit_spectrum.
 """
 function merge_bounds(bounds, merge_distance)
     bounds = sort(bounds, by=first)
