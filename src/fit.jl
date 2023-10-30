@@ -269,7 +269,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Nam
 end
 # make it possible to use dicts instead of NamedTuples for the python people
 fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
-             fixed_params::Dict=Dict{String, Float64}(); kwargs...) = 
+             fixed_params::Dict; kwargs...) = 
     fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, 
                  _dict_to_namedtuple(fixed_params); kwargs...)
 fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Dict, 
