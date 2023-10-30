@@ -268,10 +268,16 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Nam
      solver_result=res, trace=trace)
 end
 # make it possible to use dicts instead of NamedTuples for the python people
+fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
+             fixed_params::Dict=Dict{String, Float64}(); kwargs...) = 
+    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, 
+                 _dict_to_namedtuple(fixed_params); kwargs...)
 fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Dict, 
-                              fixed_params::Dict=Dict{String, Float64}(); kwargs...) = 
-    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, NamedTuple(pairs(initial_guesses)...), 
-                         NamedTuple(pairs(fixed_params)...); kwargs...)
+             fixed_params::NamedTuple=(;); kwargs...) = 
+    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, _dict_to_namedtuple(initial_guesses), 
+                 fixed_params; kwargs...)
+
+_dict_to_namedtuple(d::Dict) = (;(Symbol(p.first) => p.second for p in d)...)
 
 """
 Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
