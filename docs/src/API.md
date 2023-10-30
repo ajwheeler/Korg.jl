@@ -17,8 +17,8 @@ format_A_X
 
 # Fitting
 ```@docs
-ews_to_abundances
-fit_spectrum
+Korg.Fit.ews_to_abundances
+Korg.Fit.fit_spectrum
 ```
 
 # Secondary functions
