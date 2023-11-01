@@ -3,9 +3,11 @@
 
 1D LTE stellar spectral synthesis for FGK stars in pure Julia.
 
-[Code paper](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract) (please cite this if you use Korg)
-
 [Documentation](https://ajwheeler.github.io/Korg.jl/stable/)
+
+Code papers (please cite these if you use Korg): 
+- [Korg: A Modern 1D LTE Spectral Synthesis Package](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract)
+- [Korg: fitting, model atmosphere interpolation, and Brackett lines](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract) 
 
 Tutorials:
 - [Korg basics](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/basics/Basics.ipynb)
