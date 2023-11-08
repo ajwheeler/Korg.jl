@@ -276,7 +276,12 @@ end
 
 function parse_vald_linelist(f, isotopic_abundances)
     lines = filter!(collect(eachline(f))) do line
-        length(line) > 0 && line[1] != '#' #remove comments and empty lines
+        length(line) > 0 && line[1] != '#' # remove comments and empty lines
+    end
+
+    # ignore truncation warning
+    if startswith(lines[1],  " WARNING: Output was truncated to 100000 lines")
+        lines = lines[2:end]
     end
 
     lines = replace.(lines, "'"=>"\"") #replace single quotes with double
