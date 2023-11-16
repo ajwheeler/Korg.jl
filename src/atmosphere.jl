@@ -242,7 +242,7 @@ end
     interpolate_marcs(Teff, logg, A_X; kwargs...)
 
 Returns a model atmosphere obtained by interpolating the MARCS SDSS atmosphere grid, which provides 
-atmospheres for varying values of ``T_\\mathrm{eff}``, ``\\log g`, [metals/H], [alpha/metals], 
+atmospheres for varying values of ``T_\\mathrm{eff}``, ``\\log g``, [metals/H], [alpha/metals], 
 and [C/metals].  If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref)
 and accepted by [`synthesize`](@ref)) is provided instead of `M_H`, `alpha_M`, and `C_M`, the 
 solar-relative ratios will be reconstructed assuming Grevesse+ 2007 solar abundances.
