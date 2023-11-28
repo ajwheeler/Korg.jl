@@ -108,7 +108,9 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 `synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
 
 # Arguments
-- `synth_wls`: the synthesis wavelengths. (Either a range or a vector of ranges.)
+- `synth_wls`: the synthesis wavelengths. This should be a range or a vector of ranges, but it can 
+    also be a vector if the wavelengths are linearly spaced to within a tollerance of the 
+    `step_tolerance` kwarg)
 - `obs_wls`: the wavelengths of the observed spectrum
 - `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
 
@@ -125,7 +127,8 @@ the region you are going to compare.
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
 resolution via matrix multiplication is fast.
 """
-function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true, renormalize_edge=true)
+function compute_LSF_matrix(synth_wls::AbstractRange, obs_wls, R; window_size=4, verbose=true, 
+                            renormalize_edge=true, step_tolerance=1e-6)
     if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
     end
@@ -150,6 +153,16 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true, 
         next!(p)
     end
     convM .* normalization_factor
+end
+function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R; 
+                            step_tolerance=1e-6, kwargs...)
+    min_step, max_step = extrema(diff(synth_wls))
+    println(max_step - min_step)
+    if max_step - min_step > step_tolerance
+        throw(ArgumentError("Synthesis wavelengths are not linearly spaced to within $step_tolerance."))
+    end
+    swls = range(first(synth_wls), last(synth_wls); length=length(synth_wls))
+    compute_LSF_matrix(swls, obs_wls, R; kwargs...)
 end
 function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractRange}, obs_wls, R; 
                             renormalize_edge=true, verbose=false, kwargs...)
