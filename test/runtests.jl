@@ -230,6 +230,14 @@ end
     # should't matter if you split wls into 2 ranges
     @test Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) ≈ Korg.compute_LSF_matrix(wls, wls, R) 
 
+    # synth_wls can be a slightly fuzzy grid
+    obs_wls = 5000 : 1.0 : 5010
+    range_wls = 5000 : 0.01 : 5010
+    array_wls = collect(range_wls) # range -> array
+    array_wls[2:end-1] .+= 1e-8 * ones(length(range_wls)-2) # slighly perturb (except the endpoints)
+    @test Korg.compute_LSF_matrix(array_wls, obs_wls, R) ≈ Korg.compute_LSF_matrix(range_wls, obs_wls, R) 
+    @test_throws ArgumentError Korg.compute_LSF_matrix(array_wls, obs_wls, R; step_tolerance=1e-9)
+
     convF = Korg.constant_R_LSF(flux, wls, R)
     convF_5sigma = Korg.constant_R_LSF(flux, wls, R; window_size=5)
     convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
