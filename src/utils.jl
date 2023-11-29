@@ -64,8 +64,26 @@ function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVect
     lb, ub
 end
 
+# used by TODO
+# handle case where R is wavelength independent
+function line_spread_function_core(synth_wls, λ0, R::Real, window_size, renormalize_edge)
+    σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
+    lb, ub = move_bounds(synth_wls, 0, 0, λ0, window_size*σ)
+    ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
+    norm_factor = if renormalize_edge
+        1 ./ sum(ϕ)
+    else
+        1.0
+    end
+    lb:ub, ϕ, norm_factor
+end
+# handle case where R is a function of wavelength
+function line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
+    line_spread_function_core(synth_wls, λ0, R(λ0), window_size, renormalize_edge)
+end
+
 """
-    constant_R_LSF(flux, wls, R; window_size=4)
+    apply_LSF(flux, wls, R; window_size=4)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
 vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
@@ -78,28 +96,30 @@ the region you are going to compare.
 If you are convolving many spectra defined on the same wavelenths to observational resolution, you 
 will get much better performance using [`compute_LSF_matrix`](@ref).
 
+# Keyword Arguments
+- `window_size` (default: 4): how far out to extend the convolution kernel in units of the LSF width (σ, not HWHM)
+- `renormalize_edge` (default: `true`): whether or not to renormalize the LSF at the edge of the wl 
+  range.  This doen't matter as long as `synth_wls` extends to large and small enough wavelengths.
+
 !!! warning
     - This is a naive, slow implementation.  Do not use it when performance matters.
 
-    - `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
+    - `apply_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
        It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
        otherwise desired) grid.
 """
-function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=4) where F <: Real
+function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormalize_edge=true) where F <: Real
     #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
-    lb, ub = 1,1 #initialize window bounds
     for i in eachindex(wls)
         λ0 = wls[i]
-        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
-        lb, ub = move_bounds(wls, lb, ub, λ0, window_size*σ)
-        ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
-        normalization_factor[i] = 1 ./ sum(ϕ)
-        @. convF[lb:ub] += flux[i]*ϕ
+        r, ϕ, normalization_factor[i] =  line_spread_function_core(wls, λ0, R, window_size, renormalize_edge)
+        @. convF[r] += flux[i]*ϕ
     end
     convF .* normalization_factor
 end
+@deprecate constant_R_LSF(args...; kwargs...) apply_LSF(args...; kwargs...)
 
 """
     compute_LSF_matrix(synth_wls, obs_wls, R; kwargs...)
@@ -126,7 +146,7 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
 the region you are going to compare. 
 
-[`Korg.constant_R_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
+[`Korg.apply_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
 resolution via matrix multiplication is fast.
 """
@@ -146,13 +166,8 @@ function compute_LSF_matrix(synth_wls::AbstractRange, obs_wls, R; window_size=4,
     p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
     for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
-        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
-        lb, ub = move_bounds(synth_wls, lb, ub, λ0, window_size*σ)
-        ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
-        if renormalize_edge
-            normalization_factor[i] = 1 ./ sum(ϕ)
-        end
-        @. convM[i, lb:ub] += ϕ
+        r, ϕ, normalization_factor[i] = line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
+        @. convM[i, r] += ϕ
         next!(p)
     end
     convM .* normalization_factor

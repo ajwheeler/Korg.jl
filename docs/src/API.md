@@ -29,7 +29,7 @@ doing.
 These are used to transform observational or synthetic spectra.
 
 ```@docs
-Korg.constant_R_LSF
+Korg.apply_LSF
 Korg.compute_LSF_matrix
 Korg.air_to_vacuum
 Korg.vacuum_to_air
