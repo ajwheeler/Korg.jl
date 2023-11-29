@@ -247,11 +247,10 @@ end
     convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
     convF_mat_vec = Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) * flux
     convF_changing_R = Korg.constant_R_LSF(flux, wls, wl->wl/6000*R)
-    convF_mat_changing_R = Korg.compute_LSF_matrix(flux, wls, wl->wl/6000*R) * flux
+    convF_mat_changing_R = Korg.compute_LSF_matrix(wls, wls, wl->wl/6000*R) * flux
 
     downsampled_wls = 5950:0.4:6050
     convF_mat_downsample = Korg.compute_LSF_matrix(wls, downsampled_wls, R; window_size=5) * flux
-
 
     # normalized?
     @test sum(flux) ≈ sum(convF)  rtol=1e-3
@@ -260,9 +259,9 @@ end
     @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
     @test sum(flux) ≈ sum(convF_mat5) rtol=1e-3
     @test sum(flux) ≈ sum(convF_mat_vec) rtol=1e-3
-    @test sum(flux) * step(wls) ≈ sum(convF_mat_downsample) * step(downsampled_wls) rtol=1e-3
     @test sum(flux) ≈ sum(convF_changing_R) rtol=1e-3
     @test sum(flux) ≈ sum(convF_mat_changing_R) rtol=1e-3
+    @test sum(flux) * step(wls) ≈ sum(convF_mat_downsample) * step(downsampled_wls) rtol=1e-3
 
     # preserves line center?
     @test argmax(convF) == spike_ind

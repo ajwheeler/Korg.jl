@@ -112,7 +112,6 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormal
     #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
-    lb, ub = 1,1 #initialize window bounds
     for i in eachindex(wls)
         λ0 = wls[i]
         r, ϕ, normalization_factor[i] =  line_spread_function_core(wls, λ0, R, window_size, renormalize_edge)
