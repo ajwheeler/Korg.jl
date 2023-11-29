@@ -273,7 +273,7 @@ fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple,
     fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, 
                  _dict_to_namedtuple(fixed_params); kwargs...)
 fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Dict, 
-             fixed_params::NamedTuple=(;); kwargs...) = 
+             fixed_params=(;); kwargs...) = 
     fit_spectrum(obs_wls, obs_flux, obs_err, linelist, _dict_to_namedtuple(initial_guesses), 
                  fixed_params; kwargs...)
 
