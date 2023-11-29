@@ -1,6 +1,6 @@
 @testset "Fit" begin
     @testset "parameter scaling" begin
-        params = (Teff = 3200, logg=4.5, m_H=-2, vmic=3.2, vsini=10, O=-1)
+        params = Dict("Teff"=>3200.0, "logg"=>4.5, "m_H"=>-2.0, "vmic"=>3.2, "vsini"=>10.0, "O"=>-1.0)
         sparams = Korg.Fit.scale(params)
         uparams = Korg.Fit.unscale(sparams)
         @test all(isapprox.(values(uparams), values(params); rtol=1e-3))
@@ -11,9 +11,13 @@
         @test_throws ArgumentError Korg.Fit.validate_params((; logg = 3200), (;))
         @test_throws ArgumentError Korg.Fit.validate_params((Teff=4500, logg = 3200, m_H = 0.1), (; m_H=0.1))
 
-        _, fixed_params = Korg.Fit.validate_params((Teff=4500, logg=4.5), (;))
-        @test fixed_params.m_H == 0
-        @test fixed_params.vmic == 1
+        for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff"=> 4500, "logg"=>4.5)]
+            for fixed_params in [(;), Dict()]
+                _, fixed_params = Korg.Fit.validate_params(initial_guess, fixed_params)
+                @test fixed_params["m_H"] == 0
+                @test fixed_params["vmic"] == 1
+            end
+        end
     end
 
     @testset "merge bounds, masks etc" begin

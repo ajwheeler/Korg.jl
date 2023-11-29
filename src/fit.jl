@@ -21,49 +21,47 @@ tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
 
 # these are the parmeters which are scaled by tan_scale
 const tan_scale_params = Dict(
-    :epsilon => (0, 1),
+    "epsilon" => (0, 1),
     # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the 
     # test environent, but they are simply the boundaries of the SDSS marcs grid used by
     # Korg.interpolate_marcs.
-    :Teff => (2800, 8000),
-    :logg => (-0.5, 5.5),
-    :m_H => (-2.5, 1),
+    "Teff" => (2800, 8000),
+    "logg" => (-0.5, 5.5),
+    "m_H" => (-2.5, 1),
     map(Korg.atomic_symbols) do el
         A_X_sun = Korg.default_solar_abundances[Korg.atomic_numbers[el]]
-        Symbol(el) => (A_X_sun - 10, A_X_sun + 2)
+        el => (A_X_sun - 10, A_X_sun + 2)
     end...
 )
 
 """
 Rescale each parameter so that it lives on (-∞, ∞).
 """
-function scale(params::NamedTuple)
-    new_pairs = map(collect(pairs(params))) do (name, p)
+function scale(params::Dict)
+    map(collect(params)) do (name, p)
         name => if name in keys(tan_scale_params)
             tan_scale(p, tan_scale_params[name]...)
-        elseif name in [:vmic, :vsini]
+        elseif name in ["vmic", "vsini"]
             tan_scale(sqrt(p), 0, sqrt(250))
         else
             @error "$name is not a parameter I know how to scale."
         end
-    end
-    (; new_pairs...)
+    end |> Dict
 end
 
 """
 Unscale each parameter so that it lives on the appropriate range instead of (-∞, ∞).
 """
-function unscale(params)
-    new_pairs = map(collect(pairs(params))) do (name, p)
+function unscale(params::Dict)
+    map(collect(params)) do (name, p)
         name => if name in keys(tan_scale_params)
             tan_unscale(p, tan_scale_params[name]...)
-        elseif name in [:vmic, :vsini]
+        elseif name in ["vmic", "vsini"]
             tan_unscale(p, 0, sqrt(250))^2
         else
             @error "$name is not a parameter I know how to unscale."
         end
-    end
-    (; new_pairs...)
+    end |> Dict
 end
 
 """
@@ -72,32 +70,34 @@ used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as
 """
 function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
                      line_buffer=10)
-    specified_abundances = Dict([String(p.first)=>p.second 
-                                                  for p in pairs(params) 
-                                                  if String(p.first) in Korg.atomic_symbols])
-    alpha_H = :alpha_H in keys(params) ? params.alpha_H : params.m_H
-    A_X = Korg.format_A_X(params.m_H, alpha_H, specified_abundances; solar_relative=true)
+    specified_abundances = Dict([p for p in pairs(params) if p.first in Korg.atomic_symbols])
+    alpha_H = "alpha_H" in keys(params) ? params["alpha_H"] : params["m_H"]
+    A_X = Korg.format_A_X(params["m_H"], alpha_H, specified_abundances; solar_relative=true)
 
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
-    atm = Korg.interpolate_marcs(params.Teff, params.logg, A_X; clamp_abundances=true, perturb_at_grid_values=true)
+    atm = Korg.interpolate_marcs(params["Teff"], params["logg"], A_X; clamp_abundances=true, perturb_at_grid_values=true)
 
-    sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params.vmic, line_buffer=line_buffer, 
+    sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params["vmic"], line_buffer=line_buffer, 
                         electron_number_density_warn_threshold=1e100)
     F = sol.flux ./ sol.cntm
-    F = Korg.apply_rotation(F, synthesis_wls, params.vsini, params.epsilon)
+    F = Korg.apply_rotation(F, synthesis_wls, params["vsini"], params["epsilon"])
     LSF_matrix * F
 end
 
 """
-validate fitting parameters, and insert default values when needed.
+Validate fitting parameters, and insert default values when needed. Used by [`fit_spectrum`](@ref).
 
-these can be specified in either initial_guesses or fixed_params, but if they are not, these values are inserted into fixed_params
+these can be specified in either initial_guesses or fixed_params, but if they are not, these values
+ are inserted into fixed_params
 """
-function validate_params(initial_guesses, fixed_params;
-                         required_params = [:Teff, :logg],
-                         default_params = (m_H=0.0, vsini=0.0, vmic=1.0, epsilon=0.6),
-                         allowed_params = Set([required_params ; keys(default_params)... ; 
-                                               Symbol.(Korg.atomic_symbols)]))
+function validate_params(initial_guesses::Dict, fixed_params::Dict;
+                         required_params = ["Teff", "logg"],
+                         default_params = Dict("m_H"=>0.0, "vsini"=>0.0, "vmic"=>1.0, "epsilon"=>0.6),
+                         allowed_params = Set([required_params ; keys(default_params)... ; Korg.atomic_symbols]))
+    # convert all parameter values to Float64
+    initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
+    fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
+
     # check that all required params are specified
     all_params = keys(initial_guesses) ∪ keys(fixed_params)
     for param in required_params
@@ -117,8 +117,8 @@ function validate_params(initial_guesses, fixed_params;
     # filter out those that the user specified, and fill in the rest
     default_params = filter(collect(pairs(default_params))) do (k, v)
         !(k in keys(initial_guesses)) && !(k in keys(fixed_params))
-    end
-    fixed_params = merge((; default_params...), fixed_params) 
+    end |> Dict
+    fixed_params = merge(default_params, fixed_params) 
 
     # check that no params are both fixed and initial guesses
     let keys_in_both = collect(keys(initial_guesses) ∩ keys(fixed_params))
@@ -128,6 +128,16 @@ function validate_params(initial_guesses, fixed_params;
     end
 
     initial_guesses, fixed_params
+end
+
+# make it possible to use dicts instead of NamedTuples for the python people
+validate_params(initial_guesses::Dict, fixed_params::NamedTuple; kwargs...) = 
+    validate_params(initial_guesses, _namedtuple_to_dict(fixed_params); kwargs...)
+validate_params(initial_guesses::NamedTuple, fixed_params=Dict{String, Float64}(); kwargs...) = 
+    validate_params(_namedtuple_to_dict(initial_guesses), fixed_params; kwargs...)
+
+function _namedtuple_to_dict(nt::NamedTuple)
+    Dict{String, Float64}([string(p[1])=>Float64(p[2]) for p in pairs(nt)])
 end
 
 """
@@ -157,6 +167,7 @@ Single-element NamedTuples require a semicolon: `(; Teff=5000)`.
 These can be specified in either `initial_guesses` or `fixed_params`, but if they are not default 
 values are used.
 - `m_H`: the metallicity of the star, in dex. Default: `0.0`
+- `alpha_H`: the alpha enhancement of the star, in dex. Default: `m_H`.
 - `vmic`: the microturbulence velocity, in km/s. Default: `1.0`
 - `vsini`: the projected rotational velocity of the star, in km/s. Default: `0.0`. 
    See [`Korg.apply_rotation`](@ref) for details.
@@ -195,18 +206,22 @@ A NamedTuple with the following fields:
 - `trace`: a vector of NamedTuples, each of which contains the parameters at each step of the 
   optimization.
 """
-function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
-                              fixed_params::NamedTuple=(;); windows=[(obs_wls[1], obs_wls[end])],
-                              synthesis_wls = obs_wls[1] - 10 : 0.01 : obs_wls[end] + 10,
-                              R=nothing, 
-                              LSF_matrix = if isnothing(R)
-                                throw(ArgumentError("Either R or LSF_matrix must be specified."))
-                              else
-                                  Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
-                              end,
-                              wl_buffer=1.0, precision=1e-3)
+function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
+                      windows=[(obs_wls[1], obs_wls[end])],
+                      synthesis_wls = obs_wls[1] - 10 : 0.01 : obs_wls[end] + 10,
+                      R=nothing, 
+                      LSF_matrix = if isnothing(R)
+                        throw(ArgumentError("Either R or LSF_matrix must be specified."))
+                      else
+                          Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
+                      end,
+                      wl_buffer=1.0, precision=1e-3)
 
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
+    ps = collect(pairs(scale(initial_guesses)))
+    params_to_fit = first.(ps)
+    p0 = last.(ps) # the initial guess as a vector of scaled values
+
     @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
@@ -214,12 +229,12 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Nam
     obs_wl_mask, synth_wl_mask, multi_synth_wls = 
         calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
 
-
     chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
-               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, fixed_params=fixed_params
+               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, 
+               params_to_fit=params_to_fit, fixed_params=fixed_params
         scaled_p -> begin
             negative_log_scaled_prior = sum(@. scaled_p^2/100^2)
-            guess = unscale((; zip(keys(initial_guesses), scaled_p)...))
+            guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
             flux = try
                 synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
@@ -237,27 +252,26 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Nam
         end
     end 
     
-    # the initial guess must be supplied as a vector to optimize
-    p0 = collect(values(scale(initial_guesses)))
-    res, solution = if length(p0) == 1
+    res = if length(p0) == 1
         # if we are fitting a single parameter, experimentation shows that Nelder-Mead (the default)
         # is faster than BFGS
-        res = optimize(chi2, p0)
-        res, unscale((; first(keys(initial_guesses)) => first(res.minimizer)))
+        # there seems to be a problem with trace storage for this optimizer, so we don't request it
+        optimize(chi2, p0) 
     else
         # if we are fitting a multiple parameters, use BFGS with autodiff
-        res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
+        optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
                  Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
-                   extended_trace=true); autodiff=:forward)
-        res, unscale((; zip(keys(initial_guesses), res.minimizer)...))
+                               extended_trace=true); autodiff=:forward)
     end
+    solution = unscale(Dict(params_to_fit .=> res.minimizer))
+
+    trace = map(res.trace) do t
+        unscaled_params = unscale(Dict(params_to_fit .=> t.metadata["x"]))
+        unscaled_params["chi2"] = t.value
+        unscaled_params
+    end
+
     full_solution = merge(solution, fixed_params)
-
-    scaled_trace = [(; (keys(initial_guesses) .=> t.metadata["x"])...) for t in res.trace]
-    trace = map(scaled_trace, res.trace) do p, t
-        (; unscale(p)..., chi2=t.value)
-    end
-
     best_fit_flux = try
         synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
     catch e
@@ -267,17 +281,6 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Nam
     (best_fit_params=solution, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask, 
      solver_result=res, trace=trace)
 end
-# make it possible to use dicts instead of NamedTuples for the python people
-fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::NamedTuple, 
-             fixed_params::Dict; kwargs...) = 
-    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, 
-                 _dict_to_namedtuple(fixed_params); kwargs...)
-fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses::Dict, 
-             fixed_params::NamedTuple=(;); kwargs...) = 
-    fit_spectrum(obs_wls, obs_flux, obs_err, linelist, _dict_to_namedtuple(initial_guesses), 
-                 fixed_params; kwargs...)
-
-_dict_to_namedtuple(d::Dict) = (;(Symbol(p.first) => p.second for p in d)...)
 
 """
 Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
