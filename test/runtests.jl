@@ -249,6 +249,8 @@ end
     convF_changing_R = Korg.constant_R_LSF(flux, wls, wl->wl/6000*R)
     convF_mat_changing_R = Korg.compute_LSF_matrix(wls, wls, wl->wl/6000*R) * flux
 
+    @test convF_mat_changing_R ≈ convF_changing_R rtol=1e-10
+
     downsampled_wls = 5950:0.4:6050
     convF_mat_downsample = Korg.compute_LSF_matrix(wls, downsampled_wls, R; window_size=5) * flux
 
