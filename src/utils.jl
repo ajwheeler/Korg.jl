@@ -64,7 +64,7 @@ function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVect
     lb, ub
 end
 
-# used by TODO
+# used by apply_LSF and compute_LSF_matrix
 # handle case where R is wavelength independent
 function line_spread_function_core(synth_wls, λ0, R::Real, window_size, renormalize_edge)
     σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
