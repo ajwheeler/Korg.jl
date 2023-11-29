@@ -241,12 +241,12 @@ end
     @test Korg.compute_LSF_matrix(array_wls, obs_wls, R) ≈ Korg.compute_LSF_matrix(range_wls, obs_wls, R) 
     @test_throws ArgumentError Korg.compute_LSF_matrix(array_wls, obs_wls, R; step_tolerance=1e-9)
 
-    convF = Korg.constant_R_LSF(flux, wls, R)
-    convF_5sigma = Korg.constant_R_LSF(flux, wls, R; window_size=5)
+    convF = Korg.apply_LSF(flux, wls, R)
+    convF_5sigma = Korg.apply_LSF(flux, wls, R; window_size=5)
     convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
     convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
     convF_mat_vec = Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) * flux
-    convF_changing_R = Korg.constant_R_LSF(flux, wls, wl->wl/6000*R)
+    convF_changing_R = Korg.apply_LSF(flux, wls, wl->wl/6000*R)
     convF_mat_changing_R = Korg.compute_LSF_matrix(wls, wls, wl->wl/6000*R) * flux
 
     @test convF_mat_changing_R ≈ convF_changing_R rtol=1e-10

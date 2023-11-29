@@ -83,7 +83,7 @@ function line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_e
 end
 
 """
-    constant_R_LSF(flux, wls, R; window_size=4)
+    apply_LSF(flux, wls, R; window_size=4)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
 vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
@@ -104,11 +104,11 @@ will get much better performance using [`compute_LSF_matrix`](@ref).
 !!! warning
     - This is a naive, slow implementation.  Do not use it when performance matters.
 
-    - `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
+    - `apply_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
        It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
        otherwise desired) grid.
 """
-function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormalize_edge=true) where F <: Real
+function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormalize_edge=true) where F <: Real
     #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
@@ -119,6 +119,7 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormal
     end
     convF .* normalization_factor
 end
+@deprecate constant_R_LSF(args...; kwargs...) apply_LSF(args...; kwargs...)
 
 """
     compute_LSF_matrix(synth_wls, obs_wls, R; kwargs...)
@@ -145,7 +146,7 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
 the region you are going to compare. 
 
-[`Korg.constant_R_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
+[`Korg.apply_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
 resolution via matrix multiplication is fast.
 """
