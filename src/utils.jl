@@ -65,7 +65,8 @@ function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVect
 end
 
 # used by TODO
-function line_spread_function_core(i, synth_wls, λ0, R, window_size, renormalize_edge)
+# handle case where R is wavelength independent
+function line_spread_function_core(synth_wls, λ0, R::Real, window_size, renormalize_edge)
     σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
     lb, ub = move_bounds(synth_wls, 0, 0, λ0, window_size*σ)
     ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
@@ -75,6 +76,10 @@ function line_spread_function_core(i, synth_wls, λ0, R, window_size, renormaliz
         1.0
     end
     lb:ub, ϕ, norm_factor
+end
+# handle case where R is a function of wavelength
+function line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
+    line_spread_function_core(synth_wls, λ0, R(λ0), window_size, renormalize_edge)
 end
 
 """
@@ -110,7 +115,7 @@ function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormal
     lb, ub = 1,1 #initialize window bounds
     for i in eachindex(wls)
         λ0 = wls[i]
-        r, ϕ, normalization_factor[i] =  line_spread_function_core(i, wls, λ0, R, window_size, renormalize_edge)
+        r, ϕ, normalization_factor[i] =  line_spread_function_core(wls, λ0, R, window_size, renormalize_edge)
         @. convF[r] += flux[i]*ϕ
     end
     convF .* normalization_factor
@@ -161,7 +166,7 @@ function compute_LSF_matrix(synth_wls::AbstractRange, obs_wls, R; window_size=4,
     p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
     for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
-        r, ϕ, normalization_factor[i] = line_spread_function_core(i, synth_wls, λ0, R, window_size, renormalize_edge)
+        r, ϕ, normalization_factor[i] = line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
         @. convM[i, r] += ϕ
         next!(p)
     end
