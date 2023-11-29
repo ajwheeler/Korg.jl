@@ -93,8 +93,7 @@ these can be specified in either initial_guesses or fixed_params, but if they ar
 function validate_params(initial_guesses::Dict, fixed_params::Dict;
                          required_params = ["Teff", "logg"],
                          default_params = Dict("m_H"=>0.0, "vsini"=>0.0, "vmic"=>1.0, "epsilon"=>0.6),
-                         allowed_params = Set([required_params ; keys(default_params)... ; 
-                                               Symbol.(Korg.atomic_symbols)]))
+                         allowed_params = Set([required_params ; keys(default_params)... ; Korg.atomic_symbols]))
     # convert all parameter values to Float64
     initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
     fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
@@ -237,7 +236,6 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             negative_log_scaled_prior = sum(@. scaled_p^2/100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
-            display(params)
             flux = try
                 synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
             catch e
@@ -254,21 +252,18 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         end
     end 
     
-    # the initial guess must be supplied as a vector to optimize
-    res, solution = if length(p0) == 1
+    res = if length(p0) == 1
         # if we are fitting a single parameter, experimentation shows that Nelder-Mead (the default)
         # is faster than BFGS
-        res = optimize(chi2, p0)
-        res, Dict(params_to_fit[0] => res.minimizer[0])
+        # there seems to be a problem with trace storage for this optimizer, so we don't request it
+        optimize(chi2, p0) 
     else
         # if we are fitting a multiple parameters, use BFGS with autodiff
-        res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
+        optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
                  Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
-                   extended_trace=true); autodiff=:forward)
-        res, unscale(Dict(params_to_fit .=> res.minimizer))
+                               extended_trace=true); autodiff=:forward)
     end
-    # TODO factor second line outside of if block
-    full_solution = merge(solution, fixed_params)
+    solution = unscale(Dict(params_to_fit .=> res.minimizer))
 
     trace = map(res.trace) do t
         unscaled_params = unscale(Dict(params_to_fit .=> t.metadata["x"]))
@@ -276,6 +271,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         unscaled_params
     end
 
+    full_solution = merge(solution, fixed_params)
     best_fit_flux = try
         synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
     catch e
