@@ -1,10 +1,10 @@
-This page docuements the Korg API for users of the package. Low-level functions that only people 
+This page documents the Korg API for users of the package. Low-level functions that only people 
 digging into the internals of Korg will be interested in can be found in the 
 [Developer documentation](@ref).
 
 # [Top-level functions](@id API)
 If you are synthesize a spectrum Korg, these are the functions you will call.  
-These functions are exported, so if you do `using Korg`, you can call them unquallified (i.e.
+These functions are exported, so if you do `using Korg`, you can call them unqualified (i.e.
 `synthesize` instead of `Korg.synthesize`).  
 
 ```@docs
