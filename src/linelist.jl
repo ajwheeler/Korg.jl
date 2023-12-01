@@ -537,3 +537,33 @@ function get_APOGEE_DR17_linelist(; include_water=true)
 
     sort!(linelists, by=l->l.wl)
 end
+
+"""
+    get_GALAH_DR3_linelist()
+
+The GALAH DR 3 linelist.  It ranges from roughly 4,675 Å to 7,930 Å.
+"""
+function get_GALAH_DR3_linelist()
+    path = joinpath(_data_dir, "linelists", "GALAH_DR3", "galah_dr3_linelist.h5")
+    h5open(path, "r") do f
+        species = map(eachcol(read(f["formula"])), read(f["ionization"])) do atoms, ion
+            formula = if atoms[2] == 0x0
+                Formula(atoms[1])
+            elseif atoms[3] == 0x0
+                Formula(sort(atoms[1:2]))
+            else
+                Formula(sort(atoms))
+            end
+            Species(formula, ion-1)
+        end
+        Line.(
+            Float64.(f["wl"]),
+            Float64.(f["log_gf"]),
+            species,
+            Float64.(f["E_lo"]),
+            Float64.(f["gamma_rad"]),
+            Float64.(f["gamma_stark"]),
+            Float64.(f["vdW"])
+        )
+    end
+end
