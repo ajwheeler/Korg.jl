@@ -557,13 +557,13 @@ function get_GALAH_DR3_linelist()
             Species(formula, ion-1)
         end
         Line.(
-            Float64.(f["wl"]),
-            Float64.(f["log_gf"]),
+            Float64.(read(f["wl"])),
+            Float64.(read(f["log_gf"])),
             species,
-            Float64.(f["E_lo"]),
-            Float64.(f["gamma_rad"]),
-            Float64.(f["gamma_stark"]),
-            Float64.(f["vdW"])
+            Float64.(read(f["E_lo"])),
+            10 .^ Float64.(read(f["gamma_rad"])),
+            10 .^ Float64.(read(f["gamma_stark"])),
+            Float64.(read(f["vdW"]))
         )
     end
 end
