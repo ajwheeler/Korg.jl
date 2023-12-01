@@ -1,5 +1,7 @@
 using Statistics: quantile
 using Interpolations: LinearInterpolation, Flat
+using SparseArrays: spzeros 
+using ProgressMeter
 
 normal_pdf(Δ, σ) = exp(-0.5*Δ^2 / σ^2) / √(2π) / σ
 
@@ -12,10 +14,17 @@ Using `lb0` and `ub0` as initial guesses, return the indices of `λs`, `(lb, ub)
 - Range, in which case `lb` and `ub` are ignored and the bounds are computed directly
 - Vector of Ranges, in which case `lb` and `ub` are also ignored.  In this case, the bounds returned
   are indices into the concatenation of the ranges.
+
+If the windows is outside the range of `λs`, the lb will be greater than ub.
+!!! warning
+    Be careful with the values returned by this function. Indices into arrays and ranges work 
+    differently. For example, if `lb = 1` and `ub = 0` (as happens if the window is entirely below
+    `λs`) then `λs[lb:ub]` will return an empty array if `λs` is an array and a non-empty array if 
+    `λs` is a range.  Make sure to explicitly check that lb <= ub when appropriate.
 """
 function move_bounds(λs::R, lb, ub, λ₀, window_size) where R <: AbstractRange
     len = length(λs)
-    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len)
+    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len+1)
     ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 0, len)
     lb,ub
 end
@@ -25,7 +34,7 @@ function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R <
     # index of the first range for which the last element is greater than λ₀ - window_size
     range_ind = searchsortedfirst(last.(wl_ranges), λ₀ - window_size)
     if range_ind == length(wl_ranges) + 1
-        return lb, ub
+        return cumulative_lengths[end]+1, cumulative_lengths[end]
     end
     lb, ub = move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size) 
     if range_ind > 1
@@ -40,7 +49,7 @@ function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R <
 end
 function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVector
     #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
-    while lb+1 < length(λs) && λs[lb] < λ₀ - window_size
+    while lb <= length(λs) && λs[lb] < λ₀ - window_size
         lb += 1
     end
     while lb > 1 && λs[lb-1] > λ₀ - window_size
@@ -49,14 +58,32 @@ function move_bounds(λs::V, lb, ub, λ₀, window_size) where V <: AbstractVect
     while ub < length(λs) && λs[ub+1] < λ₀ + window_size
         ub += 1
     end
-    while ub > 1 && λs[ub] > λ₀ + window_size
+    while ub >= 1 && λs[ub] > λ₀ + window_size
         ub -= 1
     end
     lb, ub
 end
 
+# used by apply_LSF and compute_LSF_matrix
+# handle case where R is wavelength independent
+function line_spread_function_core(synth_wls, λ0, R::Real, window_size, renormalize_edge)
+    σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
+    lb, ub = move_bounds(synth_wls, 0, 0, λ0, window_size*σ)
+    ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
+    norm_factor = if renormalize_edge
+        1 ./ sum(ϕ)
+    else
+        1.0
+    end
+    lb:ub, ϕ, norm_factor
+end
+# handle case where R is a function of wavelength
+function line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
+    line_spread_function_core(synth_wls, λ0, R(λ0), window_size, renormalize_edge)
+end
+
 """
-    constant_R_LSF(flux, wls, R; window_size=3)
+    apply_LSF(flux, wls, R; window_size=4)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
 vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where 
@@ -66,27 +93,176 @@ the convolution kernel in standard deviations.
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
 the region you are going to compare.
 
+If you are convolving many spectra defined on the same wavelenths to observational resolution, you 
+will get much better performance using [`compute_LSF_matrix`](@ref).
+
+# Keyword Arguments
+- `window_size` (default: 4): how far out to extend the convolution kernel in units of the LSF width (σ, not HWHM)
+- `renormalize_edge` (default: `true`): whether or not to renormalize the LSF at the edge of the wl 
+  range.  This doen't matter as long as `synth_wls` extends to large and small enough wavelengths.
+
 !!! warning
     - This is a naive, slow implementation.  Do not use it when performance matters.
 
-    - `constant_R_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
+    - `apply_LSF` will have weird behavior if your wavelength grid is not locally linearly-spaced.
        It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
        otherwise desired) grid.
 """
-function constant_R_LSF(flux::AbstractVector{F}, wls, R; window_size=3) where F <: Real
+function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormalize_edge=true) where F <: Real
     #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
-    lb, ub = 1,1 #initialize window bounds
-    for i in 1:length(wls)
+    for i in eachindex(wls)
         λ0 = wls[i]
-        σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
-        lb, ub = move_bounds(wls, lb, ub, λ0, window_size*σ)
-        ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
-        normalization_factor[i] = 1 ./ sum(ϕ)
-        @. convF[lb:ub] += flux[i]*ϕ
+        r, ϕ, normalization_factor[i] =  line_spread_function_core(wls, λ0, R, window_size, renormalize_edge)
+        @. convF[r] += flux[i]*ϕ
     end
     convF .* normalization_factor
+end
+@deprecate constant_R_LSF(args...; kwargs...) apply_LSF(args...; kwargs...)
+
+"""
+    compute_LSF_matrix(synth_wls, obs_wls, R; kwargs...)
+
+Construct a sparse matrix, which when multiplied with a flux vector defined over wavelenths 
+`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
+
+# Arguments
+- `synth_wls`: the synthesis wavelengths. This should be a range, a vector of ranges, or a vector
+    of wavelength values which is linearly spaced to within a tollerance of the `step_tolerance` 
+    kwarg.
+- `obs_wls`: the wavelengths of the observed spectrum
+- `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
+
+# Keyword Arguments
+- `window_size` (default: 4): how far out to extend the convolution kernel in units of the LSF width (σ, not HWHM)
+- `verbose` (default: `true`): whether or not to emit warnings and information to stdout/stderr.
+- `renormalize_edge` (default: `true`): whether or not to renormalize the LSF at the edge of the wl 
+  range.  This doen't matter as long as `synth_wls` extends to large and small enough wavelengths.
+- `step_tolerance`: the maximum difference between adjacent wavelengths in `synth_wls` for them to be
+  considered linearly spaced.  This is only used if `synth_wls` is a vector of wavelengths rather 
+  than a range or vector or ranges.
+
+For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside 
+the region you are going to compare. 
+
+[`Korg.apply_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
+relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
+resolution via matrix multiplication is fast.
+"""
+function compute_LSF_matrix(synth_wls::AbstractRange, obs_wls, R; window_size=4, verbose=true, 
+                            renormalize_edge=true, step_tolerance=1e-6) #step_tolerance used by other method
+    if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
+        @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
+    end
+    convM = spzeros((length(obs_wls), length(synth_wls)))
+    lb, ub = 1,1 #initialize window bounds
+    nwls = length(obs_wls)
+    normalization_factor = if renormalize_edge
+        zeros(length(obs_wls))
+    else
+        ones(length(obs_wls))
+    end
+    p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
+    for i in eachindex(obs_wls)
+        λ0 = obs_wls[i]
+        r, ϕ, normalization_factor[i] = line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
+        @. convM[i, r] += ϕ
+        next!(p)
+    end
+    convM .* normalization_factor
+end
+function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R; 
+                            step_tolerance=1e-6, kwargs...)
+    min_step, max_step = extrema(diff(synth_wls))
+    if max_step - min_step > step_tolerance
+        throw(ArgumentError("Synthesis wavelengths are not linearly spaced to within $step_tolerance."))
+    end
+    swls = range(first(synth_wls), last(synth_wls); length=length(synth_wls))
+    compute_LSF_matrix(swls, obs_wls, R; kwargs...)
+end
+function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractRange}, obs_wls, R; 
+                            renormalize_edge=true, verbose=false, kwargs...)
+    LSFmats = map(synth_wl_windows) do wls
+        # don't renormalize here, do it to the total LSF matrix
+        Korg.compute_LSF_matrix(wls, obs_wls, R; verbose=verbose, renormalize_edge=false, kwargs...)
+    end
+    LSF = hcat(LSFmats...)
+    s = 0.0
+    if renormalize_edge
+        @showprogress for i in 1:size(LSF, 1)
+            s = sum(LSF[i, :])
+            if s != 0 
+                LSF[i, :] ./= sum(LSF[i, :])
+            end
+        end
+    end
+    LSF
+end
+
+"""
+    apply_rotation(flux, wls, vsini, ε=0.6)
+
+Given a spectrum `flux` sampled at wavelengths `wls` for a non-rotating star, compute the spectrum 
+that would emerge given projected rotational velocity `vsini` and linear limb-darkening coefficient
+`ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example, 
+Gray equation 18.14.
+"""
+function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
+    if vsini == 0
+        return copy(flux)
+    end
+
+    if first(wls) > 1
+        wls *= 1e-8 # Å to cm
+    end
+    vsini *= 1e5 # km/s to cm/s
+    
+    newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
+    newF = zeros(newFtype, length(flux))
+
+    # precompute constants
+    c1 = 2(1-ε)
+    c2 = π * ε / 2
+    # c3 is the denomicator.  the factor of v_L in Gray becomes Δλrot (because we are working in 
+    # wavelenths) and moves inside the loop
+    c3 = π * (1-ε/3)
+    
+    for i in 1:length(flux)
+        Δλrot = wls[i] * vsini / Korg.c_cgs # Å
+
+        lb, ub = move_bounds(wls, 0, 0, wls[i], Δλrot)
+        Fwindow = flux[lb:ub]
+
+        detunings = [-Δλrot ; (lb-i+1/2 : ub-i-1/2)*step(wls) ; Δλrot]
+
+        ks = _rotation_kernel_integral_kernel.(c1, c2, c3 * Δλrot, detunings, Δλrot)
+        newF[i] = sum(ks[2:end] .* Fwindow) - sum(ks[1:end-1] .* Fwindow)
+    end
+    newF
+end
+#handle case where wavelengths are provided as a vector of ranges.
+function apply_rotation(flux, wl_ranges::Vector{R}, vsini, ε=0.6) where R <: AbstractRange
+    newflux = similar(flux)
+    lower_index = 1
+    upper_index = length(wl_ranges[1])
+    newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index), wl_ranges[1], vsini, ε)
+    for i in 2:length(wl_ranges)
+        lower_index = upper_index + 1
+        upper_index = lower_index + length(wl_ranges[i]) - 1
+        newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index), wl_ranges[i], vsini, ε)
+    end
+    newflux
+end
+
+# the indefinite integral of the rotation kernel 
+function _rotation_kernel_integral_kernel(c1, c2, c3, detuning, Δλrot)
+    if abs(detuning) == Δλrot
+        return sign(detuning) * 0.5 # make it nan-safe for ForwardDiff
+    end
+    (0.5 * c1 * detuning * sqrt(1 - detuning^2/Δλrot^2) 
+    + 0.5 * c1 * Δλrot * asin(detuning/Δλrot) 
+    + c2 * (detuning - detuning^3/(3 * Δλrot^2))) / c3
 end
 
 """
@@ -104,9 +280,14 @@ Experiments on real spectra show an agreement between the interpolated rectified
 !!! warning
     This function should not be applied to data with observational error, as taking a quantile will
     bias the rectification relative to the noiseless case.  It is intended as a fast way to compute
-    nice-looking rectified theoretical spectra.  
+    nice-looking rectified theoretical spectra.
 """
 function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F <: Real
+    @warn """Korg.rectify is deprecated and will be removed in a future release.  You can obtain a 
+          rectified spectrum by dividing the continuum from the flux:
+              sol = synthesize( ...your params... )
+              rectified_flux = sol.flux ./ sol.cntm
+          """
     #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
     if wl_step == 0
         inds = eachindex(wls)

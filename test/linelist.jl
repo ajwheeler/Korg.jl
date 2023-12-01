@@ -2,6 +2,10 @@
     @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
                                                       format="abc")
 
+    @testset "wls in either cm or Å" begin
+        @test Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0) == Korg.Line(5e-5, 0.0, Korg.species"Fe I", 1.0) 
+    end
+
     @testset "kurucz linelist parsing" begin
         for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
             kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")
@@ -15,6 +19,15 @@
             @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
             @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
         end
+
+        fname = "kurucz_cn.txt"
+        kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")
+        @test issorted(kurucz_ll, by=l->l.wl)
+        @test length(kurucz_ll) == 10
+        @test kurucz_ll[1].wl ≈ 2.9262621445487408e-5
+        @test kurucz_ll[1].log_gf == -7.204
+        @test kurucz_ll[1].species == Korg.species"CN"
+        @test kurucz_ll[1].E_lower ≈ 1.1177309389190437
     end
 
     @testset "vald short format, ABO, missing params" begin
@@ -104,6 +117,14 @@
         @test moog_linelist[1].log_gf ≈ -0.280
         @test moog_linelist[1].species == Korg.species"Ti_I"
         @test moog_linelist[2].E_lower ≈ 3.265
+
+        # test isotope parsing
+        @test moog_linelist[4].species == Korg.species"MgH"
+        @test moog_linelist[4].log_gf ≈ 0.52 + log10(Korg.isotopic_abundances[12][24])
+        @test moog_linelist[5].species == Korg.species"C2"
+        @test moog_linelist[5].log_gf ≈ -0.082 + log10(Korg.isotopic_abundances[6][12]) + log10(Korg.isotopic_abundances[6][13])
+        @test moog_linelist[6].species == Korg.species"Mn I"
+        @test moog_linelist[6].log_gf ≈ -3.363 + log10(Korg.isotopic_abundances[25][55])
     end
 
     @testset "turbospectrum linelists" begin

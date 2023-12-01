@@ -10,7 +10,8 @@ Compute a synthetic spectrum.
 
 # Arguments
 - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
-- `linelist`: A vector of [`Line]`(@ref)s (see [`read_linelist`](@ref))
+- `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref), 
+   [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
 - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to 
   uranium.  (see [`format_A_X`](@ref))
 - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
@@ -24,6 +25,7 @@ The ranges can be any Julia `AbstractRange`, for example: `5000:0.01:5010`.
 # Returns 
 A named tuple with keys:
 - `flux`: the output spectrum
+- `cntm`: the continuum at each wavelength
 - `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
    size (layers x wavelengths)
 - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
@@ -70,9 +72,11 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
    The default value should effect final spectra below the 10^-3 level.
-- `electron_number_density_warn_threshold` (default: `0.25`): if the relative difference between the 
+- `electron_number_density_warn_threshold` (default: `1.0`): if the relative difference between the 
    calculated electron number density and the input electron number density is greater than this value,
-   a warning is printed.
+   a warning is printed.  Set to `Inf` to suppress this warning.
+- `return_cntm` (default: `true`): whether or not to return the continuum at each wavelength.  If 
+   this is false, `solution.cntm` will be `nothing`.
 - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies, 
    defaults to `Korg.ionization_energies`.
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
@@ -87,13 +91,14 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_s
     wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
     synthesize(atm, linelist, A_X, wls; kwargs...)
 end
-function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real}, 
+function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real}, 
                     wl_ranges::AbstractVector{<:AbstractRange}; 
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
-                    electron_number_density_warn_threshold=0.25,
+                    electron_number_density_warn_threshold=1.0, 
+                    return_cntm=true,
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants)
@@ -157,8 +162,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
     #float-like type general to handle dual numbers
-    α_type = typeof(promote(atm.layers[1].temp, length(linelist) > 0 ? linelist[1].wl : 1.0, 
-                            all_λs[1], vmic, abs_abundances[1])[1])
+    α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
+                          eltype(all_λs), typeof(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(all_λs))
     # each layer's absorption at reference λ (5000 Å)
@@ -180,14 +185,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
         end
 
-        if hydrogen_lines
-            hydrogen_line_absorption!(view(α, i, :), wl_ranges, layer.temp, nₑ,
-                                      n_dict[species"H_I"],  n_dict[species"He I"],
-                                      partition_funcs[species"H_I"](log(layer.temp)), vmic*1e5, 
-                                      hydrogen_line_window_size*1e-8; 
-                                      use_MHD=use_MHD_for_hydrogen_lines)
-        end
-
         nₑ, n_dict, α_cntm_layer
     end
     nₑs = first.(triples)
@@ -198,10 +195,30 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
 
+    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
+    cntm = nothing
+    if return_cntm
+        cntm, _ = if bezier_radiative_transfer
+            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
+        else
+            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+        end
+    end
+
+    if hydrogen_lines
+        for (i, (layer, n_dict, nₑ)) in enumerate(zip(atm.layers, n_dicts, nₑs))
+            nH_I = n_dict[species"H_I"]
+            nHe_I = n_dict[species"He_I"]
+            U_H_I = partition_funcs[species"H_I"](log(layer.temp))
+            hydrogen_line_absorption!(
+                view(α, i, :), wl_ranges, layer.temp, nₑ, nH_I, nHe_I, U_H_I, vmic*1e5, 
+                hydrogen_line_window_size*1e-8; use_MHD=use_MHD_for_hydrogen_lines)
+        end
+    end
+
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
     
-    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
@@ -217,7 +234,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::Vector{<:Real},
         wl_lb_ind += length(λs)
     end
 
-    (flux=flux, intensity=intensity, alpha=α, number_densities=number_densities, 
+    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
     electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
 
@@ -249,10 +266,10 @@ You can specify abundance with these positional arguments.  All are optional, bu
   use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
 """
-function format_A_X(default_metals_H::Real=0.0, default_alpha_H::Real=default_metals_H, 
+function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals_H, 
                     abundances::Dict{K, V}=Dict{UInt8, Float64}();  
                     solar_relative=true, solar_abundances=default_solar_abundances
-                    ) where {K, V}
+                    ) where {K, V, R1 <: Real, R2 <: Real}
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
     clean_abundances = Dict{UInt8, V}()
     for (el, abund) in abundances
@@ -305,25 +322,45 @@ end
 # handle case where metallicity and alpha aren't specified but individual abundances are
 format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
 # handle case where alpha isn't specified but individual abundances are
-format_A_X(default_metallicity::Real, abundances::Dict; kwargs...) = 
-    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...)
+format_A_X(default_metallicity::R, abundances::Dict; kwargs...) where R <: Real = 
+    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...) 
 
 """
-    get_metals_H(A_X)
+    get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
 
 Calculate [metals/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_M/n_\\mathrm{H})``.
 See also [`get_alpha_H`](@ref).
+
+# Keyword Arguments
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
+  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
+  convienience.
+- `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating 
+  [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`, 
+  the alpha elements (here defined as C, O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
 """
-function get_metals_H(A_X; solar_abundances=default_solar_abundances)
-   _get_multi_X_H(A_X, 3:MAX_ATOMIC_NUMBER, solar_abundances)
+function get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
+    els = if ignore_alpha
+        [3:5 ; 7:2:21 ; 33:MAX_ATOMIC_NUMBER] 
+    else
+        3:MAX_ATOMIC_NUMBER
+    end
+   _get_multi_X_H(A_X, els, solar_abundances)
 end
 
 """
-    get_alpha_H(A_X)
+    get_alpha_H(A_X; solar_abundances=default_solar_abundances)
 
 Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_α/n_\\mathrm{H})``.
-Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
+Here, the alpha elements are defined to be C, O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
 [`get_alpha_H`](@ref).
+
+# Keyword Arguments
+- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
+  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
+  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
+  convienience.
 """
 function get_alpha_H(A_X; solar_abundances=default_solar_abundances)
     _get_multi_X_H(A_X, 8:2:22, solar_abundances)

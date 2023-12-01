@@ -68,7 +68,7 @@ end
         positive_charge_density =  mapreduce(+, pairs(n_dict)) do (species, n)
             n * species.charge
         end
-        @test nₑ ≈ positive_charge_density rtol=1e-5
+        @test nₑ ≈ positive_charge_density atol=nₜ * 1e-5 # this is the tollerance of the solver in Korg
 
         #make sure number densities are sensible
         @test (n_dict[Korg.species"C_III"] < n_dict[Korg.species"C_II"] < n_dict[Korg.species"C_I"] < 
@@ -78,7 +78,7 @@ end
             total_n = mapreduce(+, collect(keys(n_dict))) do species
                 sum(Korg.get_atoms(species.formula) .== Z) * n_dict[species]
             end
-            @test total_n ≈ nX_ntot[Z] * nₜ
+            @test total_n ≈ nX_ntot[Z] * (nₜ - nₑ) rtol=1e-4
         end
     end
 
@@ -99,6 +99,26 @@ end
             @test assert_allclose_grid(korg_U, BC_U, [("T", Ts, "K")]; rtol=0.01, 
                                        print_rachet_info=false)
         end
+    end
+
+    @testset "ForwardDiff.Dual-specific methods" begin
+        A_X = format_A_X()
+        abs_abundances = 10 .^ (A_X .- 12)
+        abs_abundances ./= sum(abs_abundances)
+
+        g(x) = Korg.chemical_equilibrium(x[1], x[2], x[2]*1e-20, abs_abundances, Korg.ionization_energies, 
+                    Korg.default_partition_funcs, Korg.default_log_equilibrium_constants;
+                    electron_number_density_warn_threshold=1e100)[1]
+
+        x = [5000 ; 1e12]
+        
+        g1 = ForwardDiff.gradient(g, x)
+        g2 = FiniteDiff.finite_difference_gradient(g, x)
+        @test isapprox(g1, g2, rtol=1e-5)
+
+        h1 = ForwardDiff.hessian(g, x)
+        h2 = FiniteDiff.finite_difference_hessian(g, x)
+        @test isapprox(h1, h2, rtol=1e-5)
     end
 end
 

@@ -96,10 +96,6 @@ get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.laye
 
 Parse the provided model atmosphere file in MARCS ".mod" format.  Returns either a 
 `PlanarAtmosphere` or a `ShellAtmosphere`.
-
-!!! warning
-    Korg does not yet support cool (``\\lesssim`` 3500 K) stars.  While it will happily parse their
-    model atmospheres, it may crash when you feed them into `synthesize`.
 """
 function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
     open(fname) do f
@@ -137,7 +133,7 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
             Pg = Pg * (Pg > 0)
 
             nₑ = Pe / (temp*kboltz_cgs) # electron number density
-            n = Pg/ (temp*kboltz_cgs)   # non-electron number density
+            n = Pg/ (temp*kboltz_cgs)   # total number density
 
             if planar
                 PlanarAtmosphereLayer(10^logτ5, -depth, temp, nₑ, n)
@@ -246,7 +242,7 @@ end
     interpolate_marcs(Teff, logg, A_X; kwargs...)
 
 Returns a model atmosphere obtained by interpolating the MARCS SDSS atmosphere grid, which provides 
-atmospheres for varying values of ``T_\\mathrm{eff}``, ``\\log g`, [metals/H], [alpha/metals], 
+atmospheres for varying values of ``T_\\mathrm{eff}``, ``\\log g``, [metals/H], [alpha/metals], 
 and [C/metals].  If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref)
 and accepted by [`synthesize`](@ref)) is provided instead of `M_H`, `alpha_M`, and `C_M`, the 
 solar-relative ratios will be reconstructed assuming Grevesse+ 2007 solar abundances.
@@ -268,13 +264,16 @@ variable.
 - `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to 
    clamp the abundance paramerters to be within the range of the MARCS grid to avoid throwing an out 
    of bounds error. Use with caution.
+- `perturb_at_grid_values`: when true this will add or a subtract a very small number to each 
+   parameter which is exactly at a grid value. This prevents null derivatives, which can cause 
+   problems for minimizers.  
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
     Teff ≈ 4250 K. We do not endorse using it for science in that regime. See 
     https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
 """
-function interpolate_marcs(Teff, logg, A_X::Vector; 
+function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; 
                            solar_abundances=grevesse_2007_solar_abundances, 
                            clamp_abundances=false, kwargs...)
     M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
@@ -291,11 +290,19 @@ function interpolate_marcs(Teff, logg, A_X::Vector;
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           archive=get_atmosphere_archive())
+                           perturb_at_grid_values=false, archive=get_atmosphere_archive())
     nodes, exists, grid = archive
 
     params = [Teff, logg, M_H, alpha_M, C_M]
     param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
+
+    if perturb_at_grid_values
+        # add small offset to each parameter which is exactly at grid value
+        # this prevents the derivatives from being exactly zero
+        params .+= 1e-30 .* (in.(params, nodes))
+        # take care of the case where the parameter is at the last grid value
+        params .-= 2e-30 .* (params .> last.(nodes))
+    end
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
         if !(p_nodes[1] <= p <= p_nodes[end])

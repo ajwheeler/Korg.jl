@@ -154,10 +154,10 @@ struct Species
 end
 
 """
-    Species(code::AbstractString)
+    Species(code)
 
 Parse the "species code" in many of the forms in which it is often specifieds and return an object 
-representing the sepcies.
+representing the sepcies. `code` can be either a string or a float.
 
 # Examples
  - "H I" -> H I
@@ -176,6 +176,10 @@ representing the sepcies.
 !!! note
     To parse at compile time, use the `species` string macro, i.e. `species"H I"`.  This is 
     important in hot inner loops.
+
+!!! warning
+    MOOG codes which include isotopic information will not be parsed correctly by this function, 
+    though [`read_linelist`](@ref) handles them correctly.
 """
 function Species(code::AbstractString)
     code = strip(code, ['0', ' ']) # leading 0s are safe to remove
@@ -215,6 +219,7 @@ function Species(code::AbstractString)
     end
     Species(formula, charge)
 end
+Species(code::AbstractFloat) = Species(string(code))
 
 #used to contruct Species at compile time and avoid parsing in hot loops
 macro species_str(s)

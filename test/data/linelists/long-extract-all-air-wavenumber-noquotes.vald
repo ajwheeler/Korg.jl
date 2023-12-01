@@ -1,3 +1,4 @@
+ WARNING: Output was truncated to 100000 lines #obviously not true, this is here for testing
                                                                                Lande factors        Damping parameters
 Elm Ion       WL_air(A)  log gf* E_low(cm^-1)   J lo  E_up(cm^-1)   J up   lower   upper    mean   Rad.  Stark    Waals
 'Ti 1',      4998.72899,  -0.760,  25102.875,    2.0,  45102.381,    3.0,  1.930,  1.360,  0.780, 7.970,-5.260,  -7.540

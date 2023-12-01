@@ -1,0 +1,11 @@
+The directory contains data from Barklem and Collet 2016, which contains partition functions and 
+equilibrium constants of diatomic molecules and ionization energies of the atoms.
+
+BarklemCollet2016-ionization_energies.dat and BarklemCollet2016-molecular_partition.dat are read 
+directly by Korg.
+
+BarklemCollet2016-equilibrium_constants.dat is not read directly by Korg.  The script 
+reformat_BC_Ks.jl parses the data and adjusts the equilibrium constants so that all positively
+charged diatomics are broken down into pieces with the lower-Z atom being the charged one. The 
+table J_A+A_588_A96_table1.dat.fits is used by this script to check how B&C originally defined 
+the equilibrium constants.

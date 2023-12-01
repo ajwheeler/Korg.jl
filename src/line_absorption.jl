@@ -1,6 +1,4 @@
-using Interpolations: LinearInterpolation, Flat, lbounds, ubounds
 using SpecialFunctions: gamma
-using HDF5
 
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
@@ -115,139 +113,24 @@ function inverse_lorentz_density(ρ, γ)
     end
 end
 
-#load Stark broadening profiles from disk
-function _load_stark_profiles(fname)
-    h5open(fname, "r") do fid
-        map(keys(fid)) do transition
-            temps = read(fid[transition], "temps")
-            nes = read(fid[transition], "electron_number_densities")
-            delta_nu_over_F0 = read(fid[transition], "delta_nu_over_F0")
-            P = read(fid[transition], "profile")
-
-            logP = log.(P)
-            # clipping these to finite numbers avoid nans when interpolating
-            # -700 is slightly larger than log(-floatmax())
-            logP[logP .== -Inf] .= -700 
-            
-            (temps=temps, 
-             electron_number_densities=nes,
-             #flat BCs to allow wls very close to the line center
-             profile=LinearInterpolation((temps, nes, [-floatmax() ; log.(delta_nu_over_F0[2:end])]), 
-                                         logP; extrapolation_bc=Flat()),
-             lower = HDF5.read_attribute(fid[transition], "lower"),
-             upper = HDF5.read_attribute(fid[transition], "upper"),
-             Kalpha = HDF5.read_attribute(fid[transition], "Kalpha"),
-             log_gf = HDF5.read_attribute(fid[transition], "log_gf"),
-             λ0 = LinearInterpolation((temps, nes), read(fid[transition], "lambda0") * 1e-8) 
-            )
-        end
-    end
-end
-const _hline_stark_profiles = _load_stark_profiles(joinpath(_data_dir, 
-                                                      "Stehle-Hutchson-hydrogen-profiles.h5"))
-
-#used in hydrogen_line_absorption
-_zero2epsilon(x) = x + (x == 0) * floatmin()
 
 """
-    hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size; kwargs...)
+    exponential_integral_1(x)
 
-Calculate contribution to the the absorption coefficient, αs, from hydrogen lines in units of cm^-1,
-at wavelengths `λs` (a vector of ranges).
-
-Uses profiles from [Stehlé & Hutcheon (1999)](https://ui.adsabs.harvard.edu/abs/1999A%26AS..140...93S/abstract),
-which include Stark and Doppler broadening.  
-For Halpha, Hbeta, and Hgamma, the p-d approximated profiles from 
-[Barklem, Piskunovet, and O'Mara 2000](https://ui.adsabs.harvard.edu/abs/2000A%26A...363.1091B/abstract)
-are added to the absortion coefficient.  This "convolution by summation" is inexact, but true 
-convolution is expensive.
-
-Arguments:
-- `T`: temperature [K]
-- `nₑ`: electron number density [cm^-3]
-- `nH_I`: neutral hydrogen number density [cm^-3]
-- `UH_I`: the value of the neutral hydrogen partition function
-- `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles 
-   are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a 
-   doppler profile.
-- `window_size`: the max distance from each line center [cm] at which to calculate the stark
-   and self broadening profiles
-   absorption for Hα-Hγ (those dominated by self-broadening).
-
-Keyword arguments:
-- `stark_profiles` (default: `Korg._hline_stark_profiles`): tables from which to interpolate Stark 
-   profiles
-- `use_MHD`: whether or not to use the Mihalas-Daeppen-Hummer formalism to adjust the occupation 
-   probabilities of each hydrogen orbital for plasma effects.  Default: `true`.
+Compute the first exponential integral, E1(x).  This is a rough approximation lifted from Kurucz's
+VCSE1F. Used in `brackett_line_profile`.
 """
-function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
-                                   stark_profiles=_hline_stark_profiles, use_MHD=true)
-    λs = vcat(collect.(wl_ranges)...)
-    νs = c_cgs ./ λs
-    dνdλ = c_cgs ./ λs.^2
-    Hmass = get_mass(Formula("H"))
-
-    n_max = maximum(Korg._hline_stark_profiles) do line
-        line.upper
-    end
-
-    # precalculate occupation probabilities
-    ws = map(1:n_max) do n
-        E = RydbergH_eV * (1 - 1/n^2)
-        hummer_mihalas_w(T, n, nH_I, nHe_I, nₑ)
-    end
-
-    #This is the Holtzmark field, by which the frequency-unit-detunings are divided for the 
-    #interpolated stark profiles
-    F0 = 1.25e-9 * nₑ^(2/3)
-    for line in stark_profiles
-        if !all(lbounds(line.λ0.itp)[1:2] .< (T, nₑ) .< ubounds(line.λ0.itp)[1:2])
-            continue #transitions to high levels are omitted for high nₑ and T
-        end
-        λ₀ = line.λ0(T, nₑ)
-
-        Elo = RydbergH_eV * (1 - 1/line.lower^2)
-        Eup = RydbergH_eV * (1 - 1/line.upper^2)
-        β = 1/(kboltz_eV * T)
-        
-        levels_factor = if use_MHD
-            # the transition can't happen if the upper level doesn't exist
-            ws[line.upper] * (exp(-β*Elo) - exp(-β*Eup)) / UH_I
-        else
-            (exp(-β*Elo) - exp(-β*Eup)) / UH_I
-        end
-        amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
-
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, window_size)
-        if lb >= ub
-            continue
-        end
-        # if it's Halpha, Hbeta, or Hgamma, add the resonant broadening to the absorption vector
-        # use the Barklem+ 2000 p-d approximation
-        if line.lower == 2 && line.upper in [3, 4, 5]
-            #ABO params and line center
-            λ₀, σABO, αABO = if line.upper == 3
-                6.56460998e-5, 1180.0, 0.677
-            elseif line.upper == 4
-                4.8626810200000004e-5, 2320.0, 0.455
-            elseif line.upper == 5
-                4.34168232e-5, 4208.0, 0.380
-            end
-
-            Γ = scaled_vdW((σABO*bohr_radius_cgs^2, αABO), Hmass, T) * nH_I
-            # convert to HWHM wavelength units. (see comment in line_absorption! for explanation)
-            γ = Γ * λ₀^2 / (c_cgs * 4π) 
-
-            σ = doppler_width(λ₀, T, Hmass, ξ)
-
-            @inbounds view(αs,lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude, view(λs, lb:ub))
-        end
-
-        # Stehle+ 1999 Stark-broadened profiles
-        ν₀ = c_cgs / (λ₀)
-        scaled_Δν = _zero2epsilon.(abs.(view(νs,lb:ub) .- ν₀) ./ F0)
-        dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
-        @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
+function exponential_integral_1(x)
+    if x < 0
+        0.0
+    elseif x <= 0.01 
+        -log(x)-0.577215+x
+    elseif x <= 1.0
+        -log(x)-0.57721566+x*(0.99999193+x*(-0.24991055+ x*(0.05519968+x*(-0.00976004+ x*0.00107857))))
+    elseif x <= 30. 
+        (x*(x+2.334733)+0.25062)/(x*(x+3.330657)+ 1.681534)/x*exp(-x)
+    else
+        0.0
     end
 end
 

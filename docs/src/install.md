@@ -1,3 +1,5 @@
+# Using Korg from Julia
+
 ## [1. Install Julia](@id install)
 Install Julia by downloading a binary from [the website](https://julialang.org/downloads/).  
 See also [the platform specific instructions](https://julialang.org/downloads/platform/), especially
@@ -10,7 +12,7 @@ if you would like to use Julia from the command line.
 
 ## 2. Install Korg
 
-1. Lauch a julia session (either by launching the app, or typing `julia` on the command line if you have that set up).
+1. Launch a julia session (either by launching the app, or typing `julia` on the command line if you have that set up). 
 2. Type `]` to enter `Pkg` mode.
 3. Type `add Korg` to install Korg and its dependencies.
 4. Press backspace or `CTRL+C` to exit `Pkg` mode (and return to the Julia REPL)
@@ -31,14 +33,19 @@ julia> Pkg.add("Korg")
     `ENV["PYTHON"] = "/path/to/python"` before you install.  See [here](https://github.com/JuliaPy/PyCall.jl#specifying-the-python-version)
     for details.
 
-## 3. (Optional) setup `PyJulia`.
-We recommend using Korg from Julia, but if you would like to use Korg from Python, you can use 
-[`PyJulia`](https://pyjulia.readthedocs.io/en/latest/index.html).  Their documentation has [detailed 
-installation notes](https://pyjulia.readthedocs.io/en/latest/installation.html), but here's the 
-short version: 
+# Using Korg from Python
+It's reasy to call Julia code from Python!  This snippet will get you up and running on Linux
+or macOS.
+
+```bash
+wget https://raw.githubusercontent.com/abelsiqueira/jill/v0.4.0/jill.sh
+sudo bash jill.sh -y -v 1.9.1
+export PYTHON=$(which python)
+julia -e 'using Pkg; Pkg.add("PyCall")'
+pip install julia
+python -c 'import julia; julia.install()'
+unset PYTHON
+julia -e 'using Pkg; Pkg.add("Korg")'
 ```
-$ python3 -m pip install --user julia
-$ python
->>> import julia
->>> julia.install()
-```
+Now you can import in Python with `from julia import Korg`, and access any of [Korg's exported functions](@ref API), e.g. `Korg.synthesize`,
+`Korg.interpolate_marcs`.

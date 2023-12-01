@@ -1,14 +1,14 @@
-using CSV
+using CSV, HDF5
 
 #This type represents an individual line.
-struct Line{F} 
-    wl::F                     #cm
-    log_gf::F                 #unitless
+struct Line{F1, F2, F3, F4, F5, F6} 
+    wl::F1                       #cm
+    log_gf::F2                   #unitless
     species::Species           
-    E_lower::F                #eV (also called the excitation potential)
-    gamma_rad::F              #s^-1
-    gamma_stark::F            #s^-1
-    vdW::Union{F, Tuple{F,F}} #either γ_vdW [s^-1] per electron or (σ, α) from ABO theory
+    E_lower::F3                  #eV (also called the excitation potential)
+    gamma_rad::F4                #s^-1
+    gamma_stark::F5              #s^-1
+    vdW::Union{F6, Tuple{F6,F6}} #either γ_vdW [s^-1] per electron or (σ, α) from ABO theory
 
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F, 
@@ -16,7 +16,7 @@ struct Line{F}
              vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
 
     Arguments:
-     - `wl`: wavelength, in cm
+     - `wl`: wavelength (Assumed to be in cm if < 1, otherwise in Å)
      - `log_gf`: (log base 10) oscillator strength (unitless)
      - `species`: the `Species` associated with the line
      - `E_lower`: The energy (excitiation potential) of the lower energy level (eV)
@@ -31,9 +31,12 @@ struct Line{F}
     Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
     profile, and are in units of s⁻¹.
     """
-    function Line(wl::F, log_gf::F, species::Species, E_lower::F, 
-                  gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
-                  vdW::Union{F, Tuple{F, F}, Missing}=missing) where F <: Real
+    function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3, 
+                  gamma_rad::Union{F4, Missing}=missing, gamma_stark::Union{F5, Missing}=missing, 
+                  vdW::Union{F6, Tuple{F6, F6}, Missing}=missing) where {F1 <: Real, F2 <: Real, F3 <: Real, F4 <: Real, F5 <: Real, F6 <: Real}
+        if wl >= 1
+            wl *= 1e-8 #convert Å to cm
+        end
         if ismissing(gamma_stark) || ismissing(vdW)
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
             if ismissing(gamma_stark)
@@ -48,7 +51,8 @@ struct Line{F}
         end
         
         # if vdW is a tuple, assume it's (σ, α) from ABO theory
-        if vdW isa F # if it's a float, there are four possibilities
+        # if it's a float, there are four possibilities
+        if !ismissing(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
             if vdW < 0 
                 vdW = 10^vdW  # if vdW is negative, assume it's log(Γ_vdW) 
             elseif vdW == 0
@@ -61,11 +65,10 @@ struct Line{F}
             end
         end 
 
-        new{F}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+        new{F1, F2, F3, typeof(gamma_rad), typeof(gamma_stark), eltype(vdW)}(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
     end
 end
 
-# it's important that this produces something parsable by the constructor
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
     show(io, line.species)
     print(io, " ", round(line.wl*1e8, digits=6), " Å (log gf = ", round(line.log_gf, digits=2) ,")")
@@ -149,8 +152,8 @@ The `format` keyword argument can be used to specify one of these linelist forma
    These can be either "short" or "long" format, 
    "extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
    wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
-- `"kurucz"` for a [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
-   (format=kurucz_vac if it uses vacuum wavelengths; Be warned that Korg will not assume that 
+- `"kurucz"` for an atomic or molecular [Kurucz linelist](http://kurucz.harvard.edu/linelists.html) 
+   (format=kurucz_vac if it uses vacuum wavelengths; be warned that Korg will not assume that 
    wavelengths are vacuum below 2000 Å),
 - `"moog"` for a [MOOG linelist](http://www.as.utexas.edu/~chris/moog.html)
    (doesn't support broadening parameters or dissociation energies).  
@@ -177,14 +180,19 @@ radiative broadening from log(gf) is not accurate.
 function read_linelist(fname::String; format="vald", isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
     linelist = open(fname) do f
-        if format == "kurucz"
-            parse_kurucz_linelist(f; vacuum=false)
-        elseif format == "kurucz_vac"
-            parse_kurucz_linelist(f; vacuum=true)
+        if startswith(format, "kurucz")
+            vac = endswith(format, "_vac")
+            # open a new reader so we dont chomp the first line
+            firstline = open(first_nonempty_line, fname) 
+            if length(firstline) > 100
+                parse_kurucz_linelist(f; vacuum=vac)
+            else
+                parse_kurucz_molecular_linelist(f; vacuum=vac)
+            end
         elseif format == "vald"
             parse_vald_linelist(f, isotopic_abundances)
         elseif format == "moog"
-            parse_moog_linelist(f)
+            parse_moog_linelist(f, isotopic_abundances)
         elseif format == "turbospectrum"
             parse_turbospectrum_linelist(f, isotopic_abundances, false)
         elseif format == "turbospectrum_vac"
@@ -204,6 +212,15 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
     end
 
     linelist
+end
+
+function first_nonempty_line(io)
+    while !eof(io)
+        line = readline(io; keep=true)
+        if !all(isspace, line) 
+            return line
+        end
+    end
 end
 
 #used to handle missing gammas in vald and kurucz lineslist parsers
@@ -240,9 +257,38 @@ function parse_kurucz_linelist(f; vacuum=false)
     lines
 end
 
+function parse_kurucz_molecular_linelist(f; vacuum=false)
+    @error "Kurucz linelists are not yet supported for molecules"
+    lines = Line[]
+    for row in eachline(f)
+        row == "" && continue #skip empty lines
+
+        #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
+        #determined by parity
+        E_levels = map((row[23:32], row[39:48])) do s
+            #abs because Kurucz multiplies predicted values by -1
+            abs(parse(Float64,s)) * c_cgs * hplanck_eV
+        end
+
+        wl_transform = vacuum ? identity : air_to_vacuum
+
+        push!(lines, Line(wl_transform(parse(Float64, row[1:10])*1e-7), #convert from nm to cm
+                     parse(Float64, row[11:17]),
+                     Species(row[49:52]),
+                     min(E_levels...)))
+    end
+    lines
+end
+
+
 function parse_vald_linelist(f, isotopic_abundances)
     lines = filter!(collect(eachline(f))) do line
-        length(line) > 0 && line[1] != '#' #remove comments and empty lines
+        length(line) > 0 && line[1] != '#' # remove comments and empty lines
+    end
+
+    # ignore truncation warning
+    if startswith(lines[1],  " WARNING: Output was truncated to 100000 lines")
+        lines = lines[2:end]
     end
 
     lines = replace.(lines, "'"=>"\"") #replace single quotes with double
@@ -329,14 +375,35 @@ function parse_vald_linelist(f, isotopic_abundances)
 end
 
 #todo support moog linelists with broadening parameters?
-function parse_moog_linelist(f)
+function parse_moog_linelist(f, isotopic_abundances)
     lines = collect(eachline(f))
-    #moog format requires blank first line
+    # The first line is ignored.  It's for human-readability only.
     linelist = map(lines[2:end]) do line
         toks = split(line)
+
+        # special hanlding for the decimal part of species strings.  MOOG uses the first digit only
+        # to represent the charge.  The rest contains isotopic info.
+        dotind = findfirst('.', toks[2])
+        spec = Species(toks[2][1:dotind+1])
+
+        isostring = toks[2][dotind+2:end]
+        #Note: this will fail if the atoms species code are not in order of atomic number.  This is always 
+        #the case in the linelists I've seen.
+        Δ_log_gf = if isostring == "" || !isnothing(match(r"^0+$", isostring)) #if all 0s
+            0.0
+        else
+            natoms = length(get_atoms(spec))
+            @assert length(isostring) % natoms == 0
+            digits_per = length(isostring) ÷ natoms
+            map(get_atoms(spec), 1:digits_per:length(isostring)-digits_per+1) do el, i
+                m = parse(Int, isostring[i:i+digits_per-1])
+                log10(isotopic_abundances[el][m])
+            end |> sum
+        end
+
         Line(parse(Float64, toks[1]) * 1e-8, #convert Å to cm
-             parse(Float64, toks[4]),
-             Species(toks[2]),
+             parse(Float64, toks[4]) + Δ_log_gf,
+             spec,
              parse(Float64, toks[3]))
     end
     linelist
@@ -438,4 +505,44 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
          gamma_rad,
          stark_log_gamma,
          fdamp)
+end
+
+"""
+    get_VALD_solar_linelist()
+
+Get a VALD "extract stellar" linelist produced at solar parameters, with the "threshold" value 
+set to 0.01.  It was downloaded on 2021-05-20. It is intended to be used for quick tests only.
+"""
+get_VALD_solar_linelist() = 
+    read_linelist(joinpath(_data_dir, "linelists", "vald_extract_stellar_solar_threshold001.vald"))
+
+"""
+    get_APOGEE_DR17_linelist(; include_water=true)
+
+The APOGEE DR 17 linelist.  It ranges from roughly 15,000 Å to 17,000 Å.  It is 
+nearly the same at the DR 16 linelist described in 
+[Smith+ 2021](https://ui.adsabs.harvard.edu/abs/2021AJ....161..254S/abstract).
+"""
+function get_APOGEE_DR17_linelist(; include_water=true)
+    dir = joinpath(_data_dir, "linelists", "APOGEE_DR17")
+
+    
+    atoms = read_linelist(joinpath(dir, "turbospec.20180901t20.atoms_no_ba"), format="turbospectrum")
+    mols = read_linelist(joinpath(dir, "turbospec.20180901t20.molec"), format="turbospectrum")
+
+    linelists = if include_water
+        waterfile = joinpath(dir, "pokazatel_water_lines.h5")
+        waterlines = Line.(
+            Float64.(h5read(waterfile, "wl")),
+            Float64.(h5read(waterfile, "log_gf")),
+            Ref(species"H2O_I"),
+            Float64.(h5read(waterfile, "E_lower")),
+            Float64.(h5read(waterfile, "gamma_rad"))
+        )
+        [atoms ; mols ; waterlines]
+    else
+        [atoms ; mols]
+    end
+
+    sort!(linelists, by=l->l.wl)
 end
