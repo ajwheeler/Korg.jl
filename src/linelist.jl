@@ -47,10 +47,16 @@ struct Line{F}
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
         
-        if vdW isa F
-            if vdW < 0 #if vdW is negative, assume it's log(Γ_vdW) 
-                vdW = 10^vdW
-            elseif vdW > 1 #if it's > 1 assume it's packed ABO params
+        # if vdW is a tuple, assume it's (σ, α) from ABO theory
+        if vdW isa F # if it's a float, there are four possibilities
+            if vdW < 0 
+                vdW = 10^vdW  # if vdW is negative, assume it's log(Γ_vdW) 
+            elseif vdW == 0
+                vdW = 0.0  # if it's exactly 0, leave it as 0, which will result in no vdW broadening
+            elseif 0 < vdW < 20
+                # if it's between 0 and 20, assume it's a fudge factor for the Unsoeld approximation
+                vdW *= 10^(approximate_gammas(wl, species, E_lower)[2])
+            else #if it's > 20 assume it's packed ABO params
                 vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
             end
         end 
@@ -121,15 +127,15 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     end
 
     Δrbar2 = (5/2) * Rydberg_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
-    if χ < E_upper
-        γvdW = 0.0
+    log_γvdW = if χ < E_upper
+        0.0 # this will be interpretted as γ, rather than log γ, i.e. no vdW for autoionizing lines
     else
         # (log) γ_vdW From R J Rutten's course notes. 
         # Equations 11.29 and 11.30 from Gray 2005 are equivalent 
-        γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+        6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
     end
 
-    γstark, γvdW
+    γstark, log_γvdW
 end
 
 """
@@ -424,15 +430,11 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
     wl = wltrans(parse(Float64, toks[1])*1e-8)
 
     fdamp = parse(Float64, toks[4])
-    if 0 < fdamp < 20
-        fdamp *= approximate_gammas(wl, species, Elower)[2]
-        #error("fdamp parameter ($fdamp) is an enhancement factor for the damping constant, which is not supported by Korg. Please open an issue or get in contact if this is a problem for you.")
-    end
 
-    Line(wltrans(parse(Float64, toks[1])*1e-8),
+    Line(wl,
          log_gf + Δloggf,
          species, 
-         parse(Float64, toks[2]), 
+         Elower,
          gamma_rad,
          stark_log_gamma,
          fdamp)
