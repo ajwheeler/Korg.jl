@@ -23,10 +23,18 @@ struct Line{F1, F2, F3, F4, F5, F6}
 
     Optional Arguments (these override default recipes):
      - `gamma_rad`: Fundemental width
-     - `gamma_stark`: Stark broadening width at 10,000 K (s⁻¹)
-     - `vdW`: If this is present, it may may be log(Γ_vdW) (assumed if negative) or the 
-        [ABO parameters](https://www.astro.uu.se/~barklem/howto.html) as packed float or a 
-        `Tuple`, `(σ, α)`.
+     - `gamma_stark`: per-perturber Stark broadening width at 10,000 K (s⁻¹).
+     - `vdW`: If this is present, it may may be 
+         - `log10(γ_vdW)`, assumed if negative
+         - 0, corresponding to no vdW broadening
+         - A fudge factor for the Unsoeld approximation, assumed if between 0 and 20
+         - The [ABO parameters](https://www.astro.uu.se/~barklem/howto.html) as packed float 
+           (assumed if >= 20) or a `Tuple`, `(σ, α)`.
+
+        This behavior is intended to mirror that of Turbospectrum as closely as possible.
+
+    See [`approximate_gammas`](@ref) for more information on the default recipes for `gamma_stark` 
+    and `vdW`.
 
     Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
     profile, and are in units of s⁻¹.
@@ -50,10 +58,17 @@ struct Line{F1, F2, F3, F4, F5, F6}
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
         
+        # if vdW is a tuple, assume it's (σ, α) from ABO theory
+        # if it's a float, there are four possibilities
         if !ismissing(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
-            if vdW < 0 #if vdW is negative, assume it's log(Γ_vdW) 
-                vdW = 10^vdW
-            elseif vdW > 1 #if it's > 1 assume it's packed ABO params
+            if vdW < 0 
+                vdW = 10^vdW  # if vdW is negative, assume it's log(γ_vdW) 
+            elseif vdW == 0
+                vdW = 0.0  # if it's exactly 0, leave it as 0 (no vdW broadening)
+            elseif 0 < vdW < 20
+                # if it's between 0 and 20, assume it's a fudge factor for the Unsoeld approximation
+                vdW *= 10^(approximate_gammas(wl, species, E_lower)[2])
+            else #if it's >= 20 assume it's packed ABO params
                 vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
             end
         end 
@@ -123,15 +138,15 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     end
 
     Δrbar2 = (5/2) * Rydberg_eV^2 * Z^2 * (1/(χ - E_upper)^2 - 1/(χ - E_lower)^2)
-    if χ < E_upper
-        γvdW = 0.0
+    log_γvdW = if χ < E_upper
+        0.0 # this will be interpretted as γ, rather than log γ, i.e. no vdW for autoionizing lines
     else
         # (log) γ_vdW From R J Rutten's course notes. 
         # Equations 11.29 and 11.30 from Gray 2005 are equivalent 
-        γvdW = 6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
+        6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
     end
 
-    γstark, γvdW
+    γstark, log_γvdW
 end
 
 """
@@ -484,15 +499,17 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
     else
         tentotheOrMissing(tryparse(Float64, toks[7]))
     end
-    fdamp = parse(Float64, toks[4])
-    if 0 < fdamp < 20
-        error("fdamp parameter ($fdamp) is an enhancement factor for the damping constant, which is not supported by Korg. Please open an issue or get in contact if this is a problem for you.")
-    end
+    Elower = parse(Float64, toks[2])
+
     wltrans = vacuum ? identity : air_to_vacuum
-    Line(wltrans(parse(Float64, toks[1])*1e-8),
+    wl = wltrans(parse(Float64, toks[1])*1e-8)
+
+    fdamp = parse(Float64, toks[4])
+
+    Line(wl,
          log_gf + Δloggf,
          species, 
-         parse(Float64, toks[2]), 
+         Elower,
          gamma_rad,
          stark_log_gamma,
          fdamp)
