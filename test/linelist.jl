@@ -135,7 +135,7 @@
         @test ll[1].gamma_rad == ll[3].gamma_rad
         @test ll[1].gamma_stark == ll[3].gamma_stark
 
-        @test ll[1].vdW ≈ ll[1].vdW
+        @test ll[1].vdW ≈ ll[2].vdW
 
         @test ll[2].species == ll[3].species
         @test ll[2].log_gf ≈ ll[3].log_gf
