@@ -23,10 +23,18 @@ struct Line{F1, F2, F3, F4, F5, F6}
 
     Optional Arguments (these override default recipes):
      - `gamma_rad`: Fundemental width
-     - `gamma_stark`: Stark broadening width at 10,000 K (s⁻¹)
-     - `vdW`: If this is present, it may may be log(Γ_vdW) (assumed if negative) or the 
-        [ABO parameters](https://www.astro.uu.se/~barklem/howto.html) as packed float or a 
-        `Tuple`, `(σ, α)`.
+     - `gamma_stark`: per-perturber Stark broadening width at 10,000 K (s⁻¹).
+     - `vdW`: If this is present, it may may be 
+         - `log10(γ_vdW)`, assumed if negative
+         - 0, corresponding to no vdW broadening
+         - A fudge factor for the Unsoeld approximation, assumed if between 0 and 20
+         - The [ABO parameters](https://www.astro.uu.se/~barklem/howto.html) as packed float 
+           (assumed if >= 20) or a `Tuple`, `(σ, α)`.
+
+        This behavior is intended to mirror that of Turbospectrum as closely as possible.
+
+    See [`approximate_gammas`](@ref) for more information on the default recipes for `gamma_stark` 
+    and `vdW`.
 
     Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
     profile, and are in units of s⁻¹.
@@ -54,13 +62,13 @@ struct Line{F1, F2, F3, F4, F5, F6}
         # if it's a float, there are four possibilities
         if !ismissing(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
             if vdW < 0 
-                vdW = 10^vdW  # if vdW is negative, assume it's log(Γ_vdW) 
+                vdW = 10^vdW  # if vdW is negative, assume it's log(γ_vdW) 
             elseif vdW == 0
-                vdW = 0.0  # if it's exactly 0, leave it as 0, which will result in no vdW broadening
+                vdW = 0.0  # if it's exactly 0, leave it as 0 (no vdW broadening)
             elseif 0 < vdW < 20
                 # if it's between 0 and 20, assume it's a fudge factor for the Unsoeld approximation
                 vdW *= 10^(approximate_gammas(wl, species, E_lower)[2])
-            else #if it's > 20 assume it's packed ABO params
+            else #if it's >= 20 assume it's packed ABO params
                 vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
             end
         end 
