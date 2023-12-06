@@ -13,7 +13,7 @@ using Trapz
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
     if !(lower <= p <= upper)
-        raise(ArgumentError("p=$p is not in the range $lower to $upper"))
+        throw(ArgumentError("p=$p is not in the range $lower to $upper"))
     end
     tan(π * (((p-lower)/(upper-lower))-0.5))
 end
