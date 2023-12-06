@@ -29,8 +29,7 @@ const tan_scale_params = Dict(
     "logg" => (-0.5, 5.5),
     "m_H" => (-2.5, 1),
     map(Korg.atomic_symbols) do el
-        A_X_sun = Korg.default_solar_abundances[Korg.atomic_numbers[el]]
-        el => (A_X_sun - 10, A_X_sun + 2)
+        el => (-10, +4)
     end...
 )
 
@@ -330,8 +329,8 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
     multi_synth_wls = map(windows) do (ll, ul)
         lb, ub = (findfirst(obs_wls .>= ll), findlast(obs_wls .<= ul))
-        if isnothing(lb) || isnothing(ub)
-            error("The range $ll to $ul is outside the observed spectrum")
+        if isnothing(lb) || isnothing(ub) || lb > ub
+            error("The range $ll to $ul is not in the observed spectrum")
         end
 
         obs_wl_mask[lb:ub] .= true
