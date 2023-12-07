@@ -28,6 +28,7 @@ const tan_scale_params = Dict(
     "Teff" => (2800, 8000),
     "logg" => (-0.5, 5.5),
     "m_H" => (-2.5, 1),
+    "alpha_H" => (-2.5, 1), # this isn't precisely right, because the atmospheres use alpha_M
     map(Korg.atomic_symbols) do el
         el => (-10, +4)
     end...
@@ -92,7 +93,7 @@ these can be specified in either initial_guesses or fixed_params, but if they ar
 function validate_params(initial_guesses::Dict, fixed_params::Dict;
                          required_params = ["Teff", "logg"],
                          default_params = Dict("m_H"=>0.0, "vsini"=>0.0, "vmic"=>1.0, "epsilon"=>0.6),
-                         allowed_params = Set([required_params ; keys(default_params)... ; Korg.atomic_symbols]))
+                         allowed_params = Set(["alpha_H" ; required_params ; keys(default_params)... ; Korg.atomic_symbols]))
     # convert all parameter values to Float64
     initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
     fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))

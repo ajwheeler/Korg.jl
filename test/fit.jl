@@ -11,6 +11,14 @@
         @test_throws ArgumentError Korg.Fit.validate_params((; logg = 3200), (;))
         @test_throws ArgumentError Korg.Fit.validate_params((Teff=4500, logg = 3200, m_H = 0.1), (; m_H=0.1))
 
+        # alpha may be specified, but it has no default, making it a special case
+        p0, _ = Korg.Fit.validate_params((Teff=4500, logg=4.5, alpha_H=0.2), (;))
+        @test p0["alpha_H"] == 0.2
+        _, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (; alpha_H=0.2))
+        @test fixed["alpha_H"] == 0.2
+        p0, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (;))
+        @test !("alpha_H" in keys(p0)) && !("alpha_H" in keys(fixed))
+
         for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff"=> 4500, "logg"=>4.5)]
             for fixed_params in [(;), Dict()]
                 _, fixed_params = Korg.Fit.validate_params(initial_guess, fixed_params)
