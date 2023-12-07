@@ -13,7 +13,7 @@ using Trapz
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
     if !(lower <= p <= upper)
-        raise(ArgumentError("p=$p is not in the range $lower to $upper"))
+        throw(ArgumentError("p=$p is not in the range $lower to $upper"))
     end
     tan(π * (((p-lower)/(upper-lower))-0.5))
 end
@@ -29,8 +29,7 @@ const tan_scale_params = Dict(
     "logg" => (-0.5, 5.5),
     "m_H" => (-2.5, 1),
     map(Korg.atomic_symbols) do el
-        A_X_sun = Korg.default_solar_abundances[Korg.atomic_numbers[el]]
-        el => (A_X_sun - 10, A_X_sun + 2)
+        el => (-10, +4)
     end...
 )
 
@@ -72,13 +71,13 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
                      line_buffer=10)
     specified_abundances = Dict([p for p in pairs(params) if p.first in Korg.atomic_symbols])
     alpha_H = "alpha_H" in keys(params) ? params["alpha_H"] : params["m_H"]
-    A_X = Korg.format_A_X(params["m_H"], alpha_H, specified_abundances; solar_relative=true)
+    A_X::Vector{valtype(params)} = Korg.format_A_X(params["m_H"], alpha_H, specified_abundances; solar_relative=true)
 
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
     atm = Korg.interpolate_marcs(params["Teff"], params["logg"], A_X; clamp_abundances=true, perturb_at_grid_values=true)
 
     sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params["vmic"], line_buffer=line_buffer, 
-                        electron_number_density_warn_threshold=1e100)
+                          electron_number_density_warn_threshold=Inf)
     F = sol.flux ./ sol.cntm
     F = Korg.apply_rotation(F, synthesis_wls, params["vsini"], params["epsilon"])
     LSF_matrix * F
@@ -232,7 +231,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
                LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, 
                params_to_fit=params_to_fit, fixed_params=fixed_params
-        scaled_p -> begin
+        function chi2(scaled_p)
+            # this extremely weak prior helps to regularize the optimization
             negative_log_scaled_prior = sum(@. scaled_p^2/100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
@@ -255,8 +255,10 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     res = if length(p0) == 1
         # if we are fitting a single parameter, experimentation shows that Nelder-Mead (the default)
         # is faster than BFGS
+
         # there seems to be a problem with trace storage for this optimizer, so we don't request it
-        optimize(chi2, p0) 
+        # the precision keyword is also ignored
+        optimize(chi2, p0, Optim.Options(x_tol=precision); autodiff=:forward) 
     else
         # if we are fitting a multiple parameters, use BFGS with autodiff
         optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
@@ -327,8 +329,8 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
     multi_synth_wls = map(windows) do (ll, ul)
         lb, ub = (findfirst(obs_wls .>= ll), findlast(obs_wls .<= ul))
-        if isnothing(lb) || isnothing(ub)
-            error("The range $ll to $ul is outside the observed spectrum")
+        if isnothing(lb) || isnothing(ub) || lb > ub
+            error("The range $ll to $ul is not in the observed spectrum")
         end
 
         obs_wl_mask[lb:ub] .= true
