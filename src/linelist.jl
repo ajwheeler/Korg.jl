@@ -436,7 +436,7 @@ function parse_turbospectrum_linelist(fn, isotopic_abundances, vacuum)
         # species line might look like this (carrot is beginning of line):
         # ^'  26.000            '    1       2342
         # here, the 26 refers to Fe (works as everything else does for molecules).  The decimal part
-        # is the isotop information, NOT THE CHARGE.  The "1" is the ionization starge, i.e. the 
+        # is the isotope information, NOT THE CHARGE.  The "1" is the ionization starge, i.e. the 
         # charge + 1. 2341 is the number of lines.
 
         species_line = lines[first_line_ind]
@@ -451,14 +451,14 @@ function parse_turbospectrum_linelist(fn, isotopic_abundances, vacuum)
         end
 
         isostring = m["isostring"]
-        isotopic_Δ_loggf =  if !isnothing(match(r"^0+$", isostring))
-            0.0
-        else
-            map(get_atoms(spec), 1:3:length(isostring)-2) do el, i
-                m = parse(Int, isostring[i:i+2])
+        isotopic_Δ_loggf = map(get_atoms(spec), 1:3:length(isostring)-2) do el, i
+            m = parse(Int, isostring[i:i+2])
+            if m == 0 # no isotope specified for this constituent nucleus
+                0.0
+            else
                 log10(isotopic_abundances[el][m])
-            end |> sum
-        end
+            end
+        end |> sum
         map(lines[first_line_ind+2:last_line_ind]) do line
             parse_turbospectrum_linelist_transition(spec, isotopic_Δ_loggf, line, vacuum)
         end
