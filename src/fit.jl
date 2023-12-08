@@ -28,7 +28,9 @@ const tan_scale_params = Dict(
     "Teff" => (2800, 8000),
     "logg" => (-0.5, 5.5),
     "m_H" => (-2.5, 1),
-    "alpha_H" => (-2.5, 1), # this isn't precisely right, because the atmospheres use alpha_M
+    # this allows all the atmospheres supported by the grid, but also many that are not.
+    # alpha will be clamped to the nearest supported value.
+    "alpha_H" => (-3.5, 2), 
     map(Korg.atomic_symbols) do el
         el => (-10, +4)
     end...
@@ -167,7 +169,9 @@ Single-element NamedTuples require a semicolon: `(; Teff=5000)`.
 These can be specified in either `initial_guesses` or `fixed_params`, but if they are not default 
 values are used.
 - `m_H`: the metallicity of the star, in dex. Default: `0.0`
-- `alpha_H`: the alpha enhancement of the star, in dex. Default: `m_H`.
+- `alpha_H`: the alpha enhancement of the star, in dex. Default: `m_H`.  Note that, because of the 
+  parameter range supported by [`Korg.interpolate_marcs`](@ref), only values within ±1 of `m_H` 
+  are supported.
 - `vmic`: the microturbulence velocity, in km/s. Default: `1.0`
 - `vsini`: the projected rotational velocity of the star, in km/s. Default: `0.0`. 
    See [`Korg.apply_rotation`](@ref) for details.
