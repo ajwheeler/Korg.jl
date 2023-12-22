@@ -108,7 +108,9 @@ will get much better performance using [`compute_LSF_matrix`](@ref).
        It is intended to be run on a fine wavelength grid, then downsampled to the observational (or 
        otherwise desired) grid.
 """
-function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormalize_edge=true) where F <: Real
+function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormalize_edge=true, 
+                   step_tolerance=1e-6) where F <: Real
+    wls = _vector_to_range(wls, step_tolerance)
     #ideas - require wls to be a range object? 
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
@@ -150,8 +152,9 @@ the region you are going to compare.
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational 
 resolution via matrix multiplication is fast.
 """
-function compute_LSF_matrix(synth_wls::AbstractRange, obs_wls, R; window_size=4, verbose=true, 
+function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R; window_size=4, verbose=true, 
                             renormalize_edge=true, step_tolerance=1e-6) #step_tolerance used by other method
+    synth_wls = _vector_to_range(synth_wls, step_tolerance)
     if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
     end
@@ -172,16 +175,7 @@ function compute_LSF_matrix(synth_wls::AbstractRange, obs_wls, R; window_size=4,
     end
     convM .* normalization_factor
 end
-function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R; 
-                            step_tolerance=1e-6, kwargs...)
-    min_step, max_step = extrema(diff(synth_wls))
-    if max_step - min_step > step_tolerance
-        throw(ArgumentError("Synthesis wavelengths are not linearly spaced to within $step_tolerance."))
-    end
-    swls = range(first(synth_wls), last(synth_wls); length=length(synth_wls))
-    compute_LSF_matrix(swls, obs_wls, R; kwargs...)
-end
-function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractRange}, obs_wls, R; 
+function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractVector}, obs_wls, R; 
                             renormalize_edge=true, verbose=false, kwargs...)
     LSFmats = map(synth_wl_windows) do wls
         # don't renormalize here, do it to the total LSF matrix
@@ -198,6 +192,16 @@ function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractRange}, o
         end
     end
     LSF
+end
+
+# used by compute_LSF_matrix and apply_LSF
+_vector_to_range(v::AbstractRange, tolerance) = v
+function _vector_to_range(v::AbstractVector, tolerance)
+    min_step, max_step = extrema(diff(v))
+    if max_step - min_step > tolerance
+        throw(ArgumentError("Synthesis wavelengths are not linearly spaced to within $tolerance."))
+    end
+    range(first(v), last(v); length=length(v))
 end
 
 """
