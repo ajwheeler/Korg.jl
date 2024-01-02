@@ -209,6 +209,11 @@ A NamedTuple with the following fields:
 - `solver_result`: the result object from `Optim.jl`
 - `trace`: a vector of NamedTuples, each of which contains the parameters at each step of the 
   optimization.
+
+!!! tip
+    The function takes a long time to compile the first time it is called. Compilation performance 
+    is significantly better on Julia 1.10 than previous versions, so if you are using an older
+    version of Julia, you may want to upgrade.
 """
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                       windows=[(obs_wls[1], obs_wls[end])],
