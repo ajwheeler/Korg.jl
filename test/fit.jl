@@ -73,7 +73,7 @@
         sun_A_X = Korg.format_A_X(sun_Fe_H)
         sun_atm = Korg.read_model_atmosphere("data/sun.mod")
         linelist = [Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31)]
-        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, [], vmic=sun_vmic)
+        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, [0.0, 0.0], vmic=sun_vmic)
     end
 
     @testset "disallow molecules" begin
