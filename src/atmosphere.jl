@@ -2,7 +2,7 @@
 using ProgressMeter: Progress, update!, finish!
 using Downloads: download
  
-abstract type ModelAtmosphere end
+abstract type ModelAtmosphere{F1, F2, F3, F4, F5} end
 
 struct PlanarAtmosphereLayer{F1, F2, F3, F4, F5}
     tau_5000::F1                #dimensionless (used for legacy radiative transfer)
@@ -12,7 +12,7 @@ struct PlanarAtmosphereLayer{F1, F2, F3, F4, F5}
     number_density::F5          #cm^-3
 end
 
-struct PlanarAtmosphere{F1, F2, F3, F4, F5} <: ModelAtmosphere
+struct PlanarAtmosphere{F1, F2, F3, F4, F5} <: ModelAtmosphere{F1, F2, F3, F4, F5}
     layers::Vector{PlanarAtmosphereLayer{F1, F2, F3, F4, F5}}
 end
 
@@ -24,7 +24,7 @@ struct ShellAtmosphereLayer{F1, F2, F3, F4, F5}
     number_density::F5          #cm^-3
 end
 
-struct ShellAtmosphere{F1, F2, F3, F4, F5, F6} <: ModelAtmosphere
+struct ShellAtmosphere{F1, F2, F3, F4, F5, F6} <: ModelAtmosphere{F1, F2, F3, F4, F5}
     layers::Vector{ShellAtmosphereLayer{F1, F2, F3, F4, F5}}
     R::F6 #the radius of the star where τ_ros == 1, i.e. the photosphere (not the top)
 end

@@ -404,8 +404,9 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
    each line.
 All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
-function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0, wl_step=0.01; 
-                           synthesize_kwargs...)
+function ews_to_abundances(atm::Korg.ModelAtmosphere{F1, F2, F3, F4, F5}, linelist, A_X::Vector{F6}, 
+                           measured_EWs::Vector{F7}, ew_window_size::Real=2.0, wl_step=0.01; 
+                           synthesize_kwargs...) where {F1<:Real, F2<:Real, F3<:Real, F4<:Real, F5<:Real, F6<:Real, F7<:Real}
     synthesize_kwargs = Dict(synthesize_kwargs)
     if get(synthesize_kwargs, :hydrogen_lines, false)
         throw(ArgumentError("hydrogen_lines must be disabled"))
@@ -431,7 +432,9 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
     # Group lines together ensuring that no λ is closer to it's neighbour than twice the ew_window_size.
     group_indices = linelist_neighbourhood_indices(linelist, ew_window_size)
 
-    A0_minus_log10W0 = Array{Float64}(undef, length(linelist))
+    # this is probably a float, but it could be a ForwardDiff.Dual or similar
+    number_type = promote_type(F1, F2, F3, F4, F5, F6, F7)
+    A0_minus_log10W0 = Array{number_type}(undef, length(linelist))
     for indices in group_indices
         wl_ranges = map(linelist[indices]) do line
             # constructing the range this way ensures that the last point is exactly λ_stop
@@ -440,7 +443,8 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
             range(λ_start, λ_stop; length=Int(round((λ_stop - λ_start)/wl_step))+1)
         end
 
-        spectrum = Korg.synthesize(atm, linelist[indices], A_X, wl_ranges; synthesize_kwargs...)
+        spectrum = Korg.synthesize(atm, linelist[indices], A_X, wl_ranges; 
+                                   electron_number_density_warn_threshold=Inf, synthesize_kwargs...)
 
         for (i, (idx, line)) in enumerate(zip(spectrum.subspectra, linelist[indices]))
             depth = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
