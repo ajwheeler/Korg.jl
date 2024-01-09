@@ -9,6 +9,8 @@ using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
 using ForwardDiff
 using Trapz
+using Statistics: mean
+using NonlinearSolve: NonlinearProblem, solve
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
@@ -436,7 +438,8 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
     # Group lines together ensuring that no λ is closer to it's neighbour than twice the ew_window_size.
     group_indices = linelist_neighbourhood_indices(linelist, ew_window_size)
 
-    A0_minus_log10W0 = Array{Float64}(undef, length(linelist))
+    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
+    A0_minus_log10W0 = Array{element_type}(undef, length(linelist))
     for indices in group_indices
         wl_ranges = map(linelist[indices]) do line
             # constructing the range this way ensures that the last point is exactly λ_stop
@@ -455,6 +458,87 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
     end
 
     log10.(measured_EWs) .+ A0_minus_log10W0
+end
+
+"""
+
+!!! warning
+    This function is in alpha.  It is not for science.
+"""
+function ews_to_stellar_parameters(linelist, measured_EWs, 
+                                   Teff0=5000.0, logg0=3.5, metallicity0=0, vmic0=1.0;
+                                   abs_tol=1e-2, max_vmic_step=10.0, callback=Returns(nothing), 
+                                   verbose=true, synthesize_kwargs...)
+    d = scale(Dict("Teff"=>Teff0, "logg"=>logg0, "vmic"=>vmic0, "m_H"=>metallicity0))
+    scaled_initial_params = [d["Teff"], d["logg"], d["m_H"], d["vmic"]]
+
+    # If the implied Newton step for vmic is too large, we won't fit for it.
+    vmic_residual = _stellar_params_eqns(scaled_initial_params, 
+                                         (linelist, measured_EWs, Returns(nothing), nothing))[4]
+    vmic_perturbation = 0.1
+    scaled_vmic = scale(Dict("vmic"=>vmic0 + vmic_perturbation))["vmic"]
+    u = [scaled_initial_params[1:3] ; scaled_vmic]
+    perturbed_vmic_residual = _stellar_params_eqns(u, (linelist, measured_EWs, Returns(nothing), nothing))[4]
+    approx_vmic_newton_step = abs(vmic_residual * (vmic_perturbation / (perturbed_vmic_residual - vmic_residual)))
+    println("vmic_residual: $vmic_residual")
+    println("perturbed_vmic_residual: $perturbed_vmic_residual")
+    println("approx_vmic_newton_step: $approx_vmic_newton_step")
+    fit_vmic = false #approx_vmic_newton_step <= max_vmic_step
+    if !fit_vmic
+        verbose && println("Abundances are insensitive to vmic.  Fixing it to initial guess.")
+    end
+
+    hyperparams = (linelist, measured_EWs, callback, fit_vmic ? nothing : vmic0)
+    u0 = fit_vmic ? scaled_initial_params : scaled_initial_params[1:3]
+    prob = NonlinearProblem(_stellar_params_eqns, u0, hyperparams)
+    solve(prob; abstol=abs_tol)
+end
+
+# called by ews_to_stellar_parameters
+function _stellar_params_eqns(u, p)
+    linelist, measured_EWs, callback, vmic = p
+    if isnothing(vmic) # if vmic isn't passed as a hyperparameter, it is fit
+        @assert length(u) == 4
+        d = Korg.Fit.unscale(Dict("Teff"=>u[1], "logg"=>u[2], "vmic"=>u[3], "m_H"=>u[4]))
+        teff, logg, vmic, feh = d["Teff"], d["logg"], d["vmic"], d["m_H"]
+        fit_vmic = true
+    else
+        @assert length(u) == 3
+        d = Korg.Fit.unscale(Dict("Teff"=>u[1], "logg"=>u[2], "m_H"=>u[3]))
+        teff, logg, feh = d["Teff"], d["logg"], d["m_H"]
+        fit_vmic = false
+    end
+
+    neutral_mask = [line.species.charge == 0 for line in linelist]
+    
+    A_X = Korg.format_A_X(feh)
+    atm = Korg.interpolate_marcs(teff, logg, A_X; clamp_abundances=true)
+    
+    line_abundances = Korg.Fit.ews_to_abundances(atm, linelist, A_X, measured_EWs; vmic=vmic)
+
+    dA_dχ = _get_slope([line.E_lower for line in linelist[neutral_mask]], line_abundances[neutral_mask])
+    neutral_vs_ion = mean(line_abundances[neutral_mask]) - mean(line_abundances[.! neutral_mask])
+    atm_vs_lines = mean(line_abundances) - (feh + Korg.grevesse_2007_solar_abundances[26])
+    
+    f = if fit_vmic
+        REWs = log10.(measured_EWs[neutral_mask] ./ [line.wl for line in linelist[neutral_mask]])
+        dA_dREW = _get_slope(REWs, line_abundances[neutral_mask])
+        [dA_dχ, neutral_vs_ion, atm_vs_lines, dA_dREW]
+    else
+        [dA_dχ, neutral_vs_ion, atm_vs_lines]
+    end
+
+    # call the callback if the number are regular floats, not duals
+    eltype(f) <: AbstractFloat && callback(f, teff, logg, feh, vmic)
+
+    f
+end
+
+# called by _stellar_params_eqns
+function _get_slope(xs, ys)
+    Δx = xs .- mean(xs)    
+    Δy = ys .- mean(ys)
+    sum(Δx .* Δy) ./ sum(Δx.^2)
 end
 
 end # module
