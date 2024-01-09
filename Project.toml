@@ -6,6 +6,7 @@ version = "0.27.1"
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"

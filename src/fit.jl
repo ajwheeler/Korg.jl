@@ -7,7 +7,7 @@ Functions for fitting to data.
 module Fit
 using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
-using ForwardDiff
+using ForwardDiff, DiffResults
 using Trapz
 using Statistics: mean
 using NonlinearSolve: NonlinearProblem, solve
@@ -479,17 +479,19 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
 
     params = [Teff0, logg0, vmic0, metallicity0]
 
+    J_result = DiffResults.JacobianResult(params)
+
     while true
-        #TODO use DiffResults to get 0th order values simultaneously with derivatives
-        equation_residuals = get_residuals(params)
+        J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
+
+        residuals = DiffResults.value(J_result)
 
         # stopping condition
-        if all(abs.(equation_residuals) .< parameter_tolerances)
+        if all(abs.(residuals) .< parameter_tolerances)
             break
         end
 
-        J = ForwardDiff.jacobian(get_residuals, params)
-        step = - J \ equation_residuals
+        step = - DiffResults.jacobian(J_result) \ residuals
         step .= clamp.(step, -max_step_sizes, max_step_sizes)
         params .+= step
         params .= clamp.(params, parameter_minima, parameter_maxima)
