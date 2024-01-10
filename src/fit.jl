@@ -10,7 +10,6 @@ using Interpolations: LinearInterpolation
 using ForwardDiff, DiffResults
 using Trapz
 using Statistics: mean
-using NonlinearSolve: NonlinearProblem, solve
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
