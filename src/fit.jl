@@ -393,10 +393,11 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
    line. 
 - `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for 
    each line.  It's very important that this is large enough to include each line entirely.
+- TODO blench_warn_threshold
 All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0; 
-                           wl_step=0.01, synthesize_kwargs...)
+                           wl_step=0.01, blend_warn_threshold=0.01, synthesize_kwargs...)
     synthesize_kwargs = Dict(synthesize_kwargs)
     if get(synthesize_kwargs, :hydrogen_lines, false)
         throw(ArgumentError("hydrogen_lines must be disabled"))
@@ -445,7 +446,11 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
             l1_ind, l2_ind = Korg.move_bounds(wl_range, 0, 0, wl1, wl2)
             l1_ind = Int(round((wl1 - wl_range[1]) / step(wl_range))) + 1
             l2_ind = Int(round((wl2 - wl_range[1]) / step(wl_range))) + 1
-            argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
+            boundary_index = argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
+            if absorption[boundary_index] > blend_warn_threshold
+                @warn "Lines $(line_indices[i]) and $(line_indices[i+1]) ($(linelist[line_indices[i]].wl*1e8) Å and $(linelist[line_indices[i+1]].wl*1e8)) Å appear to be blended.  Between them, the absorption never drops below $(blend_warn_threshold) (minimum: $(absorption[boundary_index])). You can adjust this threshold with the blend_warn_threshold keyword argument."
+            end
+            boundary_index
         end
         boundary_indices = [1 ; boundary_indices ; length(subspec)]
         for b in boundary_indices
