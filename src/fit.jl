@@ -459,7 +459,7 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
         end
     end
 
-    log10.(measured_EWs) .+ A0_minus_log10W0, (sol.wavelengths, 1 .- depth), all_boundaries
+    log10.(measured_EWs) .+ A0_minus_log10W0#, (sol.wavelengths, 1 .- depth), all_boundaries
 end
 
 """
@@ -477,7 +477,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                    parameter_maxima=[8000.0, 5.5, 10.0, 1.0],
                                    callback=Returns(nothing), passed_kwargs...)
     # set up closure to compute residuals
-    get_residuals = (params) -> _stellar_param_equation_residuals(params, linelist, measured_EWs, callback)
+    get_residuals = (params) -> _stellar_param_equation_residuals(params, linelist, measured_EWs, callback, passed_kwargs)
 
     params = [Teff0, logg0, vmic0, metallicity0]
 
@@ -502,7 +502,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
 end
 
 # called by ews_to_stellar_parameters
-function _stellar_param_equation_residuals(params, linelist, measured_EWs, callback)
+function _stellar_param_equation_residuals(params, linelist, measured_EWs, callback, passed_kwargs)
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true)
