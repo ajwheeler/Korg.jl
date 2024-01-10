@@ -356,34 +356,6 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
     obs_wl_mask, synth_wl_mask, multi_synth_wls
 end
 
-"""
-    linelist_neighbourhood_indices(linelist, ew_window_size)
-
-Group lines together such that no two lines are closer than twice the value of `line_buffer`.
-
-# Arguments:
-- `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref), 
-   [`Korg.get_APOGEE_DR17_linelist`](@ref), and [`Korg.get_VALD_solar_linelist`](@ref)).
-- `ew_window_size`: the minimum separation (in Å) either side of lines in a group
-
-# Returns
-A vector of vectors, where each inner vector contains the indices of lines in a group.
-"""
-function linelist_neighbourhood_indices(linelist, ew_window_size)
-    linelist_neighbourhood_indices = []        
-    current_group = [1]    
-    ew_window_size_overlap_cm = 2 * 1e-8 * ew_window_size
-    for i in 2:length(linelist)
-        if (linelist[i].wl - linelist[current_group[end]].wl) > ew_window_size_overlap_cm
-            push!(current_group, i)
-        else
-            push!(linelist_neighbourhood_indices, current_group)
-            current_group = [i]  
-        end
-    end
-    push!(linelist_neighbourhood_indices, current_group)
-    linelist_neighbourhood_indices
-end
 
 """
     ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs... )
@@ -408,11 +380,11 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
 - `wl_step` (default: 0.01) is the resolution in Å at which to synthesize the spectrum around each 
    line. 
 - `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for 
-   each line.
+   each line.  It's very important that this is large enough to include each line entirely.
 All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
-function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0, wl_step=0.01; 
-                           synthesize_kwargs...)
+function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0; 
+                           wl_step=0.01, synthesize_kwargs...)
     synthesize_kwargs = Dict(synthesize_kwargs)
     if get(synthesize_kwargs, :hydrogen_lines, false)
         throw(ArgumentError("hydrogen_lines must be disabled"))
@@ -435,29 +407,60 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    # Group lines together ensuring that no λ is closer to it's neighbour than twice the ew_window_size.
-    group_indices = linelist_neighbourhood_indices(linelist, ew_window_size)
+    windows = [((1e8*line.wl) - ew_window_size : wl_step : (1e8*line.wl) + ew_window_size) for line in linelist]
 
-    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
-    A0_minus_log10W0 = Array{element_type}(undef, length(linelist))
-    for indices in group_indices
-        wl_ranges = map(linelist[indices]) do line
-            # constructing the range this way ensures that the last point is exactly λ_stop
-            # and there is always a point on the line center
-            λ_start, λ_stop = (1e8 * line.wl - ew_window_size, 1e8 * line.wl + ew_window_size)
-            range(λ_start, λ_stop; length=Int(round((λ_stop - λ_start)/wl_step))+1)
-        end
-
-        spectrum = Korg.synthesize(atm, linelist[indices], A_X, wl_ranges; synthesize_kwargs...)
-
-        for (i, (idx, line)) in enumerate(zip(spectrum.subspectra, linelist[indices]))
-            depth = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
-            logEW = log10(trapz(spectrum.wavelengths[idx], depth) * 1e3) # convert to mÅ
-            A0_minus_log10W0[indices[i]] = A_X[Korg.get_atoms(line.species)[1]] - logEW
+    # TODO merge this with merge_bounds.  It's similar, I just need to add in the capability to 
+    # record which lines are in each window.
+    wl_ranges = [windows[1]]
+    lines_per_window = [[1]]
+    for i in 2:length(windows)
+        # if the next window overlaps with the previous, merge them
+        if windows[i][1] <= wl_ranges[end][end]
+            # extend the previous window (assuming that windows are same-sized)
+            wl_ranges[end] = wl_ranges[end][1] : wl_step : windows[i][end]
+            # record that this line is part of the previous window
+            lines_per_window[end] = [lines_per_window[end] ; i]
+        else # otherwise, start a new window
+            push!(wl_ranges, windows[i])
+            push!(lines_per_window, [i])
         end
     end
 
-    log10.(measured_EWs) .+ A0_minus_log10W0
+    #display(wl_ranges)
+
+    # TODO no line buffer?  Check if it affects performance.
+    sol = Korg.synthesize(atm, linelist, A_X, wl_ranges; hydrogen_lines=false, synthesize_kwargs...)
+    depth = 1 .- sol.flux ./ sol.cntm
+
+    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
+    A0_minus_log10W0 = Array{element_type}(undef, length(linelist))
+    all_boundaries = Float64[]
+    for (wl_range, subspec, line_indices) in zip(wl_ranges, sol.subspectra, lines_per_window)
+        absorption = depth[subspec]
+
+        # get the wl-index of least absorption between each pair of lines
+        boundary_indices = map(1:length(line_indices) - 1) do i
+            wl1 = linelist[line_indices[i]].wl * 1e8
+            wl2 = linelist[line_indices[i+1]].wl * 1e8
+            l1_ind, l2_ind = Korg.move_bounds(wl_range, 0, 0, wl1, wl2)
+            l1_ind = Int(round((wl1 - wl_range[1]) / step(wl_range))) + 1
+            l2_ind = Int(round((wl2 - wl_range[1]) / step(wl_range))) + 1
+            argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
+        end
+        boundary_indices = [1 ; boundary_indices ; length(subspec)]
+        for b in boundary_indices
+            push!(all_boundaries, wl_range[b])
+        end
+
+        for i in 1:length(line_indices)
+            r = boundary_indices[i]:boundary_indices[i+1]
+            logEW = log10(trapz(wl_range[r], absorption[r]) * 1e3) # convert to mÅ
+            Z = Korg.get_atoms(linelist[line_indices[i]].species)[1]
+            A0_minus_log10W0[line_indices[i]] = A_X[Z] - logEW
+        end
+    end
+
+    log10.(measured_EWs) .+ A0_minus_log10W0, (sol.wavelengths, 1 .- depth), all_boundaries
 end
 
 """
@@ -473,7 +476,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
                                    parameter_minima=[2800.0, -0.5, 0.01, -2.5],
                                    parameter_maxima=[8000.0, 5.5, 10.0, 1.0],
-                                   callback=Returns(nothing), synthesize_kwargs...)
+                                   callback=Returns(nothing), passed_kwargs...)
     # set up closure to compute residuals
     get_residuals = (params) -> _stellar_param_equation_residuals(params, linelist, measured_EWs, callback)
 
@@ -504,7 +507,8 @@ function _stellar_param_equation_residuals(params, linelist, measured_EWs, callb
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true)
-    line_abundances = Korg.Fit.ews_to_abundances(atm, linelist, A_X, measured_EWs, vmic=vmic)
+    line_abundances = Korg.Fit.ews_to_abundances(atm, linelist, A_X, measured_EWs, vmic=vmic; 
+                                                 passed_kwargs...)
 
     neutral_mask = [l.species.charge == 0 for l in linelist]
     REWs = log10.(measured_EWs[neutral_mask] ./ [line.wl for line in linelist[neutral_mask]])
