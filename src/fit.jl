@@ -235,7 +235,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
-    windows = merge_bounds(windows, 2wl_buffer)
+    windows, _ = merge_bounds(windows, 2wl_buffer)
     obs_wl_mask, synth_wl_mask, multi_synth_wls = 
         calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
 
@@ -297,21 +297,34 @@ end
 
 """
 Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
-fit_spectrum.
+fit_spectrum and ews_to_stellar_parameters.
+
+Rerturns a pair containing:
+- a vector of merged bounds
+- a vector of vectors of indices of the original bounds which were merged into each merged bound
 """
 function merge_bounds(bounds, merge_distance)
-    bounds = sort(bounds, by=first)
+    bound_indices = 1:length(bounds)
+
+    # short by lower bound
+    s = sortperm(bounds, by=first)
+    bounds = bounds[s]
+    bound_indices = bound_indices[s]
+
     new_bounds = [bounds[1]]
+    indices = [[bound_indices[1]]]
     for i in 2:length(bounds)
         # if these bounds are within merge_distance of the previous, extend the previous, 
         # otherwise add them to the list
         if bounds[i][1] <= new_bounds[end][2] + merge_distance 
             new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
+            push!(indices[end], bound_indices[i])
         else
             push!(new_bounds, bounds[i])
+            push!(indices, [bound_indices[i]])
         end
     end
-    new_bounds
+    new_bounds, indices
 end
 
 
@@ -406,29 +419,17 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    windows = [((1e8*line.wl) - ew_window_size : wl_step : (1e8*line.wl) + ew_window_size) for line in linelist]
-
-    # TODO merge this with merge_bounds.  It's similar, I just need to add in the capability to 
-    # record which lines are in each window.
-    wl_ranges = [windows[1]]
-    lines_per_window = [[1]]
-    for i in 2:length(windows)
-        # if the next window overlaps with the previous, merge them
-        if windows[i][1] <= wl_ranges[end][end]
-            # extend the previous window (assuming that windows are same-sized)
-            wl_ranges[end] = wl_ranges[end][1] : wl_step : windows[i][end]
-            # record that this line is part of the previous window
-            lines_per_window[end] = [lines_per_window[end] ; i]
-        else # otherwise, start a new window
-            push!(wl_ranges, windows[i])
-            push!(lines_per_window, [i])
-        end
+    merged_windows, lines_per_window = 
+        merge_bounds([(line.wl*1e8 - ew_window_size, line.wl*1e8 + ew_window_size) for line in linelist], 0.0)
+    wl_ranges = map(merged_windows) do (wl1, wl2)
+        wl1:wl_step:wl2
     end
 
-    #display(wl_ranges)
-
-    # TODO no line buffer?  Check if it affects performance.
-    sol = Korg.synthesize(atm, linelist, A_X, wl_ranges; hydrogen_lines=false, synthesize_kwargs...)
+    # hydrogen_lines should be dissbled for most accurate equivalent widths.  This can be overridden
+    # by passing hydrogen_lines=true as a keyword argument (included in synthesize_kwargs)
+    # line_buffer=0.0 makes things a bit faster, and it causes no problems as long as ew_window_size
+    # is sufficient, which is necessary anyway.
+    sol = Korg.synthesize(atm, linelist, A_X, wl_ranges; line_buffer=0.0, hydrogen_lines=false, synthesize_kwargs...)
     depth = 1 .- sol.flux ./ sol.cntm
 
     element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
@@ -459,6 +460,7 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
         end
     end
 
+    # TODO maybe return this stuff?
     log10.(measured_EWs) .+ A0_minus_log10W0#, (sol.wavelengths, 1 .- depth), all_boundaries
 end
 

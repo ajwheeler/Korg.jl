@@ -29,14 +29,23 @@
     end
 
     @testset "merge bounds, masks etc" begin
-        @test Korg.Fit.merge_bounds([(1, 3), (2, 4), (5,6)], 0) == [(1, 4), (5,6)]
-        @test Korg.Fit.merge_bounds([(1, 3), (2, 6), (5,7)], 1.0) == [(1, 7)]
+        mbounds = Korg.Fit.merge_bounds([(1, 3), (2, 4), (5,6)], 0)
+        @test mbounds[1] == [(1, 4), (5,6)]
+        @test mbounds[2] == [[1, 2], [3]]
+
+        mbounds = Korg.Fit.merge_bounds([(1, 3), (2, 6), (5,7)], 0)
+        @test mbounds[1] == [(1, 7)]
+        @test mbounds[2] == [[1,2,3]]
+
+        mbounds = Korg.Fit.merge_bounds([(2, 6), (5,7), (1, 3)], 0)
+        @test mbounds[1] == [(1, 7)]
+        @test mbounds[2] == [[3, 1, 2]]
 
         obs_wls = 5000:1.0:5010
         synth_wls = 5000 : 0.01 : 5012
         windows = [(5001.0, 5002.0), (5003.0, 5004.0), (5007.0, 5008.0)]
 
-        windows = Korg.Fit.merge_bounds(windows, 1.0)
+        windows, _ = Korg.Fit.merge_bounds(windows, 1.0)
         obs_wl_mask, synth_wl_mask, multi_synth_wls = 
             Korg.Fit.calculate_multilocal_masks_and_ranges(windows, obs_wls, synth_wls, 1.0)
 
@@ -118,22 +127,4 @@
         @test abs(mean_diff_abundances) < 0.05
         # TODO: test for stddev?        
     end
-
-    @testset "test neighbourhood grouping" begin
-        linelist = [
-            Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
-            Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
-            Korg.Line(5127.359 * 1e-8, -3.30700, Korg.Species("26.0"), 0.915, 1.84e-32),
-            Korg.Line(5127.679 * 1e-8, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
-            Korg.Line(5197.577 * 1e-8, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33),
-        ]
-        foo = Korg.Fit.linelist_neighbourhood_indices(linelist, 10)
-        @test length(foo) == 3 
-        @test foo[1] == [1]
-        @test foo[2] == [2, 3]
-        @test foo[3] == [4, 5]
-        @test length(Korg.Fit.linelist_neighbourhood_indices(linelist, 2)) == 2
-        @test length(Korg.Fit.linelist_neighbourhood_indices(linelist[1:3], 2)) == 1
-    end
-
 end
