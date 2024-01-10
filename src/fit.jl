@@ -399,10 +399,6 @@ All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthes
 function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0; 
                            wl_step=0.01, blend_warn_threshold=0.01, synthesize_kwargs...)
     synthesize_kwargs = Dict(synthesize_kwargs)
-    if get(synthesize_kwargs, :hydrogen_lines, false)
-        throw(ArgumentError("hydrogen_lines must be disabled"))
-    end
-
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
