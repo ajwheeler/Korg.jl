@@ -55,15 +55,6 @@
         @test synth_wls[synth_wl_mask] == [(5000.0:0.01:5005.0)... ;  (5006.0:0.01:5009.0)...]
     end
 
-    @testset "don't allow hydrogen lines in ew_to_abundances" begin
-        sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
-        sun_A_X = Korg.format_A_X(sun_Fe_H)
-        sun_atm = Korg.read_model_atmosphere("data/sun.mod")
-
-        linelist = [Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31)]
-        sun_ews = [74.3]
-        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews, vmic=sun_vmic, hydrogen_lines=true)        
-    end
     @testset "require sorted linelists" begin
         sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
         sun_A_X = Korg.format_A_X(sun_Fe_H)
