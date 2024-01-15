@@ -490,20 +490,16 @@ Arguments:
 - `vmic0` (default: 1.0) is the starting guess for vmic. Note that this must be nonzero in order to 
    avoid null derivatives. Very small values are fine.
 - `metallicity0` (default: 0.0) is the starting guess for [m/H]
-- `parameter_tolerances` (default: `[1e-3, 1e-3, 1e-3, 1e-3]`) is the tolerance with which each 
-   equation (enumerated in order above) much be satisfied. The solver stops when the absolute value 
-   of the residual for each parameter is less than the corresponding tolerance.
+- `tolerances` (default: `[1e-3, 1e-3, 1e-3, 1e-3]`) is the tolerance for the residuals each equation
+   listed above. The solver stops when all residuals are less than the corresponding tolerance.
 - `max_step_sizes` (default: `[1000.0, 1.0, 0.3, 0.5]`) is the maximum step size to take in each 
    parameter direction.  This is used to prevent the solver from taking too large of a step and 
    missing the solution.  Be particularly cautious with the vmic (third) parameter, as the 
    unadjusted step size is often too large.
-- `parameter_minima` (default: `[2800.0, -0.5, 1e-3, -2.5]`) is the minimum value for each parameter. 
-   This is used to prevent the solver from wandering into unphysical parameter space, or outside the 
-   range of the MARCS grid supported by [`Korg.interpolate_marcs`](@ref). Note that vmic must be 
-   nonzero in order to avoid null derivatives. 
-- `parameter_minima` (default: `[2800.0, -0.5, 1e-3, -2.5]`) is the minimum value for each parameter. 
-   This is used to prevent the solver from wandering into unphysical parameter space, or outside the 
-   range of the MARCS grid supported by [`Korg.interpolate_marcs`](@ref).
+- `parameter_ranges` (default: `[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)]`) is the 
+   allowed range for each parameter. This is used to prevent the solver from wandering into 
+   unphysical parameter space, or outside the range of the MARCS grid supported by 
+   [`Korg.interpolate_marcs`](@ref). Note that vmic must be nonzeo in order to avoid null derivatives.
 - `callback`:  is a function which is called at each step of the optimization.  
    It is passed three arguments: 
     - the current values of the parameters
@@ -516,10 +512,10 @@ Arguments:
 """
 function ews_to_stellar_parameters(linelist, measured_EWs; 
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, metallicity0=0.0,
-                                   parameter_tolerances=[1e-3, 1e-3, 1e-3, 1e-3],
+                                   tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
-                                   parameter_minima=[2800.0, -0.5, 1e-3, -2.5],
-                                   parameter_maxima=[8000.0, 5.5, 10.0, 1.0],
+                                   parameter_ranges=[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)],
+                                   fix_params=[false, false, false, false],
                                    callback=Returns(nothing), passed_kwargs...)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
@@ -540,7 +536,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
     end
 
     # set up closure to compute residuals
-    get_residuals = (params) -> _stellar_param_equation_residuals(params, linelist, measured_EWs, callback, passed_kwargs)
+    get_residuals = (params) -> _stellar_param_equation_residuals(params, linelist, measured_EWs, 
+                                                                fix_params, callback, passed_kwargs)
 
     params = [Teff0, logg0, vmic0, metallicity0]
 
@@ -548,24 +545,21 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
 
     while true
         J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
-
+        J = DiffResults.jacobian(J_result)
         residuals = DiffResults.value(J_result)
-
-        # stopping condition
-        if all(abs.(residuals) .< parameter_tolerances)
+        if all((abs.(residuals) .< tolerances)[.! fix_params]) # stopping condition
             break
         end
-
-        step = - DiffResults.jacobian(J_result) \ residuals
-        step .= clamp.(step, -max_step_sizes, max_step_sizes)
-        params .+= step
-        params .= clamp.(params, parameter_minima, parameter_maxima)
+        step = zeros(length(params))
+        step[.! fix_params] = - J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
+        params .+= clamp.(step, -max_step_sizes, max_step_sizes)
+        params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
     end
     params
 end
 
 # called by ews_to_stellar_parameters
-function _stellar_param_equation_residuals(params, linelist, measured_EWs, callback, passed_kwargs)
+function _stellar_param_equation_residuals(params, linelist, measured_EWs, fix_params, callback, passed_kwargs)
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
@@ -582,6 +576,7 @@ function _stellar_param_equation_residuals(params, linelist, measured_EWs, callb
     vmic_residual = _get_slope(REWs, line_abundances[neutral_mask])
     feh_residual = mean(line_abundances) - (feh + Korg.grevesse_2007_solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
+    residuals .*= .! fix_params # zero out residuals for fixed parameters
 
     callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(line_abundances))
     residuals
