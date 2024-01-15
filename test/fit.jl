@@ -118,4 +118,36 @@
         @test abs(mean_diff_abundances) < 0.05
         # TODO: test for stddev?        
     end
+
+    @testset "stellar parameters via EWs" begin
+        @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters([], [1.0])
+
+        linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
+                    Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                    Korg.Line(7e-5, -1.92100, Korg.species"Mn I", 0, 0),
+                    Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 0, 0)]
+        @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist, ones(length(linelist)))
+
+        linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
+                    Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                    Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 0, 0)]
+        @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist, ones(length(linelist)))
+
+        linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
+                    Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                    Korg.Line(7e-5, -1.92100, Korg.species"Fe II", 0, 0)]
+        @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist, ones(length(linelist)))
+
+        linelist = [Korg.Line(5e-5, -2.05800, Korg.species"CO I", 0, 0),
+                    Korg.Line(6e-5, -1.92100, Korg.species"CO I", 0, 0),
+                    Korg.Line(7e-5, -1.92100, Korg.species"CO I", 0, 0),
+                    Korg.Line(8e-5, -1.92100, Korg.species"CO II", 0, 0)]
+        @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist, ones(length(linelist)))
+
+        linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
+                    Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                    Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                    Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 0, 0)]
+        @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist, ones(length(linelist)); vmic0=0)
+    end
 end

@@ -468,17 +468,32 @@ end
 """
 !!! warning
     This function is in alpha.  It is not for science.
-
-!!! warning
-    Don't set vmic0 to 0. It will cause a null derivative, and the solver will fail.
 """
-function ews_to_stellar_parameters(linelist, measured_EWs, 
-                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, metallicity0=0.0;
+function ews_to_stellar_parameters(linelist, measured_EWs; 
+                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, metallicity0=0.0,
                                    parameter_tolerances=[1e-3, 1e-3, 1e-3, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
-                                   parameter_minima=[2800.0, -0.5, 0.01, -2.5],
+                                   parameter_minima=[2800.0, -0.5, 1e-3, -2.5],
                                    parameter_maxima=[8000.0, 5.5, 10.0, 1.0],
                                    callback=Returns(nothing), passed_kwargs...)
+    if length(linelist) != length(measured_EWs)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+    formulas = [line.species.formula for line in linelist]
+    if any(Ref(formulas[1]) .!= formulas)
+        throw(ArgumentError("All lines must be from the same element."))
+    end
+    if Korg.ismolecule(linelist[1].species)
+        throw(ArgumentError("Cannot do stellar parameter determination with molecular lines."))
+    end
+    neutrals = [l.species.charge == 0 for l in linelist]
+    if (sum(neutrals) < 3) || (sum(.! neutrals) < 1)
+        throw(ArgumentError("Must have at least 3 neutral lines and 1 ion line."))
+    end
+    if vmic0 == 0.0
+        throw(ArgumentError("Starting guess for vmic (vmic0) must be nonzero."))
+    end
+
     # set up closure to compute residuals
     get_residuals = (params) -> _stellar_param_equation_residuals(params, linelist, measured_EWs, callback, passed_kwargs)
 
@@ -508,17 +523,19 @@ end
 function _stellar_param_equation_residuals(params, linelist, measured_EWs, callback, passed_kwargs)
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
-    atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true)
+    atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
     line_abundances = Korg.Fit.ews_to_abundances(atm, linelist, A_X, measured_EWs, vmic=vmic; 
                                                  passed_kwargs...)
 
     neutral_mask = [l.species.charge == 0 for l in linelist]
     REWs = log10.(measured_EWs[neutral_mask] ./ [line.wl for line in linelist[neutral_mask]])
+    # this is guarenteed not to be a mol (checked by ews_to_stellar_parameters).
+    Z = Korg.get_atoms(linelist[1].species)[1]
 
     teff_residual = _get_slope([line.E_lower for line in linelist[neutral_mask]], line_abundances[neutral_mask])
     logg_residual = mean(line_abundances[neutral_mask]) - mean(line_abundances[.! neutral_mask])
     vmic_residual = _get_slope(REWs, line_abundances[neutral_mask])
-    feh_residual = mean(line_abundances) - (feh + Korg.grevesse_2007_solar_abundances[26])
+    feh_residual = mean(line_abundances) - (feh + Korg.grevesse_2007_solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
 
     callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(line_abundances))
