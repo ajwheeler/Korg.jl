@@ -466,6 +466,51 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
 end
 
 """
+    ews_to_stellar_parameters(linelist, measured_EWs; kwargs...)
+
+
+Find stellar parameters from equivalent widths the "old fashioned" way.  This function finds the 
+values of ``Teff``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy the following conditions 
+(using a Newton-Raphson solver):
+- The slope of the abundances of neutral lines with respect to lower excitation potential is zero.
+- The difference between the mean abundances of neutral and ionized lines is zero.
+- The slope of the abundances of neutral lines with respect to reduced equivalent width is zero.
+- The difference between the mean abundances of all lines and the model-atmosphere input [m/H] is zero.
+Here the "slope" refers to the slope of a linear fit (assuming homoscedasticity) to the abundances 
+of the lines in question.
+
+Arguments:
+- `linelist`: A vector of [`Korg.Line`](@ref) objects (see [`Korg.read_linelist`](@ref)).  The lines 
+   must be sorted by wavelength.
+- `measured_EWs`: a vector of equivalent widths (in mÅ).
+
+# Keyword arguments:
+- `Teff0` (default: 5000.0) is the starting guess for Teff
+- `logg0` (default: 3.5) is the starting guess for logg
+- `vmic0` (default: 1.0) is the starting guess for vmic. Note that this must be nonzero in order to 
+   avoid null derivatives. Very small values are fine.
+- `metallicity0` (default: 0.0) is the starting guess for [m/H]
+- `parameter_tolerances` (default: `[1e-3, 1e-3, 1e-3, 1e-3]`) is the tolerance with which each 
+   equation (enumerated in order above) much be satisfied. The solver stops when the absolute value 
+   of the residual for each parameter is less than the corresponding tolerance.
+- `max_step_sizes` (default: `[1000.0, 1.0, 0.3, 0.5]`) is the maximum step size to take in each 
+   parameter direction.  This is used to prevent the solver from taking too large of a step and 
+   missing the solution.  Be particularly cautious with the vmic (third) parameter, as the 
+   unadjusted step size is often too large.
+- `parameter_minima` (default: `[2800.0, -0.5, 1e-3, -2.5]`) is the minimum value for each parameter. 
+   This is used to prevent the solver from wandering into unphysical parameter space, or outside the 
+   range of the MARCS grid supported by [`Korg.interpolate_marcs`](@ref). Note that vmic must be 
+   nonzero in order to avoid null derivatives. 
+- `parameter_minima` (default: `[2800.0, -0.5, 1e-3, -2.5]`) is the minimum value for each parameter. 
+   This is used to prevent the solver from wandering into unphysical parameter space, or outside the 
+   range of the MARCS grid supported by [`Korg.interpolate_marcs`](@ref).
+- `callback`:  is a function which is called at each step of the optimization.  
+   It is passed three arguments: 
+    - the current values of the parameters
+    - the residuals of each equation being solved
+    - the abundances of each line computed with the current parameters.
+  You can pass a callback function, to e.g. make a plot of the residuals at each step. 
+
 !!! warning
     This function is in alpha.  It is not for science.
 """
