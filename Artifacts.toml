@@ -1,0 +1,5 @@
+[SDSS_MARCS_atmospheres]
+git-tree-sha1 = "cb22c20493919fbc7d4a96a7dbb9dfa5e493dce2"
+    [SDSS_MARCS_atmospheres.download]
+    url = "https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres.tar.gz"
+    sha256 = "cbe1845c18882104b2d8d84c1b3a54e85c358de648909822180755b1aaf553b4"

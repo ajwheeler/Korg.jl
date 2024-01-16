@@ -1,6 +1,7 @@
 # used when downloading model atmosphere archive
 using ProgressMeter: Progress, update!, finish!
 using Downloads: download
+using Pkg.Artifacts: @artifact_str
  
 abstract type ModelAtmosphere end
 
@@ -176,65 +177,11 @@ function get_atmosphere_archive()
         return _atmosphere_archive
     end
     @info "loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session."
-    path = joinpath(_korg_data_dir(), "SDSS_MARCS_atmospheres.h5")
-    if !isfile(path)
-        msg = """
-        Could not find the model atmosphere archive.  If this is the first time you are running 
-        interpolate_marcs, you will need to download the archive by running 
-
-            Korg.download_atmosphere_archive()
-
-        This will download the ~370 MB archive file and place it in ~/.korg/  If you would like 
-        to store it somewhere else, you can specify a location with the KORG_DATA_DIR environment 
-        variable.
-        """
-        throw(ErrorException(msg))
-    end
-
+    path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
     exists = h5read(path, "exists")
     grid = h5read(path, "grid")
     nodes = [h5read(path, "grid_values/$i") for i in 1:5]
     global _atmosphere_archive = (nodes, exists, grid)
-end
-
-"""
-    download_atmosphere_archive()
-
-Download the data used by [`interpolate_marcs`](@ref), a repacked version of the 
-[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
-By default, the archive is stored at `.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set 
-with the `KORG_DATA_DIR` environment variable.
-"""
-function download_atmosphere_archive(url="https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres.h5"; 
-                                     force=false)
-    atm_archive_path = joinpath(_korg_data_dir(), "SDSS_MARCS_atmospheres.h5")
-    if !force && isfile(atm_archive_path)
-        error("It looks like you have already downloaded the SDSS MARCS model atmosphere grid. ",
-              "($(atm_archive_path) is present.) If you are sure you would like to re-download it, ", 
-              "you can run\n\n    download_atmosphere_archive(force=true)\n")
-    end
-    prog = Progress(100, output=stdout, desc="Downloading model atmosphere archive: ")
-    finished = false
-    function update_progress(total, now)
-        # deal with initial total and downloaded sizes being indeterminate
-        if now == 0 || isinf(now) || isinf(total) 
-            now, total = 0,1 
-        end
-        # Downloads will call this function a few times with now==total, but we only want to
-        # update the progress bar once, to avoid duplicates bars.
-        if finished == false
-            update!(prog, Int(floor(now/total * 100)))
-        end
-        if now == total
-            finished = true
-        end
-    end
-    data_dir = _korg_data_dir()
-    if !isdir(data_dir)
-        @info "creating $data_dir"
-        mkdir(data_dir)
-    end
-    download(url, atm_archive_path, progress=update_progress);
 end
 
 """
