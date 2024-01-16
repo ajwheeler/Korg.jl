@@ -24,6 +24,7 @@ jobs:
         arch: 
           - x64
     steps:
+      - uses: actions/checkout@v2
       - uses: actions/checkout@v3
       - uses: julia-actions/setup-julia@v1
         with:
@@ -39,6 +40,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
+      - name: Cache model atmosphere archive
+        id: cache-atmospheres
+        uses: actions/cache@v3 
+        with:
+          path: ~/.korg/SDSS_MARCS_atmospheres.h5
+          key: ${{ runner.os }}-korg-model-atmosphere
+      - name: Download model atmosphere archive (if not cached)
+        if: steps.cache-atmospheres.outputs.cache-hit != 'true'
+        run: julia -e 'using Korg; download_atmosphere_archive()'
+    key: ${{ runner.os }}-korg-model-atmosphere
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
       - uses: julia-actions/julia-processcoverage@v1
