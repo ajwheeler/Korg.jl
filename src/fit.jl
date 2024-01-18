@@ -519,7 +519,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
                                    parameter_ranges=[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)],
                                    fix_params=[false, false, false, false],
-                                   callback=Returns(nothing), n_bootstrap=1000, passed_kwargs...)
+                                   callback=Returns(nothing), passed_kwargs...)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -559,60 +559,12 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
         params .+= clamp.(step, -max_step_sizes, max_step_sizes)
         params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
     end
-
-    # if EW error was supplied, get the parameter covariance via bootstrap
-    @time if measured_EW_err != ones(length(measured_EWs)) 
-        A, A_inv_var, neutrals, REWs, Z =
-          _residuals_precalculations(params, linelist, measured_EWs, measured_EW_err, passed_kwargs)
-        
-        n_lines = length(linelist)
-        residual_samples = Matrix{Float64}(undef, length(params), n_bootstrap)
-        resampling_mask = Vector{Int}(undef, n_lines)
-        for i in 1:n_bootstrap
-            while true
-                resampling_mask .= rand(1:n_lines, n_lines)
-                # as long as we have two neutrals and one ion, the residuals can be calculated.
-                if 2 <= sum(neutrals[resampling_mask]) < n_lines
-                    break
-                end
-            end
-            residual_samples[:, i] = _calculate_residuals(linelist[resampling_mask], 
-                                                          neutrals[resampling_mask], 
-                                                          A[resampling_mask], 
-                                                          A_inv_var[resampling_mask], params[4], Z,
-                                                          REWs[resampling_mask], fix_params)
-        end
-        println("redisual samples:")
-        display(residual_samples)
-        residual_samples .-= mean(residual_samples, dims=2)
-        display(residual_samples)
-        residual_covariance = (residual_samples * residual_samples') ./ (n_bootstrap - 1)
-        println("redisual covariance:")
-        display(residual_covariance)
-
-        J = DiffResults.jacobian(J_result)
-        parameter_covariance = J \ residual_covariance
-        display(parameter_covariance)
-    end
-
     params
 end
 
 # called by ews_to_stellar_parameters
 function _stellar_param_equation_residuals(params, linelist, EW, EW_err, 
                                            fix_params, callback, passed_kwargs)
-    # the calculation is split into two helper function to make bootstrapping redisual uncertainties
-    # more efficient later.
-    A, A_inv_var, neutrals, REWs, Z = _residuals_precalculations(params, linelist, EW, EW_err, passed_kwargs)
-    residuals = _calculate_residuals(linelist, neutrals, A, A_inv_var, params[4], Z, REWs, fix_params)
-    callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(A))
-    residuals
-end
-
-# calls ews_to_abundances with appropriate args and returns A and A_inv_var for each line, along
-# with other quantities need to compute the residuals.
-# used by _stellar_param_equation_residuals and to bootstrap the residual uncertainties.
-function _residuals_precalculations(params, linelist, EW, EW_err, passed_kwargs)
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
@@ -622,33 +574,33 @@ function _residuals_precalculations(params, linelist, EW, EW_err, passed_kwargs)
     A_inv_var = (EW .* A ./ EW_err) .^ 2
 
     neutrals = [l.species.charge == 0 for l in linelist]
-    REWs = log10.(EW ./ [line.wl for line in linelist])
+    REWs = log10.(EW[neutrals] ./ [line.wl for line in linelist[neutrals]])
     # this is guarenteed not to be a mol (checked by ews_to_stellar_parameters).
     Z = Korg.get_atoms(linelist[1].species)[1]
 
-    A, A_inv_var, neutrals, REWs, Z
-end
+    # this is the uncertainty of the mean abundances of all lines
+    # it's also the uncertainty of the difference between the neutral and ionized line abundances
+    sigma_mean = 1 ./ sqrt(sum(A_inv_var))
 
-# calculates the residuals of the stellar parameter equations given many precomputed quantities
-# used by _stellar_param_equation_residuals, and to bootstrap the residual uncertainties
-function _calculate_residuals(linelist, neutrals, A, A_inv_var, feh, Z, REWs, fix_params)
+
     teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
                                A[neutrals], A_inv_var[neutrals])
     logg_residual = (_weighted_mean(A[neutrals], A_inv_var[neutrals]) -
                      _weighted_mean(A[.! neutrals], A_inv_var[.! neutrals]))
-    vmic_residual = _get_slope(REWs[neutrals], A[neutrals], A_inv_var[neutrals])
+    vmic_residual = _get_slope(REWs, A[neutrals], A_inv_var[neutrals])
     feh_residual = _weighted_mean(A, A_inv_var) - (feh + Korg.grevesse_2007_solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
     residuals .*= .! fix_params # zero out residuals for fixed parameters
-    residuals
-end 
 
-# used by _calculate_residuals
+    callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(A))
+    residuals
+end
+
 function _weighted_mean(x, inv_var)
     sum(x .* inv_var) / sum(inv_var)
 end
 
-# usedd by _calculate_residuals
+# called by _stellar_param_equation_residuals
 function _get_slope(xs, ys, inv_var)
     Δx = xs .- mean(xs)    
     Δy = ys .- mean(ys)
