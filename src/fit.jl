@@ -9,7 +9,7 @@ using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
 using ForwardDiff, DiffResults
 using Trapz
-using Statistics: mean
+using Statistics: mean, std
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
@@ -541,7 +541,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     # set up closure to compute residuals
     get_residuals = (params) -> 
         _stellar_param_equation_residuals(params, linelist, measured_EWs, measured_EW_err, 
-                                          fix_params, callback, passed_kwargs)
+                                           fix_params, callback, passed_kwargs)
 
     params = [Teff0, logg0, vmic0, metallicity0]
 
@@ -559,12 +559,61 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
         params .+= clamp.(step, -max_step_sizes, max_step_sizes)
         params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
     end
-    params
+
+    # if EW uncertainties were supplied, propofate them to parameter uncertainties
+    stat_σ, sys_σ = if measured_EW_err != ones(length(measured_EWs))
+        stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs, measured_EW_err, passed_kwargs)
+        J = DiffResults.jacobian(J_result)
+        abs.(J \ stat_σ_r), abs.(J \ sys_σ_r)
+    else
+        [NaN, NaN, NaN, NaN], [NaN, NaN, NaN, NaN]
+    end
+    params, stat_σ, sys_σ
 end
+
+
 
 # called by ews_to_stellar_parameters
 function _stellar_param_equation_residuals(params, linelist, EW, EW_err, 
                                            fix_params, callback, passed_kwargs)
+    A, A_inv_var, neutrals, REWs, Z = 
+        _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
+
+
+    teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
+                               A[neutrals], A_inv_var[neutrals])
+    logg_residual = (_weighted_mean(A[neutrals], A_inv_var[neutrals]) -
+                     _weighted_mean(A[.! neutrals], A_inv_var[.! neutrals]))
+    vmic_residual = _get_slope(REWs, A[neutrals], A_inv_var[neutrals])
+    feh_residual = _weighted_mean(A, A_inv_var) - (params[4] + Korg.grevesse_2007_solar_abundances[Z])
+    residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
+    residuals .*= .! fix_params # zero out residuals for fixed parameters
+
+    callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(A))
+    residuals
+end
+
+function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, passed_kwargs)
+    A, A_inv_var, neutrals, REWs, _ = 
+        _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
+
+    # estimated total (including systematic) err in the abundances of each line
+    total_err = std(A)
+    total_ivar = ones(length(A)) * total_err^-2
+
+    stat_sigma, total_sigma = map([A_inv_var, total_ivar]) do ivar
+        sigma_mean = 1 ./ sqrt(sum(ivar))
+        teff_residual_sigma = _get_slope_uncertainty([line.E_lower for line in linelist[neutrals]], ivar[neutrals])
+        vmic_residual_sigma = _get_slope_uncertainty(REWs, ivar[neutrals])
+        [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
+    end
+
+    sys_sigma = sqrt.(max.(total_sigma.^2 .- stat_sigma.^2, 0))
+
+    stat_sigma, sys_sigma
+end
+
+function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
@@ -578,22 +627,7 @@ function _stellar_param_equation_residuals(params, linelist, EW, EW_err,
     # this is guarenteed not to be a mol (checked by ews_to_stellar_parameters).
     Z = Korg.get_atoms(linelist[1].species)[1]
 
-    # this is the uncertainty of the mean abundances of all lines
-    # it's also the uncertainty of the difference between the neutral and ionized line abundances
-    sigma_mean = 1 ./ sqrt(sum(A_inv_var))
-
-
-    teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
-                               A[neutrals], A_inv_var[neutrals])
-    logg_residual = (_weighted_mean(A[neutrals], A_inv_var[neutrals]) -
-                     _weighted_mean(A[.! neutrals], A_inv_var[.! neutrals]))
-    vmic_residual = _get_slope(REWs, A[neutrals], A_inv_var[neutrals])
-    feh_residual = _weighted_mean(A, A_inv_var) - (feh + Korg.grevesse_2007_solar_abundances[Z])
-    residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
-    residuals .*= .! fix_params # zero out residuals for fixed parameters
-
-    callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(A))
-    residuals
+    A, A_inv_var, neutrals, REWs, Z
 end
 
 function _weighted_mean(x, inv_var)
@@ -605,6 +639,11 @@ function _get_slope(xs, ys, inv_var)
     Δx = xs .- mean(xs)    
     Δy = ys .- mean(ys)
     sum(Δx .* Δy .* inv_var) ./ sum(Δx.^2 .* inv_var)
+end
+
+function _get_slope_uncertainty(xs, ivar)
+    # the awkward ones(length(xs)) is in there to make it work when ivar is a scalar
+    sqrt(sum(ivar) / (sum(ones(length(xs)) .* ivar)*sum(ivar .* xs.^2) - sum(ivar .* xs)^2))
 end
 
 end # module
