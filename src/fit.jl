@@ -479,13 +479,21 @@ values of ``Teff``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy the follow
 Here the "slope" refers to the slope of a linear fit (assuming homoscedasticity) to the abundances 
 of the lines in question.
 
-Arguments:
+# Arguments:
 - `linelist`: A vector of [`Korg.Line`](@ref) objects (see [`Korg.read_linelist`](@ref)).  The lines 
    must be sorted by wavelength.
 - `measured_EWs`: a vector of equivalent widths (in mÅ).
 - `measured_EW_err` (optional): the uncertainty in `measured_EWs`.  If not specified, all lines are 
    assumed to have the same uncertainty. These uncertainties are used when evaluating the equations 
    above, and are propigated to provide uncertainties in the resulting parameters.
+
+# Returns:
+A tuple containing:
+- the best-fit parameters: `[Teff, logg, vmic, [m/H]]` as a vector
+- the statistical uncertainties in the parameters, propogated from the uncertainties in the 
+  equivalent widths. Treated as zero, when EW uncertainties are not specified.
+- the systematic uncertainties in the parameters, estimated from the scatter the abundances computed 
+  from each line not accounted for by the EW uncertainties.
 
 # Keyword arguments:
 - `Teff0` (default: 5000.0) is the starting guess for Teff
@@ -510,8 +518,6 @@ Arguments:
     - the abundances of each line computed with the current parameters.
   You can pass a callback function, to e.g. make a plot of the residuals at each step. 
 
-!!! warning
-    This function is in alpha.  It is not for science.
 """
 function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(length(measured_EWs)); 
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, metallicity0=0.0,
@@ -560,18 +566,14 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
         params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
     end
 
-    # if EW uncertainties were supplied, propofate them to parameter uncertainties
-    stat_σ, sys_σ = if measured_EW_err != ones(length(measured_EWs))
-        stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs, measured_EW_err, passed_kwargs)
-        J = DiffResults.jacobian(J_result)
-        abs.(J \ stat_σ_r), abs.(J \ sys_σ_r)
-    else
-        [NaN, NaN, NaN, NaN], [NaN, NaN, NaN, NaN]
-    end
+    # compute uncertainties
+    stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs, measured_EW_err, passed_kwargs)
+    J = DiffResults.jacobian(J_result)
+    stat_σ = abs.(J \ stat_σ_r)
+    sys_σ = abs.(J \ sys_σ_r)
+
     params, stat_σ, sys_σ
 end
-
-
 
 # called by ews_to_stellar_parameters
 function _stellar_param_equation_residuals(params, linelist, EW, EW_err, 
@@ -593,6 +595,8 @@ function _stellar_param_equation_residuals(params, linelist, EW, EW_err,
     residuals
 end
 
+# called by _stellar_param_equation_residuals
+# returns (statistical_uncertainty, systematic_uncertainty)
 function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, passed_kwargs)
     A, A_inv_var, neutrals, REWs, _ = 
         _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
@@ -608,9 +612,13 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, pas
         [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
     end
 
-    sys_sigma = sqrt.(max.(total_sigma.^2 .- stat_sigma.^2, 0))
-
-    stat_sigma, sys_sigma
+    if EW_err == ones(length(EW))
+        # in the case that EW uncertainties were specified, the residuals were calculated 
+        # assuming errs = 1, but we want to ignore them here, and call all error "systematic"
+        [0.0, 0.0, 0.0, 0.0], total_sigma
+    else
+        stat_sigma, sqrt.(max.(total_sigma.^2 .- stat_sigma.^2, 0))
+    end
 end
 
 function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
@@ -641,8 +649,7 @@ function _get_slope(xs, ys, inv_var)
     sum(Δx .* Δy .* inv_var) ./ sum(Δx.^2 .* inv_var)
 end
 
-function _get_slope_uncertainty(xs, ivar)
-    # the awkward ones(length(xs)) is in there to make it work when ivar is a scalar
+function _get_slope_uncertainty(xs, ivar::AbstractVector) # guard against scalar ivar
     sqrt(sum(ivar) / (sum(ones(length(xs)) .* ivar)*sum(ivar .* xs.^2) - sum(ivar .* xs)^2))
 end
 
