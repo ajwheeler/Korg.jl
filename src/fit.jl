@@ -20,11 +20,11 @@ function tan_scale(p, lower, upper)
 end
 tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
 
-# these are the parmeters which are scaled by tan_scale
+# these are the parameters which are scaled by tan_scale
 const tan_scale_params = Dict(
     "epsilon" => (0, 1),
     # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the 
-    # test environent, but they are simply the boundaries of the SDSS marcs grid used by
+    # test environment, but they are simply the boundaries of the SDSS marcs grid used by
     # Korg.interpolate_marcs.
     "Teff" => (2800, 8000),
     "logg" => (-0.5, 5.5),
@@ -159,7 +159,7 @@ Find the parameters and abundances that best match a rectified observed spectrum
   below.
 
 `initial_guesses` and `fixed_params` can also be specified as Dicts instead of NamedTuples, which is 
-more convienient when calling Korg from python.
+more convenient when calling Korg from python.
 
 # Specifying parameters
 Parameters are specified as NamedTuples, which look like this: `(Teff=5000, logg=4.5, m_H=0.0)`.
@@ -196,7 +196,7 @@ values are used.
    LSF matrix, you must make sure that the synthesis wavelengths match it.
 - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
 - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on 
-   transformed parameters, so `precision` doesn't translate straitforwardly to Teff, logg, etc, but 
+   transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but 
    the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
    0.001 in `m_H`, and 0.004 in detailed abundances.
 
@@ -299,7 +299,7 @@ end
 Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
 fit_spectrum and ews_to_stellar_parameters.
 
-Rerturns a pair containing:
+Returns a pair containing:
 - a vector of merged bounds
 - a vector of vectors of indices of the original bounds which were merged into each merged bound
 """
@@ -331,7 +331,7 @@ end
 """
     calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls)
 
-Given a vector of target synthesis ranges in the observbed spectrum, return the masks, etc required.
+Given a vector of target synthesis ranges in the observed spectrum, return the masks, etc required.
 
 Arguments:
     - `windows`: a vector of pairs of wavelength lower and upper bounds.
@@ -485,12 +485,12 @@ of the lines in question.
 - `measured_EWs`: a vector of equivalent widths (in mÅ).
 - `measured_EW_err` (optional): the uncertainty in `measured_EWs`.  If not specified, all lines are 
    assumed to have the same uncertainty. These uncertainties are used when evaluating the equations 
-   above, and are propigated to provide uncertainties in the resulting parameters.
+   above, and are propagated to provide uncertainties in the resulting parameters.
 
 # Returns:
 A tuple containing:
 - the best-fit parameters: `[Teff, logg, vmic, [m/H]]` as a vector
-- the statistical uncertainties in the parameters, propogated from the uncertainties in the 
+- the statistical uncertainties in the parameters, propagated from the uncertainties in the 
   equivalent widths. Treated as zero, when EW uncertainties are not specified.
 - the systematic uncertainties in the parameters, estimated from the scatter the abundances computed 
   from each line not accounted for by the EW uncertainties.
@@ -510,7 +510,7 @@ A tuple containing:
 - `parameter_ranges` (default: `[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)]`) is the 
    allowed range for each parameter. This is used to prevent the solver from wandering into 
    unphysical parameter space, or outside the range of the MARCS grid supported by 
-   [`Korg.interpolate_marcs`](@ref). Note that vmic must be nonzeo in order to avoid null derivatives.
+   [`Korg.interpolate_marcs`](@ref). Note that vmic must be nonzero in order to avoid null derivatives.
 - `callback`:  is a function which is called at each step of the optimization.  
    It is passed three arguments: 
     - the current values of the parameters
