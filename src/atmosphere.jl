@@ -153,36 +153,14 @@ end
 
 # this isn't a const because the model atmosphere doesn't get loaded into memory until 
 # interpolate_marcs is called for the first time
-global _atmosphere_archive = nothing 
-
-"""
-Returns the local where Korg's large (too big for git) data files are stored.  At present, this is
-only the model atmosphere archive used by [`interpolate_marcs`](@ref).
-"""
-function _korg_data_dir()
-    if "KORG_DATA_DIR" in keys(ENV)
-        joinpath(ENV["KORG_DATA_DIR"])
-    else
-        joinpath(homedir(), ".korg")
-    end
-end
-
-"""
-Returns the model atmosphere grid, first loading it into memory if necessary. It's not loaded 
-at import time because it's large, and model atmosphere interpolation isn't always needed. This
-is called automatically when running `interpolate_marcs`.
-"""
-function get_atmosphere_archive()
-    if !isnothing(_atmosphere_archive)
-        return _atmosphere_archive
-    end
-    @info "loading the model atmosphere grid into memory. This will take a few seconds, but will only happen once per julia session."
+const _sdss_marcs_atmospheres = let
     path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
     exists = h5read(path, "exists")
     grid = h5read(path, "grid")
     nodes = [h5read(path, "grid_values/$i") for i in 1:5]
-    global _atmosphere_archive = (nodes, exists, grid)
+    (nodes, exists, grid)
 end
+
 
 """
     interpolate_marcs(Teff, logg, Fe_M=0, alpha_M=0, C_M=0; kwargs...)
@@ -223,13 +201,13 @@ variable.
 function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; 
                            solar_abundances=grevesse_2007_solar_abundances, 
                            clamp_abundances=false, kwargs...)
-    M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
+    M_H = get_metals_H(A_X; solar_abundances=_sdss_marcs_atmospheres)
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
     alpha_M = alpha_H - M_H
     C_H = A_X[6] - solar_abundances[6]
     C_M = C_H - M_H
     if clamp_abundances
-        nodes = get_atmosphere_archive()[1]
+        nodes = _sdss_marcs_atmospheres
         M_H = clamp(M_H, nodes[3][1], nodes[3][end])
         alpha_M = clamp(C_M, nodes[4][1], nodes[4][end])
         C_M = clamp(C_M, nodes[5][1], nodes[5][end])
@@ -237,8 +215,8 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           perturb_at_grid_values=false, archive=get_atmosphere_archive())
-    nodes, exists, grid = archive
+                           perturb_at_grid_values=false)
+    nodes, exists, grid = _sdss_marcs_atmospheres
 
     params = [Teff, logg, M_H, alpha_M, C_M]
     param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
