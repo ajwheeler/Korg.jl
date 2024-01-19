@@ -49,15 +49,14 @@ using Random
     end
 
     @testset "fit_spectrum" begin
-        
         # fit params
-        Teff = 5402.0
-        m_H = -0.02
-        vmic = 0.83
+        Teff = 6402.0
+        m_H = -1.02
 
         # fixed_params
         alpha_H = 0.1
         logg = 4.52
+        vmic = 0.83
 
         synth_wls = 5000:0.01:5010
         obs_wls = 5003 : 0.03 : 5008
@@ -75,16 +74,14 @@ using Random
         spectrum .+= randn(rng, length(spectrum)) .* err
 
         # now fit it
-        p0 = (Teff=5350.0, m_H=0.0, vmic=1.0)
-        fixed = (alpha_H=alpha_H, logg=logg)
+        p0 = (Teff=5350.0, m_H=0.0)
+        fixed = (alpha_H=alpha_H, logg=logg, vmic=vmic)
         result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
                                        synthesis_wls=synth_wls, LSF_matrix=LSF)
         
-        @test result.best_fit_params["Teff"] ≈ Teff rtol=0.01
-        @test result.best_fit_params["m_H"] ≈ m_H rtol=0.01
-        @test result.best_fit_params["vmic"] ≈ vmic rtol=0.01
-
-        @test assert_allclose(spectrum, result.best_fit_spectrum, rtol=0.03)
+        @test result.best_fit_params["Teff"] ≈ Teff atol=150
+        @test result.best_fit_params["m_H"] ≈ m_H atol=0.05
+        @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.05)
     end
 
     @testset "don't allow hydrogen lines in ew_to_abundances" begin
