@@ -201,7 +201,7 @@ variable.
 function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; 
                            solar_abundances=grevesse_2007_solar_abundances, 
                            clamp_abundances=false, kwargs...)
-    M_H = get_metals_H(A_X; solar_abundances=_sdss_marcs_atmospheres)
+    M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
     alpha_M = alpha_H - M_H
     C_H = A_X[6] - solar_abundances[6]

@@ -163,17 +163,37 @@ end
         @test [l.electron_number_density for l in atm.layers] == [l.electron_number_density for l in atm2.layers]
     end
 
-    @testset "model atmosphere interpolation" begin
-        # calling the interpolator on grid points should return the same atmosphere
-        atm1 = Korg.read_model_atmosphere("data/s5000_g+3.0_m1.0_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
-        atm2 = Korg.interpolate_marcs(5000, 3.0)
 
-        # values are not precisely identical.  I think this is due to slightly different solar mixtures.
-        @test assert_allclose(Korg.get_tau_5000s(atm1), Korg.get_tau_5000s(atm2); rtol=2e-3)
-        @test assert_allclose(Korg.get_zs(atm1), Korg.get_zs(atm2); rtol=1e-3)
-        @test assert_allclose(Korg.get_temps(atm1), Korg.get_temps(atm2); rtol=2e-4)
-        @test assert_allclose(Korg.get_electron_number_densities(atm1), Korg.get_electron_number_densities(atm2); rtol=1e-3)
-        @test assert_allclose(Korg.get_number_densities(atm1), Korg.get_number_densities(atm2); rtol=2e-4)
+    @testset "model atmosphere interpolation" begin
+        @testset "methods are equivalent" begin
+            teff = 5000.0
+            logg = 4.0
+            m_H = 0.1
+            alpha_H = 0.2
+            C_H = 0.3
+            atm1 = interpolate_marcs(teff, logg, m_H, alpha_H - m_H, C_H - m_H)
+            A_X = format_A_X(m_H, alpha_H, Dict("C"=>C_H); solar_abundances=Korg.grevesse_2007_solar_abundances)
+            atm2 = interpolate_marcs(teff, logg, A_X)
+
+            @test assert_allclose(Korg.get_tau_5000s(atm1), Korg.get_tau_5000s(atm2); rtol=1e-3)
+            @test assert_allclose(Korg.get_zs(atm1), Korg.get_zs(atm2); rtol=1e-3)
+            @test assert_allclose(Korg.get_temps(atm1), Korg.get_temps(atm2); rtol=1e-3)
+            @test assert_allclose(Korg.get_electron_number_densities(atm1), Korg.get_electron_number_densities(atm2); rtol=1e-3)
+            @test assert_allclose(Korg.get_number_densities(atm1), Korg.get_number_densities(atm2); rtol=1e-3)
+        end
+
+        @testset "grid points" begin
+            # calling the interpolator on grid points should return the same atmosphere
+            atm1 = Korg.read_model_atmosphere("data/s5000_g+3.0_m1.0_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
+            atm2 = Korg.interpolate_marcs(5000, 3.0)
+
+            # values are not precisely identical.  I think this is due to slightly different solar mixtures.
+            @test assert_allclose(Korg.get_tau_5000s(atm1), Korg.get_tau_5000s(atm2); rtol=2e-3)
+            @test assert_allclose(Korg.get_zs(atm1), Korg.get_zs(atm2); rtol=1e-3)
+            @test assert_allclose(Korg.get_temps(atm1), Korg.get_temps(atm2); rtol=2e-4)
+            @test assert_allclose(Korg.get_electron_number_densities(atm1), Korg.get_electron_number_densities(atm2); rtol=1e-3)
+            @test assert_allclose(Korg.get_number_densities(atm1), Korg.get_number_densities(atm2); rtol=2e-4)
+        end
     end
 end
 
