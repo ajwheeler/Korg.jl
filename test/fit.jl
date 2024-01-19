@@ -54,7 +54,6 @@ using Random
         m_H = -1.02
 
         # fixed_params
-        alpha_H = 0.1
         logg = 4.52
         vmic = 0.83
 
@@ -66,8 +65,8 @@ using Random
         LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, 50_000; verbose=false)
 
         # generate a spectrum and 
-        atm = interpolate_marcs(Teff, logg, m_H, alpha_H)
-        sol = synthesize(atm, linelist, format_A_X(m_H, alpha_H), [synth_wls]; vmic=vmic)
+        atm = interpolate_marcs(Teff, logg, m_H)
+        sol = synthesize(atm, linelist, format_A_X(m_H), [synth_wls]; vmic=vmic)
         spectrum = LSF * (sol.flux ./ sol.cntm)
         err = 0.01 * ones(length(spectrum))
         rng = MersenneTwister(1234)
@@ -75,7 +74,7 @@ using Random
 
         # now fit it
         p0 = (Teff=5350.0, m_H=0.0)
-        fixed = (alpha_H=alpha_H, logg=logg, vmic=vmic)
+        fixed = (logg=logg, vmic=vmic)
         result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
                                        synthesis_wls=synth_wls, LSF_matrix=LSF)
         
