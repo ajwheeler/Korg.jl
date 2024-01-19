@@ -1,3 +1,5 @@
+using Random
+
 @testset "Fit" begin
     @testset "parameter scaling" begin
         params = Dict("Teff"=>3200.0, "logg"=>4.5, "m_H"=>-2.0, "vmic"=>3.2, "vsini"=>10.0, "O"=>-1.0)
@@ -44,6 +46,45 @@
         @test multi_synth_wls == [5000.0:0.01:5005.0, 5006.0:0.01:5009.0]
         @test obs_wl_mask == Bool[0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0]
         @test synth_wls[synth_wl_mask] == [(5000.0:0.01:5005.0)... ;  (5006.0:0.01:5009.0)...]
+    end
+
+    @testset "fit_spectrum" begin
+        
+        # fit params
+        Teff = 5402.0
+        m_H = -0.02
+        vmic = 0.83
+
+        # fixed_params
+        alpha_H = 0.1
+        logg = 4.52
+
+        synth_wls = 5000:0.01:5010
+        obs_wls = 5003 : 0.03 : 5008
+
+        linelist = Korg.get_VALD_solar_linelist()
+
+        LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, 50_000; verbose=false)
+
+        # generate a spectrum and 
+        atm = interpolate_marcs(Teff, logg, m_H, alpha_H)
+        sol = synthesize(atm, linelist, format_A_X(m_H, alpha_H), [synth_wls]; vmic=vmic)
+        spectrum = LSF * (sol.flux ./ sol.cntm)
+        err = 0.01 * ones(length(spectrum))
+        rng = MersenneTwister(1234)
+        spectrum .+= randn(rng, length(spectrum)) .* err
+
+        # now fit it
+        p0 = (Teff=5350.0, m_H=0.0, vmic=1.0)
+        fixed = (alpha_H=alpha_H, logg=logg)
+        result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
+                                       synthesis_wls=synth_wls, LSF_matrix=LSF)
+        
+        @test result.best_fit_params["Teff"] ≈ Teff rtol=0.01
+        @test result.best_fit_params["m_H"] ≈ m_H rtol=0.01
+        @test result.best_fit_params["vmic"] ≈ vmic rtol=0.01
+
+        @test assert_allclose(spectrum, result.best_fit_spectrum, rtol=0.03)
     end
 
     @testset "don't allow hydrogen lines in ew_to_abundances" begin
