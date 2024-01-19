@@ -207,7 +207,7 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
     C_H = A_X[6] - solar_abundances[6]
     C_M = C_H - M_H
     if clamp_abundances
-        nodes = _sdss_marcs_atmospheres
+        nodes = _sdss_marcs_atmospheres[1]
         M_H = clamp(M_H, nodes[3][1], nodes[3][end])
         alpha_M = clamp(C_M, nodes[4][1], nodes[4][end])
         C_M = clamp(C_M, nodes[5][1], nodes[5][end])
