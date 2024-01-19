@@ -18,7 +18,7 @@ shape, the locations of the max errors are also printed.
 - `error_location_fmt`: An optional keyword used to specify a function that creates a string 
   describing the location in the arrays where values are unequal, given a `CartesianIndex` object.
   This should not be specified in cases where actual and reference have different shapes.
-- `print_racheting_info`: set this to false to avoid printing a notice and stacktrace with rtol
+- `print_rachet_info`: set this to false to avoid printing a notice and stacktrace with rtol
   or atol can be tightened.
 
 """
