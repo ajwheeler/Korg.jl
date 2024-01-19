@@ -79,8 +79,17 @@ using Random
         result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
                                        synthesis_wls=synth_wls, LSF_matrix=LSF)
         
-        @test result.best_fit_params["Teff"] ≈ Teff atol=150
-        @test result.best_fit_params["m_H"] ≈ m_H atol=0.05
+        params, Σ = result.covariance
+        Teff_index = findfirst(params .== "Teff")
+        Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
+        m_H_index = findfirst(params .== "m_H")
+        m_H_sigma = sqrt(Σ[m_H_index, m_H_index])
+        
+        # check that inferred parameters are within 2 sigma of the true values
+        @test result.best_fit_params["Teff"] ≈ Teff atol=2Teff_sigma
+        @test result.best_fit_params["m_H"] ≈ m_H atol=2m_H_sigma
+
+        # check that best-fit flux is within 5% (5 σ) of the true flux at all pixels
         @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.05)
     end
 
