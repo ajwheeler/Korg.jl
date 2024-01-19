@@ -175,11 +175,11 @@ end
             A_X = format_A_X(m_H, alpha_H, Dict("C"=>C_H); solar_abundances=Korg.grevesse_2007_solar_abundances)
             atm2 = interpolate_marcs(teff, logg, A_X)
 
-            @test assert_allclose(Korg.get_tau_5000s(atm1), Korg.get_tau_5000s(atm2); rtol=1e-3)
-            @test assert_allclose(Korg.get_zs(atm1), Korg.get_zs(atm2); rtol=1e-3)
-            @test assert_allclose(Korg.get_temps(atm1), Korg.get_temps(atm2); rtol=1e-3)
-            @test assert_allclose(Korg.get_electron_number_densities(atm1), Korg.get_electron_number_densities(atm2); rtol=1e-3)
-            @test assert_allclose(Korg.get_number_densities(atm1), Korg.get_number_densities(atm2); rtol=1e-3)
+            @test assert_allclose(Korg.get_tau_5000s(atm1), Korg.get_tau_5000s(atm2); rtol=1e-6)
+            @test assert_allclose(Korg.get_zs(atm1), Korg.get_zs(atm2); rtol=1e-6)
+            @test assert_allclose(Korg.get_temps(atm1), Korg.get_temps(atm2); rtol=1e-7)
+            @test assert_allclose(Korg.get_electron_number_densities(atm1), Korg.get_electron_number_densities(atm2); rtol=1e-6)
+            @test assert_allclose(Korg.get_number_densities(atm1), Korg.get_number_densities(atm2); rtol=1e-6)
         end
 
         @testset "grid points" begin
