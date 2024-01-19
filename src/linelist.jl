@@ -405,7 +405,12 @@ function parse_moog_linelist(f, isotopic_abundances)
             digits_per = length(isostring) ÷ natoms
             map(get_atoms(spec), 1:digits_per:length(isostring)-digits_per+1) do el, i
                 m = parse(Int, isostring[i:i+digits_per-1])
-                log10(isotopic_abundances[el][m])
+                if m in keys(isotopic_abundances[el])
+                    log10(isotopic_abundances[el][m])
+                else
+                    @info "No isotopic abundance for $(atomic_symbols[el]) $m. Leaving the log(gf) unchanged. (Occured when parsing $line)"
+                    0.0
+                end
             end |> sum
         end
 
