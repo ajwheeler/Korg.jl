@@ -1,5 +1,6 @@
 module RadiativeTransfer
-using ...Korg: PlanarAtmosphere, ShellAtmosphere
+using ...Korg: PlanarAtmosphere, ShellAtmosphere, CubicSplines, get_tau_5000s
+
 
 # for generate_mu_grid
 using FastGaussQuadrature: gausslegendre
@@ -33,11 +34,16 @@ function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points;
                                     tau_method=:anchored, I_method=:linear)
 end
 function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; do_negative_rays=false,
-                                    tau_method=:anchored, I_method=:linear)
+                                    tau_method=:anchored, I_method=:linear, α_ref=nothing)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2 
 
-    F, I = spherical_transfer(α, S, radii, n_μ_points, do_negative_rays)
+    τ_ref = if !isnothing(α_ref) #?
+        get_tau_5000s(atm)
+    else
+        nothing
+    end
+    F, I = spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=α_ref, τ_ref=τ_ref)
     photosphere_correction .* F, I
 end
 
@@ -69,8 +75,7 @@ function calculate_rays(μ_surface_grid, radii)
     end
 end
 
-function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays;
-                            τ_ref=nothing, α_ref=nothing)
+function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=nothing, τ_ref=nothing)
     μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points)
 
     path_lengths = calculate_rays(μ_surface_grid, radii)
@@ -88,82 +93,58 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays;
 
     #TODO precalculate λ-indenpendent quantities, at least for anchored τ, but maybe for other methods too
 
-    # intensity at every layer, for every μ, for every λ. This is returned
-    I = Array{el_type}(undef, length(all_μ_surface_grid), size(α)...) 
+    # intensity at every layer, for every μ, for every λ. This is returned.
+    # initialize with zeros because not every ray will pass through every layer
+    I = zeros(el_type, (length(all_μ_surface_grid), size(α)...))
     # preallocate a single τ vector which gets reused many times
-    τ_λ = Vector{el_type}(undef, length(radii)) 
+    τ_buffer = Vector{el_type}(undef, length(radii)) 
     for μ_ind in 1:length(all_μ_surface_grid)
         # index of the ray in the μ_surface_grid with the same |μ| as this ray
         positive_μ_ind = μ_ind <= length(μ_surface_grid) ? μ_ind : μ_ind - length(μ_surface_grid)
 
         path = path_lengths[positive_μ_ind]
-        lowest_layer_ind = length(path)
+        n_layers = length(path) # possibly counting layers which the ray passes through twice
 
         # indices of layers along this ray, in the correct order
         layer_inds = if μ_ind <= length(μ_surface_grid)
-            1:lowest_layer_ind #ray coming out
+            1:n_layers #ray coming out
         else
             path .*= -1
-            lowest_layer_ind:-1:1 #ray going in
+            n_layers:-1:1 #ray going in
         end
 
+        # view into τ_buffer with the right size
+        τ = view(τ_buffer, 1:n_layers)
+        path = view(path, layer_inds)
+
+        #TODO name better
+        @inbounds alpha = α[layer_inds, :]
+        integrand_factor = @. (radii[layer_inds] * τ_ref[layer_inds]) / (abs(path) * α_ref[layer_inds])
+        log_τ_ref = log.(τ_ref[layer_inds])
+
         for λ_ind in 1:size(α, 2)
-            if lowest_layer_ind <= 2
+            if n_layers <= 2
                 I[μ_ind, :, λ_ind] .= 0
                 continue
             end
 
             # TODO switch this to whatever
-            BezierTransfer.compute_tau_bezier!(view(τ_λ, layer_inds),
-                                               path[layer_inds],
-                                               view(α, layer_inds, λ_ind))
+            #compute_tau_bezier!(τ, path, alpha[:, λ_ind])
+            compute_tau_anchored!(τ, alpha[:, λ_ind], integrand_factor, log_τ_ref)
 
             # TODO switch this to whatever
-            bezier_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind),
-                                   view(τ_λ, layer_inds),
-                                   view(S, layer_inds, λ_ind))
+            linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
+                                          view(S, layer_inds, λ_ind))
 
-            if λ_ind == 4000 && μ_ind in [3, 23]
-                println("μ_ind = $μ_ind, μ = $(all_μ_surface_grid[μ_ind])")
-                display(["path" "alpha" "τ" "I" "S" ; 
-                         path view(α, layer_inds, λ_ind) view(τ_λ, layer_inds) view(I, μ_ind, layer_inds, λ_ind)  view(S, layer_inds, λ_ind)])
-                println()
-                println()
-            end
+            #if λ_ind == 4000 && μ_ind == 3
+            #    println("μ_ind = $μ_ind, μ = $(all_μ_surface_grid[μ_ind])")
+            #    display(["path" "alpha" "τ" "I" "S" ; 
+            #             path view(α, layer_inds, λ_ind) τ view(I, μ_ind, layer_inds, λ_ind)  view(S, layer_inds, λ_ind)])
+            #    println()
+            #    println()
+            #end
         end
     end
-
-    # TODO how to account for this nicely?
-    #for μ_ind in eachindex(μ_surface_grid)
-    #    i = lowest_layer_indices[μ_ind]
-    #    for λ_ind in 1:size(α, 2)
-    #        if (i < length(radii)) && (τ_λ[i] < 100.0)
-    #            #if the ray never leaves the model atmosphere, include the contribution from the 
-    #            #other side of the star.  We also check that τ is not ridiculously large, because
-    #            #numerical precision can lead to adjacent layers getting equal τ on the other side of 
-    #            #the star
-    #            
-    #            # could preallocate for efficiency (make τ_λ one bigger to hold reversed tau)
-    #            l_prime = [l[i, μ_ind] ; -view(l, i:-1:1, μ_ind)]
-    #            α_prime = [α[i, λ_ind] ; view(α, i:-1:1, λ_ind)]
-    #            τ_prime = similar(α_prime)
-
-    #            #TODO switch this to whatever
-    #            compute_tau_bezier!(τ_prime, l_prime, α_prime)
-    #            #compute_tau_spline_analytic!(τ_prime, l_prime, α_prime)
-    #            τ_prime .+= τ_λ[i]
-    #            S_prime = [S[i, λ_ind] ; view(S,i:-1:1,λ_ind)]
-
-    #            # TODO switch this to whatever
-    #            # TODO make this work
-    #            #I[μ_ind, λ_ind] += ray_transfer_integral(τ_prime, S_prime)
-    #        else 
-    #            # otherwise assume I=S at atmosphere lower boundary.  This is a _tiny_ effect.
-    #            I[μ_ind, λ_ind] += exp(-τ_λ[i]) * S[end, λ_ind]
-    #        end
-    #    end
-    #end
-    #calculate 2π∫μIdμ to get astrophysical flux
 
     #just the outward rays at the top layer
     surface_I = I[1:length(μ_surface_grid), 1, :]
@@ -172,34 +153,46 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays;
     F, I
 end
 
+
+function compute_tau_anchored!(τ, α, integrand_factor, log_τ_ref)
+    MoogStyleTransfer.cumulative_trapezoid_rule!(τ, log_τ_ref, integrand_factor .* α)
+end
+
 """
-    ray_transfer_integral!(I, τ, S)
+    compute_tau_bezier(τ, s, α)
 
-TODO
-
-Given τ and S along a ray (at a particular wavelength), compute the intensity at the end of the ray 
-(the surface of the star).  This uses the method from 
-[de la Cruz Rodríguez and Piskunov 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...764...33D/abstract).
+Compute optical depth (write to τ) along a ray with coordinate s and absorption coefficient α.  This 
+is the method proposed in 
+[de la Cruz Rodríguez and Piskunov 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...764...33D/abstract),
+but the 
 """
-function bezier_ray_transfer_integral!(I, τ, S)
-    @assert length(τ) == length(S)  == length(I)
-    I[end] = 0
-    if length(τ) <= 1 
-        return
+function compute_tau_bezier!(τ, s, α)
+    @assert length(τ) == length(s) == length(α) # because of the @inbounds below
+    # how to get non-0 tau at first layer?
+    τ[1] = 1e-5 
+    C = fritsch_butland_C(s, α)
+    # needed for numerical stability.  Threre is likely a smarter way to do this.
+    clamp!(C, 1/2 * minimum(α), 2 * maximum(α))
+    for i in 2:length(α)
+        @inbounds τ[i] = τ[i-1] + (s[i-1] - s[i])/3 * (α[i] + α[i-1] + C[i-1])
     end
-
-    C = fritsch_butland_C(τ, S)
-    for k in length(τ)-1:-1:1
-        δ = τ[k+1] - τ[k]
-        α = (2 + δ^2 - 2*δ - 2*exp(-δ)) / δ^2
-        β = (2 - (2 + 2δ + δ^2)*exp(-δ)) / δ^2
-        γ = (2*δ - 4 + (2δ + 4)*exp(-δ)) / δ^2
-    
-        I[k] = I[k+1]*exp(-δ) + α*S[k] + β*S[k+1] + γ*C[k]
-    end
-    I[1] *= exp(-τ[1]) #the second term isn't in the paper but it's necessary if τ[1] != 0
     ;
 end
+ 
+"""
+    compute_tau_spline_analytic(τ, s, α)
+
+Compute τ using a cubic spline to interpolate α.  This is not used by [`radiative_transfer`](@ref),
+but is included for completeness.
+"""
+function compute_tau_spline_analytic!(τ, s, α)
+    s = -s
+    α_itp = CubicSplines.CubicSpline(s, α; extrapolate=true)
+    CubicSplines.cumulative_integral!(τ, α_itp, s[1], s[end])
+end
+
+
+
 
 """
     ray_transfer_integral(I, τ, S)
@@ -215,17 +208,46 @@ which is equal to
 \$ -\\exp(-\\tau) (m*\\tau + b + m)\$.
 """
 function linear_ray_transfer_integral!(I, τ, S)
-    @assert length(τ) == length(S)  == length(I)
+    @assert length(I) == length(τ) == length(S) # because of the @inbounds below
     I[end] = 0
     if length(τ) == 1
         return
     end
 
     for k in length(τ)-1:-1:1
-        δ = τ[k+1] - τ[k]
-        m = (S[k+1] - S[k])/δ
-        I[k] = (I[k+1] - S[k] -  m*(δ+1)) * exp(-δ) + m + S[k]
+        @inbounds δ = τ[k+1] - τ[k]
+        @inbounds m = (S[k+1] - S[k])/δ
+        @inbounds I[k] = (I[k+1] - S[k] -  m*(δ+1)) * exp(-δ) + m + S[k]
     end
+    ;
+end
+
+"""
+    ray_transfer_integral!(I, τ, S)
+
+TODO
+
+Given τ and S along a ray (at a particular wavelength), compute the intensity at the end of the ray 
+(the surface of the star).  This uses the method from 
+[de la Cruz Rodríguez and Piskunov 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...764...33D/abstract).
+"""
+function bezier_ray_transfer_integral!(I, τ, S)
+    @assert length(I) == length(τ) == length(S) # because of the @inbounds below
+    I[end] = 0
+    if length(τ) <= 1 
+        return
+    end
+
+    C = fritsch_butland_C(τ, S)
+    for k in length(τ)-1:-1:1
+        @inbounds δ = τ[k+1] - τ[k]
+        α = (2 + δ^2 - 2*δ - 2*exp(-δ)) / δ^2
+        β = (2 - (2 + 2δ + δ^2)*exp(-δ)) / δ^2
+        γ = (2*δ - 4 + (2δ + 4)*exp(-δ)) / δ^2
+    
+        @inbounds I[k] = I[k+1]*exp(-δ) + α*S[k] + β*S[k+1] + γ*C[k]
+    end
+    @inbounds I[1] *= exp(-τ[1]) #the second term isn't in the paper but it's necessary if τ[1] != 0
     ;
 end
 
