@@ -49,32 +49,26 @@ TODO
  - the index of the lowest atmospheric layer pierced by each ray
 """
 function calculate_rays(μ_surface_grid, radii)
-    el_type = promote_type(eltype(μ_surface_grid), eltype(radii))
-
-    path_length = Matrix{el_type}(undef, length(radii), length(μ_surface_grid))
-    lowest_layer_indices = Vector{Int}(undef, length(μ_surface_grid))
-
-    # preallocate
-    for (μ_ind, μ_surface) in enumerate(μ_surface_grid)
+    map(enumerate(μ_surface_grid)) do (μ_ind, μ_surface)
         b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
         
         #doing this with `findfirst` is messier at first and last index
-        i = argmin(abs.(radii .- b)) 
-        if radii[i] < b
-            i -= 1
+        lowest_layer_index = argmin(abs.(radii .- b)) 
+        if radii[lowest_layer_index] < b
+            lowest_layer_index -= 1
         end
 
-        lowest_layer_indices[μ_ind] = i
-        path_length[1:i, μ_ind] = @. sqrt(radii[1:i]^2 - b^2)
+        #TODO work in case where ray extends to far hemisphere of star
+
+        @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
     end
-    path_length, lowest_layer_indices
 end
 
 function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays;
                             τ_ref=nothing, α_ref=nothing)
     μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points)
 
-    path_length, lowest_layer_indices = calculate_rays(μ_surface_grid, radii)
+    path_lengths = calculate_rays(μ_surface_grid, radii)
 
     # all_μ_surface_grid is the μ_surface_grid, but with negative μ values appended if they are 
     # being used
@@ -93,42 +87,46 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays;
     I = Array{el_type}(undef, length(all_μ_surface_grid), size(α)...) 
     # preallocate a single τ vector which gets reused many times
     τ_λ = Vector{el_type}(undef, length(radii)) 
-    for λ_ind in 1:size(α, 2), μ_ind in 1:length(all_μ_surface_grid) 
+    for μ_ind in 1:length(all_μ_surface_grid)
         # index of the ray in the μ_surface_grid with the same |μ| as this ray
         positive_μ_ind = μ_ind <= length(μ_surface_grid) ? μ_ind : μ_ind - length(μ_surface_grid)
-        # deepest layer pierced by this ray
-        lowest_layer_ind = lowest_layer_indices[positive_μ_ind]
+
+        path = path_lengths[positive_μ_ind]
+        lowest_layer_ind = length(path)
+
         # indices of layers along this ray, in the correct order
-        layer_inds, path = if μ_ind <= length(μ_surface_grid)
-            1:lowest_layer_ind, path_length #ray coming out
+        layer_inds = if μ_ind <= length(μ_surface_grid)
+            1:lowest_layer_ind #ray coming out
         else
-            lowest_layer_ind:-1:1, -path_length #ray going in
+            path .*= -1
+            lowest_layer_ind:-1:1 #ray going in
         end
 
-        if lowest_layer_ind <= 2
-            I[μ_ind, :, λ_ind] .= 0
-            continue
+        for λ_ind in 1:size(α, 2)
+            if lowest_layer_ind <= 2
+                I[μ_ind, :, λ_ind] .= 0
+                continue
+            end
+
+            # TODO switch this to whatever
+            BezierTransfer.compute_tau_bezier!(view(τ_λ, layer_inds),
+                                               path[layer_inds],
+                                               view(α, layer_inds, λ_ind))
+            #@assert issorted(τ_λ[layer_inds])
+
+            # TODO switch this to whatever
+            bezier_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind),
+                                   view(τ_λ, layer_inds),
+                                   view(S, layer_inds, λ_ind))
+
+            if λ_ind == 4000 && μ_ind in [3, 23]
+                println("μ_ind = $μ_ind, μ = $(all_μ_surface_grid[μ_ind])")
+                display(["path" "alpha" "τ" "I" "S" ; 
+                         path view(α, layer_inds, λ_ind) view(τ_λ, layer_inds) view(I, μ_ind, layer_inds, λ_ind)  view(S, layer_inds, λ_ind)])
+                println()
+                println()
+            end
         end
-
-        # TODO switch this to whatever
-        BezierTransfer.compute_tau_bezier!(view(τ_λ, layer_inds),
-                                           view(path, layer_inds, positive_μ_ind),
-                                           view(α, layer_inds, λ_ind))
-        #@assert issorted(τ_λ[layer_inds])
-
-        # TODO switch this to whatever
-        linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind),
-                               view(τ_λ, layer_inds),
-                               view(S, layer_inds, λ_ind))
-
-        if λ_ind == 4000 && μ_ind in [3, 23]
-            println("μ_ind = $μ_ind, μ = $(all_μ_surface_grid[μ_ind])")
-            display(["path length" "alpha" "τ" "I" "S" ; 
-                     view(path_length, layer_inds, positive_μ_ind) view(α, layer_inds, λ_ind) view(τ_λ, layer_inds) view(I, μ_ind, layer_inds, λ_ind)  view(S, layer_inds, λ_ind)])
-            println()
-            println()
-        end
- 
     end
 
     # TODO how to account for this nicely?
@@ -172,6 +170,8 @@ end
 
 """
     ray_transfer_integral!(I, τ, S)
+
+TODO
 
 Given τ and S along a ray (at a particular wavelength), compute the intensity at the end of the ray 
 (the surface of the star).  This uses the method from 
