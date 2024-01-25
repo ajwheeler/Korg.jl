@@ -52,15 +52,20 @@ function calculate_rays(μ_surface_grid, radii)
     map(enumerate(μ_surface_grid)) do (μ_ind, μ_surface)
         b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
         
-        #doing this with `findfirst` is messier at first and last index
-        lowest_layer_index = argmin(abs.(radii .- b)) 
-        if radii[lowest_layer_index] < b
-            lowest_layer_index -= 1
+
+        if b < radii[end] # ray goes below the atmosphere
+            @. sqrt(radii^2 - b^2)
+        else
+            #doing this with `findfirst` is messier at first and last index
+            lowest_layer_index = argmin(abs.(radii .- b)) 
+            if radii[lowest_layer_index] < b
+                lowest_layer_index -= 1
+            end
+            path = @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
+            path[end] *= 2
+            path = [path ; -path[end-1:-1:1]]
+            path[1: min(length(radii), length(path))]
         end
-
-        #TODO work in case where ray extends to far hemisphere of star
-
-        @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
     end
 end
 
@@ -112,7 +117,6 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays;
             BezierTransfer.compute_tau_bezier!(view(τ_λ, layer_inds),
                                                path[layer_inds],
                                                view(α, layer_inds, λ_ind))
-            #@assert issorted(τ_λ[layer_inds])
 
             # TODO switch this to whatever
             bezier_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind),
