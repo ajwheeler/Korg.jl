@@ -117,7 +117,7 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays;
         #@assert issorted(τ_λ[layer_inds])
 
         # TODO switch this to whatever
-        ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind),
+        linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind),
                                view(τ_λ, layer_inds),
                                view(S, layer_inds, λ_ind))
 
@@ -177,12 +177,12 @@ Given τ and S along a ray (at a particular wavelength), compute the intensity a
 (the surface of the star).  This uses the method from 
 [de la Cruz Rodríguez and Piskunov 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...764...33D/abstract).
 """
-function ray_transfer_integral!(I, τ, S)
-    @assert length(τ) == length(S)
-    if length(τ) <= 1 
-        return 0.0
-    end
+function bezier_ray_transfer_integral!(I, τ, S)
+    @assert length(τ) == length(S)  == length(I)
     I[end] = 0
+    if length(τ) <= 1 
+        return
+    end
 
     C = fritsch_butland_C(τ, S)
     for k in length(τ)-1:-1:1
@@ -194,6 +194,34 @@ function ray_transfer_integral!(I, τ, S)
         I[k] = I[k+1]*exp(-δ) + α*S[k] + β*S[k+1] + γ*C[k]
     end
     I[1] *= exp(-τ[1]) #the second term isn't in the paper but it's necessary if τ[1] != 0
+    ;
+end
+
+"""
+    ray_transfer_integral(I, τ, S)
+
+TODO
+
+Compute exactly the solution to the transfer integral obtained be linearly interpolating the source 
+function, `S` across optical depths `τ`, without approximating the factor of exp(-τ).
+
+This breaks the integral into the sum of integrals of the form 
+\$\\int (m\\tau + b) \\exp(-\\tau)\$ d\\tau\$ , 
+which is equal to
+\$ -\\exp(-\\tau) (m*\\tau + b + m)\$.
+"""
+function linear_ray_transfer_integral!(I, τ, S)
+    @assert length(τ) == length(S)  == length(I)
+    I[end] = 0
+    if length(τ) == 1
+        return
+    end
+
+    for k in length(τ)-1:-1:1
+        δ = τ[k+1] - τ[k]
+        m = (S[k+1] - S[k])/δ
+        I[k] = (I[k+1] - S[k] -  m*(δ+1)) * exp(-δ) + m + S[k]
+    end
     ;
 end
 
