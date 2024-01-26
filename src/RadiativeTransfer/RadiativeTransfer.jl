@@ -34,7 +34,7 @@ function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points;
                                     tau_method=:anchored, I_method=:linear)
 end
 function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; do_negative_rays=false,
-                                    tau_method=:anchored, I_method=:linear, α_ref=nothing)
+                                    τ_method=:anchored, I_method=:linear, α_ref=nothing)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2 
 
@@ -43,7 +43,8 @@ function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; do
     else
         nothing
     end
-    F, I = spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=α_ref, τ_ref=τ_ref)
+    F, I = spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; 
+                              α_ref=α_ref, τ_ref=τ_ref, I_method=I_method, τ_method=τ_method)
     photosphere_correction .* F, I
 end
 
@@ -68,14 +69,15 @@ function calculate_rays(μ_surface_grid, radii)
                 lowest_layer_index -= 1
             end
             path = @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
-            path[end] *= 2
-            path = [path ; -path[end-1:-1:1]]
-            path[1: min(length(radii), length(path))]
+            #path[end] *= 2
+            #path = [path ; -path[end-1:-1:1]]
+            #path[1: min(length(radii), length(path))]
         end
     end
 end
 
-function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=nothing, τ_ref=nothing)
+function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=nothing, τ_ref=nothing, 
+                            I_method=:linear, τ_method=:anchored)
     μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points)
 
     path_lengths = calculate_rays(μ_surface_grid, radii)
@@ -128,18 +130,35 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
                 continue
             end
 
+            if τ_method == :anchored
+                compute_tau_anchored!(τ, α[layer_inds, λ_ind], integrand_factor, log_τ_ref, integrand_buffer)
+            elseif τ_method == :bezier
+                compute_tau_bezier!(τ, path, α[layer_inds, λ_ind])
+            elseif τ_method == :spline
+                compute_tau_spline_analytic!(τ, path, α[layer_inds, λ_ind])
+            else
+                throw(ArgumentError("τ_method must be one of :anchored, :bezier, or :spline"))
+            end
             # TODO switch this to whatever
             #compute_tau_bezier!(τ, path, alpha[:, λ_ind])
-            compute_tau_anchored!(τ, α[layer_inds, λ_ind], integrand_factor, log_τ_ref, integrand_buffer)
+            #compute_tau_spline_analytic!(τ, path, α[layer_inds, λ_ind])
+            #compute_tau_bezier!(τ, path, α[layer_inds, λ_ind])
 
             # TODO switch this to whatever
-            linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
-                                          view(S, layer_inds, λ_ind))
+            if I_method == :linear
+                linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
+                                              view(S, layer_inds, λ_ind))
+            elseif I_method == :bezier
+                bezier_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
+                                              view(S, layer_inds, λ_ind))
+            else
+                throw(ArgumentError("I_method must be one of :linear or :bezier"))
+            end
 
-            #if λ_ind == 4000 && μ_ind == 3
+            #if  λ_ind == 1 && μ_ind==17 #isnan.(I[μ_ind, 1, λ_ind])
             #    println("μ_ind = $μ_ind, μ = $(all_μ_surface_grid[μ_ind])")
             #    display(["path" "alpha" "τ" "I" "S" ; 
-            #             path view(α, layer_inds, λ_ind) τ view(I, μ_ind, layer_inds, λ_ind)  view(S, layer_inds, λ_ind)])
+            #             path α[layer_inds, λ_ind] τ view(I, μ_ind, layer_inds, λ_ind)  view(S, layer_inds, λ_ind)])
             #    println()
             #    println()
             #end
