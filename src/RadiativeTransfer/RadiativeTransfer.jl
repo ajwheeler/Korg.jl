@@ -98,6 +98,7 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
     I = zeros(el_type, (length(all_μ_surface_grid), size(α)...))
     # preallocate a single τ vector which gets reused many times
     τ_buffer = Vector{el_type}(undef, length(radii)) 
+    integrand_buffer = Vector{el_type}(undef, length(radii))
     for μ_ind in 1:length(all_μ_surface_grid)
         # index of the ray in the μ_surface_grid with the same |μ| as this ray
         positive_μ_ind = μ_ind <= length(μ_surface_grid) ? μ_ind : μ_ind - length(μ_surface_grid)
@@ -118,19 +119,18 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
         path = view(path, layer_inds)
 
         #TODO name better
-        @inbounds alpha = α[layer_inds, :]
         integrand_factor = @. (radii[layer_inds] * τ_ref[layer_inds]) / (abs(path) * α_ref[layer_inds])
         log_τ_ref = log.(τ_ref[layer_inds])
 
         for λ_ind in 1:size(α, 2)
             if n_layers <= 2
-                I[μ_ind, :, λ_ind] .= 0
+                # don't need to write anything because I is initialized to 0
                 continue
             end
 
             # TODO switch this to whatever
             #compute_tau_bezier!(τ, path, alpha[:, λ_ind])
-            compute_tau_anchored!(τ, alpha[:, λ_ind], integrand_factor, log_τ_ref)
+            compute_tau_anchored!(τ, α[layer_inds, λ_ind], integrand_factor, log_τ_ref, integrand_buffer)
 
             # TODO switch this to whatever
             linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
@@ -154,8 +154,15 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
 end
 
 
-function compute_tau_anchored!(τ, α, integrand_factor, log_τ_ref)
-    MoogStyleTransfer.cumulative_trapezoid_rule!(τ, log_τ_ref, integrand_factor .* α)
+function compute_tau_anchored!(τ, α, integrand_factor, log_τ_ref, integrand_buffer)
+    for k in eachindex(integrand_factor) #I can't figure out how to write this as a fast one-liner
+        integrand_buffer[k] = α[k] * integrand_factor[k]
+    end
+    #MoogStyleTransfer.cumulative_trapezoid_rule!(τ, log_τ_ref, integrand_buffer)
+    τ[1] = 0.0
+    for i in 2:length(log_τ_ref)
+        τ[i] = τ[i-1] + 0.5*(integrand_buffer[i]+integrand_buffer[i-1])*(log_τ_ref[i]-log_τ_ref[i-1])
+    end
 end
 
 """
@@ -190,8 +197,6 @@ function compute_tau_spline_analytic!(τ, s, α)
     α_itp = CubicSplines.CubicSpline(s, α; extrapolate=true)
     CubicSplines.cumulative_integral!(τ, α_itp, s[1], s[end])
 end
-
-
 
 
 """
