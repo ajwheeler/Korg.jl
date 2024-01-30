@@ -101,6 +101,25 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
     # preallocate a single τ vector which gets reused many times
     τ_buffer = Vector{el_type}(undef, length(radii)) 
     integrand_buffer = Vector{el_type}(undef, length(radii))
+
+    #=
+    # first handle I contributions from the other side of the star
+    for μ_ind in μ_surface_grid #only outward going rays
+        # if the ray goes through the atmosphere (and it's not too shallow)
+        if 3 <= length(paths[μ_ind]) <= length(radii) 
+            #TODO
+            # indices of layers along this ray, in the correct order
+            layer_inds = if μ_ind <= length(μ_surface_grid)
+                1:n_layers #ray coming out
+            else
+                path .*= -1
+                n_layers:-1:1 #ray going in
+            end
+        end
+    end
+    =#
+
+    # do each ray in turn
     for μ_ind in 1:length(all_μ_surface_grid)
         # index of the ray in the μ_surface_grid with the same |μ| as this ray
         positive_μ_ind = μ_ind <= length(μ_surface_grid) ? μ_ind : μ_ind - length(μ_surface_grid)
@@ -135,14 +154,11 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
             elseif τ_method == :bezier
                 compute_tau_bezier!(τ, path, α[layer_inds, λ_ind])
             elseif τ_method == :spline
+                @info "spline scheme sometimes fails"
                 compute_tau_spline_analytic!(τ, path, α[layer_inds, λ_ind])
             else
                 throw(ArgumentError("τ_method must be one of :anchored, :bezier, or :spline"))
             end
-            # TODO switch this to whatever
-            #compute_tau_bezier!(τ, path, alpha[:, λ_ind])
-            #compute_tau_spline_analytic!(τ, path, α[layer_inds, λ_ind])
-            #compute_tau_bezier!(τ, path, α[layer_inds, λ_ind])
 
             # TODO switch this to whatever
             if I_method == :linear
@@ -163,6 +179,8 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
             #    println()
             #end
         end
+
+        #TODO handle other side of the star
     end
 
     #just the outward rays at the top layer
