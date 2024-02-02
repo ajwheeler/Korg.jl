@@ -471,7 +471,7 @@ end
 
 
 Find stellar parameters from equivalent widths the "old fashioned" way.  This function finds the 
-values of ``Teff``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy the following conditions 
+values of ``T_\\mathrm{eff}``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy the following conditions 
 (using a Newton-Raphson solver):
 - The slope of the abundances of neutral lines with respect to lower excitation potential is zero.
 - The difference between the mean abundances of neutral and ionized lines is zero.
@@ -511,7 +511,9 @@ A tuple containing:
 - `parameter_ranges` (default: `[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)]`) is the 
    allowed range for each parameter. This is used to prevent the solver from wandering into 
    unphysical parameter space, or outside the range of the MARCS grid supported by 
-   [`Korg.interpolate_marcs`](@ref). Note that vmic must be nonzero in order to avoid null derivatives.
+   [`Korg.interpolate_marcs`](@ref). The detault ranges ``T_\\mathrm{eff}``, ``\\log g``,  and [m/H]
+   are the widest supported by the MARCS grid. Note that vmic must be nonzero in order to avoid null 
+   derivatives.
 - `callback`:  is a function which is called at each step of the optimization.  
    It is passed three arguments: 
     - the current values of the parameters
