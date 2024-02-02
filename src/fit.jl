@@ -209,7 +209,13 @@ A NamedTuple with the following fields:
   in the `windows`)
 - `solver_result`: the result object from `Optim.jl`
 - `trace`: a vector of NamedTuples, each of which contains the parameters at each step of the 
-  optimization.
+  optimization. This is empty for single parameter fits, because the underlying solver doesn't 
+  supply it.
+- `covariance`: a pair `(params, Σ)` where `params` is vector of parameter name (providing an 
+  order), and `Σ` is an estimate of the covariance matrix of the parameters.  It is the approximate 
+  inverse hessian of the log likelihood at the best-fit parameter calculated by the BGFS algorithm, 
+  and should be interpretted with caution. For single-parameter fits (which are done with 
+  Nelder-Mead), this is not provided.
 
 !!! tip
     The function takes a long time to compile the first time it is called. Compilation performance 
@@ -263,18 +269,33 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         end
     end 
     
-    res = if length(p0) == 1
+    res, invH = if length(p0) == 1
         # if we are fitting a single parameter, experimentation shows that Nelder-Mead (the default)
         # is faster than BFGS
 
         # there seems to be a problem with trace storage for this optimizer, so we don't request it
         # the precision keyword is also ignored
-        optimize(chi2, p0, Optim.Options(x_tol=precision); autodiff=:forward) 
+        optimize(chi2, p0, Optim.Options(x_tol=precision); autodiff=:forward), nothing
     else
         # if we are fitting a multiple parameters, use BFGS with autodiff
-        optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
+        res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
                  Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
                                extended_trace=true); autodiff=:forward)
+
+        # derivate relating the scaled parameters to the unscaled parameters
+        # (used to convert the approximate hessian to a covariance matrix in the unscaled params)
+        dp_dscaledp = map(res.minimizer, params_to_fit) do scaled_param, param_name
+            ForwardDiff.derivative(scaled_param) do scaled_param
+                unscale(Dict(param_name=>scaled_param))[param_name]
+            end
+        end
+        # the fact that the scaling is a diagonal operation means that we can do this as an element-wise
+        # product.  If we think of ds/dp as a (diagonal) matrix, this is equivalent to
+        # (ds/dp)^T * invH * (ds/dp)
+        invH_scaled = res.trace[end].metadata["~inv(H)"]
+        invH = invH_scaled .* dp_dscaledp .* dp_dscaledp'
+
+        res, invH
     end
     solution = unscale(Dict(params_to_fit .=> res.minimizer))
 
@@ -292,7 +313,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     end
 
     (best_fit_params=solution, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask, 
-     solver_result=res, trace=trace)
+     solver_result=res, trace=trace, covariance=(params_to_fit, invH))
 end
 
 """

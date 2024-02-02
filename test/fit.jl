@@ -1,3 +1,5 @@
+using Random
+
 @testset "Fit" begin
     @testset "parameter scaling" begin
         params = Dict("Teff"=>3200.0, "logg"=>4.5, "m_H"=>-2.0, "vmic"=>3.2, "vsini"=>10.0, "O"=>-1.0)
@@ -55,6 +57,57 @@
         @test synth_wls[synth_wl_mask] == [(5000.0:0.01:5005.0)... ;  (5006.0:0.01:5009.0)...]
     end
 
+    @testset "fit_spectrum" begin
+        # fit params
+        Teff = 6402.0
+        m_H = -1.02
+
+        # fixed_params
+        logg = 4.52
+        vmic = 0.83
+
+        synth_wls = 5000:0.01:5010
+        obs_wls = 5003 : 0.03 : 5008
+
+        linelist = Korg.get_VALD_solar_linelist()
+
+        LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, 50_000; verbose=false)
+
+        # generate a spectrum and 
+        atm = interpolate_marcs(Teff, logg, m_H)
+        sol = synthesize(atm, linelist, format_A_X(m_H), [synth_wls]; vmic=vmic)
+        spectrum = LSF * (sol.flux ./ sol.cntm)
+        err = 0.01 * ones(length(spectrum)) # don't actually apply error to keep tests deterministic
+
+        # now fit it
+        p0 = (Teff=5350.0, m_H=0.0)
+        fixed = (logg=logg, vmic=vmic)
+        result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
+                                       synthesis_wls=synth_wls, LSF_matrix=LSF)
+        
+        params, Σ = result.covariance
+        Teff_index = findfirst(params .== "Teff")
+        Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
+        m_H_index = findfirst(params .== "m_H")
+        m_H_sigma = sqrt(Σ[m_H_index, m_H_index])
+        
+        # check that inferred parameters are within 2 sigma of the true values
+        @test result.best_fit_params["Teff"] ≈ Teff atol=1Teff_sigma
+        @test result.best_fit_params["m_H"] ≈ m_H atol=1m_H_sigma
+
+        # check that best-fit flux is within 5% (5 σ) of the true flux at all pixels
+        @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.01)
+    end
+
+    @testset "don't allow hydrogen lines in ew_to_abundances" begin
+        sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+        sun_A_X = Korg.format_A_X(sun_Fe_H)
+        sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+
+        linelist = [Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31)]
+        sun_ews = [74.3]
+        @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews, vmic=sun_vmic, hydrogen_lines=true)        
+    end
     @testset "require sorted linelists" begin
         sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
         sun_A_X = Korg.format_A_X(sun_Fe_H)
