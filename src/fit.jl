@@ -522,7 +522,7 @@ A tuple containing:
 - `logg0` (default: 3.5) is the starting guess for logg
 - `vmic0` (default: 1.0) is the starting guess for vmic. Note that this must be nonzero in order to 
    avoid null derivatives. Very small values are fine.
-- `metallicity0` (default: 0.0) is the starting guess for [m/H]
+- `m_H0` (default: 0.0) is the starting guess for [m/H]
 - `tolerances` (default: `[1e-3, 1e-3, 1e-3, 1e-3]`) is the tolerance for the residuals each equation
    listed above. The solver stops when all residuals are less than the corresponding tolerance.
 - `max_step_sizes` (default: `[1000.0, 1.0, 0.3, 0.5]`) is the maximum step size to take in each 
@@ -622,9 +622,12 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
 
     # compute uncertainties
     stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs, measured_EW_err, passed_kwargs)
-    J = DiffResults.jacobian(J_result)
-    stat_σ = abs.(J \ stat_σ_r)
-    sys_σ = abs.(J \ sys_σ_r)
+
+    J = DiffResults.jacobian(J_result)[.! fix_params, .! fix_params]
+    stat_σ = zeros(4)
+    stat_σ[.! fix_params] .= abs.(J \ stat_σ_r[.! fix_params])
+    sys_σ = zeros(4)
+    sys_σ[.! fix_params] .= abs.(J \ sys_σ_r[.! fix_params])
 
     params, stat_σ, sys_σ
 end
