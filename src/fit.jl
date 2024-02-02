@@ -393,7 +393,8 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
    line. 
 - `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for 
    each line.  It's very important that this is large enough to include each line entirely.
-- TODO blench_warn_threshold
+- `blend_warn_threshold` (default: 0.01) is the minimum absorption between two lines allowed before 
+   triggering a warning that they may be blended.
 All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0; 
