@@ -547,10 +547,15 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, metallicity0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
-                                   parameter_ranges=[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)],
+                                   parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2]) 
+                                                    ; (1e-3, 10.0) 
+                                                    ; extrema(Korg._sdss_marcs_atmospheres[1][3])],
                                    fix_params=[false, false, false, false],
                                    callback=Returns(nothing), passed_kwargs...)
-    if length(linelist) != length(measured_EWs)
+    if :vmic in keys(passed_kwargs)
+        throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
+    end
+    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
     formulas = [line.species.formula for line in linelist]
@@ -567,13 +572,33 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     if vmic0 == 0.0
         throw(ArgumentError("Starting guess for vmic (vmic0) must be nonzero."))
     end
+    if any(p[1] >= p[2] for p in parameter_ranges)
+        throw(ArgumentError("The lower bound of each parameter must be less than the upper bound."))
+    end
+    if parameter_ranges[3][1] <= 0.0
+        throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
+    end
+    # the widest parameter ranges allowed by the MARCS grid
+    atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
+    atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
+    # index 3 in vmic, which isn't in the MARCS grid
+    if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) || any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
+        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid ()"))
+    end
+
+    params0 = [Teff0, logg0, vmic0, metallicity0]
+    params = clamp(params0, first.(parameter_ranges), last.(parameter_ranges))
+    for (p, p0, n) in zip(params, params0, ["Teff", "logg", "vmic", "metallicity"])
+        if p != p0
+            @warn "Initial guess for $n ($p0) has been clamped to $p, to be within the allowed range."
+        end
+    end
 
     # set up closure to compute residuals
-    get_residuals = (params) -> 
-        _stellar_param_equation_residuals(params, linelist, measured_EWs, measured_EW_err, 
+    get_residuals = (p) -> 
+        _stellar_param_equation_residuals(p, linelist, measured_EWs, measured_EW_err, 
                                            fix_params, callback, passed_kwargs)
 
-    params = [Teff0, logg0, vmic0, metallicity0]
 
     J_result = DiffResults.JacobianResult(params)
 
