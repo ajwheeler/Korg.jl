@@ -166,10 +166,11 @@ using Random
     end
 
     @testset "stellar parameters via EWs" begin
-        good_linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
-                        Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
-                        Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 0, 0),
-                        Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 0, 0)]
+        # used in both tests below
+        good_linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I",  4.1),
+                 Korg.Line(6e-5, -1.92100, Korg.species"Fe I",  4.2),
+                 Korg.Line(7e-5, -1.92100, Korg.species"Fe I",  4.3),
+                 Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 4.4)]
 
         @testset "validate arguments" begin
             # vmic can't be specified
@@ -215,8 +216,38 @@ using Random
         end
 
         @testset "basic fit" begin
-            # these correspond to roughly solar parameters.  Note that the linelist is fake.
-            EWs = [469.0, 604.0, 664.0, 742.0]
+            # 2 Å wide window around each line
+            synth_wls = map(good_linelist) do line
+                wl = line.wl * 1e8
+                wl - 1.0 : 0.01 : wl + 1.0
+            end
+            sol = synthesize(interpolate_marcs(5777.0, 4.44), good_linelist, format_A_X(),
+                             synth_wls; hydrogen_lines=false)
+
+            # EWs you get for the fake linelist with solar params
+            # the real implementation uses the trapezoid rule, but this is close enough
+            EWs = [sum((1 .- sol.flux ./ sol.cntm)[r]) for r in sol.subspectra] * 10 #0.01 Å -> mÅ
+            EW_err = ones(length(EWs)) * 0.5
+            best_fit_params, stat_err, sys_err = Korg.Fit.ews_to_stellar_parameters(good_linelist, EWs, EW_err)
+
+            @test sys_err == [0.0, 0.0, 0.0, 0.0]
+            for (i, p) in enumerate([5777.0, 4.44, 1.0, 0.0])
+                @test best_fit_params[i] ≈ p atol=stat_err[i]
+            end
+
+            # check that fixing parameters works
+            for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :m_H0])
+                fixed_params = zeros(Bool, 4)
+                fixed_params[i] = true
+                kwargs = Dict(param => best_fit_params[i])
+                # start teff and logg close to right answer to make it faster.
+                bestfit_fixed, _, _ = Korg.Fit.ews_to_stellar_parameters(
+                    good_linelist, EWs, EW_err; Teff0=5740.0, logg0=4.4, fix_params=fixed_params, kwargs...)
+
+                for i in 1:4
+                    @test bestfit_fixed[i] ≈ best_fit_params[i] atol=stat_err[i]/10
+                end
+            end
         end
     end
 end
