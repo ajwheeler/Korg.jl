@@ -418,8 +418,8 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
    triggering a warning that they may be blended.
 All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
-function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0; 
-                           wl_step=0.01, blend_warn_threshold=0.01, synthesize_kwargs...)
+function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0, wl_step=0.01,
+                           blend_warn_threshold=0.01, synthesize_kwargs...)
     synthesize_kwargs = Dict(synthesize_kwargs)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
