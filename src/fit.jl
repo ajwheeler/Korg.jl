@@ -544,7 +544,7 @@ A tuple containing:
 
 """
 function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(length(measured_EWs)); 
-                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, metallicity0=0.0,
+                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
                                    parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2]) 
@@ -586,7 +586,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
         throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid ()"))
     end
 
-    params0 = [Teff0, logg0, vmic0, metallicity0]
+    params0 = [Teff0, logg0, vmic0, m_H0]
     params = clamp(params0, first.(parameter_ranges), last.(parameter_ranges))
     for (p, p0, n) in zip(params, params0, ["Teff", "logg", "vmic", "metallicity"])
         if p != p0
