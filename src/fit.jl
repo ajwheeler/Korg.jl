@@ -541,7 +541,8 @@ A tuple containing:
     - the residuals of each equation being solved
     - the abundances of each line computed with the current parameters.
   You can pass a callback function, to e.g. make a plot of the residuals at each step. 
-
+- `max_iterations` (default: 30) is the maximum number of iterations to allow before stopping the 
+   optimization.
 """
 function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(length(measured_EWs)); 
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
@@ -551,7 +552,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
                                                     ; (1e-3, 10.0) 
                                                     ; extrema(Korg._sdss_marcs_atmospheres[1][3])],
                                    fix_params=[false, false, false, false],
-                                   callback=Returns(nothing), passed_kwargs...)
+                                   callback=Returns(nothing), max_iterations=30, passed_kwargs...)
     if :vmic in keys(passed_kwargs)
         throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
     end
@@ -598,10 +599,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     get_residuals = (p) -> 
         _stellar_param_equation_residuals(p, linelist, measured_EWs, measured_EW_err, 
                                            fix_params, callback, passed_kwargs)
-
-
+    iterations = 0
     J_result = DiffResults.JacobianResult(params)
-
     while true
         J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
         J = DiffResults.jacobian(J_result)
@@ -611,8 +610,14 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
         end
         step = zeros(length(params))
         step[.! fix_params] = - J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
-        params .+= clamp.(step, -max_step_sizes, max_step_sizes)
+        params += clamp.(step, -max_step_sizes, max_step_sizes)
         params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
+
+        iterations += 1
+        if iterations > max_iterations
+            @warn "Failed to converge after $max_iterations iterations.  Returning the current guess."
+            return params, fill(NaN, 4), fill(NaN, 4)
+        end
     end
 
     # compute uncertainties
