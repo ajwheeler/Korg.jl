@@ -511,7 +511,7 @@ Here the "slope" refers to the slope of a linear fit to the abundances of the li
 A tuple containing:
 - the best-fit parameters: `[Teff, logg, vmic, [m/H]]` as a vector
 - the statistical uncertainties in the parameters, propagated from the uncertainties in the 
-  equivalent widths. Treated as zero, when EW uncertainties are not specified.
+  equivalent widths. This is zero when EW uncertainties are not specified.
 - the systematic uncertainties in the parameters, estimated from the scatter the abundances computed 
   from each line not accounted for by the EW uncertainties.
 
