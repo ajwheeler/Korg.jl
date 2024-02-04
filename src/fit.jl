@@ -497,8 +497,7 @@ values of ``T_\\mathrm{eff}``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy
 - The difference between the mean abundances of neutral and ionized lines is zero.
 - The slope of the abundances of neutral lines with respect to reduced equivalent width is zero.
 - The difference between the mean abundances of all lines and the model-atmosphere input [m/H] is zero.
-Here the "slope" refers to the slope of a linear fit (assuming homoscedasticity) to the abundances 
-of the lines in question.
+Here the "slope" refers to the slope of a linear fit to the abundances of the lines in question.
 
 # Arguments:
 - `linelist`: A vector of [`Korg.Line`](@ref) objects (see [`Korg.read_linelist`](@ref)).  The lines 
