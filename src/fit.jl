@@ -214,7 +214,7 @@ A NamedTuple with the following fields:
 - `covariance`: a pair `(params, Σ)` where `params` is vector of parameter name (providing an 
   order), and `Σ` is an estimate of the covariance matrix of the parameters.  It is the approximate 
   inverse hessian of the log likelihood at the best-fit parameter calculated by the BGFS algorithm, 
-  and should be interpretted with caution. For single-parameter fits (which are done with 
+  and should be interpreted with caution. For single-parameter fits (which are done with 
   Nelder-Mead), this is not provided.
 
 !!! tip
@@ -444,7 +444,7 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
         wl1:wl_step:wl2
     end
 
-    # hydrogen_lines should be dissbled for most accurate equivalent widths.  This can be overridden
+    # hydrogen_lines should be disabled for most accurate equivalent widths.  This can be overridden
     # by passing hydrogen_lines=true as a keyword argument (included in synthesize_kwargs)
     # line_buffer=0.0 makes things a bit faster, and it causes no problems as long as ew_window_size
     # is sufficient, which is necessary anyway.
@@ -532,7 +532,7 @@ A tuple containing:
 - `parameter_ranges` (default: `[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)]`) is the 
    allowed range for each parameter. This is used to prevent the solver from wandering into 
    unphysical parameter space, or outside the range of the MARCS grid supported by 
-   [`Korg.interpolate_marcs`](@ref). The detault ranges ``T_\\mathrm{eff}``, ``\\log g``,  and [m/H]
+   [`Korg.interpolate_marcs`](@ref). The default ranges ``T_\\mathrm{eff}``, ``\\log g``,  and [m/H]
    are the widest supported by the MARCS grid. Note that vmic must be nonzero in order to avoid null 
    derivatives.
 - `callback`:  is a function which is called at each step of the optimization.  
@@ -689,7 +689,7 @@ function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, p
 
     neutrals = [l.species.charge == 0 for l in linelist]
     REWs = log10.(EW[neutrals] ./ [line.wl for line in linelist[neutrals]])
-    # this is guarenteed not to be a mol (checked by ews_to_stellar_parameters).
+    # this is guaranteed not to be a mol (checked by ews_to_stellar_parameters).
     Z = Korg.get_atoms(linelist[1].species)[1]
 
     A, A_inv_var, neutrals, REWs, Z
