@@ -461,7 +461,6 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
         boundary_indices = map(1:length(line_indices) - 1) do i
             wl1 = linelist[line_indices[i]].wl * 1e8
             wl2 = linelist[line_indices[i+1]].wl * 1e8
-            l1_ind, l2_ind = Korg.move_bounds(wl_range, 0, 0, wl1, wl2)
             l1_ind = Int(round((wl1 - wl_range[1]) / step(wl_range))) + 1
             l2_ind = Int(round((wl2 - wl_range[1]) / step(wl_range))) + 1
             boundary_index = argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
