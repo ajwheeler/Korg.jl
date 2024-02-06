@@ -7,8 +7,9 @@ Functions for fitting to data.
 module Fit
 using ..Korg, LineSearches, Optim
 using Interpolations: LinearInterpolation
-using ForwardDiff
+using ForwardDiff, DiffResults
 using Trapz
+using Statistics: mean, std
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper) 
@@ -19,11 +20,11 @@ function tan_scale(p, lower, upper)
 end
 tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
 
-# these are the parmeters which are scaled by tan_scale
+# these are the parameters which are scaled by tan_scale
 const tan_scale_params = Dict(
     "epsilon" => (0, 1),
     # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the 
-    # test environent, but they are simply the boundaries of the SDSS marcs grid used by
+    # test environment, but they are simply the boundaries of the SDSS marcs grid used by
     # Korg.interpolate_marcs.
     "Teff" => (2800, 8000),
     "logg" => (-0.5, 5.5),
@@ -158,7 +159,7 @@ Find the parameters and abundances that best match a rectified observed spectrum
   below.
 
 `initial_guesses` and `fixed_params` can also be specified as Dicts instead of NamedTuples, which is 
-more convienient when calling Korg from python.
+more convenient when calling Korg from python.
 
 # Specifying parameters
 Parameters are specified as NamedTuples, which look like this: `(Teff=5000, logg=4.5, m_H=0.0)`.
@@ -195,7 +196,7 @@ values are used.
    LSF matrix, you must make sure that the synthesis wavelengths match it.
 - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
 - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on 
-   transformed parameters, so `precision` doesn't translate straitforwardly to Teff, logg, etc, but 
+   transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but 
    the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
    0.001 in `m_H`, and 0.004 in detailed abundances.
 
@@ -213,7 +214,7 @@ A NamedTuple with the following fields:
 - `covariance`: a pair `(params, Σ)` where `params` is vector of parameter name (providing an 
   order), and `Σ` is an estimate of the covariance matrix of the parameters.  It is the approximate 
   inverse hessian of the log likelihood at the best-fit parameter calculated by the BGFS algorithm, 
-  and should be interpretted with caution. For single-parameter fits (which are done with 
+  and should be interpreted with caution. For single-parameter fits (which are done with 
   Nelder-Mead), this is not provided.
 
 !!! tip
@@ -240,7 +241,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     @assert length(initial_guesses) > 0 "Must specify at least one parameter to fit."
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
-    windows = merge_bounds(windows, 2wl_buffer)
+    windows, _ = merge_bounds(windows, 2wl_buffer)
     obs_wl_mask, synth_wl_mask, multi_synth_wls = 
         calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
 
@@ -317,28 +318,41 @@ end
 
 """
 Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.  Used by 
-fit_spectrum.
+fit_spectrum and ews_to_stellar_parameters.
+
+Returns a pair containing:
+- a vector of merged bounds
+- a vector of vectors of indices of the original bounds which were merged into each merged bound
 """
 function merge_bounds(bounds, merge_distance)
-    bounds = sort(bounds, by=first)
+    bound_indices = 1:length(bounds)
+
+    # short by lower bound
+    s = sortperm(bounds, by=first)
+    bounds = bounds[s]
+    bound_indices = bound_indices[s]
+
     new_bounds = [bounds[1]]
+    indices = [[bound_indices[1]]]
     for i in 2:length(bounds)
         # if these bounds are within merge_distance of the previous, extend the previous, 
         # otherwise add them to the list
         if bounds[i][1] <= new_bounds[end][2] + merge_distance 
             new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
+            push!(indices[end], bound_indices[i])
         else
             push!(new_bounds, bounds[i])
+            push!(indices, [bound_indices[i]])
         end
     end
-    new_bounds
+    new_bounds, indices
 end
 
 
 """
     calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls)
 
-Given a vector of target synthesis ranges in the observbed spectrum, return the masks, etc required.
+Given a vector of target synthesis ranges in the observed spectrum, return the masks, etc required.
 
 Arguments:
     - `windows`: a vector of pairs of wavelength lower and upper bounds.
@@ -375,34 +389,6 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
     obs_wl_mask, synth_wl_mask, multi_synth_wls
 end
 
-"""
-    linelist_neighbourhood_indices(linelist, ew_window_size)
-
-Group lines together such that no two lines are closer than twice the value of `line_buffer`.
-
-# Arguments:
-- `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref), 
-   [`Korg.get_APOGEE_DR17_linelist`](@ref), and [`Korg.get_VALD_solar_linelist`](@ref)).
-- `ew_window_size`: the minimum separation (in Å) either side of lines in a group
-
-# Returns
-A vector of vectors, where each inner vector contains the indices of lines in a group.
-"""
-function linelist_neighbourhood_indices(linelist, ew_window_size)
-    linelist_neighbourhood_indices = []        
-    current_group = [1]    
-    ew_window_size_overlap_cm = 2 * 1e-8 * ew_window_size
-    for i in 2:length(linelist)
-        if (linelist[i].wl - linelist[current_group[end]].wl) > ew_window_size_overlap_cm
-            push!(current_group, i)
-        else
-            push!(linelist_neighbourhood_indices, current_group)
-            current_group = [i]  
-        end
-    end
-    push!(linelist_neighbourhood_indices, current_group)
-    linelist_neighbourhood_indices
-end
 
 """
     ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs... )
@@ -427,16 +413,14 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
 - `wl_step` (default: 0.01) is the resolution in Å at which to synthesize the spectrum around each 
    line. 
 - `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for 
-   each line.
+   each line.  It's very important that this is large enough to include each line entirely.
+- `blend_warn_threshold` (default: 0.01) is the minimum absorption between two lines allowed before 
+   triggering a warning that they may be blended.
 All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
-function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Real=2.0, wl_step=0.01; 
-                           synthesize_kwargs...)
+function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0, wl_step=0.01,
+                           blend_warn_threshold=0.01, synthesize_kwargs...)
     synthesize_kwargs = Dict(synthesize_kwargs)
-    if get(synthesize_kwargs, :hydrogen_lines, false)
-        throw(ArgumentError("hydrogen_lines must be disabled"))
-    end
-
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -454,28 +438,274 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs, ew_window_size::Rea
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    # Group lines together ensuring that no λ is closer to it's neighbour than twice the ew_window_size.
-    group_indices = linelist_neighbourhood_indices(linelist, ew_window_size)
+    merged_windows, lines_per_window = 
+        merge_bounds([(line.wl*1e8 - ew_window_size, line.wl*1e8 + ew_window_size) for line in linelist], 0.0)
+    wl_ranges = map(merged_windows) do (wl1, wl2)
+        wl1:wl_step:wl2
+    end
 
-    A0_minus_log10W0 = Array{Float64}(undef, length(linelist))
-    for indices in group_indices
-        wl_ranges = map(linelist[indices]) do line
-            # constructing the range this way ensures that the last point is exactly λ_stop
-            # and there is always a point on the line center
-            λ_start, λ_stop = (1e8 * line.wl - ew_window_size, 1e8 * line.wl + ew_window_size)
-            range(λ_start, λ_stop; length=Int(round((λ_stop - λ_start)/wl_step))+1)
+    # hydrogen_lines should be disabled for most accurate equivalent widths.  This can be overridden
+    # by passing hydrogen_lines=true as a keyword argument (included in synthesize_kwargs)
+    # line_buffer=0.0 makes things a bit faster, and it causes no problems as long as ew_window_size
+    # is sufficient, which is necessary anyway.
+    sol = Korg.synthesize(atm, linelist, A_X, wl_ranges; line_buffer=0.0, hydrogen_lines=false, synthesize_kwargs...)
+    depth = 1 .- sol.flux ./ sol.cntm
+
+    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
+    A0_minus_log10W0 = Array{element_type}(undef, length(linelist))
+    all_boundaries = Float64[]
+    for (wl_range, subspec, line_indices) in zip(wl_ranges, sol.subspectra, lines_per_window)
+        absorption = depth[subspec]
+
+        # get the wl-index of least absorption between each pair of lines
+        boundary_indices = map(1:length(line_indices) - 1) do i
+            wl1 = linelist[line_indices[i]].wl * 1e8
+            wl2 = linelist[line_indices[i+1]].wl * 1e8
+            l1_ind = Int(round((wl1 - wl_range[1]) / step(wl_range))) + 1
+            l2_ind = Int(round((wl2 - wl_range[1]) / step(wl_range))) + 1
+            boundary_index = argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
+            if absorption[boundary_index] > blend_warn_threshold
+                @warn "Lines $(line_indices[i]) and $(line_indices[i+1]) ($(linelist[line_indices[i]].wl*1e8) Å and $(linelist[line_indices[i+1]].wl*1e8)) Å appear to be blended.  Between them, the absorption never drops below $(blend_warn_threshold) (minimum: $(absorption[boundary_index])). You can adjust this threshold with the blend_warn_threshold keyword argument."
+            end
+            boundary_index
+        end
+        boundary_indices = [1 ; boundary_indices ; length(subspec)]
+        for b in boundary_indices
+            push!(all_boundaries, wl_range[b])
         end
 
-        spectrum = Korg.synthesize(atm, linelist[indices], A_X, wl_ranges; synthesize_kwargs...)
-
-        for (i, (idx, line)) in enumerate(zip(spectrum.subspectra, linelist[indices]))
-            depth = 1 .- spectrum.flux[idx] ./ spectrum.cntm[idx]
-            logEW = log10(trapz(spectrum.wavelengths[idx], depth) * 1e3) # convert to mÅ
-            A0_minus_log10W0[indices[i]] = A_X[Korg.get_atoms(line.species)[1]] - logEW
+        for i in 1:length(line_indices)
+            r = boundary_indices[i]:boundary_indices[i+1]
+            logEW = log10(trapz(wl_range[r], absorption[r]) * 1e3) # convert to mÅ
+            Z = Korg.get_atoms(linelist[line_indices[i]].species)[1]
+            A0_minus_log10W0[line_indices[i]] = A_X[Z] - logEW
         end
     end
 
-    log10.(measured_EWs) .+ A0_minus_log10W0
+    # TODO maybe return this stuff?
+    log10.(measured_EWs) .+ A0_minus_log10W0#, (sol.wavelengths, 1 .- depth), all_boundaries
+end
+
+"""
+    ews_to_stellar_parameters(linelist, measured_EWs, [measured_EW_err]; kwargs...)
+
+
+Find stellar parameters from equivalent widths the "old fashioned" way.  This function finds the 
+values of ``T_\\mathrm{eff}``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy the following conditions 
+(using a Newton-Raphson solver):
+- The slope of the abundances of neutral lines with respect to lower excitation potential is zero.
+- The difference between the mean abundances of neutral and ionized lines is zero.
+- The slope of the abundances of neutral lines with respect to reduced equivalent width is zero.
+- The difference between the mean abundances of all lines and the model-atmosphere input [m/H] is zero.
+Here the "slope" refers to the slope of a linear fit to the abundances of the lines in question.
+
+# Arguments:
+- `linelist`: A vector of [`Korg.Line`](@ref) objects (see [`Korg.read_linelist`](@ref)).  The lines 
+   must be sorted by wavelength.
+- `measured_EWs`: a vector of equivalent widths (in mÅ).
+- `measured_EW_err` (optional): the uncertainty in `measured_EWs`.  If not specified, all lines are 
+   assumed to have the same uncertainty. These uncertainties are used when evaluating the equations 
+   above, and are propagated to provide uncertainties in the resulting parameters.
+
+# Returns:
+A tuple containing:
+- the best-fit parameters: `[Teff, logg, vmic, [m/H]]` as a vector
+- the statistical uncertainties in the parameters, propagated from the uncertainties in the 
+  equivalent widths. This is zero when EW uncertainties are not specified.
+- the systematic uncertainties in the parameters, estimated from the scatter the abundances computed 
+  from each line not accounted for by the EW uncertainties.
+
+# Keyword arguments:
+- `Teff0` (default: 5000.0) is the starting guess for Teff
+- `logg0` (default: 3.5) is the starting guess for logg
+- `vmic0` (default: 1.0) is the starting guess for vmic. Note that this must be nonzero in order to 
+   avoid null derivatives. Very small values are fine.
+- `m_H0` (default: 0.0) is the starting guess for [m/H]
+- `tolerances` (default: `[1e-3, 1e-3, 1e-3, 1e-3]`) is the tolerance for the residuals each equation
+   listed above. The solver stops when all residuals are less than the corresponding tolerance.
+- `max_step_sizes` (default: `[1000.0, 1.0, 0.3, 0.5]`) is the maximum step size to take in each 
+   parameter direction.  This is used to prevent the solver from taking too large of a step and 
+   missing the solution.  Be particularly cautious with the vmic (third) parameter, as the 
+   unadjusted step size is often too large.
+- `parameter_ranges` (default: `[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)]`) is the 
+   allowed range for each parameter. This is used to prevent the solver from wandering into 
+   unphysical parameter space, or outside the range of the MARCS grid supported by 
+   [`Korg.interpolate_marcs`](@ref). The default ranges ``T_\\mathrm{eff}``, ``\\log g``,  and [m/H]
+   are the widest supported by the MARCS grid. Note that vmic must be nonzero in order to avoid null 
+   derivatives.
+- `callback`:  is a function which is called at each step of the optimization.  
+   It is passed three arguments: 
+    - the current values of the parameters
+    - the residuals of each equation being solved
+    - the abundances of each line computed with the current parameters.
+  You can pass a callback function, to e.g. make a plot of the residuals at each step. 
+- `max_iterations` (default: 30) is the maximum number of iterations to allow before stopping the 
+   optimization.
+"""
+function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(length(measured_EWs)); 
+                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
+                                   tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
+                                   max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
+                                   parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2]) 
+                                                    ; (1e-3, 10.0) 
+                                                    ; extrema(Korg._sdss_marcs_atmospheres[1][3])],
+                                   fix_params=[false, false, false, false],
+                                   callback=Returns(nothing), max_iterations=30, passed_kwargs...)
+    if :vmic in keys(passed_kwargs)
+        throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
+    end
+    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+    formulas = [line.species.formula for line in linelist]
+    if any(Ref(formulas[1]) .!= formulas)
+        throw(ArgumentError("All lines must be from the same element."))
+    end
+    if Korg.ismolecule(linelist[1].species)
+        throw(ArgumentError("Cannot do stellar parameter determination with molecular lines."))
+    end
+    neutrals = [l.species.charge == 0 for l in linelist]
+    if (sum(neutrals) < 3) || (sum(.! neutrals) < 1)
+        throw(ArgumentError("Must have at least 3 neutral lines and 1 ion line."))
+    end
+    if vmic0 == 0.0
+        throw(ArgumentError("Starting guess for vmic (vmic0) must be nonzero."))
+    end
+    if any(p[1] >= p[2] for p in parameter_ranges)
+        throw(ArgumentError("The lower bound of each parameter must be less than the upper bound."))
+    end
+    if parameter_ranges[3][1] <= 0.0
+        throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
+    end
+    # the widest parameter ranges allowed by the MARCS grid
+    atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
+    atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
+    # index 3 in vmic, which isn't in the MARCS grid
+    if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) || any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
+        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid ()"))
+    end
+
+    params0 = [Teff0, logg0, vmic0, m_H0]
+    params = clamp(params0, first.(parameter_ranges), last.(parameter_ranges))
+    for (p, p0, n) in zip(params, params0, ["Teff", "logg", "vmic", "metallicity"])
+        if p != p0
+            @warn "Initial guess for $n ($p0) has been clamped to $p, to be within the allowed range."
+        end
+    end
+
+    # set up closure to compute residuals
+    get_residuals = (p) -> 
+        _stellar_param_equation_residuals(p, linelist, measured_EWs, measured_EW_err, 
+                                           fix_params, callback, passed_kwargs)
+    iterations = 0
+    J_result = DiffResults.JacobianResult(params)
+    while true
+        J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
+        J = DiffResults.jacobian(J_result)
+        residuals = DiffResults.value(J_result)
+        if all((abs.(residuals) .< tolerances)[.! fix_params]) # stopping condition
+            break
+        end
+        step = zeros(length(params))
+        step[.! fix_params] = - J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
+        params += clamp.(step, -max_step_sizes, max_step_sizes)
+        params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
+
+        iterations += 1
+        if iterations > max_iterations
+            @warn "Failed to converge after $max_iterations iterations.  Returning the current guess."
+            return params, fill(NaN, 4), fill(NaN, 4)
+        end
+    end
+
+    # compute uncertainties
+    stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs, measured_EW_err, passed_kwargs)
+
+    J = DiffResults.jacobian(J_result)[.! fix_params, .! fix_params]
+    stat_σ = zeros(4)
+    stat_σ[.! fix_params] .= abs.(J \ stat_σ_r[.! fix_params])
+    sys_σ = zeros(4)
+    sys_σ[.! fix_params] .= abs.(J \ sys_σ_r[.! fix_params])
+
+    params, stat_σ, sys_σ
+end
+
+# called by ews_to_stellar_parameters
+function _stellar_param_equation_residuals(params, linelist, EW, EW_err, 
+                                           fix_params, callback, passed_kwargs)
+    A, A_inv_var, neutrals, REWs, Z = 
+        _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
+
+
+    teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
+                               A[neutrals], A_inv_var[neutrals])
+    logg_residual = (_weighted_mean(A[neutrals], A_inv_var[neutrals]) -
+                     _weighted_mean(A[.! neutrals], A_inv_var[.! neutrals]))
+    vmic_residual = _get_slope(REWs, A[neutrals], A_inv_var[neutrals])
+    feh_residual = _weighted_mean(A, A_inv_var) - (params[4] + Korg.grevesse_2007_solar_abundances[Z])
+    residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
+    residuals .*= .! fix_params # zero out residuals for fixed parameters
+
+    callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(A))
+    residuals
+end
+
+# called by _stellar_param_equation_residuals
+# returns (statistical_uncertainty, systematic_uncertainty)
+function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, passed_kwargs)
+    A, A_inv_var, neutrals, REWs, _ = 
+        _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
+
+    # estimated total (including systematic) err in the abundances of each line
+    total_err = std(A)
+    total_ivar = ones(length(A)) * total_err^-2
+
+    stat_sigma, total_sigma = map([A_inv_var, total_ivar]) do ivar
+        sigma_mean = 1 ./ sqrt(sum(ivar))
+        teff_residual_sigma = _get_slope_uncertainty([line.E_lower for line in linelist[neutrals]], ivar[neutrals])
+        vmic_residual_sigma = _get_slope_uncertainty(REWs, ivar[neutrals])
+        [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
+    end
+
+    if EW_err == ones(length(EW))
+        # in the case that EW uncertainties were specified, the residuals were calculated 
+        # assuming errs = 1, but we want to ignore them here, and call all error "systematic"
+        [0.0, 0.0, 0.0, 0.0], total_sigma
+    else
+        stat_sigma, sqrt.(max.(total_sigma.^2 .- stat_sigma.^2, 0))
+    end
+end
+
+function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
+    teff, logg, vmic, feh = params
+    A_X = Korg.format_A_X(feh)
+    atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
+    A = Korg.Fit.ews_to_abundances(atm, linelist, A_X, EW, vmic=vmic; 
+                                                 passed_kwargs...)
+    # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
+    A_inv_var = (EW .* A ./ EW_err) .^ 2
+
+    neutrals = [l.species.charge == 0 for l in linelist]
+    REWs = log10.(EW[neutrals] ./ [line.wl for line in linelist[neutrals]])
+    # this is guaranteed not to be a mol (checked by ews_to_stellar_parameters).
+    Z = Korg.get_atoms(linelist[1].species)[1]
+
+    A, A_inv_var, neutrals, REWs, Z
+end
+
+function _weighted_mean(x, inv_var)
+    sum(x .* inv_var) / sum(inv_var)
+end
+
+# called by _stellar_param_equation_residuals
+function _get_slope(xs, ys, inv_var)
+    Δx = xs .- mean(xs)    
+    Δy = ys .- mean(ys)
+    sum(Δx .* Δy .* inv_var) ./ sum(Δx.^2 .* inv_var)
+end
+
+function _get_slope_uncertainty(xs, ivar::AbstractVector) # guard against scalar ivar
+    sqrt(sum(ivar) / (sum(ones(length(xs)) .* ivar)*sum(ivar .* xs.^2) - sum(ivar .* xs)^2))
 end
 
 end # module
