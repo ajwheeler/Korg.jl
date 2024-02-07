@@ -175,7 +175,14 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     sol = try
         nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
     catch e
-        throw(ChemicalEquilibriumError("solver failed: $e"))
+        try 
+            # try again with the nₑ guess set to be very small.  Much smaller than this and we start
+            # to get noninvertible matrices in the solver
+            x0[end] = 1e-5 
+            nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8, autodiff=:forward)
+        catch e
+            throw(ChemicalEquilibriumError("solver failed: $e"))
+        end
     end
 
     if !sol.f_converged
