@@ -1,6 +1,5 @@
 # used when downloading model atmosphere archive
 using ProgressMeter: Progress, update!, finish!
-using Downloads: download
 using Pkg.Artifacts: @artifact_str
  
 abstract type ModelAtmosphere end
