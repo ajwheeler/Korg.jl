@@ -1,4 +1,5 @@
 using SpecialFunctions: gamma
+using ProgressMeter: @showprogress
 
 """
     line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
@@ -19,7 +20,7 @@ other arguments:
 - `cuttoff_threshold` (optional, default: 1e-3): see `α_cntm`
 """
 function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
-                          α_cntm; cutoff_threshold=1e-3)
+                          α_cntm; cutoff_threshold=1e-3, verbose=true)
 
     if length(linelist) == 0
         return zeros(length(λs))
@@ -40,7 +41,7 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         spec => @. (n_densities[spec] / partition_fns[spec](log(temp)))
     end |> Dict
 
-    for line in linelist
+    @showprogress desc="calculating line opacities" enabled=verbose for line in linelist
         m = get_mass(line.species)
         
         # doppler-broadening width, σ (NOT √[2]σ)
@@ -70,11 +71,20 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         lorentz_line_window = maximum(inverse_lorentz_density.(ρ_crit, γ))
         window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
+
         if lb > ub
             continue
         end
+        #println("non-null window")
 
-        @inbounds view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, 
+        #if line == linelist[1]
+        #    display([[cntm(line.wl) for cntm in α_cntm] ./ n_div_Z[line.species] amplitude ρ_crit][1:10:end, :])
+        #    println("window size: ", window_size, " in pixels: ", ub-lb)
+        #    display(line_profile.(line.wl, σ, γ, amplitude, view(concatenated_λs, lb:ub)'))
+        #    #break
+        #end
+
+        #=@inbounds=# view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, 
                                                       view(concatenated_λs, lb:ub)')
     end
 end

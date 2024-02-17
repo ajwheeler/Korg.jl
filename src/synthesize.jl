@@ -101,7 +101,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     return_cntm=true,
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
-                    log_equilibrium_constants=default_log_equilibrium_constants)
+                    log_equilibrium_constants=default_log_equilibrium_constants,
+                    molecular_opacity_tables=[])
 
     # Convert air to vacuum wavelenths if necessary.
     if air_wavelengths
@@ -218,6 +219,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
+
+    for table in molecular_opacity_tables
+        #for (i, layer) in enumerate(atm.layers)
+        #    α[i, :] .+= table[log10(layer.temp), :] .* number_densities[species"H2O"][i]
+        #end
+        α .+= table.(log10.(get_temps(atm)), (1:length(all_λs))') .* number_densities[species"H2O"]
+    end
     
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
