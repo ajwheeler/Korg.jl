@@ -75,7 +75,10 @@ end
 
 
 """
-TODO
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, Ts, vmic, number_densities)
+
+Interpolate the molecular cross-sections and add them to the total absorption coefficient `α`.
+See [`MolecularCrossSection`](@ref) for more information.
 """
 function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_sections, Ts, vmic,
                                                number_densities) where R <: Real
@@ -92,7 +95,10 @@ function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_se
 end
 
 """
-TODO
+    save_molecular_cross_section(filename, cross_section)
+
+Save a precomputed molecular cross-section to a file. 
+See also [`MolecularCrossSection`](@ref), [`read_molecular_cross_section`](@ref).
 """
 function save_molecular_cross_section(filename, cross_section)
     wls = cross_section.wls
@@ -109,7 +115,11 @@ function save_molecular_cross_section(filename, cross_section)
 end
 
 """
-TODO
+    read_molecular_cross_section(filename)
+
+Read a precomputed molecular cross-section from a file created by 
+[`save_molecular_cross_section`](@ref).
+See also [`MolecularCrossSection`](@ref).
 """
 function read_molecular_cross_section(filename)
     HDF5.h5open(filename, "r") do file
