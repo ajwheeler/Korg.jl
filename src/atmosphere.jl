@@ -1,6 +1,5 @@
 # used when downloading model atmosphere archive
 using ProgressMeter: Progress, update!, finish!
-using Downloads: download
 using Pkg.Artifacts: @artifact_str
  
 abstract type ModelAtmosphere end
@@ -174,10 +173,6 @@ solar-relative ratios will be reconstructed assuming Grevesse+ 2007 solar abunda
 
 The model atmosphere grid is a repacked version of the 
 [MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
-Before you use `interpolate_marcs` for the first time, you will have to download the grid with by 
-running `download_atmosphere_archive()`.  By default, the archive is stored at 
-`.korg/SDSS_MARCS_atmospheres.h5`.  This location can be set with the `KORG_DATA_DIR` environment 
-variable.
 
 # keyword arguments
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
