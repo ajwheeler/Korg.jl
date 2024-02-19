@@ -88,7 +88,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    testing purposes only.
 - `molecular_opacity_tables` (default: `[]`): A vector of precomputed molecular opacity tables. See 
    [`precompute_molecular_cross_section`](@ref).
-- `verbose` (default: `true`): Whether or not to print information about progress, etc.
+- `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01; kwargs...)
     wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
@@ -105,8 +105,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_opacity_tables=[],
-                    verbose=true)
+                    molecular_cross_sections=[],
+                    verbose=false)
 
     # Convert air to vacuum wavelenths if necessary.
     if air_wavelengths
@@ -224,12 +224,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
         verbose=verbose)
-
-    for table in molecular_opacity_tables
-        #for (i, layer) in enumerate(atm.layers)
-        #    α[i, :] .+= table[log10(layer.temp), :] .* number_densities[species"H2O"][i]
-        #end
-        α .+= table.(log10.(get_temps(atm)), (1:length(all_λs))') .* number_densities[species"H2O"]
+    if molecular_cross_sections != []
+        interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, 
+                                              wl_ranges, number_densities)
     end
     
     flux, intensity = if bezier_radiative_transfer
