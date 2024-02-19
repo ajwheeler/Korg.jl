@@ -23,4 +23,11 @@
 
         @test assert_allclose(sol_without.flux, sol_with.flux; rtol=1e-3)
     end
+
+    filename = tempname()
+    Korg.save_molecular_cross_section(filename, table)
+    deserialized_table = Korg.read_molecular_cross_section(filename)
+    @test table.itp == deserialized_table.itp
+    @test all(table.wls .== deserialized_table.wls)
+    @test table.species == deserialized_table.species
 end

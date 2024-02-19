@@ -75,6 +75,7 @@ end
 
 
 """
+TODO
 """
 function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_sections, Ts, vmic,
                                                number_densities) where R <: Real
@@ -90,18 +91,38 @@ function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_se
     ;
 end
 
-#function save_molecular_cross_section(filename, cross_section)
-#    wls = cross_section.wls
-#    itp = cross_section.itp
-#    species = cross_section.species
-#
-#    HDF5.h5open(filename) do file
-#        HDF5.write(file, "wls", wls)
-#        HDF5.write(file, "knots", itp.itp.knots)
-#        HDF5.write(file, "vals", itp.itp.coefs)
-#        HDF5.write(file, "species", str(species))
-#    end
-#end
-#
-#function read_molecular_cross_section()
-#end
+"""
+TODO
+"""
+function save_molecular_cross_section(filename, cross_section)
+    wls = cross_section.wls
+    itp = cross_section.itp
+    species = cross_section.species
+
+    HDF5.h5open(filename, "w") do file
+        HDF5.write(file, "wls", collect(wls))
+        HDF5.write(file, "vmic_vals", collect(itp.knots[1]))
+        HDF5.write(file, "T_vals", collect(itp.knots[2]))
+        HDF5.write(file, "vals", itp.coefs)
+        HDF5.write(file, "species", string(species))
+    end
+end
+
+"""
+TODO
+"""
+function read_molecular_cross_section(filename)
+    HDF5.h5open(filename, "r") do file
+        wls = HDF5.read(file, "wls")
+        vmic_vals = HDF5.read(file, "vmic_vals")
+        T_vals = HDF5.read(file, "T_vals")
+        alpha_vals = HDF5.read(file, "vals")
+        species = Species(HDF5.read(file, "species"))
+
+        itp = interpolate((vmic_vals, T_vals, 1:length(wls)), 
+                          alpha_vals,
+                          (Gridded(Linear()), Gridded(Linear()), NoInterp()))
+
+        MolecularCrossSection(wls, itp, species)
+    end
+end
