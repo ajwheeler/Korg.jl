@@ -106,7 +106,7 @@ function save_molecular_cross_section(filename, cross_section)
     species = cross_section.species
 
     HDF5.h5open(filename, "w") do file
-        HDF5.write(file, "wls", collect(wls))
+        HDF5.write(file, "wls", [(l[begin], step(l), l[end]) for l in wls])
         HDF5.write(file, "vmic_vals", collect(itp.knots[1]))
         HDF5.write(file, "T_vals", collect(itp.knots[2]))
         HDF5.write(file, "vals", itp.coefs)
@@ -123,13 +123,15 @@ See also [`MolecularCrossSection`](@ref).
 """
 function read_molecular_cross_section(filename)
     HDF5.h5open(filename, "r") do file
-        wls = HDF5.read(file, "wls")
+        wls = map(HDF5.read(file, "wls")) do (start, step, stop)
+            start:step:stop
+        end
         vmic_vals = HDF5.read(file, "vmic_vals")
         T_vals = HDF5.read(file, "T_vals")
         alpha_vals = HDF5.read(file, "vals")
         species = Species(HDF5.read(file, "species"))
 
-        itp = interpolate((vmic_vals, T_vals, 1:length(wls)), 
+        itp = interpolate((vmic_vals, T_vals, 1:sum(length.(wls))),
                           alpha_vals,
                           (Gridded(Linear()), Gridded(Linear()), NoInterp()))
 
