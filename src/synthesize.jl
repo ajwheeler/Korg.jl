@@ -86,8 +86,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    Barklem and Collet 2016, `Korg.default_log_equilibrium_constants`.
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
-- `molecular_opacity_tables` (default: `[]`): A vector of precomputed molecular opacity tables. See 
-   [`precompute_molecular_cross_section`](@ref).
+- `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See 
+   [`molecular_cross_sections`](@ref) for how to generate these.
 - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01; kwargs...)
