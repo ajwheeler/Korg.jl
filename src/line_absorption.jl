@@ -20,7 +20,7 @@ other arguments:
 - `cuttoff_threshold` (optional, default: 1e-3): see `α_cntm`
 """
 function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
-                          α_cntm; cutoff_threshold=1e-3, verbose=true)
+                          α_cntm; cutoff_threshold=1e-3, verbose=false)
 
     if length(linelist) == 0
         return zeros(length(λs))
