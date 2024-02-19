@@ -224,10 +224,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
         verbose=verbose)
-    if molecular_cross_sections != []
-        interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, 
-                                              wl_ranges, number_densities)
-    end
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
     
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
