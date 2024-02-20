@@ -1,9 +1,8 @@
 using Interpolations: GriddedInterpolation, interpolate, Gridded, NoInterp, Linear
-using DSP: gaussian
 using HDF5
 
 struct MolecularCrossSection
-    wls # inexpensive to save, just for debugging
+    wls # just for debugging
     itp :: GriddedInterpolation
     species :: Korg.Species
 end
@@ -12,12 +11,13 @@ end
     MolecularCrossSection(linelist, wls; cutoff_alpha=1e-30, log_temp_vals=3:0.025:5, verbose=true)
 
 Precompute the molecular absorption cross section for a given linelist and set of wavelengths. The 
-resulting object can be passed to [`synthesize`](@ref) and potentially speed up the calculation 
-significantly.  At present, Korg only supports opacity tables computed by this function.
+`MolecularCrossSection` object can be passed to [`synthesize`](@ref) and potentially speed up the 
+calculation significantly.  At present, Korg only supports precomputed cross-sections created by 
+this function.
 
 # Arguments
-- `linelist`: A vector of `Line` objects representing the molecular linelist.  These 
-    must be of the same species.
+- `linelist`: A vector of `Line` objects representing the molecular linelist.  These must be of the 
+   same species.
 - `wls`: A vector of wavelength ranges (in Å) at which to precompute the cross section.  *These must
   match the wavelengths used for any subsequent synthesis exactly*.
 
@@ -29,14 +29,11 @@ significantly.  At present, Korg only supports opacity tables computed by this f
 - `verbose` (default: true): Whether to print progress information.
 
 !!! tip
-    The default values of `log_temp_vals` and `cutoff_alpha` were chosen by ensuring that water 
-    lines in the APOGEE linelist ([`get_APOGEE_DR17_linelist`](@ref)) could be accurately reproduced 
-    (better than 10^-3 everywhere). You should verify that they yield acceptable accuracy for other 
-    applications by comparing spectra synthesize with and without precomputing the molecular 
-    cross-section.
-
-# Returns
-An interpolator object which can be passed to [`synthesize`](@ref).
+    The default values of `vmic_vals`, `log_temp_vals`, and ` `cutoff_alpha` were chosen to ensure
+    that lines in the APOGEE linelist ([`get_APOGEE_DR17_linelist`](@ref)) could be accurately 
+    reproduced (better than 10^-3 everywhere). You should verify that they yield acceptable accuracy 
+    for other applications by comparing spectra synthesize with and without precomputing the 
+    molecular cross-section.
 """
 function MolecularCrossSection(linelist, wls; cutoff_alpha=1e-32, 
                                vmic_vals=[(0.0:1/3:1.0)... ; 1.5 ; (2:2/3:(5+1/3))...],
@@ -45,10 +42,9 @@ function MolecularCrossSection(linelist, wls; cutoff_alpha=1e-32,
     if !all(Ref(all_specs[1]) .== all_specs)
         throw(ArgumentError("All lines must be of the same species"))
     end
+    species = all_specs[1]
 
     α = zeros(length(vmic_vals), length(log_temp_vals), sum(length.(wls)))
-        
-    species = all_specs[1]
 
     # set both the continuum absorption coef (cntm) and the cutoff absorption coef to 
     # unity.  Handle the cutoff value by scaling the number density of the molecule

@@ -17,10 +17,13 @@ other arguments:
 - `α_cntm` is as a callable returning the continuum opacity as a function of wavelength. The window 
    within which a line is calculated will extend to the wavelength at which the Lorentz wings or 
    Doppler core of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.  
-- `cuttoff_threshold` (optional, default: 1e-3): see `α_cntm`
+
+# Keyword Arguments
+- `cuttoff_threshold` (default: 3e-4): see `α_cntm`
+- `verbose` (default: false): if true, show a progress bar.
 """
 function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
-                          α_cntm; cutoff_threshold=1e-3, verbose=false)
+                          α_cntm; cutoff_threshold=3e-4, verbose=false)
 
     if length(linelist) == 0
         return zeros(length(λs))
@@ -71,21 +74,11 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
         lorentz_line_window = maximum(inverse_lorentz_density.(ρ_crit, γ))
         window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
-
         if lb > ub
             continue
         end
-        #println("non-null window")
 
-        #if line == linelist[1]
-        #    display([[cntm(line.wl) for cntm in α_cntm] ./ n_div_Z[line.species] amplitude ρ_crit][1:10:end, :])
-        #    println("window size: ", window_size, " in pixels: ", ub-lb)
-        #    display(line_profile.(line.wl, σ, γ, amplitude, view(concatenated_λs, lb:ub)'))
-        #    #break
-        #end
-
-        #=@inbounds=# view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, 
-                                                      view(concatenated_λs, lb:ub)')
+        view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(concatenated_λs, lb:ub)')
     end
 end
 
