@@ -10,15 +10,15 @@
     linelist_less_water = linelist[.!water_mask]
     water_lines = linelist[water_mask]
 
-    wls = 15020:0.01:15030
+    wls = [15020:0.01:15025, 15030:0.01:15035]
 
     table = Korg.MolecularCrossSection(water_lines, wls; verbose=false)
 
     atm = interpolate_marcs(4000.0, 4.5)
 
     @testset for vmic in [0.5, 2.5]
-        sol_without = synthesize(atm, linelist, format_A_X(), [wls]; verbose=false, vmic=vmic)
-        sol_with = synthesize(atm, linelist_less_water, format_A_X(), [wls]; 
+        sol_without = synthesize(atm, linelist, format_A_X(), wls; verbose=false, vmic=vmic)
+        sol_with = synthesize(atm, linelist_less_water, format_A_X(), wls; 
                             molecular_cross_sections=[table], verbose=false, vmic=vmic)
 
         @test assert_allclose(sol_without.flux, sol_with.flux; rtol=1e-3)
