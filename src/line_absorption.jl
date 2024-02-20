@@ -36,9 +36,12 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
     β = @. 1/(kboltz_eV * temp)
 
     # precompute number density / partition function for each species in the linelist
-    n_div_Z = map(collect(Set([l.species for l in linelist]))) do spec
+    n_div_Z = map(unique([l.species for l in linelist])) do spec
         spec => @. (n_densities[spec] / partition_fns[spec](log(temp)))
     end |> Dict
+    if species"H I" in keys(n_div_Z)
+        @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
+    end
 
     for line in linelist
         m = get_mass(line.species)
