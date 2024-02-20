@@ -584,7 +584,7 @@ function get_GALAH_DR3_linelist()
             end
             Species(formula, ion-1)
         end
-        Line.(
+        lines = Line.(
             Float64.(read(f["wl"])),
             Float64.(read(f["log_gf"])),
             species,
@@ -593,5 +593,9 @@ function get_GALAH_DR3_linelist()
             tentotheOrMissing.(Float64.(read(f["gamma_stark"]))),
             idOrMissing.(Float64.(read(f["vdW"])))
         )
+        filter!(lines) do line
+            #take out the hydrogen lines
+            line.species != species"H I"
+        end
     end
 end
