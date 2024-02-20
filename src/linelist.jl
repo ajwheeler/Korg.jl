@@ -589,9 +589,9 @@ function get_GALAH_DR3_linelist()
             Float64.(read(f["log_gf"])),
             species,
             Float64.(read(f["E_lo"])),
-            10 .^ Float64.(read(f["gamma_rad"])),
-            10 .^ Float64.(read(f["gamma_stark"])),
-            Float64.(read(f["vdW"]))
+            tentotheOrMissing.(Float64.(read(f["gamma_rad"]))),
+            tentotheOrMissing.(Float64.(read(f["gamma_stark"]))),
+            idOrMissing.(Float64.(read(f["vdW"])))
         )
     end
 end
