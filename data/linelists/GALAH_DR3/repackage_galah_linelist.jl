@@ -24,6 +24,19 @@ galah_lines.formula = map(galah_lines.NAME) do name
     end
 end
 
+# calculate isotopic corrections to log gfs
+Δlog_gf = map(eachrow(galah_lines)) do line
+    f = 1.0
+    for (el, iso) in zip(line.NAME, line.ISOTOPE)
+        if el in Korg.atomic_symbols && iso != 0 
+            Z = Korg.atomic_numbers[el]
+            f *= Korg.isotopic_abundances[Z][iso]
+        end
+    end
+    log10(f)
+end
+galah_lines.LOG_GF .+= Δlog_gf
+
 h5open("galah_dr3_linelist.h5", "w") do f
     f["formula", compress=9] = hcat(galah_lines.formula...)
     f["ionization", compress=9] = galah_lines.ION
