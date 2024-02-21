@@ -95,7 +95,7 @@ using Random
         @test result.best_fit_params["Teff"] ≈ Teff atol=1Teff_sigma
         @test result.best_fit_params["m_H"] ≈ m_H atol=1m_H_sigma
 
-        # check that best-fit flux is within 5% (5 σ) of the true flux at all pixels
+        # check that best-fit flux is within 1% of the true flux at all pixels
         @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.01)
     end
 

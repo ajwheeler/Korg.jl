@@ -49,13 +49,13 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 
 # Optional arguments:
 - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
-- `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelenths to 
+- `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to 
    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the 
-   wavelenth range can internally be represented by an evenly-spaced range.  If the approximation 
+   wavelength range can internally be represented by an evenly-spaced range.  If the approximation 
    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do 
    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
 - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
-- `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelenth range 
+- `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range 
    before it is discarded.  If the edge of your window is near a strong line, you may have to turn 
    this up.
 - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is 
@@ -63,7 +63,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
 - `use_MHD_for_hydrogen_lines` (default: `true`): whether or not to use the MHD occupation 
    probability formalism for hydrogen lines. (MHD is always used for hydrogen bound-free absorption.)
-- `hydrogen_line_window_size` (default: 150): the mamximum distance (in Å) from each hydrogen line 
+- `hydrogen_line_window_size` (default: 150): the maximum distance (in Å) from each hydrogen line 
    center at which to calculate its contribution to the total absorption coefficient.
 - `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
    transfer in spherical geometry (when `atm` is a `ShellAtmosphere`). 20 points is sufficient for
@@ -82,10 +82,13 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults 
    to data from Barklem & Collet 2016, `Korg.default_partition_funcs`.
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to the base-10
-   log of their molecular equilbrium constants in partial pressure form.  Defaults to data from 
+   log of their molecular equilibrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.default_log_equilibrium_constants`.
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
+- `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See 
+   [`molecular_cross_sections`](@ref) for how to generate these.
+- `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01; kwargs...)
     wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
@@ -101,7 +104,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     return_cntm=true,
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
-                    log_equilibrium_constants=default_log_equilibrium_constants)
+                    log_equilibrium_constants=default_log_equilibrium_constants,
+                    molecular_cross_sections=[],
+                    verbose=false)
 
     # Convert air to vacuum wavelenths if necessary.
     if air_wavelengths
@@ -217,7 +222,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     end
 
     line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
-        number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold)
+        number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
+        verbose=verbose)
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
     
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
@@ -248,10 +255,10 @@ elements from hydrogen to uranium.
 You can specify abundance with these positional arguments.  All are optional, but if 
 `default_alpha_H` is provided, `default_metals_H` must be as well. 
 - `default_metals_H` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
-   than He. It is overriden by `default_alpha` and `abundances` on a per-element basis.  
+   than He. It is overridden by `default_alpha` and `abundances` on a per-element basis.  
 - `default_alpha_H` (default: same as `default_metals_H`), i.e. [alpha/H] is the ``\\log_{10}`` 
    solar-relative abundance of the alpha elements (defined to be C, O, Ne, Mg, Si, S, Ar, Ca, and 
-   Ti). It is overriden by `abundances` on a per-element basis.
+   Ti). It is overridden by `abundances` on a per-element basis.
 - `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `default_metals_H`.
   This is the only way to specify an abundance of He that is non-solar.
@@ -264,7 +271,7 @@ You can specify abundance with these positional arguments.  All are optional, bu
    they are set according to `default_metals_H` and `default_alpha_H`.
 - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
   use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances` and 
-  `Korg.grevesse_2007_solar_abundances` are also provided for convienience.
+  `Korg.grevesse_2007_solar_abundances` are also provided for convenience.
 """
 function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals_H, 
                     abundances::Dict{K, V}=Dict{UInt8, Float64}();  
@@ -335,7 +342,7 @@ See also [`get_alpha_H`](@ref).
 - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
   use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
   `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
-  convienience.
+  convenience.
 - `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating 
   [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`, 
   the alpha elements (here defined as C, O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
@@ -360,7 +367,7 @@ Here, the alpha elements are defined to be C, O, Ne, Mg, Si, S, Ar, Ca, Ti.  See
 - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
   use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
   `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
-  convienience.
+  convenience.
 """
 function get_alpha_H(A_X; solar_abundances=default_solar_abundances)
     _get_multi_X_H(A_X, 8:2:22, solar_abundances)

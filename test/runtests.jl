@@ -7,6 +7,7 @@ include("utilities.jl")
 
 # tests for specific parts of the code broken out into their own files. As you add tests, do it 
 # this way.
+include("molecular_cross_sections.jl")
 include("cubic_splines.jl")
 include("transfer.jl")
 include("species.jl")
