@@ -1,4 +1,4 @@
-name: Tests
+name: "Tests (nightly)"
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - "1"
+          - "nightly"
         os: 
           - ubuntu-latest
           - macOS-latest
@@ -44,13 +44,3 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: julia-actions/julia-buildpkg@latest
-      - uses: julia-actions/julia-docdeploy@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
