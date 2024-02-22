@@ -22,7 +22,7 @@ other arguments:
 - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
 - `verbose` (default: false): if true, show a progress bar.
 """
-function line_absorption!(α, linelist, λs, temps::V, nₑ, n_densities, partition_fns, ξ, 
+function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition_fns, ξ, 
                           α_cntm; cutoff_threshold=3e-4, verbose=false) 
 
     if length(linelist) == 0
