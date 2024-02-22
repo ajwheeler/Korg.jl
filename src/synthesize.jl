@@ -176,16 +176,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
     triples = map(enumerate(atm.layers)) do (i, layer)
-        @timeit "chemeq" nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
+        nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
                                           layer.electron_number_density, 
                                           abs_abundances, ionization_energies, 
                                           partition_funcs, log_equilibrium_constants; 
                                           electron_number_density_warn_threshold=electron_number_density_warn_threshold)
 
-        @timeit "cntm" α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
+        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
                                                          partition_funcs))
-        @timeit "cntm itp setup" α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
-        @timeit "cntm itp access" α[i, :] .= α_cntm_layer.(all_λs)
+        α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
+        α[i, :] .= α_cntm_layer(all_λs)
 
         if ! bezier_radiative_transfer
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
@@ -193,7 +193,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
         nₑ, n_dict, α_cntm_layer
     end
-    @timeit "rejiggering" begin
     nₑs = first.(triples)
     #put number densities in a dict of vectors, rather than a vector of dicts.
     n_dicts = getindex.(triples, 2)
@@ -201,11 +200,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                              if spec != species"H III"])
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
-    end
 
-    @timeit "S" source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
+    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
-    @timeit "cntm radtrans" if return_cntm
+    if return_cntm
         cntm, _ = if bezier_radiative_transfer
             RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
         else
@@ -213,23 +211,23 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    @timeit "H lines" if hydrogen_lines
+    if hydrogen_lines
         for (i, (layer, n_dict, nₑ)) in enumerate(zip(atm.layers, n_dicts, nₑs))
             nH_I = n_dict[species"H_I"]
             nHe_I = n_dict[species"He_I"]
             U_H_I = partition_funcs[species"H_I"](log(layer.temp))
             hydrogen_line_absorption!(
-                view(α, i, :), wl_ranges, layer.temp, nₑ, nH_I, nHe_I, U_H_I, vmic*1e5, 
+                view(α, i, :), all_λs, wl_ranges, layer.temp, nₑ, nH_I, nHe_I, U_H_I, vmic*1e5, 
                 hydrogen_line_window_size*1e-8; use_MHD=use_MHD_for_hydrogen_lines)
         end
     end
 
-    @timeit "lines" line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
+    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
         verbose=verbose)
-    @timeit "mol sigma" interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
     
-    @timeit "rad trans" flux, intensity = if bezier_radiative_transfer
+    flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
         RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)

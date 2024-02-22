@@ -49,7 +49,6 @@ function line_absorption!(α, linelist, λs, temps::V, nₑ, n_densities, partit
     end
 
     # preallocate some arrays for the core loop. 
-    # The compiler is smart enough to preallocate the scalars
     # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
     # the values in "number_densities"
     Γ = Vector{eltype(α)}(undef, size(temps))

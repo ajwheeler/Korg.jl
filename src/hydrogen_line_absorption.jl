@@ -74,9 +74,8 @@ Keyword arguments:
 - `use_MHD`: whether or not to use the Mihalas-Daeppen-Hummer formalism to adjust the occupation 
    probabilities of each hydrogen orbital for plasma effects.  Default: `true`.
 """
-function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
+function hydrogen_line_absorption!(αs, λs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
-    λs = vcat(collect.(wl_ranges)...)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
     Hmass = get_mass(Formula("H"))
@@ -143,6 +142,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
         @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
+
     # now do the Brackett series
     n = 4
     E_low = RydbergH_eV * (1 - 1/n^2)
@@ -157,9 +157,8 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         lb, ub = move_bounds(wl_ranges, 0, 0, λ0, stark_window)
 
         # renormalize profile?
-        @inbounds view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
+        view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
     end
-
 end
 
 """
