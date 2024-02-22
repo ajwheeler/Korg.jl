@@ -85,10 +85,9 @@ function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_se
     for sigma in molecular_cross_sections
         for i in 1:size(α, 1)
             # this is an inefficient order in which to write to α, but doing the interpolations this
-            # way uses significantly less memory.
+            # way uses less memory.
             view(α, i, :) .+= sigma.itp(vmic, log10(Ts[i]), 1:size(α, 2)) * number_densities[sigma.species][i]
         end
-        #α .+= sigma.itp.(vmic, log10.(Ts), (1:size(α, 2))') .* number_densities[sigma.species]
     end
     ;
 end
