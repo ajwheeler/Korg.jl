@@ -1,4 +1,4 @@
-using Interpolations: LinearInterpolation
+using Interpolations: linear_interpolation
 import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
 
@@ -183,7 +183,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
                                                          partition_funcs))
-        α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
+        α_cntm_layer = linear_interpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer(all_λs)
 
         if ! bezier_radiative_transfer

@@ -1,6 +1,6 @@
 using Base
 using Statistics: mean
-using Interpolations: LinearInterpolation, deduplicate_knots!
+using Interpolations: linear_interpolation, deduplicate_knots!
 using Korg
 using Korg: Species, ismolecule, get_atoms, _data_dir, move_bounds, @species_str
 using Korg: hplanck_eV, c_cgs, RydbergH_eV, kboltz_eV # constants
@@ -83,7 +83,6 @@ function parse_TOPBase_cross_sections(filename, norad_format=false)
             σs[j] = parse(Float32, lines[i+j-1][16:24])
         end
         deduplicate_knots!(Es, move_knots=true) # shift repeated E values to the next float 
-        #itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
 
         cross_sections[state] = binding_energy * RydbergH_eV, Es * RydbergH_eV, σs
 
@@ -276,7 +275,7 @@ function single_species_bf_cross_section(cross_sections, energy_levels, ionizati
         Es .+= empirical_binding_energy - topbase_binding_energy
         deduplicate_knots!(Es, move_knots=true) #shift repeat Es to the next float
 
-        σ_itp = LinearInterpolation(Es, σs, extrapolation_bc=0.0)
+        σ_itp = linear_interpolation(Es, σs, extrapolation_bc=0.0)
 
         # g*exp(-βε)/U at each temperature
         weights = g .* exp.(-energy_level .* β) ./ Us

@@ -1,6 +1,6 @@
 module Peach1970
 
-using Interpolations: LinearInterpolation
+using Interpolations: linear_interpolation
 using ...Korg: Species, @species_str
 
 coeffs = Dict{Species, Any}()
@@ -50,7 +50,7 @@ coeffs[species"He II"] = let
                   0.082 0.111 0.143 0.177 0.212 0.247;
                   0.085 0.115 0.147 0.181 0.216 0.251]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 coeffs[species"C II"] = let
@@ -98,7 +98,7 @@ coeffs[species"C II"] = let
                    0.085  0.154  0.273  0.424  0.623  0.900;
                    0.097  0.168  0.288  0.439  0.641  0.923]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 #coeffs[species"C III"] = let 
@@ -178,7 +178,7 @@ end
 #    #                 0.084 0.206 0.349 0.406 0.642 0.816;
 #    #                 0.087 0.209 0.352 0.498 0.644 0.819]
 #
-#    LinearInterpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0)
+#    linear_interpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0)
 #end
 
 
@@ -226,7 +226,7 @@ coeffs[species"Si II"] = let
                    0.008 0.186 0.317 0.537 0.809 1.236;
                    0.109 0.196 0.346 0.545 0.819 1.251]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 
@@ -272,7 +272,7 @@ coeffs[species"Mg II"] = let
                   -0.039 -0.035 -0.016  0.008  0.042  0.128;
                   -0.032 -0.030 -0.012  0.011  0.046  0.133]
 
-    LinearInterpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
 end
 
 """

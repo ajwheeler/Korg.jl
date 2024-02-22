@@ -63,9 +63,9 @@ function MolecularCrossSection(linelist, wls; cutoff_alpha=1e-32,
     end
 
     species = all_specs[1]
-    itp = interpolate((vmic_vals, log_temp_vals, 1:size(α, 3)),
-                      α .* cutoff_alpha, 
-                      (Gridded(Linear()), Gridded(Linear()), NoInterp()))
+    itp = interpolate!((vmic_vals, log_temp_vals, 1:size(α, 3)),
+                       α .* cutoff_alpha, 
+                       (Gridded(Linear()), Gridded(Linear()), NoInterp()))
     MolecularCrossSection(wls, itp, species)
 end
 
@@ -83,11 +83,12 @@ function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_se
     end
 
     for sigma in molecular_cross_sections
-        for i in size(α, 1)
+        for i in 1:size(α, 1)
             # this is an inefficient order in which to write to α, but doing the interpolations this
             # way uses significantly less memory.
-            α[i, :] .+= sigma.itp(vmic, log10(Ts[i]), 1:size(α, 2)) * number_densities[sigma.species][i]
+            view(α, i, :) .+= sigma.itp(vmic, log10(Ts[i]), 1:size(α, 2)) * number_densities[sigma.species][i]
         end
+        #α .+= sigma.itp.(vmic, log10.(Ts), (1:size(α, 2))') .* number_densities[sigma.species]
     end
     ;
 end

@@ -1,4 +1,4 @@
-using Interpolations: LinearInterpolation, Throw
+using Interpolations: linear_interpolation, Throw
 
 """
     _load_gauntff_table([fname])
@@ -73,7 +73,7 @@ const _gauntff_interpolator, _gauntff_T_bounds, _gauntff_λ_bounds = begin
     # make a copy of the selected data so that the unneeded data can be garbage collected
     revised_table = copy(table_val[u_lb:u_ub, γ2_lb:γ2_ub])
 
-    (LinearInterpolation((log10_u[u_lb:u_ub], log10_γ2[γ2_lb:γ2_ub]), revised_table,
+    (linear_interpolation((log10_u[u_lb:u_ub], log10_γ2[γ2_lb:γ2_ub]), revised_table,
                          extrapolation_bc = Throw()),
      closed_interval(T_extrema...),
      closed_interval(λ_extrema...))

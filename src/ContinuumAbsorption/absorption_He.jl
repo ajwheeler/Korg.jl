@@ -47,7 +47,7 @@ const _Heminus_ff_absorption_interp = let
         15.739	17.386	20.151	22.456	24.461	26.252	27.882	29.384	30.782	35.606	39.598
         27.979	30.907	35.822	39.921	43.488	46.678	49.583	52.262	54.757	63.395	70.580 
     ]
-    LinearInterpolation((lambda_ff_absorption_interp, theta_ff_absorption_interp), ff_absorption; 
+    linear_interpolation((lambda_ff_absorption_interp, theta_ff_absorption_interp), ff_absorption; 
                          extrapolation_bc=Throw());
 end
 

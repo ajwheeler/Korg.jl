@@ -18,7 +18,7 @@
 module Gray_opac_compare
 using Korg, HDF5
 using Korg: Interval, closed_interval, contained
-using Interpolations: LinearInterpolation, Throw
+using Interpolations: linear_interpolation, Throw
 
 # Load Gray05 data for a given panel. This returns a tuple holding two dictionaries:
 # 1. The first holds the panel properties (i.e. the temperature and partial electron pressure that
@@ -70,7 +70,7 @@ function _gray05_H_I_partition_func(T)
     log_2 = log10(2.0)
     θ_vals = [  0.2,   0.4,   0.6,   0.8,   1.0,   1.2,   1.4,   1.6,   1.8,   2.0]
     table  = [0.368, 0.303, log_2, log_2, log_2, log_2, log_2, log_2, log_2, log_2]
-    interpolator = LinearInterpolation(θ_vals, table, extrapolation_bc=Throw())
+    interpolator = linear_interpolation(θ_vals, table, extrapolation_bc=Throw())
     10^interpolator(5040.0 / T)
 end
 
