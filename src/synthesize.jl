@@ -1,7 +1,6 @@
 using Interpolations: LinearInterpolation
 import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
-using TimerOutputs
 
 """
     synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
