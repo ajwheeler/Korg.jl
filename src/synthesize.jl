@@ -1,6 +1,7 @@
 using Interpolations: LinearInterpolation
 import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
+using TimerOutputs
 
 """
     synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
@@ -175,16 +176,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
     triples = map(enumerate(atm.layers)) do (i, layer)
-        nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
+        @timeit "chemeq" nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
                                           layer.electron_number_density, 
                                           abs_abundances, ionization_energies, 
                                           partition_funcs, log_equilibrium_constants; 
                                           electron_number_density_warn_threshold=electron_number_density_warn_threshold)
 
-        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
+        @timeit "cntm" α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
                                                          partition_funcs))
-        α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
-        α[i, :] .= α_cntm_layer.(all_λs)
+        @timeit "cntm itp setup" α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
+        @timeit "cntm itp access" α[i, :] .= α_cntm_layer.(all_λs)
 
         if ! bezier_radiative_transfer
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
@@ -192,6 +193,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
         nₑ, n_dict, α_cntm_layer
     end
+    @timeit "rejiggering" begin
     nₑs = first.(triples)
     #put number densities in a dict of vectors, rather than a vector of dicts.
     n_dicts = getindex.(triples, 2)
@@ -199,10 +201,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                              if spec != species"H III"])
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
+    end
 
-    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
+    @timeit "S" source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
-    if return_cntm
+    @timeit "cntm radtrans" if return_cntm
         cntm, _ = if bezier_radiative_transfer
             RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
         else
@@ -210,7 +213,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    if hydrogen_lines
+    @timeit "H lines" if hydrogen_lines
         for (i, (layer, n_dict, nₑ)) in enumerate(zip(atm.layers, n_dicts, nₑs))
             nH_I = n_dict[species"H_I"]
             nHe_I = n_dict[species"He_I"]
@@ -221,12 +224,12 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
+    @timeit "lines" line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
         verbose=verbose)
-    interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
+    @timeit "mol sigma" interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
     
-    flux, intensity = if bezier_radiative_transfer
+    @timeit "rad trans" flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
         RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
