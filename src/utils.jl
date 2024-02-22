@@ -1,5 +1,5 @@
 using Statistics: quantile
-using Interpolations: LinearInterpolation, Flat
+using Interpolations: linear_interpolation, Flat
 using SparseArrays: spzeros 
 using ProgressMeter
 
@@ -307,7 +307,7 @@ function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0
     if wl_step == 0
         flux ./ moving_quantile
     else
-        itp = LinearInterpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
+        itp = linear_interpolation(wls[inds], moving_quantile, extrapolation_bc=Flat())
         flux ./ itp.(wls)
     end
 end
