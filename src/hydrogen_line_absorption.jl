@@ -1,8 +1,6 @@
 using HDF5
 using SpecialFunctions: gamma
-# LinearInterpolation is now deprecated in favor of linear_interpolation, but we'll keep using the 
-# old version for a while for compatibility
-using Interpolations: LinearInterpolation, lbounds, ubounds, Flat
+using Interpolations: linear_interpolation, lbounds, ubounds, Flat
 
 #load Stark broadening profiles from disk
 function _load_stark_profiles(fname)
@@ -18,11 +16,11 @@ function _load_stark_profiles(fname)
             # -700 is slightly larger than log(-floatmax())
             logP[logP .== -Inf] .= -700 
             
-            profile = LinearInterpolation((temps, nes, [-floatmax() ; log.(delta_nu_over_F0[2:end])]), 
+            profile = linear_interpolation((temps, nes, [-floatmax() ; log.(delta_nu_over_F0[2:end])]), 
                                           logP;
                                           extrapolation_bc=Flat())
 
-            λ0 = LinearInterpolation((temps, nes), read(fid[transition], "lambda0") * 1e-8) 
+            λ0 = linear_interpolation((temps, nes), read(fid[transition], "lambda0") * 1e-8) 
              
             (
              temps=temps, 
@@ -74,9 +72,8 @@ Keyword arguments:
 - `use_MHD`: whether or not to use the Mihalas-Daeppen-Hummer formalism to adjust the occupation 
    probabilities of each hydrogen orbital for plasma effects.  Default: `true`.
 """
-function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
+function hydrogen_line_absorption!(αs, λs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; 
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
-    λs = vcat(collect.(wl_ranges)...)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs.^2
     Hmass = get_mass(Formula("H"))
@@ -143,6 +140,7 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
         @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
+
     # now do the Brackett series
     n = 4
     E_low = RydbergH_eV * (1 - 1/n^2)
@@ -157,9 +155,8 @@ function hydrogen_line_absorption!(αs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, �
         lb, ub = move_bounds(wl_ranges, 0, 0, λ0, stark_window)
 
         # renormalize profile?
-        @inbounds view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
+        view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
     end
-
 end
 
 """
@@ -226,7 +223,7 @@ function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin=0, λmax=Inf;
     if λstart > λmax || λend < λmin || λstart == λend # 3rd case for one-wavelength synthesis
         # if the calculated wavelength window is entirely outside the synthesis range, return a noop
         # interpolator and a null window (for type stability)
-        return LinearInterpolation([], []), 0.0
+        return linear_interpolation([], []), 0.0
     end
     wls = range(λstart, λend; length=n_wavelength_points)
     start_ind = (n_wavelength_points-1) ÷ 2 # used to get indices corresponding to original wls
@@ -244,7 +241,7 @@ function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin=0, λmax=Inf;
     # convolve impact and quasistatic profiles
     ϕ_conv = autodiffable_conv(ϕ_impact, ϕ_quasistatic) * step(wls)
 
-    itp = LinearInterpolation(wls, ϕ_conv[start_ind:start_ind+n_wavelength_points-1])
+    itp = linear_interpolation(wls, ϕ_conv[start_ind:start_ind+n_wavelength_points-1])
     itp, window
 end
 

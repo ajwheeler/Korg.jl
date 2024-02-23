@@ -1,5 +1,5 @@
 using HDF5 
-using Interpolations: LinearInterpolation, Flat
+using Interpolations: linear_interpolation, Flat
 
 metal_bf_cross_sections = let 
     cross_sections = Dict{Species, Any}()
@@ -10,7 +10,7 @@ metal_bf_cross_sections = let
             #parse the dataset name to a species
             spec = Species(split(HDF5.name(dataset), "/")[end])
             σs = read(dataset)
-            cross_sections[spec] = LinearInterpolation((ν_grid, T_grid), σs, extrapolation_bc=Flat())
+            cross_sections[spec] = linear_interpolation((ν_grid, T_grid), σs, extrapolation_bc=Flat())
         end
     end
     cross_sections

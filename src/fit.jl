@@ -6,7 +6,7 @@ Functions for fitting to data.
 """
 module Fit
 using ..Korg, LineSearches, Optim
-using Interpolations: LinearInterpolation
+using Interpolations: linear_interpolation
 using ForwardDiff, DiffResults
 using Trapz
 using Statistics: mean, std

@@ -1,4 +1,4 @@
-using Interpolations: LinearInterpolation, Throw, Line
+using Interpolations: linear_interpolation, Throw, Line
 using HDF5: h5read, h5open
 
 using ..ContinuumAbsorption: hydrogenic_ff_absorption, ionization_energies
@@ -10,7 +10,7 @@ const _H_I_bf_cross_sections = let
     h5open(joinpath(_data_dir, "bf_cross-sections", 
                                          "individual_H_cross-sections.h5")) do f
         sigmas = map(eachcol(read(f["E"])), eachcol(read(f["sigma"]))) do Es, σs
-            LinearInterpolation(Es, σs, extrapolation_bc=Line())
+            linear_interpolation(Es, σs, extrapolation_bc=Line())
         end
         # use the cross sections for the first 6 energy levels only.
         # the binding energy for n=7 corresponds to ~45,000 Å 
@@ -203,7 +203,7 @@ const _Hminus_bf_cross_section_interp, _min_H⁻_interp_ν = let
     fn = joinpath(_data_dir, "McLaughlin2017Hminusbf.h5")
     ν = h5read(fn, "nu")
     σ = h5read(fn, "sigma")
-    LinearInterpolation(ν, σ, extrapolation_bc=Throw()), minimum(ν)
+    linear_interpolation(ν, σ, extrapolation_bc=Throw()), minimum(ν)
 end
 #returns the cross-section in units of cm² (excludes stimulated emission)
 function _Hminus_bf_cross_section(ν)
@@ -292,7 +292,7 @@ const _Hminus_ff_absorption_interp = let
         42.3  50.6  66.4  80.8  94.5  107.  120.  131.  142.  183.  219.
         75.1  90.0  118.  144.  168.  191.  212.  234.  253.  325.  388.
     ]
-    LinearInterpolation((lambda_ff_absorption_interp, theta_ff_absorption_interp), ff_absorption; 
+    linear_interpolation((lambda_ff_absorption_interp, theta_ff_absorption_interp), ff_absorption; 
                          extrapolation_bc=Throw());
 end
 

@@ -1,4 +1,4 @@
-using Interpolations: GriddedInterpolation, interpolate, Gridded, NoInterp, Linear
+using Interpolations: GriddedInterpolation, interpolate!, Gridded, NoInterp, Linear
 using HDF5
 
 struct MolecularCrossSection
@@ -63,9 +63,9 @@ function MolecularCrossSection(linelist, wls; cutoff_alpha=1e-32,
     end
 
     species = all_specs[1]
-    itp = interpolate((vmic_vals, log_temp_vals, 1:size(α, 3)),
-                      α .* cutoff_alpha, 
-                      (Gridded(Linear()), Gridded(Linear()), NoInterp()))
+    itp = interpolate!((vmic_vals, log_temp_vals, 1:size(α, 3)),
+                       α .* cutoff_alpha, 
+                       (Gridded(Linear()), Gridded(Linear()), NoInterp()))
     MolecularCrossSection(wls, itp, species)
 end
 
@@ -82,11 +82,13 @@ function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_se
         return
     end
 
-    α_mol = zeros(R, size(α))
     for sigma in molecular_cross_sections
-        α_mol .+= sigma.itp.(vmic, log10.(Ts), (1:size(α, 2))') .* number_densities[sigma.species]
+        for i in 1:size(α, 1)
+            # this is an inefficient order in which to write to α, but doing the interpolations this
+            # way uses less memory.
+            view(α, i, :) .+= sigma.itp(vmic, log10(Ts[i]), 1:size(α, 2)) * number_densities[sigma.species][i]
+        end
     end
-    α .+= α_mol
     ;
 end
 
@@ -127,9 +129,9 @@ function read_molecular_cross_section(filename)
         alpha_vals = HDF5.read(file, "vals")
         species = Species(HDF5.read(file, "species"))
 
-        itp = interpolate((vmic_vals, T_vals, 1:sum(length.(wls))),
-                          alpha_vals,
-                          (Gridded(Linear()), Gridded(Linear()), NoInterp()))
+        itp = interpolate!((vmic_vals, T_vals, 1:sum(length.(wls))),
+                           alpha_vals,
+                           (Gridded(Linear()), Gridded(Linear()), NoInterp()))
 
         MolecularCrossSection(wls, itp, species)
     end

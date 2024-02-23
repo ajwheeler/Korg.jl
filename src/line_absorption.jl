@@ -22,8 +22,8 @@ other arguments:
 - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
 - `verbose` (default: false): if true, show a progress bar.
 """
-function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, 
-                          α_cntm; cutoff_threshold=3e-4, verbose=false)
+function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition_fns, ξ, 
+                          α_cntm; cutoff_threshold=3e-4, verbose=false) 
 
     if length(linelist) == 0
         return zeros(length(λs))
@@ -37,45 +37,58 @@ function line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_
     #and longest wavelengths which feel the effect of each line 
     lb = 1
     ub = 1
-    β = @. 1/(kboltz_eV * temp)
+    β = @. 1/(kboltz_eV * temps)
 
     # precompute number density / partition function for each species in the linelist
     n_div_Z = map(unique([l.species for l in linelist])) do spec
-        spec => @. (n_densities[spec] / partition_fns[spec](log(temp)))
+        spec => @. (n_densities[spec] / partition_fns[spec](log(temps)))
     end |> Dict
     if species"H I" in keys(n_div_Z)
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
 
+    # preallocate some arrays for the core loop. 
+    # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
+    # the values in "number_densities"
+    Γ = Vector{eltype(α)}(undef, size(temps))
+    γ = Vector{eltype(α)}(undef, size(temps))
+    σ = Vector{eltype(α)}(undef, size(temps))
+    amplitude = Vector{eltype(α)}(undef, size(temps))
+    levels_factor = Vector{eltype(α)}(undef, size(temps))
+    ρ_crit = Vector{eltype(α)}(undef, size(temps))
+    inverse_densities = Vector{eltype(α)}(undef, size(temps))
     @showprogress desc="calculating line opacities" enabled=verbose for line in linelist
         m = get_mass(line.species)
         
         # doppler-broadening width, σ (NOT √[2]σ)
-        σ = doppler_width.(line.wl, temp, m, ξ)
+        σ .= doppler_width.(line.wl, temps, m, ξ)
 
         # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
         # angular, not cyclical frequency (ω, not ν).
-        Γ = line.gamma_rad 
+        Γ .= line.gamma_rad 
         if !ismolecule(line.species) 
-            Γ = Γ .+ (nₑ .* scaled_stark.(line.gamma_stark, temp) +
-                      n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temp))
+            @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps) 
+            Γ .+= n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temps)
         end
         # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
-        γ = @. Γ * line.wl^2 / (c_cgs * 4π)
+        @. γ = Γ * line.wl^2 / (c_cgs * 4π)
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
-        levels_factor = (@. (exp(-β*line.E_lower) - exp(-β*E_upper)))
+        @. levels_factor = exp(-β*line.E_lower) - exp(-β*E_upper)
 
         #total wl-integrated absorption coefficient
-        amplitude = @. 10.0^line.log_gf*sigma_line(line.wl)*levels_factor*n_div_Z[line.species]
+        @. amplitude = 10.0^line.log_gf*sigma_line(line.wl)*levels_factor*n_div_Z[line.species]
 
-        ρ_crit = [cntm(line.wl) * cutoff_threshold for cntm in α_cntm] ./ amplitude
-        doppler_line_window = maximum(inverse_gaussian_density.(ρ_crit, σ))
-        lorentz_line_window = maximum(inverse_lorentz_density.(ρ_crit, γ))
+        ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
+        inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
+        doppler_line_window = maximum(inverse_densities)
+        inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
+        lorentz_line_window = maximum(inverse_densities)
         window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
+        # at present, this line is allocating. Would be good to fix that.
         lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
         if lb > ub
             continue

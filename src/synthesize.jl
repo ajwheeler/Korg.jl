@@ -1,4 +1,4 @@
-using Interpolations: LinearInterpolation
+using Interpolations: linear_interpolation
 import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
 
@@ -183,8 +183,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
                                                          partition_funcs))
-        α_cntm_layer = LinearInterpolation(cntmλs, α_cntm_vals)
-        α[i, :] .= α_cntm_layer.(all_λs)
+        α_cntm_layer = linear_interpolation(cntmλs, α_cntm_vals)
+        α[i, :] .= α_cntm_layer(all_λs)
 
         if ! bezier_radiative_transfer
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
@@ -216,7 +216,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             nHe_I = n_dict[species"He_I"]
             U_H_I = partition_funcs[species"H_I"](log(layer.temp))
             hydrogen_line_absorption!(
-                view(α, i, :), wl_ranges, layer.temp, nₑ, nH_I, nHe_I, U_H_I, vmic*1e5, 
+                view(α, i, :), all_λs, wl_ranges, layer.temp, nₑ, nH_I, nHe_I, U_H_I, vmic*1e5, 
                 hydrogen_line_window_size*1e-8; use_MHD=use_MHD_for_hydrogen_lines)
         end
     end
