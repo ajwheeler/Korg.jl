@@ -71,8 +71,7 @@ end
 Synthesize a spectrum, returning the flux, with LSF applied, resampled, and rectified.  This is 
 used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
 """
-function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
-                     line_buffer=10)
+function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthesis_kwargs)
     specified_abundances = Dict([p for p in pairs(params) if p.first in Korg.atomic_symbols])
     alpha_H = "alpha_H" in keys(params) ? params["alpha_H"] : params["m_H"]
     A_X::Vector{valtype(params)} = Korg.format_A_X(params["m_H"], alpha_H, specified_abundances; solar_relative=true)
@@ -80,8 +79,8 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params;
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
     atm = Korg.interpolate_marcs(params["Teff"], params["logg"], A_X; clamp_abundances=true, perturb_at_grid_values=true)
 
-    sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params["vmic"], line_buffer=line_buffer, 
-                          electron_number_density_warn_threshold=Inf)
+    sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params["vmic"], line_buffer=0,
+                          electron_number_density_warn_threshold=Inf, synthesis_kwargs...)
     F = sol.flux ./ sol.cntm
     F = Korg.apply_rotation(F, synthesis_wls, params["vsini"], params["epsilon"])
     LSF_matrix * F
@@ -199,7 +198,8 @@ values are used.
    transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but 
    the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
    0.001 in `m_H`, and 0.004 in detailed abundances.
-
+Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
+spectra for the fit.
 
 # Returns
 A NamedTuple with the following fields:
@@ -231,7 +231,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                       else
                           Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
                       end,
-                      wl_buffer=1.0, precision=1e-3)
+                      wl_buffer=1.0, precision=1e-3, synthesis_kwargs...)
 
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
     ps = collect(pairs(scale(initial_guesses)))
@@ -254,7 +254,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
             flux = try
-                synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params)
+                synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthesis_kwargs)
             catch e
                 if e isa Korg.ChemicalEquilibriumError
                     # This is a nice huge chi2 value, but not too big.  It's what you get if 
@@ -307,7 +307,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     full_solution = merge(solution, fixed_params)
     best_fit_flux = try
-        synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution)
+        synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution, synthesis_kwargs)
     catch e
         println(e)
     end
