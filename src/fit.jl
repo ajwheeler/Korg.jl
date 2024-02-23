@@ -198,7 +198,8 @@ values are used.
    transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but 
    the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
    0.001 in `m_H`, and 0.004 in detailed abundances.
-
+Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
+spectra for the fit.
 
 # Returns
 A NamedTuple with the following fields:
