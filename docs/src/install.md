@@ -56,8 +56,16 @@ jl.seval("using Korg")
 Korg = jl.Korg
 ```
 
-## Keeping Korg updated
+# Keeping Korg updated
 In order to update Korg in the future, you can type:
+
+Julia:
+```julia
+using Pkg
+Pkg.update("Korg")
+```
+
+Python:
 ```python
 from juliacall import Main as jl
 jl.seval("using Pkg")
