@@ -1,3 +1,5 @@
+While Korg is written in Julia, it's possible to use it from either Julia or Python.
+
 # Using Korg from Julia
 
 ## [1. Install Julia](@id install)
@@ -34,18 +36,30 @@ julia> Pkg.add("Korg")
     for details.
 
 # Using Korg from Python
-It's reasy to call Julia code from Python!  This snippet will get you up and running on Linux
-or macOS.
+The recommended way to call Korg from Python is to use [juliacall](https://pypi.org/project/juliacall/).
+Here's the quick version:
 
+Install juliacall with
 ```bash
-wget https://raw.githubusercontent.com/abelsiqueira/jill/v0.4.0/jill.sh
-sudo bash jill.sh -y -v 1.9.1
-export PYTHON=$(which python)
-julia -e 'using Pkg; Pkg.add("PyCall")'
-pip install julia
-python -c 'import julia; julia.install()'
-unset PYTHON
-julia -e 'using Pkg; Pkg.add("Korg")'
+pip install juliacall
 ```
-Now you can import in Python with `from julia import Korg`, and access any of [Korg's exported functions](@ref API), e.g. `Korg.synthesize`,
-`Korg.interpolate_marcs`.
+Then, to install Korg, do this from a Python shell:
+```python
+from juliacall import Main as jl
+jl.seval("using Pkg")
+jl.Pkg.add("Korg")
+```
+That's it! To use Korg from Python, just put these lines at the top of your script/notebook.
+```python
+from juliacall import Main as jl
+jl.seval("using Korg")
+Korg = jl.Korg
+```
+
+## Keeping Korg updated
+In order to update Korg in the future, you can type:
+```python
+from juliacall import Main as jl
+jl.seval("using Pkg")
+jl.Pkg.update("Korg")
+```
