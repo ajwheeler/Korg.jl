@@ -274,7 +274,7 @@ You can specify abundance with these positional arguments.  All are optional, bu
   `Korg.grevesse_2007_solar_abundances` are also provided for convenience.
 """
 function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals_H, 
-                    abundances::Dict{K, V}=Dict{UInt8, Float64}();  
+                    abundances::AbstractDict{K, V}=Dict{UInt8, Float64}();  
                     solar_relative=true, solar_abundances=default_solar_abundances
                     ) where {K, V, R1 <: Real, R2 <: Real}
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
@@ -327,9 +327,9 @@ function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals
     end
 end
 # handle case where metallicity and alpha aren't specified but individual abundances are
-format_A_X(abundances::Dict; kwargs...) = format_A_X(0, abundances; kwargs...)
+format_A_X(abundances::AbstractDict; kwargs...) = format_A_X(0, abundances; kwargs...)
 # handle case where alpha isn't specified but individual abundances are
-format_A_X(default_metallicity::R, abundances::Dict; kwargs...) where R <: Real = 
+format_A_X(default_metallicity::R, abundances::AbstractDict; kwargs...) where R <: Real = 
     format_A_X(default_metallicity, default_metallicity, abundances; kwargs...) 
 
 """
