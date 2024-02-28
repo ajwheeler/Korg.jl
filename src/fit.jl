@@ -92,7 +92,7 @@ Validate fitting parameters, and insert default values when needed. Used by [`fi
 these can be specified in either initial_guesses or fixed_params, but if they are not, these values
  are inserted into fixed_params
 """
-function validate_params(initial_guesses::Dict, fixed_params::Dict;
+function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDict;
                          required_params = ["Teff", "logg"],
                          default_params = Dict("m_H"=>0.0, "vsini"=>0.0, "vmic"=>1.0, "epsilon"=>0.6),
                          allowed_params = Set(["alpha_H" ; required_params ; keys(default_params)... ; Korg.atomic_symbols]))
@@ -133,9 +133,9 @@ function validate_params(initial_guesses::Dict, fixed_params::Dict;
 end
 
 # make it possible to use dicts instead of NamedTuples for the python people
-validate_params(initial_guesses::Dict, fixed_params::NamedTuple; kwargs...) = 
+validate_params(initial_guesses::AbstractDict, fixed_params::NamedTuple; kwargs...) = 
     validate_params(initial_guesses, _namedtuple_to_dict(fixed_params); kwargs...)
-validate_params(initial_guesses::NamedTuple, fixed_params=Dict{String, Float64}(); kwargs...) = 
+validate_params(initial_guesses::NamedTuple, fixed_params=AbstractDict{String, Float64}(); kwargs...) = 
     validate_params(_namedtuple_to_dict(initial_guesses), fixed_params; kwargs...)
 
 function _namedtuple_to_dict(nt::NamedTuple)
