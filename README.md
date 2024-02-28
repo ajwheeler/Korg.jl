@@ -33,14 +33,18 @@ ylabel(L"$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-5}$]");
 ## You can also call Korg from python
 See [the documentation](https://ajwheeler.github.io/Korg.jl/stable/install/) for setup instructions.
 ```python
-import matplotlib.pyplot as plt
-from julia import Korg
+# imports
+from juliacall import Main as jl
+jl.seval("using Korg"); Korg = jl.Korg
+from matplotlib import pyplot as plt
 
-lines = Korg.read_linelist("linelist.vald", format="vald")
-atm = Korg.read_model_atmosphere("s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
-A_X = Korg.format_A_X(0)
-sol = Korg.synthesize(atm, lines, A_X, 5000, 5030)
+# synthesize spectrum
+lines = Korg.get_GALAH_DR3_linelist()
+A_X = Korg.format_A_X(-1.1, {"C": -0.5})
+atm = Korg.interpolate_marcs(5000.0, 4.32, A_X)
+sol = Korg.synthesize(atm, lines, A_X, 5850, 5900);
 
+# plot
 fig, ax = plt.subplots(figsize=(12, 4))
 ax.plot(sol.wavelengths, sol.flux, "k-")
 ax.set_xlabel("$\lambda$ [Å]")
