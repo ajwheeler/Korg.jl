@@ -153,10 +153,14 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     #sort the lines if necessary
     issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
     #discard lines far from the wavelength range being synthesized
-    linelist = filter(linelist) do line
+    nlines_before = length(linelist)
+    linelist = filter(linelist) do line # don't "filter!".  It mutates the linelist.
         map(wl_ranges) do wl_range
             wl_range[1] - line_buffer <= line.wl <= wl_range[end]
         end |> any
+    end
+    if nlines_before != 0 && length(linelist) == 0
+        @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
     end
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
