@@ -22,8 +22,18 @@ other arguments:
 - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
 - `verbose` (default: false): if true, show a progress bar.
 """
-function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition_fns, ξ, 
-                          α_cntm; cutoff_threshold=3e-4, verbose=false) 
+function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition_fns, ξ, α_cntm; 
+                          cutoff_threshold=3e-4, departure_coefs=nothing, Sα=nothing, verbose=false) 
+    nlte = false
+    if eltype(linelist) <: Tuple || departure_coefs !== nothing || Sα !== nothing
+        @assert eltype(linelist) <: Tuple "linelist must be a tuple of tuples for NLTE"
+        @assert departure_coefs !== nothing "departure_coefs must be provided for NLTE lines"
+        @assert Sα !== nothing "Sα must be provided for NLTE lines"
+        lower_indices = first.(linelist)
+        upper_indices = (l -> l[2]).(linelist)
+        nlte = true
+        linelist = last.(linelist)
+    end
 
     if length(linelist) == 0
         return zeros(length(λs))
@@ -57,7 +67,11 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
     levels_factor = Vector{eltype(α)}(undef, size(temps))
     ρ_crit = Vector{eltype(α)}(undef, size(temps))
     inverse_densities = Vector{eltype(α)}(undef, size(temps))
-    @showprogress desc="calculating line opacities" enabled=verbose for line in linelist
+    if nlte
+        α_line = zeros(eltype(α), size(α))
+        S_prefactor = @. (2*hplanck_cgs*c_cgs^2/concatenated_λs^5)
+    end
+    @showprogress desc="calculating line opacities" enabled=verbose for (line_ind, line) in enumerate(linelist)
         m = get_mass(line.species)
         
         # doppler-broadening width, σ (NOT √[2]σ)
@@ -77,7 +91,14 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
         @. γ = Γ * line.wl^2 / (c_cgs * 4π)
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
-        @. levels_factor = exp(-β*line.E_lower) - exp(-β*E_upper)
+        if nlte
+            b_lo = departure_coefs[:, lower_indices[line_ind]]
+            b_up = departure_coefs[:, upper_indices[line_ind]]
+            boltzmann_ratio = @. exp(β *  c_cgs * hplanck_eV / line.wl)
+            @. levels_factor = (b_lo * boltzmann_ratio - b_up) / (boltzmann_ratio - 1)
+        else
+            @. levels_factor = exp(-β*line.E_lower) - exp(-β*E_upper)
+        end
 
         #total wl-integrated absorption coefficient
         @. amplitude = 10.0^line.log_gf*sigma_line(line.wl)*levels_factor*n_div_Z[line.species]
@@ -94,7 +115,14 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
             continue
         end
 
-        view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(concatenated_λs, lb:ub)')
+        if nlte
+            view(α_line, :, lb:ub) .= line_profile.(line.wl, σ, γ, amplitude, view(concatenated_λs, lb:ub)')
+            view(α, :, lb:ub) .+= view(α_line, :, lb:ub)
+            view(Sα, :, lb:ub) .+= view(S_prefactor, lb:ub)' .* (@. b_up / (b_lo * boltzmann_ratio - b_up)) .* view(α_line, :, lb:ub)
+            view(α_line, :, lb:ub) .= 0
+        else
+            view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(concatenated_λs, lb:ub)')
+        end
     end
 end
 

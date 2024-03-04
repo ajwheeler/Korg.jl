@@ -105,8 +105,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_cross_sections=[],
-                    verbose=false)
+                    molecular_cross_sections=[], NLTE_lines=[], verbose=false)
 
     # Convert air to vacuum wavelenths if necessary.
     if air_wavelengths
@@ -200,13 +199,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
 
-    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
+    LTE_source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
     if return_cntm
         cntm, _ = if bezier_radiative_transfer
-            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
+            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, LTE_source_fn, n_mu_points)
         else
-            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, LTE_source_fn, α5, n_mu_points)
         end
     end
 
@@ -225,6 +224,22 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
         verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
+    if !isempty(NLTE_lines)
+        α_NLTE = zeros(α_type, size(α))
+        Sα_NLTE = zeros(α_type, size(α))
+        for (lines, bs) in NLTE_lines
+            line_absorption!(α_NLTE, lines, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
+                number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
+                verbose=verbose, departure_coefs=bs, Sα=Sα_NLTE)
+        end
+    end
+
+    if isempty(NLTE_lines)
+        source_fn = LTE_source_fn
+    else
+        source_fn = @. (LTE_source_fn * α + Sα_NLTE) / (α + α_NLTE)
+        α += α_NLTE
+    end
     
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
