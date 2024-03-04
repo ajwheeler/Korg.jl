@@ -31,11 +31,11 @@ function assert_allclose(actual, reference; rtol = 1e-7, atol = 0.0, err_msg = n
     relative_diff[diff .== 0] .= 0 
 
     if print_rachet_info
-        if all(diff .< 0.5*atol)
+        if all(diff .< 0.1*atol)
             @info "test can be racheted down: atol=$(atol), but the max diff is $(maximum(diff))"
             display(stacktrace())
         end
-        if all(relative_diff .< 0.5*rtol)
+        if all(relative_diff .< 0.1*rtol)
             @info ("test can be racheted down: rtol=$(rtol), but the max relative diff is " 
                     * "$(maximum(relative_diff))")
             display(stacktrace())
