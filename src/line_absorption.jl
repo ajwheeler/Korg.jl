@@ -95,7 +95,9 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
             b_lo = departure_coefs[:, lower_indices[line_ind]]
             b_up = departure_coefs[:, upper_indices[line_ind]]
             boltzmann_ratio = @. exp(β *  c_cgs * hplanck_eV / line.wl)
-            @. levels_factor = (b_lo * boltzmann_ratio - b_up) / (boltzmann_ratio - 1)
+
+            #TODO audit for stimulated emission
+            @. levels_factor = exp(-β*line.E_lower) * (b_lo * boltzmann_ratio - b_up) / (boltzmann_ratio - 1)
         else
             @. levels_factor = exp(-β*line.E_lower) - exp(-β*E_upper)
         end
