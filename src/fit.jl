@@ -269,34 +269,23 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         end
     end 
     
-    res, invH = if length(p0) == 1
-        # if we are fitting a single parameter, experimentation shows that Nelder-Mead (the default)
-        # is faster than BFGS
+    # if we are fitting a multiple parameters, use BFGS with autodiff
+    res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
+             Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
+                           extended_trace=true); autodiff=:forward)
 
-        # there seems to be a problem with trace storage for this optimizer, so we don't request it
-        # the precision keyword is also ignored
-        optimize(chi2, p0, Optim.Options(x_tol=precision); autodiff=:forward), nothing
-    else
-        # if we are fitting a multiple parameters, use BFGS with autodiff
-        res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
-                 Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
-                               extended_trace=true); autodiff=:forward)
-
-        # derivate relating the scaled parameters to the unscaled parameters
-        # (used to convert the approximate hessian to a covariance matrix in the unscaled params)
-        dp_dscaledp = map(res.minimizer, params_to_fit) do scaled_param, param_name
-            ForwardDiff.derivative(scaled_param) do scaled_param
-                unscale(Dict(param_name=>scaled_param))[param_name]
-            end
+    # derivate relating the scaled parameters to the unscaled parameters
+    # (used to convert the approximate hessian to a covariance matrix in the unscaled params)
+    dp_dscaledp = map(res.minimizer, params_to_fit) do scaled_param, param_name
+        ForwardDiff.derivative(scaled_param) do scaled_param
+            unscale(Dict(param_name=>scaled_param))[param_name]
         end
-        # the fact that the scaling is a diagonal operation means that we can do this as an element-wise
-        # product.  If we think of ds/dp as a (diagonal) matrix, this is equivalent to
-        # (ds/dp)^T * invH * (ds/dp)
-        invH_scaled = res.trace[end].metadata["~inv(H)"]
-        invH = invH_scaled .* dp_dscaledp .* dp_dscaledp'
-
-        res, invH
     end
+    # the fact that the scaling is a diagonal operation means that we can do this as an element-wise
+    # product.  If we think of ds/dp as a (diagonal) matrix, this is equivalent to
+    # (ds/dp)^T * invH * (ds/dp)
+    invH_scaled = res.trace[end].metadata["~inv(H)"]
+    invH = invH_scaled .* dp_dscaledp .* dp_dscaledp'
     solution = unscale(Dict(params_to_fit .=> res.minimizer))
 
     trace = map(res.trace) do t
