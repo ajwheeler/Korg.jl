@@ -1,6 +1,10 @@
 using Random
 
 @testset "Fit" begin
+    @testset "argument checks" begin
+        params = Dict()
+    end
+
     @testset "parameter scaling" begin
         params = Dict("Teff"=>3200.0, "logg"=>4.5, "m_H"=>-2.0, "vmic"=>3.2, "vsini"=>10.0, "O"=>-1.0)
         sparams = Korg.Fit.scale(params)
@@ -97,6 +101,14 @@ using Random
 
         # check that best-fit flux is within 1% of the true flux at all pixels
         @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.01)
+
+        # test argument checks
+        @test_throws "must all have the same length" Korg.Fit.fit_spectrum(obs_wls[1:end-1], spectrum, err, linelist, p0, fixed; 
+                                                                           synthesis_wls=synth_wls, LSF_matrix=LSF)
+        @test_throws "the first dimension of LSF_matrix" Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
+                                                                           synthesis_wls=synth_wls, LSF_matrix=LSF[1:end-1, :])
+        @test_throws "the second dimension of LSF_matrix" Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
+                                                                           synthesis_wls=synth_wls, LSF_matrix=LSF[:, 1:end-1])
     end
 
     @testset "ews_to_abundances" begin

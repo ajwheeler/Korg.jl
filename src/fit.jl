@@ -232,6 +232,16 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                           Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
                       end,
                       wl_buffer=1.0, precision=1e-3, synthesis_kwargs...)
+    if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
+        throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
+    end
+    if length(obs_wls) != size(LSF_matrix, 1)
+        throw(ArgumentError("the first dimension of LSF_matrix must be the length of obs_wls."))
+    end
+    if (length(synthesis_wls) != size(LSF_matrix, 2))
+        throw(ArgumentError("the second dimension of LSF_matrix must be the length of synthesis_wls " * 
+         "If you provided one as a keyword argument, you must also provide the other."))
+    end
 
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
     ps = collect(pairs(scale(initial_guesses)))
