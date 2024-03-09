@@ -2,11 +2,10 @@
 TODO
 """
 function weedout(atm, linelist, A_X, wls...; 
-                 first_pass_threshold=1e-3, threshold=0.05, 
-                 partition_fns=Korg.default_partition_funcs)
+                 first_pass_threshold=1e-3, threshold=0.05, synthesis_kwargs...)
 
     # linelist will be sorted after call to synthesize
-    sol = synthesize(atm, linelist, A_X, wls...)
+    sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
     wl_ranges = construct_wavelength_ranges(wls...)
 
     strong_lines = Line[]
@@ -14,7 +13,7 @@ function weedout(atm, linelist, A_X, wls...;
     temps = get_temps(atm)
     β =  1 ./ (kboltz_eV * temps)
     n_div_Z = map(unique([l.species for l in linelist])) do spec
-        spec => @. (sol.number_densities[spec] / partition_fns[spec](log(temps)))
+        spec => @. sol.number_densities[spec] / Korg.default_partition_funcs[spec](log(temps))
     end |> Dict
 
     λ_ind = 1
@@ -40,13 +39,11 @@ function weedout(atm, linelist, A_X, wls...;
         end
     end
 
-    # include H lines here
-    cntm = synthesize(atm, [], A_X, wls...; hydrogen_lines=false, return_cntm=false).flux
-
     really_strong_lines = Line[]
-    @showprogress "checking lines" for line in strong_lines
-        sol = synthesize(atm, [line], A_X, wls...; return_cntm=false)
-        if 1 .- minimum(sol.flux ./ cntm) > threshold
+    @showprogress "checking $(length(strong_lines)) lines with synthesis" for line in strong_lines
+        line_center = line.wl*1e8
+        sol = synthesize(atm, [line], A_X, line_center, line_center; hydrogen_lines=false, synthesis_kwargs...)
+        if 1 .- minimum(sol.flux ./ sol.cntm) > threshold
             push!(really_strong_lines, line)
         end
     end
