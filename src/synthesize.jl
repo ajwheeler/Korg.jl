@@ -18,9 +18,10 @@ Compute a synthetic spectrum.
 - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
 - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
-If you provide a vector of wavelength ranges in place of `λ_start` and `λ_stop`, the spectrum will 
-be synthesized over each range with minimal overhead.
-The ranges can be any Julia `AbstractRange`, for example: `5000:0.01:5010`.
+If you provide a vector of wavelength ranges (or a single range) in place of `λ_start` and `λ_stop`, 
+the spectrum will be synthesized over each range with minimal overhead.  These can be any Julia
+The ranges can be any Julia `AbstractRange`, for example: `[5000:0.01:5010, 6000:0.03:6005]`. they
+must be sorted and non-overlapping.
 
 # Returns 
 A named tuple with keys:
@@ -90,12 +91,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    [`MolecularCrossSection`](@ref) for how to generate these.
 - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
-function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01; kwargs...)
-    wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
-    synthesize(atm, linelist, A_X, wls; kwargs...)
-end
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real}, 
-                    wl_ranges::AbstractVector{<:AbstractRange}; 
+                    wavelength_params...;
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
@@ -107,6 +104,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[],
                     verbose=false)
+    wl_ranges = construct_wavelength_ranges(wavelength_params...)
 
     # Convert air to vacuum wavelenths if necessary.
     if air_wavelengths
@@ -248,6 +246,15 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
     electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
+
+"""
+TODO
+"""
+function construct_wavelength_ranges(λ_start, λ_stop, λ_step=0.01)
+    [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
+end
+construct_wavelength_ranges(wls::AbstractVector{<:AbstractRange}) = wls
+construct_wavelength_ranges(wls::AbstractRange) = [wls]
 
 """
     format_A_X(default_metals_H, default_alpha_H, abundances; kwargs... )
