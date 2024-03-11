@@ -28,12 +28,10 @@ function weedout(atm, linelist, A_X, wls...;
 
     λ_ind = 1
     for line in linelist
-        isna = (line.species == species"Na") && (5891 < line.wl*1e8 < 5892) && (line.log_gf > -1)
         line_center = line.wl * 1e8
         if !any(λs[begin] < line_center < λs[end] for λs in wl_ranges)
             continue
         end
-        isna && println(line_center)
 
         # move λ_ind to the wavelength in the synthesis grid closest to the line center
         while (λ_ind < length(sol.wavelengths)) && 
@@ -42,19 +40,10 @@ function weedout(atm, linelist, A_X, wls...;
         end
         phot_ind = photosphere_indices[λ_ind]
 
-
-        isna && println(phot_ind)
-        isna && println(approximate_τ[:, λ_ind])
-        isna && println(findfirst(approximate_τ[:, λ_ind] .> 1))
-        isna && println()
-
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl 
         levels_factor = exp(-β[phot_ind]*line.E_lower) - exp(-β[phot_ind]*E_upper)
         # line center amplitude if it were a 1 Å tophat
         α_λ_line_center = 1e8 * 10.0^line.log_gf*sigma_line(line.wl)*levels_factor*n_div_Z[line.species][phot_ind] / σs[phot_ind]
-
-        isna && println(α_λ_line_center, " ", cntm_sol.alpha[phot_ind, λ_ind])
-        isna && println()
 
         if α_λ_line_center > first_pass_threshold * cntm_sol.alpha[phot_ind, λ_ind]
             push!(strong_lines, line)
