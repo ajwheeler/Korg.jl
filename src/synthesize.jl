@@ -89,6 +89,10 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    testing purposes only.
 - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See 
    [`MolecularCrossSection`](@ref) for how to generate these.
+- `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by 
+   `synthesize`. When provided, the chemical equilibrium solution will be taken from this object, 
+   rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
+   and model atmosphere, `atm`, are unchanged.
 - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real}, 
@@ -102,7 +106,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_cross_sections=[],
+                    molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
                     verbose=false)
     wl_ranges = construct_wavelength_ranges(wavelength_params...)
 
@@ -177,11 +181,19 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
     triples = map(enumerate(atm.layers)) do (i, layer)
-        nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
-                                          layer.electron_number_density, 
-                                          abs_abundances, ionization_energies, 
-                                          partition_funcs, log_equilibrium_constants; 
-                                          electron_number_density_warn_threshold=electron_number_density_warn_threshold)
+        nₑ, n_dict = if isnothing(use_chemical_equilibrium_from)
+            chemical_equilibrium(layer.temp, layer.number_density, 
+                                 layer.electron_number_density, 
+                                 abs_abundances, ionization_energies, 
+                                 partition_funcs, log_equilibrium_constants; 
+                                 electron_number_density_warn_threshold=electron_number_density_warn_threshold)
+        else
+            let sol = use_chemical_equilibrium_from
+                (sol.electron_number_density[i],
+                 Dict(s => sol.number_densities[s][i] for s in keys(sol.number_densities)),
+                )
+            end
+        end
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
                                                          partition_funcs))
