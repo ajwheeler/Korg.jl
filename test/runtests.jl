@@ -21,6 +21,7 @@ include("autodiff.jl")
 include("autodiffable_conv.jl")
 include("atmosphere.jl")
 include("synthesize.jl")
+include("weedout.jl")
 
 @testset "atomic data" begin 
     @test (Korg.MAX_ATOMIC_NUMBER 

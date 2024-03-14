@@ -16,6 +16,9 @@
     end
 
     @testset "synthesize wavelength handling" begin
+        # these are essentially tests of Korg.construct_wavelength_ranges, but we test "through"
+        # synthesize because it's crucial that synthesize works
+
         atm = read_model_atmosphere("data/sun.mod")
         wls = 15000:0.01:15500
         A_X = format_A_X()
@@ -28,7 +31,7 @@
         # test multiple line windows
         r1 = 5000:0.01:5001
         r2 = 6000:0.01:6001
-        sol1 = synthesize(atm, [], A_X, [r1]; hydrogen_lines=true)
+        sol1 = synthesize(atm, [], A_X, r1; hydrogen_lines=true)
         sol2 = synthesize(atm, [], A_X, [r2]; hydrogen_lines=true)
         sol3 = synthesize(atm, [], A_X, [r1, r2]; hydrogen_lines=true)
 
