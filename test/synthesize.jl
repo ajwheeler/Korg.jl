@@ -15,6 +15,15 @@
         @test sol_two_lines.flux == sol_one_lines.flux
     end
 
+    @testset "precomputed chemical equilibrium" begin
+        # test that the precomputed chemical equilibrium works
+        atm = read_model_atmosphere("data/sun.mod")
+        A_X = format_A_X()
+        sol = synthesize(atm, [], A_X, 5000, 5000)
+        sol_eq = synthesize(atm, [], A_X, 5000, 5000; use_chemical_equilibrium_from=sol)
+        @test sol.flux == sol_eq.flux
+    end
+
     @testset "synthesize wavelength handling" begin
         # these are essentially tests of Korg.construct_wavelength_ranges, but we test "through"
         # synthesize because it's crucial that synthesize works
