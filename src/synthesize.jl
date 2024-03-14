@@ -260,7 +260,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 end
 
 """
-TODO
+    construct_wavelength_ranges(wls...)
+
+Handle the wavelength specification passed to `synthesize`, returning a vector of wavelength ranges.
+See [`synthesize`](@ref) documentation for details.
 """
 function construct_wavelength_ranges(λ_start, λ_stop, λ_step=0.01)
     [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
