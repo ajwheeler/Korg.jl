@@ -27,13 +27,13 @@ must be sorted and non-overlapping.
 A named tuple with keys:
 - `flux`: the output spectrum
 - `cntm`: the continuum at each wavelength
-- `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
+- `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer a Matrix of 
    size (layers x wavelengths)
 - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
    atmospheric layer
 - `electron_number_density`: the electron number density at each atmospheric layer
-- `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
-  `air_wavelengths=true` this will not be the same as the input wavelenths.
+- `wavelengths`: The vacuum wavelengths (in Å) over which the synthesis was performed.  If 
+  `air_wavelengths=true` this will not be the same as the input wavelengths.
 - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum 
    for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`, 
    `λ_step` arguments, this will be a vector containing only one range.
