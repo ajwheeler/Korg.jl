@@ -149,24 +149,14 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # frequencies at which to calculate the continuum, as a single vector
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) 
 
-    #sort the lines if necessary
-    issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
-    #discard lines far from the wavelength range being synthesized
-    linelist = filter(linelist) do line
-        map(wl_ranges) do wl_range
-            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
-        end |> any
-    end
+    # cleanup linelist(s)
+    linelist = cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
     #TODO clean up filtering
     for i in 1:length(NLTE_lines)
         lines, bs = NLTE_lines[i]
-        lines = filter(lines) do (_, _, line)
-            map(wl_ranges) do wl_range
-                wl_range[1] - line_buffer <= line.wl <= wl_range[end]
-            end |> any
-        end
-        NLTE_lines[i] = (lines, bs)
+        NLTE_lines[i] = (cleanup_and_check_linelist(lines, wl_ranges, line_buffer), bs)
     end
+   
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
@@ -268,6 +258,26 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
     electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
+end
+
+"""
+
+Sorts the linelist by wavelength (if necessary) and discards lines that are far from the wavelength 
+range being synthesized. Returns a new linelist, rather than mutating the input.
+"""
+function cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
+     #sort the lines if necessary
+     if !issorted(linelist; by=l->l.wl)
+        @info "Linelist is not sorted, sorting now.  Sort your linelist before you call synthesize for better performance."
+        linelist = sort(linelist, by=l->l.wl)
+     end
+
+     #discard lines far from the wavelength range being synthesized
+     filter(linelist) do line
+         map(wl_ranges) do wl_range
+             wl_range[1] - line_buffer <= line.wl <= wl_range[end]
+         end |> any
+     end
 end
 
 """
