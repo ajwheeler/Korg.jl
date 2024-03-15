@@ -151,12 +151,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # cleanup linelist(s)
     linelist = cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
-    #TODO clean up filtering
     for i in 1:length(NLTE_lines)
         lines, bs = NLTE_lines[i]
         NLTE_lines[i] = (cleanup_and_check_linelist(lines, wl_ranges, line_buffer), bs)
     end
-   
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
@@ -261,23 +259,29 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 end
 
 """
+    cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
 
 Sorts the linelist by wavelength (if necessary) and discards lines that are far from the wavelength 
 range being synthesized. Returns a new linelist, rather than mutating the input.
 """
 function cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
-     #sort the lines if necessary
-     if !issorted(linelist; by=l->l.wl)
-        @info "Linelist is not sorted, sorting now.  Sort your linelist before you call synthesize for better performance."
-        linelist = sort(linelist, by=l->l.wl)
-     end
+    #sort the lines if necessary
+    if !issorted(linelist; by=l->l.wl)
+       @info "Linelist is not sorted, sorting now.  Sort your linelist before you call synthesize for better performance."
+       linelist = sort(linelist, by=l->l.wl)
+    end
 
-     #discard lines far from the wavelength range being synthesized
-     filter(linelist) do line
-         map(wl_ranges) do wl_range
-             wl_range[1] - line_buffer <= line.wl <= wl_range[end]
-         end |> any
-     end
+    #discard lines far from the wavelength range being synthesized
+    nlines_before = length(linelist)
+    linelist = filter(linelist) do line
+        map(wl_ranges) do wl_range
+            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
+        end |> any
+    end
+    if nlines_before != 0 && length(linelist) == 0
+       @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
+    end
+    linelist
 end
 
 """
