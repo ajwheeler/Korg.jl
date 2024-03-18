@@ -101,9 +101,9 @@ end
 """
     merge_close_lines(linelist; merge_distance=0.2)
 
-Turn a linelist into a list of the species and wavelengths of the lines in `linelist`, merging lines 
-of the same species that are within `merge_distance` (default: 0.2 Å).  This is useful for labelling 
-lines in a plot after running [`prune_linelist`](@ref).
+Produce a list of the species and wavelengths of the lines in `linelist`, merging lines of the same 
+species that are within `merge_distance` (default: 0.2 Å).  This is useful for labeling lines in a 
+plot after running [`prune_linelist`](@ref).
 
 # Arguments
 - `linelist`: the linelist (a vector of `Line` objects)
