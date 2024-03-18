@@ -18,9 +18,9 @@ equivalent width.
    computed at the photosphere for a line to be included in the returned list.
    `0.1` is a reasonable default for getting a sense of what might be measurable in a high-res, 
    high-quality spectrum, but it should not be used to create a linelist for synthesis.  
-- `sort=true`: If `true`, the returned linelist will be sorted by approximate equivalent width.  If 
-  `false`, the linelist will be in wavelength order. Leaving the list in wavelength order is much 
-  faster, but sorting by strength is useful for visualizing the strongest lines.
+- `sort_by_EW=true`: If `true`, the returned linelist will be sorted by approximate equivalent 
+   width.  If `false`, the linelist will be in wavelength order. Leaving the list in wavelength 
+   order is much faster, but sorting by strength is useful for visualizing the strongest lines.
 All other kwargs are passed to internal calls to [`synthesize`](@ref).
 
 !!! caution
@@ -32,7 +32,8 @@ All other kwargs are passed to internal calls to [`synthesize`](@ref).
 
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
-function prune_linelist(atm, linelist, A_X, wls...; threshold=0.1, sort=true, synthesis_kwargs...)
+function prune_linelist(atm, linelist, A_X, wls...; 
+                        threshold=0.1, sort_by_EW=true, synthesis_kwargs...)
     # linelist will be sorted after call to synthesize
     sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
     cntm_sol = synthesize(atm, [], A_X, wls...; synthesis_kwargs...) 
@@ -84,7 +85,7 @@ function prune_linelist(atm, linelist, A_X, wls...; threshold=0.1, sort=true, sy
     end
 
     # sort lines by approximate EW or leave them in wavelength order
-    if sort
+    if sort_by_EW
         approx_EWs = @showprogress "measuring $(length(strong_lines)) lines" map(strong_lines) do line
             line_center = line.wl*1e8
             sol = synthesize(atm, [line], A_X, line_center - 2.0, line_center + 2.0; 
