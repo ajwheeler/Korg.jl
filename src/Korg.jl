@@ -7,6 +7,7 @@ module Korg
     include("isotopic_data.jl")            # abundances and nuclear spins
     include("species.jl")                  # types for chemical formulae and species
     include("linelist.jl")                 # parse linelists, define Line type
+    include("levels.jl")                   # dealing with atomic levels
     include("line_absorption.jl")          # opacity, line profile, voigt function
     include("hydrogen_line_absorption.jl") # hydrogen lines get special treatment
     include("autodiffable_conv.jl")        # wrap DSP.conv to be autodiffable

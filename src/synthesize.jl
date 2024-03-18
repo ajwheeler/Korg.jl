@@ -105,8 +105,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_cross_sections=[],
-                    verbose=false)
+                    molecular_cross_sections=[], NLTE_lines=[], verbose=false)
 
     # Convert air to vacuum wavelenths if necessary.
     if air_wavelengths
@@ -150,17 +149,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # frequencies at which to calculate the continuum, as a single vector
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) 
 
-    #sort the lines if necessary
-    issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
-    #discard lines far from the wavelength range being synthesized
-    nlines_before = length(linelist)
-    linelist = filter(linelist) do line # don't "filter!".  It mutates the linelist.
-        map(wl_ranges) do wl_range
-            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
-        end |> any
-    end
-    if nlines_before != 0 && length(linelist) == 0
-        @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
+    # cleanup linelist(s)
+    linelist = cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
+    for i in 1:length(NLTE_lines)
+        lines, bs = NLTE_lines[i]
+        NLTE_lines[i] = (cleanup_and_check_linelist(lines, wl_ranges, line_buffer), bs)
     end
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
@@ -204,13 +197,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
 
-    source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
+    LTE_source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
     if return_cntm
         cntm, _ = if bezier_radiative_transfer
-            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
+            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, LTE_source_fn, n_mu_points)
         else
-            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, LTE_source_fn, α5, n_mu_points)
         end
     end
 
@@ -229,6 +222,23 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
         verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
+    if !isempty(NLTE_lines)
+        α_NLTE = zeros(α_type, size(α))
+        Sα_NLTE = zeros(α_type, size(α))
+        for (lines, bs) in NLTE_lines
+            line_absorption!(α_NLTE, lines, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
+                number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
+                verbose=verbose, departure_coefs=bs, Sα=Sα_NLTE)
+        end
+    end
+
+    # calculate source function.  It's blackbody in LTE, modified if using NLTE departure coefs.
+    if isempty(NLTE_lines)
+        source_fn = LTE_source_fn
+    else
+        source_fn = @. (LTE_source_fn * α + Sα_NLTE) / (α + α_NLTE)
+        α += α_NLTE
+    end
     
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
@@ -247,6 +257,32 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
     electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
+end
+
+"""
+    cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
+
+Sorts the linelist by wavelength (if necessary) and discards lines that are far from the wavelength 
+range being synthesized. Returns a new linelist, rather than mutating the input.
+"""
+function cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
+    #sort the lines if necessary
+    if !issorted(linelist; by=l->l.wl)
+       @info "Linelist is not sorted, sorting now.  Sort your linelist before you call synthesize for better performance."
+       linelist = sort(linelist, by=l->l.wl)
+    end
+
+    #discard lines far from the wavelength range being synthesized
+    nlines_before = length(linelist)
+    linelist = filter(linelist) do line
+        map(wl_ranges) do wl_range
+            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
+        end |> any
+    end
+    if nlines_before != 0 && length(linelist) == 0
+       @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
+    end
+    linelist
 end
 
 """
