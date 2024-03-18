@@ -16,7 +16,9 @@ end
 struct Term
     term::String
 end
+
 broadcastable(t::Term) = Ref(t)
+
 function simplify(t::Term)
     t = t.term
     if (length(t) > 0) && islowercase(t[1])
@@ -27,6 +29,7 @@ function simplify(t::Term)
     end
     Term(t)
 end
+
 function ≈(a::Term, b::Term)
     simplify(a) == simplify(b)
 end
@@ -36,8 +39,17 @@ struct AtomicLevel
     term::Term
     g::UInt8 # 2J + 1
     energy::Float64
+
+    function AtomicLevel(config::String, term::String, g::Integer, energy::Real)
+        new(Configuration(config), Term(term), g, energy)
+    end
+    function AtomicLevel(config::Configuration, term::Term, g::Integer, energy::Real)
+        new(config, term, g, energy)
+    end
 end
+
 broadcastable(l::AtomicLevel) = Ref(l)
+
 function Base.show(io::IO, ::MIME"text/plain", level::AtomicLevel)
     print(io, level.config.config, " ", level.term.term, " g=", level.g, " E=", level.energy, "eV")
 end
