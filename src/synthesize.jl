@@ -232,6 +232,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
+    # calculate source function.  It's blackbody in LTE, modified if using NLTE departure coefs.
     if isempty(NLTE_lines)
         source_fn = LTE_source_fn
     else
