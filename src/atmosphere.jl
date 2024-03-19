@@ -208,73 +208,12 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
                            perturb_at_grid_values=false)
-    nodes, exists, grid = _sdss_marcs_atmospheres
-
+    nodes, _, grid = _sdss_marcs_atmospheres
     params = [Teff, logg, M_H, alpha_M, C_M]
     param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
+    atm_quants = lazy_multilinear_interpolation(params, nodes, grid, param_names=param_names, 
+                                               perturb_at_grid_values=perturb_at_grid_values)
 
-    if perturb_at_grid_values
-        # add small offset to each parameter which is exactly at grid value
-        # this prevents the derivatives from being exactly zero
-        on_grid_mask = in.(params, nodes)
-        params[on_grid_mask] .= nextfloat.(params[on_grid_mask])
-
-        # take care of the case where the parameter is at the last grid value
-        too_high_mask = params .> last.(nodes)
-        params[too_high_mask] .= prevfloat.(params[too_high_mask])
-        params[too_high_mask] .= prevfloat.(params[too_high_mask])
-    end
-    
-    upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
-        if !(p_nodes[1] <= p <= p_nodes[end])
-            throw(ArgumentError("Can't interpolate atmosphere grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])"))
-        end
-        findfirst(p .<= p_nodes)
-    end
-    isexact = params .== getindex.(nodes, upper_vertex) #which params are on grid points?
-    
-    # allocate 2^n cube for each quantity
-    dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
-    structure_type = typeof(promote(Teff, logg, M_H, alpha_M, C_M)[1])
-    structure = Array{structure_type}(undef, (56, 5, dims...))
-     
-    #put bounding atmospheres in 2^n cube
-    for I in CartesianIndices(dims)
-        local_inds = collect(Tuple(I))
-        atm_inds = copy(local_inds)
-        atm_inds[isexact] .= 2 #use the "upper bound" as "lower bound" if the param is on a grid point
-        atm_inds .+= upper_vertex .- 2
-
-        if !exists[atm_inds...] #return nothing if any required nodes don't exist
-            @info str(getindex.(nodes, atm_inds), " doesn't exist") 
-            return 
-        end
-        
-        structure[:, :, local_inds...] .= grid[:, :, atm_inds...]
-    end
-
-    for i in 1:length(params) #loop over Teff, logg, etc.
-        isexact[i] && continue #no need to do anything for exact params
-        
-        # the bounding values of the parameter you are currently interpolating over 
-        p1 = nodes[i][upper_vertex[i]-1]
-        p2 = nodes[i][upper_vertex[i]]
-        
-        # inds1 and inds2 are the expressions for the slices through the as-of-yet 
-        # uninterpolated quantities (temp, logPg, etc) for each node value of the
-        # quantity being interpolated
-        # inds1 = (1, 1, 1, ..., 1, 1, :, :, ...)
-        # inds2 = (1, 1, 1, ..., 1, 2, :, :, ...)
-        inds1 = vcat([1 for _ in 1:i-1], 1, [Colon() for _ in i+1:length(params)])
-        inds2 = vcat([1 for _ in 1:i-1], 2, [Colon() for _ in i+1:length(params)])
-        
-        x = (params[i] - p1) / (p2 - p1) #maybe try using masseron alpha later
-        for structure_ind in 1:5 #TODO fix
-            structure[:, structure_ind, inds1...] = (1-x)*structure[:, structure_ind, inds1...] + x*structure[:, structure_ind, inds2...]
-        end
-    end
-   
-    atm_quants = (structure[:, :, ones(Int, length(params))...])
     if spherical
         R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
         ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[:, 4], 
