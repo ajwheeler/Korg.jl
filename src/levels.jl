@@ -128,7 +128,7 @@ function interpolate_departure_coefs_and_atm(Teff, logg, m_H, filenames)
                 lazy_multilinear_interpolation(
                     [Teff, logg, m_H],
                     [Teffs, loggs, m_Hs],
-                    view(HDF5.readmmap(f["b_array"]), :, :, :, 1, :, :)
+                    view(HDF5.readmmap(f["b_array"]), :, :, :, :, :, 1)
                 )
             else
                 X_Fe = 0 #TODO
