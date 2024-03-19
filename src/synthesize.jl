@@ -151,10 +151,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # cleanup linelist(s)
     linelist = cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
-    for i in 1:length(NLTE_lines)
-        lines, bs = NLTE_lines[i]
-        NLTE_lines[i] = (cleanup_and_check_linelist(lines, wl_ranges, line_buffer), bs)
-    end
+    # TODO fix
+    #for i in 1:length(NLTE_lines)
+    #    lines, bs = NLTE_lines[i]
+    #    NLTE_lines[i] = (cleanup_and_check_linelist(lines, wl_ranges, line_buffer), bs)
+    #end
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))

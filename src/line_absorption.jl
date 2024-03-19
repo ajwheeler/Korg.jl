@@ -32,7 +32,7 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
                           cutoff_threshold=3e-4, departure_coefs=nothing, Sα=nothing, verbose=false) 
     nlte = false
     if eltype(linelist) <: Tuple || departure_coefs !== nothing || Sα !== nothing
-        @assert eltype(linelist) <: Tuple "linelist must be a tuple of tuples for NLTE"
+        @assert eltype(linelist) <: Tuple "linelist must be a vec of tuples for NLTE"
         @assert departure_coefs !== nothing "departure_coefs must be provided for NLTE lines"
         @assert Sα !== nothing "Sα must be provided for NLTE lines"
         lower_indices = first.(linelist)

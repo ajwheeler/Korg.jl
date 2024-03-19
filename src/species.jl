@@ -1,4 +1,5 @@
 using StaticArrays
+import Base: broadcastable
 
 const MAX_ATOMS_PER_MOLECULE = 6
 
@@ -220,6 +221,8 @@ function Species(code::AbstractString)
     Species(formula, charge)
 end
 Species(code::AbstractFloat) = Species(string(code))
+
+broadcastable(s::Species) = Ref(s)
 
 #used to contruct Species at compile time and avoid parsing in hot loops
 macro species_str(s)
