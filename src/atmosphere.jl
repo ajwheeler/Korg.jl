@@ -150,8 +150,6 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
      end
 end
 
-# this isn't a const because the model atmosphere doesn't get loaded into memory until 
-# interpolate_marcs is called for the first time
 const _sdss_marcs_atmospheres = let
     path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
     exists = h5read(path, "exists")
@@ -159,7 +157,6 @@ const _sdss_marcs_atmospheres = let
     nodes = [h5read(path, "grid_values/$i") for i in 1:5]
     (nodes, exists, grid)
 end
-
 
 """
     interpolate_marcs(Teff, logg, Fe_M=0, alpha_M=0, C_M=0; kwargs...)
@@ -354,7 +351,7 @@ function interpolate_departure_coefs_and_atm(Teff, logg, m_H, filenames)
 end
 
 """
-TODO
+TODO two dimensions to be interpolated over
 """
 function lazy_multilinear_interpolation(params, nodes, grid; 
                                         param_names=["param $i" for i in 1:length(params)],
@@ -382,7 +379,7 @@ function lazy_multilinear_interpolation(params, nodes, grid;
     # allocate 2^n cube for each quantity
     dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
     structure_type = typeof(promote(params...)[1])
-    structure = Array{structure_type}(undef, (dims..., size(grid)[end-1:end]...)) #TODO index order
+    structure = Array{structure_type}(undef, (size(grid)[1:2]..., dims...))
      
     #put bounding atmospheres in 2^n cube
     for I in CartesianIndices(dims)
@@ -391,12 +388,10 @@ function lazy_multilinear_interpolation(params, nodes, grid;
         atm_inds[isexact] .= 2 #use the "upper bound" as "lower bound" if the param is on a grid point
         atm_inds .+= upper_vertex .- 2
 
-        # TODO assess HDF5 optimal memory order and make this idea/memory-mapped 
-        # for both b and atm itp
-        structure[local_inds..., :, :] .= grid[atm_inds..., :, :] #TODO index order
+        structure[:, :, local_inds...] .= grid[:, :, atm_inds...]
     end
 
-    for i in 1:length(params) #loop over Teff, logg, etc.
+    for i in eachindex(params) #loop over interpolation parameters
         isexact[i] && continue #no need to do anything for exact params
         
         # the bounding values of the parameter you are currently interpolating over 
@@ -404,8 +399,8 @@ function lazy_multilinear_interpolation(params, nodes, grid;
         p2 = nodes[i][upper_vertex[i]]
         
         # inds1 and inds2 are the expressions for the slices through the as-of-yet 
-        # uninterpolated quantities (temp, logPg, etc) for each node value of the
-        # quantity being interpolated
+        # uninterpolated quantities (temp, logPg, etc for atm itp) for each node value 
+        # of the quantity being interpolated
         # inds1 = (1, 1, 1, ..., 1, 1, :, :, ...)
         # inds2 = (1, 1, 1, ..., 1, 2, :, :, ...)
         inds1 = vcat([1 for _ in 1:i-1], 1, [Colon() for _ in i+1:length(params)])
@@ -414,5 +409,5 @@ function lazy_multilinear_interpolation(params, nodes, grid;
         x = (params[i] - p1) / (p2 - p1) #maybe try using masseron alpha later
         structure[:, :, inds1...] = (1-x)*structure[:, :, inds1...] + x*structure[:, :, inds2...]
     end
-    structure[ones(Int, length(params))..., :, :] #TODO index order
+    structure[:, :, ones(Int, length(params))...]
 end

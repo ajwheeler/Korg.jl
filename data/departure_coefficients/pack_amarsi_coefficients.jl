@@ -62,10 +62,10 @@ x_fe_indices = Dict(x_fe_vals .=> 1:nx_fe)
 
 n_levels = maximum(b_table.level_ind) #TODO get elsewhere?
 
-b_array = ones(Float32, lengths..., nx_fe, n_levels, 56)
+b_array = ones(Float32, 56, n_levels, lengths..., nx_fe)
 println(sizeof(b_array) / 1024^3, " GB")
 @showprogress desc="re-packing coefs into array" for row in eachrow(b_table)
-    b_array[atm_indices[row.atm_ind]..., x_fe_indices[row.X_Fe], row.level_ind, row.depth_ind] = row.b
+    b_array[row.depth_ind, row.level_ind, atm_indices[row.atm_ind]..., x_fe_indices[row.X_Fe]] = row.b
 end
 
 h5open(outfile, "w") do file
@@ -74,6 +74,7 @@ h5open(outfile, "w") do file
     write(file, "logg", vals[2])
     write(file, "m_H", vals[3])
     write(file, "x_Fe", x_fe_vals)
+    write(file, "species", model_atom_levels.species)
     write(file, "configuration", model_atom_levels.config)
     write(file, "term", model_atom_levels.term)
     write(file, "J", model_atom_levels.J)
