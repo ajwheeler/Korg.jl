@@ -2,6 +2,7 @@ module Korg
     _data_dir = joinpath(@__DIR__, "../data") 
 
     include("CubicSplines.jl")             # 1D cubic Splines
+    include("lazy_multilinear_interpolation.jl") # multilinear interpolation
     include("constants.jl")                # physical constants
     include("atomic_data.jl")              # symbols and atomic weights
     include("isotopic_data.jl")            # abundances and nuclear spins

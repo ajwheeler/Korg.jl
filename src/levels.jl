@@ -85,3 +85,63 @@ function match_levels(linelist_levels, model_levels; energy_difference_threshold
         0, nothing
     end
 end
+
+
+"""
+The A_X vector for a given [Fe/H] value in 
+[the MARCS "standard composition" grid](https://marcs.astro.uu.se/).
+
+Used in [`interpolate_departure_coefs_and_atm`](@ref).
+"""
+function marcs_standard_composition(Fe_H)
+    α_H = clamp(-0.4 * Fe_H, 0, 0.4) + Fe_H
+    format_A_X(Fe_H, α_H, Dict("C"=>Fe_H))
+end
+
+using HDF5
+"""
+TODO
+"""
+function interpolate_departure_coefs_and_atm(Teff, logg, m_H, filenames)
+    A_X = marcs_standard_composition(m_H)
+    atm = interpolate_marcs(Teff, logg, A_X)
+    n_layers = length(atm.layers)
+
+    coefs = map(filenames) do filename
+        h5open(filename) do f
+            Teffs = read(f, "Teff")
+            loggs = read(f, "logg")
+            m_Hs = read(f, "m_H")
+            x_Fes = read(f, "x_Fe")
+
+            g = Int.(2 * read(f, "J") .+ 1)
+            g[g .== -1] .= 0 # handle cases where J was not resolved in model atom 
+
+            levels = AtomicLevel.(read(f, "configuration"), 
+                                  read(f, "term"),
+                                  g,
+                                  read(f, "E"))
+            n_levels = length(levels)
+            specs = fill(species"Fe I", n_levels) #TODO
+
+            bs = if occursin("Fe", filename) #TODO
+                lazy_multilinear_interpolation(
+                    [Teff, logg, m_H],
+                    [Teffs, loggs, m_Hs],
+                    view(HDF5.readmmap(f["b_array"]), :, :, :, 1, :, :)
+                )
+            else
+                X_Fe = 0 #TODO
+                lazy_multilinear_interpolation(
+                    [Teff, logg, m_H, X_Fe],
+                    [Teffs, loggs, m_Hs, x_Fes],
+                    HDF5.readmmap(f["b_array"])
+                )
+            end
+
+            specs, levels, bs
+        end
+    end
+
+    atm, coefs
+end

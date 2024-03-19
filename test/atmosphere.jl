@@ -7,6 +7,15 @@
         val
     end
 
+    function sert_atmospheres_close(atm1, atm2; rtol=1e-3)
+        val = true
+        for f in [Korg.get_tau_5000s, Korg.get_zs, Korg.get_temps, Korg.get_number_densities, Korg.get_electron_number_densities]
+            val &= assert_allclose(f(atm1), f(atm2); rtol=rtol, print_rachet_info=false)
+        end
+        val
+    end
+
+
     @testset "plane-parallel atmosphere" begin
         #the MARCS solar model atmosphere
         atm = Korg.read_model_atmosphere("data/sun.mod")
@@ -84,7 +93,7 @@
             @test assert_atmospheres_close(atm1, atm2; rtol=1e-2)
         end
 
-        @testset "grid points" begin
+        @testset "interpolation is correct at grid points" begin
             # calling the interpolator on grid points should return the same atmosphere
             atm1 = Korg.read_model_atmosphere("data/s5000_g+3.0_m1.0_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
             atm2 = Korg.interpolate_marcs(5000, 3.0)
