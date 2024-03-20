@@ -36,62 +36,56 @@ function ≈(a::Term, b::Term)
 end
 
 struct AtomicLevel
+    species::Species
     config::Configuration
     term::Term
     g::UInt16 # 2J + 1
     energy::Float64
 
-    function AtomicLevel(config::AbstractString, term::AbstractString, g::Integer, energy::Real)
-        new(Configuration(config), Term(term), g, energy)
+    function AtomicLevel(s::Species, config::AbstractString, term::AbstractString, g::Integer, energy::Real)
+        new(s, Configuration(config), Term(term), g, energy)
     end
-    function AtomicLevel(config::Configuration, term::Term, g::Integer, energy::Real)
-        new(config, term, g, energy)
+    function AtomicLevel(s::Species, config::Configuration, term::Term, g::Integer, energy::Real)
+        new(s, config, term, g, energy)
     end
 end
 
 broadcastable(l::AtomicLevel) = Ref(l)
 
 function Base.show(io::IO, level::AtomicLevel)
-    print(io, level.config.config, " ", level.term.term, " g=", level.g, " E=", level.energy, "eV")
+    print(io, "<")
+    show(io, level.species)
+    print(io, " ", level.config.config, " ", level.term.term, " g=", level.g, " E=", level.energy, "eV>")
 end
 
 """
 TODO
 """
 function match_levels(linelist, linelist_levels, coefs; energy_difference_threshold=0.05)
-    spec_sets = unique.(first.(coefs))
+    spec_sets = unique.([[l.species for l in levels] for levels in first.(coefs)])
 
+    # set up containers to get filled and returned
     LTE_lines = eltype(linelist)[]
     NLTE_lines = [Tuple{Int, Int, eltype(linelist)}[] for _ in coefs]
     level_matches = [Pair{AtomicLevel, AtomicLevel}[] for _ in coefs]
 
-    #construct list of unique (species, level) pairs
-    lower_levels = [(line.species, lower) for (line, (lower, _)) in zip(linelist, linelist_levels)]
-    upper_levels = [(line.species, upper) for (line, (_, upper)) in zip(linelist, linelist_levels)]
-    unique_line_levels = unique([lower_levels ; upper_levels])
-    filter!(unique_line_levels) do (spec, level)
+    unique_line_levels = unique([first.(linelist_levels) ; last.(linelist_levels)])
+    filter!(unique_line_levels) do level
         !isnothing(level)
     end
 
-    indices = @showprogress "matching unique levels" map(unique_line_levels) do (spec, level)
-        model_atom_ind = findfirst(spec in s for s in spec_sets)
-        if isnothing(model_atom_ind)
-            nothing
-        else
-            level_ind = match_level(level, coefs[model_atom_ind][2]; mask=spec .== coefs[model_atom_ind][1])
-            if isnothing(level_ind)
-                nothing
-            else
-                model_atom_ind, level_ind
-            end
-
-        end
+    index_vals = @showprogress "matching unique levels" map(unique_line_levels) do level
+        model_atom_ind = findfirst(level.species in s for s in spec_sets)
+        isnothing(model_atom_ind) && return nothing
+        level_ind = match_level(level, coefs[model_atom_ind][1])
+        isnothing(level_ind) && return nothing
+        model_atom_ind, level_ind
     end
-    # maps (species, level) to (model_atom_ind, level_ind) 
-    index_dict = Dict((p for p in (unique_line_levels .=> indices) if !isnothing(last(p))))
+    # maps level to (model_atom_ind, level_ind) 
+    indices = Dict((p for p in (unique_line_levels .=> index_vals) if !isnothing(last(p))))
 
-    level_matches = map(collect(pairs(index_dict))) do (spec_level, (model_atom_ind, level_ind))
-        spec_level => coefs[model_atom_ind][2][level_ind]
+    level_matches = map(collect(pairs(indices))) do (spec_level, (model_atom_ind, level_ind))
+        spec_level => coefs[model_atom_ind][1][level_ind]
     end |> Dict
 
     for (line, (lower, upper)) in zip(linelist, linelist_levels)
@@ -99,9 +93,9 @@ function match_levels(linelist, linelist_levels, coefs; energy_difference_thresh
             push!(LTE_lines, line)
         else
             spec = line.species
-            if (spec, lower) in keys(index_dict) && (spec, upper) in keys(index_dict)
-                model_atom_ind, lower_ind = index_dict[(spec, lower)]
-                model_atom_ind, upper_ind = index_dict[(spec, upper)]
+            if lower in keys(indices) && upper in keys(indices)
+                model_atom_ind, lower_ind = indices[lower]
+                model_atom_ind, upper_ind = indices[upper]
                 push!(NLTE_lines[model_atom_ind], (lower_ind, upper_ind, line))
             else
                 push!(LTE_lines, line)
@@ -112,19 +106,19 @@ function match_levels(linelist, linelist_levels, coefs; energy_difference_thresh
     LTE_lines, NLTE_lines, level_matches
 end
 
-function match_level(l, model_levels, energy_difference_threshold=0.05; 
-                     mask=ones(Bool, length(model_levels)))
+function match_level(l, model_levels; energy_difference_threshold=0.05)
+    species_match = [l.species == m.species for m in model_levels]
     configs_match = [l.config ≈ m.config for m in model_levels]
     terms_match = [l.term == m.term for m in model_levels]
     terms_approx_match = [l.term ≈ m.term for m in model_levels]
     gs_match = [l.g == m.g for m in model_levels]
 
-    for matches in [mask .& configs_match .& terms_match .& gs_match,
-                    mask .& configs_match .& terms_approx_match .& gs_match,
-                    mask .& configs_match .& terms_match,
-                    mask .& configs_match .& terms_approx_match,
-                    mask .& terms_match,
-                    mask .& terms_approx_match ]
+    for matches in [species_match .& configs_match .& terms_match .& gs_match,
+                    species_match .& configs_match .& terms_approx_match .& gs_match,
+                    species_match .& configs_match .& terms_match,
+                    species_match .& configs_match .& terms_approx_match,
+                    species_match .& terms_match,
+                    species_match .& terms_approx_match ]
         if sum(matches) == 1
             return findfirst(matches)
         elseif sum(matches) > 1
@@ -157,7 +151,6 @@ TODO default argument vals are an unsatisfactory way to handle this
 function interpolate_departure_coefs_and_atm(filenames, Teff=5000.0, logg=4.5, m_H=0.0)
     A_X = marcs_standard_composition(m_H)
     atm = interpolate_marcs(Teff, logg, A_X)
-    n_layers = length(atm.layers)
 
     coefs = map(filenames) do filename
         h5open(filename) do f
@@ -169,12 +162,11 @@ function interpolate_departure_coefs_and_atm(filenames, Teff=5000.0, logg=4.5, m
             g = Int.(2 * read(f, "J") .+ 1)
             g[g .== -1] .= 0 # handle cases where J was not resolved in model atom 
 
-            levels = AtomicLevel.(read(f, "configuration"), 
+            levels = AtomicLevel.(Species.(read(f, "species")),
+                                  read(f, "configuration"), 
                                   read(f, "term"),
                                   g,
                                   read(f, "E"))
-            n_levels = length(levels)
-            specs = Species.(read(f, "species"))
 
             bs = if occursin("Fe", filename) #TODO
                 lazy_multilinear_interpolation(
@@ -191,7 +183,7 @@ function interpolate_departure_coefs_and_atm(filenames, Teff=5000.0, logg=4.5, m
                 )
             end
 
-            specs, levels, bs
+            levels, bs
         end
     end
 
