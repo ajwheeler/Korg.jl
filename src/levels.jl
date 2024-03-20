@@ -62,12 +62,7 @@ end
 TODO
 """
 function match_levels(linelist, linelist_levels, coefs; energy_difference_threshold=0.05)
-    spec_sets = unique.([[l.species for l in levels] for levels in first.(coefs)])
-
-    # set up containers to get filled and returned
-    LTE_lines = eltype(linelist)[]
-    NLTE_lines = [Tuple{Int, Int, eltype(linelist)}[] for _ in coefs]
-    level_matches = [Pair{AtomicLevel, AtomicLevel}[] for _ in coefs]
+    model_atom_levels, model_atom_bs = coefs
 
     unique_line_levels = unique([first.(linelist_levels) ; last.(linelist_levels)])
     filter!(unique_line_levels) do level
@@ -75,35 +70,32 @@ function match_levels(linelist, linelist_levels, coefs; energy_difference_thresh
     end
 
     index_vals = @showprogress "matching unique levels" map(unique_line_levels) do level
-        model_atom_ind = findfirst(level.species in s for s in spec_sets)
-        isnothing(model_atom_ind) && return nothing
-        level_ind = match_level(level, coefs[model_atom_ind][1])
-        isnothing(level_ind) && return nothing
-        model_atom_ind, level_ind
+        match_level(level, model_atom_levels)
     end
     # maps level to (model_atom_ind, level_ind) 
-    indices = Dict((p for p in (unique_line_levels .=> index_vals) if !isnothing(last(p))))
+    indices = Dict(l=>i for (l, i) in zip(unique_line_levels, index_vals) if !isnothing(i))
 
-    level_matches = map(collect(pairs(indices))) do (spec_level, (model_atom_ind, level_ind))
-        spec_level => coefs[model_atom_ind][1][level_ind]
+    # maps linelist level to model atom level (for checking how well the matching worked)
+    level_matches = map(unique_line_levels) do level
+        if level in keys(indices)
+            level => model_atom_levels[indices[level]]
+        else
+            level => nothing
+        end
     end |> Dict
 
+    # containers to get filled and returned
+    LTE_lines = eltype(linelist)[]
+    NLTE_lines = Tuple{Int, Int, eltype(linelist)}[]
     for (line, (lower, upper)) in zip(linelist, linelist_levels)
-        if isnothing(lower) || isnothing(upper)
-            push!(LTE_lines, line)
+        if lower in keys(indices) && upper in keys(indices)
+            push!(NLTE_lines, (indices[lower], indices[upper], line))
         else
-            spec = line.species
-            if lower in keys(indices) && upper in keys(indices)
-                model_atom_ind, lower_ind = indices[lower]
-                model_atom_ind, upper_ind = indices[upper]
-                push!(NLTE_lines[model_atom_ind], (lower_ind, upper_ind, line))
-            else
-                push!(LTE_lines, line)
-            end
+            push!(LTE_lines, line)
         end
     end
 
-    LTE_lines, NLTE_lines, level_matches
+    LTE_lines, (NLTE_lines, model_atom_bs), level_matches
 end
 
 function match_level(l, model_levels; energy_difference_threshold=0.05)
@@ -186,6 +178,8 @@ function interpolate_departure_coefs_and_atm(filenames, Teff=5000.0, logg=4.5, m
             levels, bs
         end
     end
+
+    coefs = (vcat(first.(coefs)...), hcat(last.(coefs)...))
 
     atm, coefs
 end

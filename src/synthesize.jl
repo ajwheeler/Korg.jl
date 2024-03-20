@@ -93,6 +93,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object, 
    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
    and model atmosphere, `atm`, are unchanged.
+- `NLTE_lines` TODO
 - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real}, 
@@ -106,7 +107,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_cross_sections=[], NLTE_lines=[],
+                    molecular_cross_sections=[], NLTE_lines=nothing,
                     use_chemical_equilibrium_from=nothing, verbose=false)
     wl_ranges = construct_wavelength_ranges(wavelength_params...)
 
@@ -234,10 +235,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
         verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
-    if !isempty(NLTE_lines)
+    if !isnothing(NLTE_lines)
         α_NLTE = zeros(α_type, size(α))
         Sα_NLTE = zeros(α_type, size(α))
-        for (lines, bs) in NLTE_lines
+        let (lines, bs) = NLTE_lines
             line_absorption!(α_NLTE, lines, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
                 number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
                 verbose=verbose, departure_coefs=bs, Sα=Sα_NLTE)
@@ -245,7 +246,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     end
 
     # calculate source function.  It's blackbody in LTE, modified if using NLTE departure coefs.
-    if isempty(NLTE_lines)
+    if isnothing(NLTE_lines)
         source_fn = LTE_source_fn
     else
         source_fn = @. (LTE_source_fn * α + Sα_NLTE) / (α + α_NLTE)
