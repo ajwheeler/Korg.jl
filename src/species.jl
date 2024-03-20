@@ -4,7 +4,7 @@ import Base: broadcastable
 const MAX_ATOMS_PER_MOLECULE = 6
 
 """
-Represents an atom or molecule, irespective of its charge.
+Represents an atom or molecule, irrespective of its charge.
 """
 struct Formula
     # Support molecules with up to MAX_ATOMS_PER_MOLECULE atoms. 
@@ -157,8 +157,8 @@ end
 """
     Species(code)
 
-Parse the "species code" in many of the forms in which it is often specifieds and return an object 
-representing the sepcies. `code` can be either a string or a float.
+Parse the "species code" in many of the forms in which it is often specified and return an object 
+representing the species. `code` can be either a string or a float.
 
 # Examples
  - "H I" -> H I

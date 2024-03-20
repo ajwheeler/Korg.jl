@@ -236,7 +236,7 @@ tentotheOrMissing(x) = x == 0.0 ? missing : 10.0^x
 idOrMissing(x) = x == 0.0 ? missing : x
 
 function parse_kurucz_linelist(f; vacuum=false)
-    lines = Line[]
+    lines = Line{Float64, Float64, Float64, Float64, Float64, Float64}[]
     for row in eachline(f)
         row == "" && continue #skip empty lines
 

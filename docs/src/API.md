@@ -89,4 +89,6 @@ Korg.chemical_equilibrium
 
 ```@docs
 Korg.blackbody
+Korg.prune_linelist
+Korg.merge_close_lines
 ```

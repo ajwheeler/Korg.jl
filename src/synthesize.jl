@@ -18,21 +18,22 @@ Compute a synthetic spectrum.
 - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
 - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
-If you provide a vector of wavelength ranges in place of `λ_start` and `λ_stop`, the spectrum will 
-be synthesized over each range with minimal overhead.
-The ranges can be any Julia `AbstractRange`, for example: `5000:0.01:5010`.
+If you provide a vector of wavelength ranges (or a single range) in place of `λ_start` and `λ_stop`, 
+the spectrum will be synthesized over each range with minimal overhead.  These can be any Julia
+The ranges can be any Julia `AbstractRange`, for example: `[5000:0.01:5010, 6000:0.03:6005]`. they
+must be sorted and non-overlapping.
 
 # Returns 
 A named tuple with keys:
 - `flux`: the output spectrum
 - `cntm`: the continuum at each wavelength
-- `alpha`: the linear absorption coefficient at each wavelenth and atmospheric layer a Matrix of 
+- `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer a Matrix of 
    size (layers x wavelengths)
 - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
    atmospheric layer
 - `electron_number_density`: the electron number density at each atmospheric layer
-- `wavelengths`: The vacuum wavelenths (in Å) over which the synthesis was performed.  If 
-  `air_wavelengths=true` this will not be the same as the input wavelenths.
+- `wavelengths`: The vacuum wavelengths (in Å) over which the synthesis was performed.  If 
+  `air_wavelengths=true` this will not be the same as the input wavelengths.
 - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum 
    for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`, 
    `λ_step` arguments, this will be a vector containing only one range.
@@ -88,14 +89,14 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    testing purposes only.
 - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See 
    [`MolecularCrossSection`](@ref) for how to generate these.
+- `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by 
+   `synthesize`. When provided, the chemical equilibrium solution will be taken from this object, 
+   rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
+   and model atmosphere, `atm`, are unchanged.
 - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
-function synthesize(atm::ModelAtmosphere, linelist, A_X, λ_start, λ_stop, λ_step=0.01; kwargs...)
-    wls = [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
-    synthesize(atm, linelist, A_X, wls; kwargs...)
-end
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real}, 
-                    wl_ranges::AbstractVector{<:AbstractRange}; 
+                    wavelength_params...;
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
@@ -105,7 +106,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_cross_sections=[], NLTE_lines=[], verbose=false)
+                    molecular_cross_sections=[], NLTE_lines=[],
+                    use_chemical_equilibrium_from=nothing, verbose=false)
+    wl_ranges = construct_wavelength_ranges(wavelength_params...)
 
     # Convert air to vacuum wavelenths if necessary.
     if air_wavelengths
@@ -173,11 +176,19 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # This isn't used with bezier radiative transfer.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
     triples = map(enumerate(atm.layers)) do (i, layer)
-        nₑ, n_dict = chemical_equilibrium(layer.temp, layer.number_density, 
-                                          layer.electron_number_density, 
-                                          abs_abundances, ionization_energies, 
-                                          partition_funcs, log_equilibrium_constants; 
-                                          electron_number_density_warn_threshold=electron_number_density_warn_threshold)
+        nₑ, n_dict = if isnothing(use_chemical_equilibrium_from)
+            chemical_equilibrium(layer.temp, layer.number_density, 
+                                 layer.electron_number_density, 
+                                 abs_abundances, ionization_energies, 
+                                 partition_funcs, log_equilibrium_constants; 
+                                 electron_number_density_warn_threshold=electron_number_density_warn_threshold)
+        else
+            let sol = use_chemical_equilibrium_from
+                (sol.electron_number_density[i],
+                 Dict(s => sol.number_densities[s][i] for s in keys(sol.number_densities)),
+                )
+            end
+        end
 
         α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict, 
                                                          partition_funcs))
@@ -285,6 +296,18 @@ function cleanup_and_check_linelist(linelist, wl_ranges, line_buffer)
     end
     linelist
 end
+
+"""
+    construct_wavelength_ranges(wls...)
+
+Handle the wavelength specification passed to `synthesize`, returning a vector of wavelength ranges.
+See [`synthesize`](@ref) documentation for details.
+"""
+function construct_wavelength_ranges(λ_start, λ_stop, λ_step=0.01)
+    [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start)/λ_step))+1)]
+end
+construct_wavelength_ranges(wls::AbstractVector{<:AbstractRange}) = wls
+construct_wavelength_ranges(wls::AbstractRange) = [wls]
 
 """
     format_A_X(default_metals_H, default_alpha_H, abundances; kwargs... )
