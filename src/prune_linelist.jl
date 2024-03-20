@@ -57,7 +57,7 @@ function prune_linelist(atm, linelist, A_X, wls...;
     end |> Dict
 
     λ_ind = 1
-    strong_lines = Line[]
+    strong_lines = eltype(linelist)[]
     for line in linelist
         line_center = line.wl * 1e8
         if !any(λs[begin] < line_center < λs[end] for λs in wl_ranges)
