@@ -1,5 +1,3 @@
-using Statistics: mean
-
 """
     prune_linelist(atm, linelist, A_X, wls...; threshold=1.0, sort=true, synthesis_kwargs...)
 
@@ -18,7 +16,7 @@ equivalent width.
    computed at the photosphere for a line to be included in the returned list.
    `0.1` is a reasonable default for getting a sense of what might be measurable in a high-res, 
    high-quality spectrum, but it should not be used to create a linelist for synthesis.  
-- `sort_by_EW=true`: If `true`, the returned linelist will be sorted by approximate equivalent 
+- `sort_by_EW=true`: If `true`, the returned linelist will be sorted by approximate reduced equivalent 
    width.  If `false`, the linelist will be in wavelength order. Leaving the list in wavelength 
    order is much faster, but sorting by strength is useful for visualizing the strongest lines.
 All other kwargs are passed to internal calls to [`synthesize`](@ref).
@@ -90,7 +88,7 @@ function prune_linelist(atm, linelist, A_X, wls...;
             line_center = line.wl*1e8
             sol = synthesize(atm, [line], A_X, line_center - 2.0, line_center + 2.0; 
                              hydrogen_lines=false, use_chemical_equilibrium_from=sol, synthesis_kwargs...)
-            sum(1 .- sol.flux ./ sol.cntm) # units don't matter
+            sum(1 .- sol.flux ./ sol.cntm) / line_center # units don't matter
         end
         strong_lines[sortperm(approx_EWs, rev=true)]
     else
@@ -118,25 +116,27 @@ a string identifying the species of the line.
 """
 function merge_close_lines(lines; merge_distance=0.2)
     lines = sort(lines, by=l->l.wl)
-    
-    all_species = unique(l.species for l in lines)
-    species_line_lists = map(all_species) do species
-        species_lines = filter(l -> l.species == species, lines)
 
-        merged_lines = []
-        to_merge = [species_lines[1]]
-
-        for line in species_lines[2:end]
-            if (line.wl - to_merge[end].wl) * 1e8 < merge_distance
-                push!(to_merge, line)
+    merged_lines = Tuple{Float64, String}[]
+    d = Dict()
+    for l in lines
+        key = (l.species, l.E_lower)
+        if key in keys(d)
+            multiplet = d[(l.species, l.E_lower)]
+            if (multiplet[end].wl - l.wl)*1e8 < merge_distance
+                push!(multiplet, l)
             else
-                push!(merged_lines, (mean(l.wl*1e8 for l in to_merge), string(species)))
-                to_merge = [line]
+                mean_wl = 1e8 * sum(l.wl*10^l.log_gf for l in multiplet) / sum(10^l.log_gf for l in multiplet)
+                push!(merged_lines, (mean_wl, string(l.species)))
+                d[key] = [l]
             end
+        else
+            d[key] = [l]
         end
-        push!(merged_lines, (mean(l.wl*1e8 for l in to_merge), string(species)))
-        merged_lines
     end
-
-    sort(vcat(species_line_lists...))
+    for ((species, _), multiplet) in d
+        mean_wl = 1e8 * sum(l.wl*10^l.log_gf for l in multiplet) / sum(10^l.log_gf for l in multiplet)
+        push!(merged_lines, (mean_wl, string(species)))
+    end
+    merged_lines
 end
