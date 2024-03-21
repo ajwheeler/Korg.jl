@@ -11,4 +11,7 @@
     @test Set(strong_lines_sorted) == Set(strong_lines_unsorted)
     @test issorted(strong_lines_unsorted; by=l->l.wl)
     @test Set(strong_lines_sorted) ⊆ Set(more_strong_lines)
+
+    merged_lines = Korg.merge_close_lines(strong_lines_sorted)
+    @assert issorted(merged_lines; by=first)
 end
