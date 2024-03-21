@@ -117,26 +117,29 @@ a string identifying the species of the line.
 function merge_close_lines(lines; merge_distance=0.2)
     lines = sort(lines, by=l->l.wl)
 
-    merged_lines = Tuple{Float64, String}[]
+    merged_lines = Vector{eltype(lines)}[]
     d = Dict()
     for l in lines
-        key = (l.species, l.E_lower)
-        if key in keys(d)
-            multiplet = d[(l.species, l.E_lower)]
-            if (multiplet[end].wl - l.wl)*1e8 < merge_distance
+        if l.species in keys(d)
+            multiplet = d[l.species]
+            if (l.wl - multiplet[end].wl)*1e8 < merge_distance
                 push!(multiplet, l)
             else
-                mean_wl = 1e8 * sum(l.wl*10^l.log_gf for l in multiplet) / sum(10^l.log_gf for l in multiplet)
-                push!(merged_lines, (mean_wl, string(l.species)))
-                d[key] = [l]
+                push!(merged_lines, multiplet)
+                d[l.species] = [l]
             end
         else
-            d[key] = [l]
+            d[l.species] = [l]
         end
     end
-    for ((species, _), multiplet) in d
-        mean_wl = 1e8 * sum(l.wl*10^l.log_gf for l in multiplet) / sum(10^l.log_gf for l in multiplet)
-        push!(merged_lines, (mean_wl, string(species)))
+    for multiplet in values(d)
+        push!(merged_lines, multiplet)
     end
-    merged_lines
+
+    tups = map(merged_lines) do multiplet
+        mean_wl = 1e8 * sum(l.wl*10^l.log_gf for l in multiplet) / sum(10^l.log_gf for l in multiplet)
+        (mean_wl, multiplet[1].wl*1e8, multiplet[end].wl*1e8, string(multiplet[1].species))
+    end
+
+    sort(tups, by=first)
 end
