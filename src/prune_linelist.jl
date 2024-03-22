@@ -1,5 +1,3 @@
-using Statistics: mean
-
 """
     prune_linelist(atm, linelist, A_X, wls...; threshold=1.0, sort=true, synthesis_kwargs...)
 
@@ -18,9 +16,10 @@ equivalent width.
    computed at the photosphere for a line to be included in the returned list.
    `0.1` is a reasonable default for getting a sense of what might be measurable in a high-res, 
    high-quality spectrum, but it should not be used to create a linelist for synthesis.  
-- `sort_by_EW=true`: If `true`, the returned linelist will be sorted by approximate equivalent 
+- `sort_by_EW=true`: If `true`, the returned linelist will be sorted by approximate reduced equivalent 
    width.  If `false`, the linelist will be in wavelength order. Leaving the list in wavelength 
    order is much faster, but sorting by strength is useful for visualizing the strongest lines.
+- `verbose=true`: If `true`, a progress bar will be displayed while measuring the EWs.
 All other kwargs are passed to internal calls to [`synthesize`](@ref).
 
 !!! caution
@@ -33,7 +32,7 @@ All other kwargs are passed to internal calls to [`synthesize`](@ref).
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
 function prune_linelist(atm, linelist, A_X, wls...; 
-                        threshold=0.1, sort_by_EW=true, synthesis_kwargs...)
+                        threshold=0.1, sort_by_EW=true, verbose=true, synthesis_kwargs...)
     # linelist will be sorted after call to synthesize
     sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
     cntm_sol = synthesize(atm, [], A_X, wls...; synthesis_kwargs...) 
@@ -86,11 +85,13 @@ function prune_linelist(atm, linelist, A_X, wls...;
 
     # sort lines by approximate EW or leave them in wavelength order
     if sort_by_EW
-        approx_EWs = @showprogress "measuring $(length(strong_lines)) lines" map(strong_lines) do line
+        label = "measuring $(length(strong_lines)) lines"
+        approx_EWs = @showprogress label enabled=verbose map(strong_lines) do line
             line_center = line.wl*1e8
-            sol = synthesize(atm, [line], A_X, line_center - 2.0, line_center + 2.0; 
+            wls = line_center / 1.0003, line_center * 1.0003 # ± 90 km/s (~1.5 Å @ 5000 Å)
+            sol = synthesize(atm, [line], A_X, wls...; 
                              hydrogen_lines=false, use_chemical_equilibrium_from=sol, synthesis_kwargs...)
-            sum(1 .- sol.flux ./ sol.cntm) # units don't matter
+            sum(1 .- sol.flux ./ sol.cntm) / line_center # units don't matter
         end
         strong_lines[sortperm(approx_EWs, rev=true)]
     else
@@ -113,30 +114,36 @@ plot after running [`prune_linelist`](@ref).
    into a single entry
 
 # Returns
-A vector of tuples `(wl, species)` where `wl` is the wavelength of the line in Å and `species` is
-a string identifying the species of the line.
+A vector of tuples `(wl, wl_low, wl_high, species)` where `wl` is gf-weighted wavelength of each set 
+of merged lines (Å), `wl_low` and `wl_high` are their highest and lowest wavelength, and 
+`species` is a string (not a `Korg.Species`) identifying the species of the line. These will be in 
+wavelength order.
 """
 function merge_close_lines(lines; merge_distance=0.2)
     lines = sort(lines, by=l->l.wl)
-    
-    all_species = unique(l.species for l in lines)
-    species_line_lists = map(all_species) do species
-        species_lines = filter(l -> l.species == species, lines)
 
-        merged_lines = []
-        to_merge = [species_lines[1]]
-
-        for line in species_lines[2:end]
-            if (line.wl - to_merge[end].wl) * 1e8 < merge_distance
-                push!(to_merge, line)
+    merged_lines = Vector{eltype(lines)}[]
+    d = Dict()
+    for l in lines
+        if l.species in keys(d)
+            multiplet = d[l.species]
+            if (l.wl - multiplet[end].wl)*1e8 < merge_distance
+                push!(multiplet, l)
             else
-                push!(merged_lines, (mean(l.wl*1e8 for l in to_merge), string(species)))
-                to_merge = [line]
+                push!(merged_lines, multiplet)
+                d[l.species] = [l]
             end
+        else
+            d[l.species] = [l]
         end
-        push!(merged_lines, (mean(l.wl*1e8 for l in to_merge), string(species)))
-        merged_lines
+    end
+    for multiplet in values(d)
+        push!(merged_lines, multiplet)
     end
 
-    sort(vcat(species_line_lists...))
+    tups = map(merged_lines) do multiplet
+        mean_wl = 1e8 * sum(l.wl*10^l.log_gf for l in multiplet) / sum(10^l.log_gf for l in multiplet)
+        (mean_wl, multiplet[1].wl*1e8, multiplet[end].wl*1e8, string(multiplet[1].species))
+    end
+    sort(tups, by=first)
 end
