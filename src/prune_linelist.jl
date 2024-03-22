@@ -19,6 +19,7 @@ equivalent width.
 - `sort_by_EW=true`: If `true`, the returned linelist will be sorted by approximate reduced equivalent 
    width.  If `false`, the linelist will be in wavelength order. Leaving the list in wavelength 
    order is much faster, but sorting by strength is useful for visualizing the strongest lines.
+- `verbose=true`: If `true`, a progress bar will be displayed while measuring the EWs.
 All other kwargs are passed to internal calls to [`synthesize`](@ref).
 
 !!! caution
@@ -31,7 +32,7 @@ All other kwargs are passed to internal calls to [`synthesize`](@ref).
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
 function prune_linelist(atm, linelist, A_X, wls...; 
-                        threshold=0.1, sort_by_EW=true, synthesis_kwargs...)
+                        threshold=0.1, sort_by_EW=true, verbose=true, synthesis_kwargs...)
     # linelist will be sorted after call to synthesize
     sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
     cntm_sol = synthesize(atm, [], A_X, wls...; synthesis_kwargs...) 
@@ -84,9 +85,11 @@ function prune_linelist(atm, linelist, A_X, wls...;
 
     # sort lines by approximate EW or leave them in wavelength order
     if sort_by_EW
-        approx_EWs = @showprogress "measuring $(length(strong_lines)) lines" map(strong_lines) do line
+        label = "measuring $(length(strong_lines)) lines"
+        approx_EWs = @showprogress label enabled=verbose map(strong_lines) do line
             line_center = line.wl*1e8
-            sol = synthesize(atm, [line], A_X, line_center - 2.0, line_center + 2.0; 
+            wls = line_center / 1.0003, line_center * 1.0003 # ± 90 km/s (~1.5 Å @ 5000 Å)
+            sol = synthesize(atm, [line], A_X, wls...; 
                              hydrogen_lines=false, use_chemical_equilibrium_from=sol, synthesis_kwargs...)
             sum(1 .- sol.flux ./ sol.cntm) / line_center # units don't matter
         end
@@ -111,8 +114,10 @@ plot after running [`prune_linelist`](@ref).
    into a single entry
 
 # Returns
-A vector of tuples `(wl, species)` where `wl` is the wavelength of the line in Å and `species` is
-a string identifying the species of the line.
+A vector of tuples `(wl, wl_low, wl_high, species)` where `wl` is gf-weighted wavelength of each set 
+of merged lines (Å), `wl_low` and `wl_high` are their highest and lowest wavelength, and 
+`species` is a string (not a `Korg.Species`) identifying the species of the line. These will be in 
+wavelength order.
 """
 function merge_close_lines(lines; merge_distance=0.2)
     lines = sort(lines, by=l->l.wl)
@@ -140,6 +145,5 @@ function merge_close_lines(lines; merge_distance=0.2)
         mean_wl = 1e8 * sum(l.wl*10^l.log_gf for l in multiplet) / sum(10^l.log_gf for l in multiplet)
         (mean_wl, multiplet[1].wl*1e8, multiplet[end].wl*1e8, string(multiplet[1].species))
     end
-
     sort(tups, by=first)
 end
