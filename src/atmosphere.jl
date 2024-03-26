@@ -210,8 +210,8 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           perturb_at_grid_values=false)
-    nodes, exists, grid = _sdss_marcs_atmospheres
+                           perturb_at_grid_values=false, archive=_sdss_marcs_atmospheres)
+    nodes, exists, grid = archive 
 
     params = [Teff, logg, M_H, alpha_M, C_M]
     param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
