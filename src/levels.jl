@@ -183,3 +183,51 @@ function interpolate_departure_coefs_and_atm(filenames, Teff=5000.0, logg=4.5, m
 
     atm, coefs
 end
+
+"""
+TODO
+"""
+function extract_vald_levels(f)
+    lines, _, firstline_ind, shortformat = preprocess_vald_file(f)
+
+    if shortformat
+        throw(ArgumentError("Can't extract detailed level info from short-format VALD linelist"))
+    end
+
+    @views body = lines[firstline_ind : 4 : end]
+    nlines = findfirst(l->l[1]!='\"' || !isuppercase(l[2]), body)-1
+    @views body = body[1:nlines]
+
+    # The header is the same for both extract all and extract stellar in "long format"
+    CSVheader = ["species", "wl", "loggf", "E_low", "J_lo", "E_up", "J_up", "lower_lande",
+                 "upper_lande", "mean_lande", "gamma_rad", "gamma_stark", "gamma_vdW"]
+    body = CSV.File(reduce(vcat, codeunits.(body.*"\n")), header=CSVheader, delim=',', 
+                    silencewarnings=true)
+    
+    # the line quantities we need as a vector of named tuples
+    transitions = map(eachrow(body)) do row
+        (species=Species(row[1].species), E_low=row[1].E_low, J_lo=row[1].J_lo, E_up=row[1].E_up, J_up=row[1].J_up)
+    end
+    @assert length(transitions) == nlines
+                
+    level_pairs = map(transitions, 1:nlines) do transition, transition_ind
+        line_ind = 4(transition_ind - 1) + firstline_ind 
+        lower_level_ind = line_ind + 1
+        upper_level_ind = line_ind + 2
+
+        toks_low = split(lines[lower_level_ind][2:end-1])
+        @assert length(toks_low) == 3
+        lower_level = AtomicLevel(transition.species, toks_low[2], toks_low[3], Int(transition.J_lo*2+1), transition.E_low)
+
+        toks_up = split(lines[upper_level_ind][2:end-1])
+        @assert length(toks_up) == 3
+        upper_level = AtomicLevel(transition.species, toks_up[2], toks_up[3], Int(transition.J_up*2+1), transition.E_up)
+
+        lower_level, upper_level
+    end
+
+    # filter out lines that are filtered out in the linelist
+    mask = line_inclusion_criterion.(transitions)
+
+    level_pairs[mask]
+end

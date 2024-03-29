@@ -150,6 +150,16 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
+    line_inclusion_criterion(line)
+
+This function determined which lines should be inluded when reading a linelist.
+It returns `false` for triply+ ionized and hydrogen lines.
+"""
+function line_inclusion_criterion(line)
+    (0 <= line.species.charge <= 2) && (line.species != species"H_I")
+end
+
+"""
     read_linelist(filename; format="vald", isotopic_abundances=Korg.isotopic_abundances)
 
 Parse a linelist file, returning a vector of [`Line`](@ref)s.
@@ -210,9 +220,7 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
         end
     end
 
-    filter!(linelist) do line #filter triply+ ionized and hydrogen lines
-        (0 <= line.species.charge <= 2) && (line.species != species"H_I")
-    end
+    filter!(line_inclusion_criterion, linelist) 
 
     #ensure linelist is sorted
     if !issorted(linelist, by=l->l.wl)
@@ -288,8 +296,8 @@ function parse_kurucz_molecular_linelist(f; vacuum=false)
     lines
 end
 
-
-function parse_vald_linelist(f, isotopic_abundances)
+# used in parsing vald files for both linelist and level extraction
+function preprocess_vald_file(f)
     lines = filter!(collect(eachline(f))) do line
         length(line) > 0 && line[1] != '#' # remove comments and empty lines
     end
@@ -298,13 +306,24 @@ function parse_vald_linelist(f, isotopic_abundances)
     if startswith(lines[1],  " WARNING: Output was truncated to 100000 lines")
         lines = lines[2:end]
     end
-
+    
     lines = replace.(lines, "'"=>"\"") #replace single quotes with double
 
     # is this an "extract all" or an "extract stellar" linelist?
     extractall = !occursin(r"^\s+\d", lines[1])
-    firstline = extractall ? 3 : 4
-    header = lines[firstline - 1]
+    firstline_ind = extractall ? 3 : 4
+
+    #we take the linelist to be long-format when the second line after the header starts with a 
+    #space or a quote followed a space.  In some linelists the quotes are there, but in others 
+    #they are not.
+    shortformat = !(occursin(r"^\"? ", lines[firstline_ind + 1])) 
+
+    lines, extractall, firstline_ind, shortformat
+end
+
+function parse_vald_linelist(f, isotopic_abundances)
+    lines, extractall, firstline_ind, shortformat = preprocess_vald_file(f)
+    header = lines[firstline_ind - 1]
 
     scale_isotopes = any(startswith.(lines, "* oscillator strengths were NOT scaled "))
     if !scale_isotopes && !any(startswith.(lines,"* oscillator strengths were scaled "))
@@ -312,11 +331,8 @@ function parse_vald_linelist(f, isotopic_abundances)
                             "isotopic abundance."))
     end
 
-    #we take the linelist to be long-format when the second line after the header starts with a 
-    #space or a quote followed a space.  In some linelists the quotes are there, but in others 
-    #they are not.
-    shortformat = !(occursin(r"^\"? ", lines[firstline + 1])) 
-    body = lines[firstline : (shortformat ? 1 : 4) : end]
+
+    body = lines[firstline_ind : (shortformat ? 1 : 4) : end]
     body = body[1 : findfirst(l->l[1]!='\"' || !isuppercase(l[2]), body)-1]
 
     CSVheader = if shortformat && extractall
@@ -350,7 +366,7 @@ function parse_vald_linelist(f, isotopic_abundances)
 
     Δlog_gf = if scale_isotopes
         refs = if !shortformat #the references are on different lines
-            lines[firstline+3 .+ ((0:length(body)-1) .* 4)]
+            lines[firstline_ind+3 .+ ((0:length(body)-1) .* 4)]
         else #references are in the last column
             body.reference
         end
