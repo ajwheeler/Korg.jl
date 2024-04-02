@@ -1,10 +1,6 @@
 using Random
 
 @testset "Fit" begin
-    @testset "argument checks" begin
-        params = Dict()
-    end
-
     @testset "parameter scaling" begin
         params = Dict("Teff"=>3200.0, "logg"=>4.5, "m_H"=>-2.0, "vmic"=>3.2, "vsini"=>10.0, "O"=>-1.0)
         sparams = Korg.Fit.scale(params)
