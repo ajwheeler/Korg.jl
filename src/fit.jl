@@ -23,7 +23,7 @@ tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
 # these are the parameters which are scaled by tan_scale
 const tan_scale_params = Dict(
     "epsilon" => (0, 1),
-    "cntm_offset" => (-0.1, 0.1),
+    "cntm_offset" => (-0.5, 0.5),
     "cntm_slope" => (-0.1, 0.1),
     # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the 
     # test environment, but they are simply the boundaries of the SDSS marcs grid used by
