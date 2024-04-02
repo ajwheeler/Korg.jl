@@ -23,6 +23,8 @@ tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
 # these are the parameters which are scaled by tan_scale
 const tan_scale_params = Dict(
     "epsilon" => (0, 1),
+    "cntm_offset" => (-0.1, 0.1),
+    "cntm_slope" => (-0.1, 0.1),
     # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the 
     # test environment, but they are simply the boundaries of the SDSS marcs grid used by
     # Korg.interpolate_marcs.
@@ -69,7 +71,8 @@ end
 
 """
 Synthesize a spectrum, returning the flux, with LSF applied, resampled, and rectified.  This is 
-used by fitting routines. See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
+an internal function oned by fitting routines.
+See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
 """
 function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthesis_kwargs)
     specified_abundances = Dict([p for p in pairs(params) if p.first in Korg.atomic_symbols])
@@ -81,7 +84,12 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthes
 
     sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params["vmic"], line_buffer=0,
                           electron_number_density_warn_threshold=Inf, synthesis_kwargs...)
-    F = sol.flux ./ sol.cntm
+
+    # apply cntm adjustments
+    central_wavelength = (sol.wavelengths[begin] + sol.wavelengths[end]) / 2
+    cntm_adjustment = 1 .- params["cntm_offset"] .- params["cntm_slope"]*(sol.wavelengths .- central_wavelength)
+    F = sol.flux ./ (sol.cntm .* cntm_adjustment)
+
     F = Korg.apply_rotation(F, synthesis_wls, params["vsini"], params["epsilon"])
     LSF_matrix * F
 end
@@ -94,7 +102,7 @@ these can be specified in either initial_guesses or fixed_params, but if they ar
 """
 function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDict;
                          required_params = ["Teff", "logg"],
-                         default_params = Dict("m_H"=>0.0, "vsini"=>0.0, "vmic"=>1.0, "epsilon"=>0.6),
+                         default_params = Dict("m_H"=>0.0, "vsini"=>0.0, "vmic"=>1.0, "epsilon"=>0.6, "cntm_offset"=>0.0, "cntm_slope"=>0.0),
                          allowed_params = Set(["alpha_H" ; required_params ; keys(default_params)... ; Korg.atomic_symbols]))
     # convert all parameter values to Float64
     initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
@@ -161,11 +169,12 @@ Find the parameters and abundances that best match a rectified observed spectrum
 more convenient when calling Korg from python.
 
 # Specifying parameters
-Parameters are specified as NamedTuples, which look like this: `(Teff=5000, logg=4.5, m_H=0.0)`.
-Single-element NamedTuples require a semicolon: `(; Teff=5000)`. 
-## Required parameters
+Parameters are specified as named tuples or dictionaries. Named tuples look like this:
+ `(Teff=5000, logg=4.5, m_H=0.0)`.  Single-element named tuples require a semicolon: `(; Teff=5000)`.
+
+### Required parameters
 `Teff` and `logg` *must* be specified in either `initial_guesses` or `fixed_params`.
-## Optional Parameters
+### Optional Parameters
 These can be specified in either `initial_guesses` or `fixed_params`, but if they are not default 
 values are used.
 - `m_H`: the metallicity of the star, in dex. Default: `0.0`
@@ -178,6 +187,10 @@ values are used.
 - `epsilon`: the linear limb-darkening coefficient. Default: `0.6`. Used for applying rotational 
   broadening only.  See [`Korg.apply_rotation`](@ref) for details.
 - Individual elements, e.g. `Na`, specify the solar-relative ([X/H]) abundance of that element. 
+- `cntm_offset`: a constant offset to the continuum. Default: `0.0` (no correction).
+- `cntm_slope`: the slope of a linear correction applied to the continuum. Default: `0.0` (no 
+  correction). The linear correction will be zero at the central wavelength. While it's possible to
+  fit for a continuum slope with a fixed offset, it is highly disrecommended.
 
 !!! tip
     If you are doing more than a few fits, you will save a lot of time by precomputing the LSF 
@@ -269,24 +282,19 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         end
     end 
     
-    # if we are fitting a multiple parameters, use BFGS with autodiff
+    # call optimization library
     res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
              Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
                            extended_trace=true); autodiff=:forward)
 
-    # derivate relating the scaled parameters to the unscaled parameters
-    # (used to convert the approximate hessian to a covariance matrix in the unscaled params)
-    dp_dscaledp = map(res.minimizer, params_to_fit) do scaled_param, param_name
-        ForwardDiff.derivative(scaled_param) do scaled_param
-            unscale(Dict(param_name=>scaled_param))[param_name]
-        end
+    best_fit_params = unscale(Dict(params_to_fit .=> res.minimizer))
+
+    best_fit_flux = try
+        full_solution = merge(best_fit_params, fixed_params)
+        synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution, synthesis_kwargs)
+    catch e
+        println(e)
     end
-    # the fact that the scaling is a diagonal operation means that we can do this as an element-wise
-    # product.  If we think of ds/dp as a (diagonal) matrix, this is equivalent to
-    # (ds/dp)^T * invH * (ds/dp)
-    invH_scaled = res.trace[end].metadata["~inv(H)"]
-    invH = invH_scaled .* dp_dscaledp .* dp_dscaledp'
-    solution = unscale(Dict(params_to_fit .=> res.minimizer))
 
     trace = map(res.trace) do t
         unscaled_params = unscale(Dict(params_to_fit .=> t.metadata["x"]))
@@ -294,14 +302,22 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         unscaled_params
     end
 
-    full_solution = merge(solution, fixed_params)
-    best_fit_flux = try
-        synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask], full_solution, synthesis_kwargs)
-    catch e
-        println(e)
+    invH = let
+        # derivate relating the scaled parameters to the unscaled parameters
+        # (used to convert the approximate hessian to a covariance matrix in the unscaled params)
+        dp_dscaledp = map(res.minimizer, params_to_fit) do scaled_param, param_name
+            ForwardDiff.derivative(scaled_param) do scaled_param
+                unscale(Dict(param_name=>scaled_param))[param_name]
+            end
+        end
+        # the fact that the scaling is a diagonal operation means that we can do this as an 
+        # element-wise product.  If we think of ds/dp as a (diagonal) matrix, this is equivalent to
+        # (ds/dp)^T * invH * (ds/dp)
+        invH_scaled = res.trace[end].metadata["~inv(H)"]
+        invH_scaled .* dp_dscaledp .* dp_dscaledp'
     end
 
-    (best_fit_params=solution, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask, 
+    (best_fit_params=best_fit_params, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask, 
      solver_result=res, trace=trace, covariance=(params_to_fit, invH))
 end
 
@@ -370,7 +386,7 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
         obs_wl_mask[lb:ub] .= true
 
         synth_wl_lb = findfirst(synthesis_wls .>= obs_wls[lb] - wl_buffer)
-        synth_wl_ub = findfirst(synthesis_wls .> obs_wls[ub] + wl_buffer) - 1
+        synth_wl_ub = findlast(synthesis_wls .<= obs_wls[ub] + wl_buffer)
         synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
 
         synthesis_wls[synth_wl_lb:synth_wl_ub]

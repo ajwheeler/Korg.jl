@@ -65,6 +65,7 @@ using Random
         # fixed_params
         logg = 4.52
         vmic = 0.83
+        cntm_offset = 0.04
 
         synth_wls = 5000:0.01:5010
         obs_wls = 5003 : 0.03 : 5008
@@ -76,12 +77,12 @@ using Random
         # generate a spectrum and 
         atm = interpolate_marcs(Teff, logg, m_H)
         sol = synthesize(atm, linelist, format_A_X(m_H), [synth_wls]; vmic=vmic)
-        spectrum = LSF * (sol.flux ./ sol.cntm)
+        spectrum = LSF * (sol.flux ./ (sol.cntm .* (1 - cntm_offset)))
         err = 0.01 * ones(length(spectrum)) # don't actually apply error to keep tests deterministic
 
         # now fit it
         p0 = (Teff=5350.0, m_H=0.0)
-        fixed = (logg=logg, vmic=vmic)
+        fixed = (logg=logg, vmic=vmic, cntm_offset=cntm_offset)
         result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed; 
                                        synthesis_wls=synth_wls, LSF_matrix=LSF)
         

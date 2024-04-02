@@ -19,7 +19,7 @@ Compute a synthetic spectrum.
 - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
 If you provide a vector of wavelength ranges (or a single range) in place of `λ_start` and `λ_stop`, 
-the spectrum will be synthesized over each range with minimal overhead.  These can be any Julia
+the spectrum will be synthesized over each range with minimal overhead.
 The ranges can be any Julia `AbstractRange`, for example: `[5000:0.01:5010, 6000:0.03:6005]`. they
 must be sorted and non-overlapping.
 
