@@ -45,7 +45,7 @@ function lazy_multilinear_interpolation(params, nodes, grid;
         atm_inds[isexact] .= 2 #use the "upper bound" as "lower bound" if the param is on a grid point
         atm_inds .+= upper_vertex .- 2
 
-        structure[:, :, local_inds...] .= grid[:, :, atm_inds...]
+        @views structure[:, :, local_inds...] .= grid[:, :, atm_inds...]
     end
 
     for i in eachindex(params) #loop over interpolation parameters
@@ -64,7 +64,7 @@ function lazy_multilinear_interpolation(params, nodes, grid;
         inds2 = vcat([1 for _ in 1:i-1], 2, [Colon() for _ in i+1:length(params)])
         
         x = (params[i] - p1) / (p2 - p1) #maybe try using masseron alpha later
-        structure[:, :, inds1...] = (1-x)*structure[:, :, inds1...] + x*structure[:, :, inds2...]
+        @views structure[:, :, inds1...] = (1-x)*structure[:, :, inds1...] + x*structure[:, :, inds2...]
     end
     structure[:, :, ones(Int, length(params))...]
 end
