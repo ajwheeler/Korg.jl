@@ -158,11 +158,13 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
 end
 
 const _sdss_marcs_atmospheres = let
-    path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
-    exists = h5read(path, "exists")
-    grid = h5read(path, "grid")
-    nodes = [h5read(path, "grid_values/$i") for i in 1:5]
-    (nodes, exists, grid)
+    #path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
+    path = "/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/SDSS_MARCS_atmospheres.h5"
+    h5open(path, "r") do f
+        grid = HDF5.readmmap(f["grid"])
+        nodes = [read(f["grid_values/$i"]) for i in 1:5]
+        nodes, grid
+    end
 end
 
 """
@@ -195,8 +197,7 @@ The model atmosphere grid is a repacked version of the
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
     Teff ≈ 4250 K. We do not endorse using it for science in that regime. See 
-    https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
-"""
+    https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.  """
 function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; 
                            solar_abundances=grevesse_2007_solar_abundances, 
                            clamp_abundances=false, kwargs...)
@@ -215,7 +216,7 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
                            perturb_at_grid_values=false, archive=_sdss_marcs_atmospheres)
-    nodes, _, grid = archive 
+    nodes, grid = archive 
 
     params = [Teff, logg, M_H, alpha_M, C_M]
     param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
