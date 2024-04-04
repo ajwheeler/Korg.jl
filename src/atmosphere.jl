@@ -1,6 +1,7 @@
 # used when downloading model atmosphere archive
 using ProgressMeter: Progress, update!, finish!
 using Pkg.Artifacts: @artifact_str
+import Interpolations
  
 abstract type ModelAtmosphere end
 
@@ -167,6 +168,31 @@ const _sdss_marcs_atmospheres = let
     end
 end
 
+const _cool_dwarfs_atm_itp = let 
+    println("reloading")
+    path = "/Users/wheeler.883/Dropbox/Korg/data/model_atmospheres/resampled_cool_dwarf_atmospheres.h5"
+    grid, nodes = h5open(path, "r") do f
+        read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
+    end
+
+    nodes_ranges = [range(first(n), last(n), length(n)) for n in nodes]   
+    @assert all(nodes_ranges .== nodes)
+
+    nlayers = size(grid, 1)
+    knots = tuple(1f0:nlayers, 1f0:5f0, nodes_ranges...)
+
+    itp = Interpolations.scale(Interpolations.interpolate(
+        grid, (Interpolations.NoInterp(),
+               Interpolations.NoInterp(),
+               Interpolations.BSpline(Interpolations.Cubic()),
+               Interpolations.BSpline(Interpolations.Cubic()), 
+               Interpolations.BSpline(Interpolations.Cubic()),
+               Interpolations.BSpline(Interpolations.Cubic()),
+               Interpolations.BSpline(Interpolations.Cubic()))),
+          knots)
+    itp, nlayers
+end
+
 """
     interpolate_marcs(Teff, logg, Fe_M=0, alpha_M=0, C_M=0; kwargs...)
     interpolate_marcs(Teff, logg, A_X; kwargs...)
@@ -215,30 +241,40 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
     interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           perturb_at_grid_values=false, archive=_sdss_marcs_atmospheres)
-    nodes, grid = archive 
-
-    params = [Teff, logg, M_H, alpha_M, C_M]
-    param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
-    atm_quants = lazy_multilinear_interpolation(params, nodes, grid, param_names=param_names, 
-                                               perturb_at_grid_values=perturb_at_grid_values)
-
-    
-    # less extended atmospheres will have NaNs past the extremem tau values.
-    nanmask = .! isnan.(atm_quants[:, 4])
-
-    if spherical
-        R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
-        ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[nanmask, 4], 
-                                              sinh.(atm_quants[nanmask, 5]), 
-                                              atm_quants[nanmask, 1],
-                                              exp.(atm_quants[nanmask, 2]), 
-                                              exp.(atm_quants[nanmask, 3])), R)
+                           perturb_at_grid_values=false, resampled_cubic_for_cool_dwarfs=true,
+                           archive=_sdss_marcs_atmospheres)
+    if Teff <= 4000 && logg >= 3.5 && resampled_cubic_for_cool_dwarfs
+        itp, nlayers = _cool_dwarfs_atm_itp
+        atm_quants = itp(1:nlayers, 1:5, Teff, logg, M_H, alpha_M, C_M)
+        PlanarAtmosphere(PlanarAtmosphereLayer.(
+            10 .^ atm_quants[:, 4],
+            sinh.(atm_quants[:, 5]), 
+            atm_quants[:, 1],
+            exp.(atm_quants[:, 2]), 
+            exp.(atm_quants[:, 3])))
     else
-        PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[nanmask, 4], 
-                                               sinh.(atm_quants[nanmask, 5]), 
-                                               atm_quants[nanmask, 1],
-                                               exp.(atm_quants[nanmask, 2]), 
-                                               exp.(atm_quants[nanmask, 3])))
+        nodes, grid = archive 
+
+        params = [Teff, logg, M_H, alpha_M, C_M]
+        param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
+        atm_quants = lazy_multilinear_interpolation(params, nodes, grid, param_names=param_names, 
+                                                   perturb_at_grid_values=perturb_at_grid_values)
+
+        # less extended atmospheres will have NaNs past the extremem tau values.
+        nanmask = .! isnan.(atm_quants[:, 4])
+        if spherical
+            R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
+            ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[nanmask, 4], 
+                                                  sinh.(atm_quants[nanmask, 5]), 
+                                                  atm_quants[nanmask, 1],
+                                                  exp.(atm_quants[nanmask, 2]), 
+                                                  exp.(atm_quants[nanmask, 3])), R)
+        else
+            PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[nanmask, 4], 
+                                                   sinh.(atm_quants[nanmask, 5]), 
+                                                   atm_quants[nanmask, 1],
+                                                   exp.(atm_quants[nanmask, 2]), 
+                                                   exp.(atm_quants[nanmask, 3])))
+        end
     end
 end
