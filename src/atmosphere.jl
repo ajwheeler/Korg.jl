@@ -223,18 +223,22 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg <
     atm_quants = lazy_multilinear_interpolation(params, nodes, grid, param_names=param_names, 
                                                perturb_at_grid_values=perturb_at_grid_values)
 
+    
+    # less extended atmospheres will have NaNs past the extremem tau values.
+    nanmask = .! isnan.(atm_quants[:, 4])
+
     if spherical
         R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
-        ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[:, 4], 
-                                              sinh.(atm_quants[:, 5]), 
-                                              atm_quants[:, 1],
-                                              exp.(atm_quants[:, 2]), 
-                                              exp.(atm_quants[:, 3])), R)
+        ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[nanmask, 4], 
+                                              sinh.(atm_quants[nanmask, 5]), 
+                                              atm_quants[nanmask, 1],
+                                              exp.(atm_quants[nanmask, 2]), 
+                                              exp.(atm_quants[nanmask, 3])), R)
     else
-        PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[:, 4], 
-                                               sinh.(atm_quants[:, 5]), 
-                                               atm_quants[:, 1],
-                                               exp.(atm_quants[:, 2]), 
-                                               exp.(atm_quants[:, 3])))
+        PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[nanmask, 4], 
+                                               sinh.(atm_quants[nanmask, 5]), 
+                                               atm_quants[nanmask, 1],
+                                               exp.(atm_quants[nanmask, 2]), 
+                                               exp.(atm_quants[nanmask, 3])))
     end
 end
