@@ -168,13 +168,7 @@ const _sdss_marcs_atmospheres = let
     end
 end
 
-const _cool_dwarfs_atm_itp = let 
-    println("reloading")
-    path = "/Users/wheeler.883/Dropbox/Korg/data/model_atmospheres/resampled_cool_dwarf_atmospheres.h5"
-    grid, nodes = h5open(path, "r") do f
-        read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
-    end
-
+function _prepare_cool_dwarf_atm_archive(grid, nodes)
     nodes_ranges = [range(first(n), last(n), length(n)) for n in nodes]   
     @assert all(nodes_ranges .== nodes)
 
@@ -191,6 +185,13 @@ const _cool_dwarfs_atm_itp = let
                Interpolations.BSpline(Interpolations.Cubic()))),
           knots)
     itp, nlayers
+end
+const _cool_dwarfs_atm_itp = let 
+    path = "/Users/wheeler.883/Dropbox/Korg/data/model_atmospheres/resampled_cool_dwarf_atmospheres.h5"
+    grid, nodes = h5open(path, "r") do f
+        read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
+    end
+    _prepare_cool_dwarf_atm_archive(grid, nodes)
 end
 
 """
@@ -209,7 +210,6 @@ The model atmosphere grid is a repacked version of the
 # keyword arguments
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
   default true when `logg` < 3.5.
-- `archive`: The atmosphere archive to use.  This is used to override the default grid for testing.
 - `solar_abundances`: (default: `grevesse_2007_solar_abundances`) The solar abundances to use when 
   `A_X` is provided instead of `M_H`, `alpha_M`, and `C_M`. The default is chosen to match that of 
   the atmosphere grid, and is probably no good reason to change it.
@@ -219,6 +219,7 @@ The model atmosphere grid is a repacked version of the
 - `perturb_at_grid_values`: when true this will add or a subtract a very small number to each 
    parameter which is exactly at a grid value. This prevents null derivatives, which can cause 
    problems for minimizers.  
+- `archives`: The atmosphere grid to use.  For testing purposes.
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
@@ -242,18 +243,18 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
                            perturb_at_grid_values=false, resampled_cubic_for_cool_dwarfs=true,
-                           archive=_sdss_marcs_atmospheres)
-    if Teff <= 4000 && logg >= 3.5 && resampled_cubic_for_cool_dwarfs
-        itp, nlayers = _cool_dwarfs_atm_itp
+                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp))
+    if Teff <= 4000 && #=logg >= 3.5= &&=# resampled_cubic_for_cool_dwarfs
+        itp, nlayers = archives[2]
         atm_quants = itp(1:nlayers, 1:5, Teff, logg, M_H, alpha_M, C_M)
         PlanarAtmosphere(PlanarAtmosphereLayer.(
-            10 .^ atm_quants[:, 4],
+            atm_quants[:, 4],
             sinh.(atm_quants[:, 5]), 
             atm_quants[:, 1],
             exp.(atm_quants[:, 2]), 
             exp.(atm_quants[:, 3])))
     else
-        nodes, grid = archive 
+        nodes, grid = archives[1]
 
         params = [Teff, logg, M_H, alpha_M, C_M]
         param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]

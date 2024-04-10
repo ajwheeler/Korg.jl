@@ -85,12 +85,26 @@
         end
 
         @testset "grid points" begin
+            using Interpolations: linear_interpolation
             # calling the interpolator on grid points should return the same atmosphere
             atm1 = Korg.read_model_atmosphere("data/s5000_g+3.0_m1.0_t02_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
             atm2 = Korg.interpolate_marcs(5000, 3.0)
 
             # values are not precisely identical.  I think this is due to slightly different solar mixtures.
             @test assert_atmospheres_close(atm1, atm2; rtol=2e-3)
+
+            # two interpolation schemes should give the same result at grid points
+            atm1 = Korg.interpolate_marcs(3000, 4.0; resampled_cubic_for_cool_dwarfs=true)
+            atm2 = Korg.interpolate_marcs(3000, 4.0; resampled_cubic_for_cool_dwarfs=false)
+
+            logτs1 = log10.(Korg.get_tau_5000s(atm1))
+            logτs2 = log10.(Korg.get_tau_5000s(atm2))
+
+            for f in [Korg.get_temps, Korg.get_number_densities, Korg.get_electron_number_densities]
+                itp = linear_interpolation(logτs1, f(atm1))
+                fs = itp(logτs2[5:end-5])
+                @test assert_allclose(f(atm2)[5:end-5], fs; rtol=1e-2)
+            end
         end
     end
 end
