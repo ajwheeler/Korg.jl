@@ -158,16 +158,29 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
      end
 end
 
-const _sdss_marcs_atmospheres = let
-    #path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
-    path = "/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/SDSS_MARCS_atmospheres.h5"
+# used for the standard and low-metallicity grids.  Lazy linear interp is used for these, so it's 
+# just a matter of reading the data and setting up the mmap.
+function _prepare_linear_atmosphere_archive(path)
     h5open(path, "r") do f
         grid = HDF5.readmmap(f["grid"])
-        nodes = [read(f["grid_values/$i"]) for i in 1:5]
+        params = read(f["grid_parameter_names"])
+        @assert params == ["Teff", "logg", "metallicity", "alpha", "carbon"][1:length(params)]
+        nodes = [read(f["grid_values/$i"]) for i in 1:length(params)]
         nodes, grid
     end
 end
+_sdss_marcs_atmospheres = let 
+    #path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
+    path = "/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/SDSS_MARCS_atmospheres.h5"
+    _prepare_linear_atmosphere_archive("/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/SDSS_MARCS_atmospheres.h5")
+end
+_low_Z_marcs_atmospheres = let 
+    path = "/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/MARCS_metal_poor_atmospheres.h5"
+    _prepare_linear_atmosphere_archive(path)
+end
 
+# cubic interp is used for the cool dwarfs, so we need to set up the interpolator. This takes more 
+# cpu/memory.
 function _prepare_cool_dwarf_atm_archive(grid, nodes)
     nodes_ranges = [range(first(n), last(n), length(n)) for n in nodes]   
     @assert all(nodes_ranges .== nodes)
@@ -219,7 +232,7 @@ The model atmosphere grid is a repacked version of the
 - `perturb_at_grid_values`: when true this will add or a subtract a very small number to each 
    parameter which is exactly at a grid value. This prevents null derivatives, which can cause 
    problems for minimizers.  
-- `archives`: The atmosphere grid to use.  For testing purposes.
+- `archives`: A tuple containing the atmosphere grids to use.  For testing purposes.
 
 !!! warning
     Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
@@ -227,24 +240,35 @@ The model atmosphere grid is a repacked version of the
     https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.  """
 function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; 
                            solar_abundances=grevesse_2007_solar_abundances, 
-                           clamp_abundances=false, kwargs...)
+                           clamp_abundances=true, 
+                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres),
+                           kwargs...)
     M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
     alpha_M = alpha_H - M_H
     C_H = A_X[6] - solar_abundances[6]
     C_M = C_H - M_H
+
     if clamp_abundances
-        nodes = _sdss_marcs_atmospheres[1]
-        M_H = clamp(M_H, nodes[3][1], nodes[3][end])
+        nodes = archives[1][1] # nodes for the standard grid
+        # -5 is the lowest value for [M/H] in the standard grid
+        M_H = clamp(M_H, -5, nodes[3][end])
         alpha_M = clamp(C_M, nodes[4][1], nodes[4][end])
         C_M = clamp(C_M, nodes[5][1], nodes[5][end])
     end
-    interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
+
+    if M_H < -2.5
+        # these are the only values allowed for low-metallicity models
+        alpha_M = 0.4
+        C_M = 0
+    end
+
+    interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; archives=archives, kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
                            perturb_at_grid_values=false, resampled_cubic_for_cool_dwarfs=true,
-                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp))
-    if Teff <= 4000 && #=logg >= 3.5= &&=# resampled_cubic_for_cool_dwarfs
+                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres))
+    if Teff <= 4000 && logg >= 3.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]
         atm_quants = itp(1:nlayers, 1:5, Teff, logg, M_H, alpha_M, C_M)
         PlanarAtmosphere(PlanarAtmosphereLayer.(
@@ -254,15 +278,25 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg <
             exp.(atm_quants[:, 2]), 
             exp.(atm_quants[:, 3])))
     else
-        nodes, grid = archives[1]
+        if M_H < -2.5
+            nodes, grid = archives[3]
+            if alpha_M != 0.4 || C_M != 0
+                throw(ArgumentError("For low metallicities ([m_H < -2.5]), it is required that alpha_M = 0.4 and C_M = 0"))
+            end
+            params = [Teff, logg, M_H]
+            param_names = ["Teff", "log(g)", "[M/H]"]
+        else
+            nodes, grid = archives[1]
+            params = [Teff, logg, M_H, alpha_M, C_M]
+            param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
+        end
 
-        params = [Teff, logg, M_H, alpha_M, C_M]
-        param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
         atm_quants = lazy_multilinear_interpolation(params, nodes, grid, param_names=param_names, 
-                                                   perturb_at_grid_values=perturb_at_grid_values)
+                                                    perturb_at_grid_values=perturb_at_grid_values)
 
-        # less extended atmospheres will have NaNs past the extremem tau values.
-        nanmask = .! isnan.(atm_quants[:, 4])
+        # grid atmospheres are allowed to have to NaNs to represent layers that should be dropped. 
+        nanmask = .! isnan.(atm_quants[:, 4]) # any column will do. This is τ_5000.
+
         if spherical
             R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
             ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[nanmask, 4], 
