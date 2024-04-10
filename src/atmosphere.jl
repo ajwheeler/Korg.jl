@@ -253,7 +253,7 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
         nodes = archives[1][1] # nodes for the standard grid
         # -5 is the lowest value for [M/H] in the standard grid
         M_H = clamp(M_H, -5, nodes[3][end])
-        alpha_M = clamp(C_M, nodes[4][1], nodes[4][end])
+        alpha_M = clamp(alpha_M, nodes[4][1], nodes[4][end])
         C_M = clamp(C_M, nodes[5][1], nodes[5][end])
     end
 
