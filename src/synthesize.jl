@@ -283,7 +283,7 @@ You can specify abundance with these positional arguments.  All are optional, bu
 - `default_metals_H` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
    than He. It is overridden by `default_alpha` and `abundances` on a per-element basis.  
 - `default_alpha_H` (default: same as `default_metals_H`), i.e. [alpha/H] is the ``\\log_{10}`` 
-   solar-relative abundance of the alpha elements (defined to be C, O, Ne, Mg, Si, S, Ar, Ca, and 
+   solar-relative abundance of the alpha elements (defined to be O, Ne, Mg, Si, S, Ar, Ca, and 
    Ti). It is overridden by `abundances` on a per-element basis.
 - `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
   `solar_relative=false` to use ``A(X)`` abundances instead.) These override `default_metals_H`.
@@ -334,7 +334,7 @@ function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals
     end
 
     #populate A(X) vector
-    alpha_els = [6, 8, 10, 12, 14, 16, 18, 20, 22]
+    alpha_els = [8, 10, 12, 14, 16, 18, 20, 22]
     map(1:MAX_ATOMIC_NUMBER) do Z
         if Z == 1 #handle hydrogen
             12.0
@@ -386,8 +386,8 @@ end
     get_alpha_H(A_X; solar_abundances=default_solar_abundances)
 
 Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_α/n_\\mathrm{H})``.
-Here, the alpha elements are defined to be C, O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
-[`get_alpha_H`](@ref).
+Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
+[`get_metals_H`](@ref).
 
 # Keyword Arguments
 - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
