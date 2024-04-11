@@ -1,6 +1,20 @@
-[SDSS_MARCS_atmospheres]
-git-tree-sha1 = "9a38707aa50c45a2950843e2773bb94512d2fad2"
+[MARCS_metal_poor_atmospheres]
+git-tree-sha1 = "7ccbdaf1a3709772953d75b0888e6d5ec359d90b"
 
-    [[SDSS_MARCS_atmospheres.download]]
-    sha256 = "cbe1845c18882104b2d8d84c1b3a54e85c358de648909822180755b1aaf553b4"
-    url = "https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres.tar.gz"
+    [[MARCS_metal_poor_atmospheres.download]]
+    sha256 = "d08dce5f1bb98e2f8b74db563ad47182722ba354d6cf8690aacac28bbd1f64f0"
+    url = "https://korg-data.s3.amazonaws.com/MARCS_metal_poor_atmospheres.tar.gz"
+
+[SDSS_MARCS_atmospheres_v2]
+git-tree-sha1 = "0e9cca0d99f7ad79aa966aa28c7be962071893e2"
+
+    [[SDSS_MARCS_atmospheres_v2.download]]
+    sha256 = "98a2d96805d255539e47ef3ae8671bcf776ca80cc4a50e09a47100c8477d80be"
+    url = "https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres_v2.tar.gz"
+
+[resampled_cool_dwarf_atmospheres]
+git-tree-sha1 = "cd6250126e449334f340641a545c2ab5c3d1bf7c"
+
+    [[resampled_cool_dwarf_atmospheres.download]]
+    sha256 = "385133c3b06f0a632ec05e3e58feaa7587b673c4a805eea07b9d0aa33386e940"
+    url = "https://korg-data.s3.amazonaws.com/resampled_cool_dwarf_atmospheres.tar.gz"

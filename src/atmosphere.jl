@@ -170,12 +170,12 @@ function _prepare_linear_atmosphere_archive(path)
     end
 end
 _sdss_marcs_atmospheres = let 
-    #path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
-    path = "/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/SDSS_MARCS_atmospheres.h5"
-    _prepare_linear_atmosphere_archive("/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/SDSS_MARCS_atmospheres.h5")
+    # note to self: don't put files in a directory before you tarball it next time.  It's redundant!
+    path = joinpath(artifact"SDSS_MARCS_atmospheres_v2", "SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
+    _prepare_linear_atmosphere_archive(path)
 end
 _low_Z_marcs_atmospheres = let 
-    path = "/Users/wheeler.883/Dropbox/Korg_data/MARCS_data/MARCS_metal_poor_atmospheres.h5"
+    path = joinpath(artifact"MARCS_metal_poor_atmospheres", "MARCS_metal_poor_atmospheres", "MARCS_metal_poor_atmospheres.h5")
     _prepare_linear_atmosphere_archive(path)
 end
 
@@ -200,7 +200,7 @@ function _prepare_cool_dwarf_atm_archive(grid, nodes)
     itp, nlayers
 end
 const _cool_dwarfs_atm_itp = let 
-    path = "/Users/wheeler.883/Dropbox/Korg/data/model_atmospheres/resampled_cool_dwarf_atmospheres.h5"
+    path = joinpath(artifact"resampled_cool_dwarf_atmospheres", "resampled_cool_dwarf_atmospheres", "resampled_cool_dwarf_atmospheres.h5")
     grid, nodes = h5open(path, "r") do f
         read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
     end
