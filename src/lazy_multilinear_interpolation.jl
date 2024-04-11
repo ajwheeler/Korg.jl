@@ -27,7 +27,7 @@ function lazy_multilinear_interpolation(params, nodes, grid;
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
         if !(p_nodes[1] <= p <= p_nodes[end])
-            throw(ArgumentError("Can't interpolate atmosphere grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])"))
+            throw(ArgumentError("Can't interpolate grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])"))
         end
         findfirst(p .<= p_nodes)
     end
