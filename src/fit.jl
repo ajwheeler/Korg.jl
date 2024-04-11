@@ -30,7 +30,7 @@ const tan_scale_params = Dict(
     # Korg.interpolate_marcs.
     "Teff" => (2800, 8000),
     "logg" => (-0.5, 5.5),
-    "m_H" => (-2.5, 1),
+    "m_H" => (-5, 1),
     # this allows all the atmospheres supported by the grid, but also many that are not.
     # alpha will be clamped to the nearest supported value.
     "alpha_H" => (-3.5, 2), 
@@ -563,7 +563,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
                                    parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2]) 
                                                     ; (1e-3, 10.0) 
-                                                    ; extrema(Korg._sdss_marcs_atmospheres[1][3])],
+                                                    ; (Korg._low_Z_marcs_atmospheres[1][3][1], Korg._sdss_marcs_atmospheres[1][3][end])],
                                    fix_params=[false, false, false, false],
                                    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
     if :vmic in keys(passed_kwargs)
