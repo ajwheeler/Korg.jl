@@ -405,9 +405,9 @@ numbers.  This is used to calculate, for example, [α/H] and [metals/H].
 """
 function _get_multi_X_H(A_X, Zs, solar_abundances)
     # there is no logsumexp in the julia stdlib, but it would make this more stable.
-    # these are missing "+ 12", but it cancels out
-    A_mX = log10(sum(10^A_X[Z] - 12 for Z in Zs))
-    A_mX_solar = log10(sum(10^solar_abundances[Z] - 12 for Z in Zs))
+    # the lack of "12"s here is not a mistake.  They all cancel.
+    A_mX = log10(sum(10^A_X[Z] for Z in Zs))
+    A_mX_solar = log10(sum(10^solar_abundances[Z] for Z in Zs))
     A_mX - A_mX_solar
 end
 
