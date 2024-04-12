@@ -7,8 +7,7 @@ minimize the number of reads from the grid, and access things in an efficient or
 It is much faster than Interpolations.linear_interpolation when applied to memory-mapped grids.
 At present it is used only for model atmosphere and departure coefficient interpolation.
 
-See also: [`interpolate_marcs`](@ref), [`interpolate_departure_coefs_and_atm`](@ref), 
-[`Korg.CubicSplines`](@ref)
+See also: [`interpolate_marcs`](@ref), [`Korg.CubicSplines.CubicSpline`](@ref)
 """
 function lazy_multilinear_interpolation(params, nodes, grid; 
                                         param_names=["param $i" for i in 1:length(params)],
