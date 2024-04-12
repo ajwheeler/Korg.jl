@@ -592,12 +592,13 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     if parameter_ranges[3][1] <= 0.0
         throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
     end
-    # the widest parameter ranges allowed by the MARCS grid
+
+    # the widest parameter ranges allowed for model atmosphere interp
     atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
+    atm_lb[3] = Korg._low_Z_marcs_atmospheres[1][3][1]
     atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
-    # index 3 in vmic, which isn't in the MARCS grid
     if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) || any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
-        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid ()"))
+        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid"))
     end
 
     params0 = [Teff0, logg0, vmic0, m_H0]
