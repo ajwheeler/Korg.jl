@@ -2,7 +2,7 @@
     lazy_multilinear_interpolation(params, nodes, grid; kwargs...)
 
 This function is does multidimensional linear interpolation on a grid where the first two dimensions
-represent the values being interplated.  In other words, it interpolates matrices. It is written to 
+represent the values being interpolated.  In other words, it interpolates matrices. It is written to 
 minimize the number of reads from the grid, and access things in an efficient order.
 It is much faster than Interpolations.linear_interpolation when applied to memory-mapped grids.
 At present it is used only for model atmosphere and departure coefficient interpolation.
