@@ -208,7 +208,7 @@ const _cool_dwarfs_atm_itp = let
 end
 
 """
-    interpolate_marcs(Teff, logg, Fe_M=0, alpha_M=0, C_M=0; kwargs...)
+    interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; kwargs...)
     interpolate_marcs(Teff, logg, A_X; kwargs...)
 
 Returns a model atmosphere obtained by interpolating the MARCS SDSS atmosphere grid, which provides 
@@ -243,34 +243,34 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
                            clamp_abundances=true, 
                            archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres),
                            kwargs...)
-    M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
+    m_H = get_metals_H(A_X; solar_abundances=solar_abundances)
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
-    alpha_M = alpha_H - M_H
+    alpha_m = alpha_H - m_H
     C_H = A_X[6] - solar_abundances[6]
-    C_M = C_H - M_H
+    C_m = C_H - m_H
 
     if clamp_abundances
-        nodes = archives[1][1] # nodes for the standard grid
-        # -5 is the lowest value for [M/H] in the standard grid
-        M_H = clamp(M_H, -5, nodes[3][end])
-        alpha_M = clamp(alpha_M, nodes[4][1], nodes[4][end])
-        C_M = clamp(C_M, nodes[5][1], nodes[5][end])
+        standard_nodes = archives[1][1]
+        low_Z_nodes = archives[3][1]
+        m_H = clamp(m_H, low_Z_nodes[3][1], standard_nodes[3][end])
+        alpha_m = clamp(alpha_m, standard_nodes[4][1], standard_nodes[4][end])
+        C_m = clamp(C_m, standard_nodes[5][1], standard_nodes[5][end])
     end
 
-    if M_H < -2.5
+    if m_H < -2.5
         # these are the only values allowed for low-metallicity models
-        alpha_M = 0.4
-        C_M = 0
+        alpha_m = 0.4
+        C_m = 0
     end
 
-    interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; archives=archives, kwargs...)
+    interpolate_marcs(Teff, logg, m_H, alpha_m, C_m; archives=archives, kwargs...)
 end
-function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
+function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5, 
                            perturb_at_grid_values=false, resampled_cubic_for_cool_dwarfs=true,
                            archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres))
-    if Teff <= 4000 && logg >= 3.5 && resampled_cubic_for_cool_dwarfs
+    if Teff <= 4000 && logg >= 3.5 && m_H >= -2.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]
-        atm_quants = itp(1:nlayers, 1:5, Teff, logg, M_H, alpha_M, C_M)
+        atm_quants = itp(1:nlayers, 1:5, Teff, logg, m_H, alpha_m, C_m)
         PlanarAtmosphere(PlanarAtmosphereLayer.(
             atm_quants[:, 4],
             sinh.(atm_quants[:, 5]), 
@@ -278,16 +278,16 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg <
             exp.(atm_quants[:, 2]), 
             exp.(atm_quants[:, 3])))
     else
-        if M_H < -2.5
+        if m_H < -2.5
             nodes, grid = archives[3]
-            if alpha_M != 0.4 || C_M != 0
+            if alpha_m != 0.4 || C_m != 0
                 throw(ArgumentError("For low metallicities ([m_H < -2.5]), it is required that alpha_M = 0.4 and C_M = 0"))
             end
-            params = [Teff, logg, M_H]
+            params = [Teff, logg, m_H]
             param_names = ["Teff", "log(g)", "[M/H]"]
         else
             nodes, grid = archives[1]
-            params = [Teff, logg, M_H, alpha_M, C_M]
+            params = [Teff, logg, m_H, alpha_m, C_m]
             param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
         end
 
