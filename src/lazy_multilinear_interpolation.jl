@@ -27,7 +27,9 @@ function lazy_multilinear_interpolation(params, nodes, grid;
     
     upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
         if !(p_nodes[1] <= p <= p_nodes[end])
-            throw(ArgumentError("Can't interpolate grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])"))
+            msg = "Can't interpolate grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])." * 
+                  " If you got the message calling `interpolate_marcs`, consider setting `clamp_abundances=true`."
+            throw(ArgumentError(msg))
         end
         findfirst(p .<= p_nodes)
     end
