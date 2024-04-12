@@ -78,7 +78,7 @@
 
             atm1 = interpolate_marcs(5000.0, 3.0, 0, -1.0)
 
-            A_X = format_A_X(0, -5; solar_abundances=Korg.grevesse_2007_solar_abundances; clamp_abundances=true)
+            A_X = format_A_X(0, -5; solar_abundances=Korg.grevesse_2007_solar_abundances, clamp_abundances=true)
             @test_throws ArgumentError interpolate_marcs(5000.0, 3.0, A_X; clamp_abundances=false)
             atm2 = interpolate_marcs(5000.0, 3.0, A_X)
 
