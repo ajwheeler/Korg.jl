@@ -10,7 +10,7 @@ arguments:
 - temperature `T` [K]
 - electron number density `nₑ` [cm^-3]
 - atom, the atomic number of the element 
-- `ionization_energies` is a collection indexed by integers (e.g. a `Vector`) mappping elements' 
+- `ionization_energies` is a collection indexed by integers (e.g. a `Vector`) mapping elements' 
    atomic numbers to their first three ionization energies
 - `partition_funcs` is a `Dict` mapping species to their partition functions
 """
@@ -52,7 +52,7 @@ end
 """
     get_log_nK(mol, T, log_equilibrium_constants)
 
-Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilbrium constants in partial
+Given a molecule, `mol`, a temperature, `T`, and a dictionary of log equilibrium constants in partial
 pressure form, return the base-10 log equilibrium constant in number density form, i.e. `log10(nK)` 
 where `nK = n(A)n(B)/n(AB)`.
 """
@@ -64,7 +64,7 @@ struct ChemicalEquilibriumError <: Exception
     msg::String
 end
 Base.showerror(io::IO, e::ChemicalEquilibriumError) = 
-    print(io, "Chemical equillibrium failed: ",  e.msg)
+    print(io, "Chemical equilibrium failed: ",  e.msg)
 
 """
     chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
@@ -162,13 +162,13 @@ end
 
 function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
                                     ionization_energies, partition_fns, log_equilibrium_constants)
-    #numerically solve for equlibrium.
+    #numerically solve for equilibrium.
     residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances, ionization_energies, 
                                                 partition_fns, log_equilibrium_constants)
 
     x0 = [neutral_fraction_guess; nₑ_guess / nₜ * 1e5]
 
-    # this wacky maneuver ensures that x0 has the approprate dual number type for autodiff
+    # this wacky maneuver ensures that x0 has the appropriate dual number type for autodiff
     # if that is going on.  I'm sure there's a better way...
     x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
 
@@ -316,9 +316,9 @@ end
 """
     hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=false)
 
-Calculate the corection, w, to the occupation fraction of a hydrogen energy level using the 
+Calculate the correction, w, to the occupation fraction of a hydrogen energy level using the 
 occupation probability formalism from Hummer and Mihalas 1988, optionally with the generalization by 
-Hubeny+ 1994.  (Sometimes Daepen+ 1987 is cited instead, but H&M seems to be where the theory 
+Hubeny+ 1994.  (Sometimes Daeppen+ 1987 is cited instead, but H&M seems to be where the theory 
 originated. Presumably it was delayed in publication.)
 
 The expression for w is in equation 4.71 of H&M.  K, the QM correction used in defined in equation 4.24.
@@ -331,7 +331,7 @@ This is based partially on Paul Barklem and Kjell Eriksson's
 consider hydrogen and helium as the relevant neutral species, and assume them to be in the ground 
 state.  All ions are assumed to have charge 1.  Unlike that routine, the generalization to the 
 formalism from Hubeny+ 1994 is turned off by default because I haven't closely checked it.  The 
-difference effects the charged_term only, and temerature is only used when 
+difference effects the charged_term only, and temperature is only used when 
 `use_hubeny_generalization` is set to `true`.
 """
 function hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=false)
@@ -417,7 +417,7 @@ function hummer_mihalas_U_H(T, nH, nHe, ne; use_hubeny_generalization=false)
     hydrogen_energy_level_degeneracies = [2, 2, 2, 4, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 6, 8, 2, 2, 4, 4, 6, 6, 8, 8, 10, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6, 2, 2, 4, 4, 6]
     hydrogen_energy_level_n = [1, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12]
 
-    # for each level calculate the corection, w, and add the term to U
+    # for each level calculate the correction, w, and add the term to U
     # the expression for w comes from Hummer and Mihalas 1988 equation 4.71 
     U = 0.0
     for (E, g, n) in zip(hydrogen_energy_levels, hydrogen_energy_level_degeneracies, hydrogen_energy_level_n)
