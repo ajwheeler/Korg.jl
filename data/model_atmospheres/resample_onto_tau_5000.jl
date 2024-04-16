@@ -7,7 +7,7 @@
 using Korg, HDF5, ProgressMeter, Interpolations
 
 function resample_grid(grid, new_log_taus; tau_index=4)
-    dims = size(grid)[3:end]
+    dims = size(grid)[3:end] # number of m_h, alpha_m, c_m points
     resampled_grid = Array{Float32}(undef, (length(new_log_taus), 5, dims...))
     
     @showprogress for I in CartesianIndices(dims)
@@ -20,6 +20,7 @@ function resample_grid(grid, new_log_taus; tau_index=4)
         resampled_grid[:, tau_index, I] .= 10 .^ new_log_taus
         
         # replace extrapolated values with nans.
+        # layers filled with NaNs will be dropped when constructing the atmosphere object
         #taumin, taumax = grid[begin, tau_index, I], grid[end, tau_index, I]
         #resampled_grid[.! (log10(taumin) .< new_log_taus .< log10(taumax)), :, I] .= NaN
     end

@@ -209,9 +209,9 @@ values are used.
 - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
 - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on 
    transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but 
-   the default is, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`, 
+   the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`, 
    0.0002 in `logg`, 0.0001 in `m_H`, and 0.0004 in detailed abundances. In practice the precision 
-   acheived by the optimizer is about 10x bigger than this at worst.
+   achieved by the optimizer is about 10x bigger than this.
 Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
 spectra for the fit.
 
