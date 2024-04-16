@@ -26,7 +26,7 @@ end
 """
     setup_partition_funcs_and_equilibrium_constants()
 
-Returns two dictionaries. One holding the default patition functions, and one holding the default
+Returns two dictionaries. One holding the default partition functions, and one holding the default
 log10 equilibrium constants.
 
 # Default partition functions
@@ -34,18 +34,18 @@ The partition functions are custom (calculated from NIST levels) for atoms, from
 Collet 2016 for diatomic molecules, and from [exomol](https://exomol.com) for polyatomic molecules.
 For each molecule, we include only the most abundant isotopologue.
 
-Note than none of these parition functions include plasma effects, e.g. via the Mihalas Hummer 
+Note than none of these partition functions include plasma effects, e.g. via the Mihalas Hummer 
 Daeppen occupation probability formalism. They are for isolated species.
 This can lead to a couple percent error for neutral alkalis and to greater errors for hydrogen in 
 some atmospheres, particularly those of hot stars.
 
 # Default equilibrium constants
-Molecules have equilibrium constants in addition to patition functions.  For the diatomics, these 
+Molecules have equilibrium constants in addition to partition functions.  For the diatomics, these 
 are provided by Barklem and Collet, which extensively discusses the dissociation energies.  For 
 polyatomics, we calculate these ourselves, using atomization energies calculated from the enthalpies 
 of formation at 0K from [NIST's CCCDB](https://cccbdb.nist.gov/hf0k.asp).
 
-Korg's equilbrum constants are in terms of partial pressures, since that's what Barklem and Collet 
+Korg's equilibrium constants are in terms of partial pressures, since that's what Barklem and Collet 
 provide.
 """
 function setup_partition_funcs_and_equilibrium_constants()
@@ -56,13 +56,13 @@ function setup_partition_funcs_and_equilibrium_constants()
 
     BC_Ks = read_Barklem_Collet_logKs(joinpath(_data_dir, "barklem_collet_2016", "barklem_collet_ks.h5"))
 
-    # equlibrium constants for polyatomics (done here because the partition functions are used)
+    # equilibrium constants for polyatomics (done here because the partition functions are used)
     atomization_Es = CSV.File(joinpath(_data_dir, "polyatomic_partition_funcs", "atomization_energies.csv"))
     polyatomic_Ks = map(zip(Korg.Species.(atomization_Es.spec), atomization_Es.energy)) do (spec, D00)
         D00 *= 0.01036 # convert from kJ/mol to eV
         # this let block slightly improves performance. 
         # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
-        calculate_logK = let parition_funcs=partition_funcs
+        calculate_logK = let partition_funcs=partition_funcs
             function logK(logT)
                 Zs = get_atoms(spec)
                 log_Us_ratio = log10(prod([partition_funcs[Species(Formula(Z), 0)](logT) for Z in Zs])
@@ -70,7 +70,7 @@ function setup_partition_funcs_and_equilibrium_constants()
                 log_masses_ratio = sum([log10(atomic_masses[Z]) for Z in Zs]) - log10(get_mass(spec))
                 T = exp(logT)
                 log_translational_U_factor = 1.5*log10(2π*kboltz_cgs*T/hplanck_cgs^2)
-                # this is log number-density equilbrium constant
+                # this is log number-density equilibrium constant
                 log_nK = ((length(Zs)-1)*log_translational_U_factor 
                           + 1.5*log_masses_ratio + log_Us_ratio - D00/(kboltz_eV*T*log(10)))
                 # compute the log of the partial-pressure equilibrium constant, log10(pK)
@@ -104,7 +104,7 @@ function read_Barklem_Collet_logKs(fname)
 end
 
 """
-    functon read_Barklem_Collet_table(fname; transform=identity)
+    function read_Barklem_Collet_table(fname; transform=identity)
 
 Constructs a Dict holding tables containing partition function or equilibrium constant values across
 ln(temperature).  Applies transform (which you can use to, e.g. change units) to each example.
@@ -173,7 +173,7 @@ end
 """
     load_exomol_partition_functions()
 
-Loads the exomol partition funcstions for polyatomic molecules from the HDF5 archive. Returns a 
+Loads the exomol partition functions for polyatomic molecules from the HDF5 archive. Returns a 
 dictionary mapping species to interpolators over log(T).
 """
 function load_exomol_partition_functions()
@@ -182,7 +182,7 @@ function load_exomol_partition_functions()
             spec = Korg.Species(HDF5.name(group)[2:end]) # cut off leading '/'
 
             # total nuclear spin degeneracy, which must be divided out to convert from the 
-            # "physics" convention for the parititon function to the "astrophysics" convention
+            # "physics" convention for the partition function to the "astrophysics" convention
             total_g_ns = map(get_atoms(spec)) do Z
                 # at the moment, we assume all molecules are the most common isotopologue internally
                 # difference isotopologues are handled by scaling the log_gf values when parsing 
