@@ -68,19 +68,22 @@
         @test_throws ArgumentError format_A_X(0.0, Dict("H"=>12); solar_relative=true)
         @test_throws ArgumentError format_A_X(0.0, Dict(1=>12); solar_relative=true)
 
-        atol = 1e-5
-        @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1 atol=atol
-        @test Korg.get_alpha_H(format_A_X(0.0, 0.1)) ≈ 0.1 atol=atol
-        @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 atol=atol
-        @test Korg.get_alpha_H(format_A_X(-2, -0.2)) ≈ -0.2 atol=atol
-        @test Korg.get_metals_H(format_A_X(0.1)) ≈ 0.1 atol=atol
-        @test Korg.get_metals_H(format_A_X(-0.2)) ≈ -0.2 atol=atol
-        @test Korg.get_metals_H(format_A_X(0.1, 0.5)) ≈ 0.1 atol=atol
-        @test Korg.get_metals_H(format_A_X(-0.2, 0.5)) ≈ -0.2 atol=atol
-        @test Korg.get_metals_H(Korg.grevesse_2007_solar_abundances; 
-                                solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=atol
-        @test Korg.get_alpha_H(Korg.grevesse_2007_solar_abundances;
-                               solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 atol=atol
+        @testset "consitency of format_A_X and get_alpha_H/get_metals_H" begin
+            @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1
+            @test Korg.get_alpha_H(format_A_X(0.0, 0.1)) ≈ 0.1
+            @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 
+            @test Korg.get_alpha_H(format_A_X(-2, -5)) ≈ -5
+
+            @test Korg.get_metals_H(format_A_X(0.1)) ≈ 0.1
+            @test Korg.get_metals_H(format_A_X(-0.2)) ≈ -0.2
+            @test Korg.get_metals_H(format_A_X(0.1, 0.5)) ≈ 0.1
+            @test Korg.get_metals_H(format_A_X(-0.2, 0.5)) ≈ -0.2
+
+            @test Korg.get_metals_H(Korg.grevesse_2007_solar_abundances; 
+                                    solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 
+            @test Korg.get_alpha_H(Korg.grevesse_2007_solar_abundances;
+                                   solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 
+        end
 
         @test format_A_X(1.1) != format_A_X(1.1, 0)
         @test format_A_X(1.1)[50] == format_A_X(1.1, 0)[50] == format_A_X(-1, -2, Dict(50=>1.1))[50]

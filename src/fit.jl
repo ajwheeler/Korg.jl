@@ -30,7 +30,7 @@ const tan_scale_params = Dict(
     # Korg.interpolate_marcs.
     "Teff" => (2800, 8000),
     "logg" => (-0.5, 5.5),
-    "m_H" => (-2.5, 1),
+    "m_H" => (-5, 1),
     # this allows all the atmospheres supported by the grid, but also many that are not.
     # alpha will be clamped to the nearest supported value.
     "alpha_H" => (-3.5, 2), 
@@ -209,8 +209,9 @@ values are used.
 - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
 - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on 
    transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but 
-   the default is, `1e-3`, provides a worst-case tolerance of about 1.5K in `Teff`, 0.002 in `logg`, 
-   0.001 in `m_H`, and 0.004 in detailed abundances.
+   the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`, 
+   0.0002 in `logg`, 0.0001 in `m_H`, and 0.0004 in detailed abundances. In practice the precision 
+   achieved by the optimizer is about 10x bigger than this.
 Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
 spectra for the fit.
 
@@ -231,7 +232,7 @@ A NamedTuple with the following fields:
   Nelder-Mead), this is not provided.
 
 !!! tip
-    The function takes a long time to compile the first time it is called. Compilation performance 
+    This function takes a long time to compile the first time it is called. Compilation performance 
     is significantly better on Julia 1.10 than previous versions, so if you are using an older
     version of Julia, you may want to upgrade.
 """
@@ -244,7 +245,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                       else
                           Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
                       end,
-                      wl_buffer=1.0, precision=1e-3, synthesis_kwargs...)
+                      wl_buffer=1.0, precision=1e-4, synthesis_kwargs...)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
     end
@@ -293,7 +294,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     end 
     
     # call optimization library
-    res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking()),
+    res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking(maxstep=1.0)),
              Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
                            extended_trace=true); autodiff=:forward)
 
@@ -563,7 +564,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
                                    parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2]) 
                                                     ; (1e-3, 10.0) 
-                                                    ; extrema(Korg._sdss_marcs_atmospheres[1][3])],
+                                                    ; (Korg._low_Z_marcs_atmospheres[1][3][1], Korg._sdss_marcs_atmospheres[1][3][end])],
                                    fix_params=[false, false, false, false],
                                    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
     if :vmic in keys(passed_kwargs)
@@ -592,12 +593,13 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     if parameter_ranges[3][1] <= 0.0
         throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
     end
-    # the widest parameter ranges allowed by the MARCS grid
+
+    # the widest parameter ranges allowed for model atmosphere interp
     atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
+    atm_lb[3] = Korg._low_Z_marcs_atmospheres[1][3][1]
     atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
-    # index 3 in vmic, which isn't in the MARCS grid
     if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) || any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
-        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid ()"))
+        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid"))
     end
 
     params0 = [Teff0, logg0, vmic0, m_H0]

@@ -1,6 +1,7 @@
 # used when downloading model atmosphere archive
 using ProgressMeter: Progress, update!, finish!
 using Pkg.Artifacts: @artifact_str
+import Interpolations
  
 abstract type ModelAtmosphere end
 
@@ -157,146 +158,165 @@ function read_model_atmosphere(fname::AbstractString) :: ModelAtmosphere
      end
 end
 
-# this isn't a const because the model atmosphere doesn't get loaded into memory until 
-# interpolate_marcs is called for the first time
-const _sdss_marcs_atmospheres = let
-    path = joinpath(artifact"SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
-    exists = h5read(path, "exists")
-    grid = h5read(path, "grid")
-    nodes = [h5read(path, "grid_values/$i") for i in 1:5]
-    (nodes, exists, grid)
+# used for the standard and low-metallicity grids.  Lazy linear interp is used for these, so it's 
+# just a matter of reading the data and setting up the mmap.
+function _prepare_linear_atmosphere_archive(path)
+    h5open(path, "r") do f
+        grid = HDF5.readmmap(f["grid"])
+        params = read(f["grid_parameter_names"])
+        @assert params == ["Teff", "logg", "metallicity", "alpha", "carbon"][1:length(params)]
+        nodes = [read(f["grid_values/$i"]) for i in 1:length(params)]
+        nodes, grid
+    end
+end
+_sdss_marcs_atmospheres = let 
+    # note to self: don't put files in a directory before you tarball it next time.  It's redundant!
+    path = joinpath(artifact"SDSS_MARCS_atmospheres_v2", "SDSS_MARCS_atmospheres", "SDSS_MARCS_atmospheres.h5")
+    _prepare_linear_atmosphere_archive(path)
+end
+_low_Z_marcs_atmospheres = let 
+    path = joinpath(artifact"MARCS_metal_poor_atmospheres", "MARCS_metal_poor_atmospheres", "MARCS_metal_poor_atmospheres.h5")
+    _prepare_linear_atmosphere_archive(path)
 end
 
+# cubic interp is used for the cool dwarfs, so we need to set up the interpolator. This takes more 
+# cpu/memory.
+function _prepare_cool_dwarf_atm_archive(grid, nodes)
+    nodes_ranges = [range(first(n), last(n), length(n)) for n in nodes]   
+    @assert all(nodes_ranges .== nodes)
+
+    nlayers = size(grid, 1)
+    knots = tuple(1f0:nlayers, 1f0:5f0, nodes_ranges...)
+
+    itp = Interpolations.scale(Interpolations.interpolate(
+        grid, (Interpolations.NoInterp(),
+               Interpolations.NoInterp(),
+               Interpolations.BSpline(Interpolations.Cubic()),
+               Interpolations.BSpline(Interpolations.Cubic()), 
+               Interpolations.BSpline(Interpolations.Cubic()),
+               Interpolations.BSpline(Interpolations.Cubic()),
+               Interpolations.BSpline(Interpolations.Cubic()))),
+          knots)
+    itp, nlayers
+end
+const _cool_dwarfs_atm_itp = let 
+    path = joinpath(artifact"resampled_cool_dwarf_atmospheres", "resampled_cool_dwarf_atmospheres", "resampled_cool_dwarf_atmospheres.h5")
+    grid, nodes = h5open(path, "r") do f
+        read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
+    end
+    _prepare_cool_dwarf_atm_archive(grid, nodes)
+end
 
 """
-    interpolate_marcs(Teff, logg, Fe_M=0, alpha_M=0, C_M=0; kwargs...)
     interpolate_marcs(Teff, logg, A_X; kwargs...)
+    interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; kwargs...)
 
-Returns a model atmosphere obtained by interpolating the MARCS SDSS atmosphere grid, which provides 
-atmospheres for varying values of ``T_\\mathrm{eff}``, ``\\log g``, [metals/H], [alpha/metals], 
-and [C/metals].  If the `A_X` (a vector of abundances in the format returned by [`format_A_X`](@ref)
-and accepted by [`synthesize`](@ref)) is provided instead of `M_H`, `alpha_M`, and `C_M`, the 
-solar-relative ratios will be reconstructed assuming Grevesse+ 2007 solar abundances.
+Returns a model atmosphere computed by interpolating models from [MARCS](https://marcs.astro.uu.se/)
+((Gustafsson+ 2008)[https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract]).
+Along with `Teff` and `logg`, the atmosphere is specified by `m_H`, `alpha_m`, and `C_m`, which can 
+be automatically determined from an `A_X` abundance vector (the recommended method, 
+see [`format_A_X`](@ref)). Note that the MARCS atmosphere models were constructed with the 
+Grevesse+ 2007 solar abundances (`Korg.grevesse_2007_solar_abundances`). This is handled 
+automatically when `A_X` is provided.
 
-The model atmosphere grid is a repacked version of the 
-[MARCS SDSS grid](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt).
+`interpolate_marcs` uses three different interpolation schemes for different stellar parameter
+regimes. In the standard case the model atmosphere grid is [the one generated for
+SDSS](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt),
+transformed and linearly interpolated. For cool dwarfs (`Teff` ≤ 4000 K, `logg` ≥ 3.5), the grid is
+resampled onto unchanging `tau_5000` values and interpolated with a cubic spline. For
+low-metallicity models (-5 ≤ `m_H` < -2.5), a grid of standard composition (i.e. fixed alpha and C)
+atmospheres is used.  (The microturbulence is 1km/s for dwarfs and 2km/s for giants and the mass for
+spherical models is 1 solar mass.) The interpolation method is the same as in the standard case. See
+[Wheeler+ 2024](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract) for more details and
+a discussion of errors introduced by model atmosphere interpolation. (Note that the cubic scheme for
+cool dwarfs is referred to as not-yet-implemented in the paper but is now available.)
 
 # keyword arguments
 - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By 
   default true when `logg` < 3.5.
-- `archive`: The atmosphere archive to use.  This is used to override the default grid for testing.
 - `solar_abundances`: (default: `grevesse_2007_solar_abundances`) The solar abundances to use when 
   `A_X` is provided instead of `M_H`, `alpha_M`, and `C_M`. The default is chosen to match that of 
-  the atmosphere grid, and is probably no good reason to change it.
-- `clamp_abundances`: (default: `false`) allowed when specifying `A_X` direction. Whether or not to 
-   clamp the abundance paramerters to be within the range of the MARCS grid to avoid throwing an out 
-   of bounds error. Use with caution.
-- `perturb_at_grid_values`: when true this will add or a subtract a very small number to each 
-   parameter which is exactly at a grid value. This prevents null derivatives, which can cause 
-   problems for minimizers.  
-
-!!! warning
-    Atmosphere interpolation contributes non-negligeble error to synthesized spectra below 
-    Teff ≈ 4250 K. We do not endorse using it for science in that regime. See 
-    https://github.com/ajwheeler/Korg.jl/issues/164 for a discussion of the issue.
+  the atmosphere grid, and if you change it you are likely trying to do something else.
+- `clamp_abundances`: (default: `false`) allowed only when specifying `A_X`. Whether or not to 
+   clamp the abundance parameters to be within range to avoid throwing an out of bounds error.
+- `perturb_at_grid_values` (default: `true`): whether or not to add or a subtract a very small 
+   number to each parameter which is exactly at a grid value. This prevents null derivatives, which 
+   can cause problems for minimizers. 
+- `resampled_cubic_for_cool_dwarfs` (default: `true`): whether or not to used specialized method for cool dwarfs.
+- `archives`: A tuple containing the atmosphere grids to use.  For testing purposes.
 """
 function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; 
                            solar_abundances=grevesse_2007_solar_abundances, 
-                           clamp_abundances=false, kwargs...)
-    M_H = get_metals_H(A_X; solar_abundances=solar_abundances)
+                           clamp_abundances=false, 
+                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres),
+                           kwargs...)
+    m_H = get_metals_H(A_X; solar_abundances=solar_abundances)
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
-    alpha_M = alpha_H - M_H
+    alpha_m = alpha_H - m_H
     C_H = A_X[6] - solar_abundances[6]
-    C_M = C_H - M_H
+    C_m = C_H - m_H
+
     if clamp_abundances
-        nodes = _sdss_marcs_atmospheres[1]
-        M_H = clamp(M_H, nodes[3][1], nodes[3][end])
-        alpha_M = clamp(C_M, nodes[4][1], nodes[4][end])
-        C_M = clamp(C_M, nodes[5][1], nodes[5][end])
+        standard_nodes = archives[1][1]
+        low_Z_nodes = archives[3][1]
+        m_H = clamp(m_H, low_Z_nodes[3][1], standard_nodes[3][end])
+        alpha_m = clamp(alpha_m, standard_nodes[4][1], standard_nodes[4][end])
+        C_m = clamp(C_m, standard_nodes[5][1], standard_nodes[5][end])
     end
-    interpolate_marcs(Teff, logg, M_H, alpha_M, C_M; kwargs...)
+
+    if m_H < -2.5
+        # these are the only values allowed for low-metallicity models
+        alpha_m = 0.4
+        C_m = 0
+    end
+
+    interpolate_marcs(Teff, logg, m_H, alpha_m, C_m; archives=archives, kwargs...)
 end
-function interpolate_marcs(Teff, logg, M_H=0, alpha_M=0, C_M=0; spherical=logg < 3.5, 
-                           perturb_at_grid_values=false, archive=_sdss_marcs_atmospheres)
-    nodes, exists, grid = archive 
-
-    params = [Teff, logg, M_H, alpha_M, C_M]
-    param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
-
-    if perturb_at_grid_values
-        # add small offset to each parameter which is exactly at grid value
-        # this prevents the derivatives from being exactly zero
-        on_grid_mask = in.(params, nodes)
-        params[on_grid_mask] .= nextfloat.(params[on_grid_mask])
-
-        # take care of the case where the parameter is at the last grid value
-        too_high_mask = params .> last.(nodes)
-        params[too_high_mask] .= prevfloat.(params[too_high_mask])
-        params[too_high_mask] .= prevfloat.(params[too_high_mask])
-    end
-    
-    upper_vertex = map(zip(params, param_names, nodes)) do (p, p_name, p_nodes)
-        if !(p_nodes[1] <= p <= p_nodes[end])
-            throw(ArgumentError("Can't interpolate atmosphere grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])"))
-        end
-        findfirst(p .<= p_nodes)
-    end
-    isexact = params .== getindex.(nodes, upper_vertex) #which params are on grid points?
-    
-    # allocate 2^n cube for each quantity
-    dims = Tuple(2 for _ in upper_vertex) #dimensions of 2^n hypercube
-    structure_type = typeof(promote(Teff, logg, M_H, alpha_M, C_M)[1])
-    structure = Array{structure_type}(undef, (56, 5, dims...))
-     
-    #put bounding atmospheres in 2^n cube
-    for I in CartesianIndices(dims)
-        local_inds = collect(Tuple(I))
-        atm_inds = copy(local_inds)
-        atm_inds[isexact] .= 2 #use the "upper bound" as "lower bound" if the param is on a grid point
-        atm_inds .+= upper_vertex .- 2
-
-        if !exists[atm_inds...] #return nothing if any required nodes don't exist
-            @info str(getindex.(nodes, atm_inds), " doesn't exist") 
-            return 
-        end
-        
-        structure[:, :, local_inds...] .= grid[:, :, atm_inds...]
-    end
-
-    for i in 1:length(params) #loop over Teff, logg, etc.
-        isexact[i] && continue #no need to do anything for exact params
-        
-        # the bounding values of the parameter you are currently interpolating over 
-        p1 = nodes[i][upper_vertex[i]-1]
-        p2 = nodes[i][upper_vertex[i]]
-        
-        # inds1 and inds2 are the expressions for the slices through the as-of-yet 
-        # uninterpolated quantities (temp, logPg, etc) for each node value of the
-        # quantity being interpolated
-        # inds1 = (1, 1, 1, ..., 1, 1, :, :, ...)
-        # inds2 = (1, 1, 1, ..., 1, 2, :, :, ...)
-        inds1 = vcat([1 for _ in 1:i-1], 1, [Colon() for _ in i+1:length(params)])
-        inds2 = vcat([1 for _ in 1:i-1], 2, [Colon() for _ in i+1:length(params)])
-        
-        x = (params[i] - p1) / (p2 - p1) #maybe try using masseron alpha later
-        for structure_ind in 1:5 #TODO fix
-            structure[:, structure_ind, inds1...] = (1-x)*structure[:, structure_ind, inds1...] + x*structure[:, structure_ind, inds2...]
-        end
-    end
-   
-    atm_quants = (structure[:, :, ones(Int, length(params))...])
-    if spherical
-        R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
-        ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[:, 4], 
-                                              sinh.(atm_quants[:, 5]), 
-                                              atm_quants[:, 1],
-                                              exp.(atm_quants[:, 2]), 
-                                              exp.(atm_quants[:, 3])), R)
+function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5, 
+                           perturb_at_grid_values=true, resampled_cubic_for_cool_dwarfs=true,
+                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres))
+    if Teff <= 4000 && logg >= 3.5 && m_H >= -2.5 && resampled_cubic_for_cool_dwarfs
+        itp, nlayers = archives[2]
+        atm_quants = itp(1:nlayers, 1:5, Teff, logg, m_H, alpha_m, C_m)
+        PlanarAtmosphere(PlanarAtmosphereLayer.(
+            atm_quants[:, 4],
+            sinh.(atm_quants[:, 5]), 
+            atm_quants[:, 1],
+            exp.(atm_quants[:, 2]), 
+            exp.(atm_quants[:, 3])))
     else
-        PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[:, 4], 
-                                               sinh.(atm_quants[:, 5]), 
-                                               atm_quants[:, 1],
-                                               exp.(atm_quants[:, 2]), 
-                                               exp.(atm_quants[:, 3])))
+        if m_H < -2.5
+            nodes, grid = archives[3]
+            if alpha_m != 0.4 || C_m != 0
+                throw(ArgumentError("For low metallicities ([m_H < -2.5]), it is required that alpha_M = 0.4 and C_M = 0"))
+            end
+            params = [Teff, logg, m_H]
+            param_names = ["Teff", "log(g)", "[M/H]"]
+        else
+            nodes, grid = archives[1]
+            params = [Teff, logg, m_H, alpha_m, C_m]
+            param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
+        end
+
+        atm_quants = lazy_multilinear_interpolation(params, nodes, grid, param_names=param_names, 
+                                                    perturb_at_grid_values=perturb_at_grid_values)
+
+        # grid atmospheres are allowed to have to NaNs to represent layers that should be dropped. 
+        nanmask = .! isnan.(atm_quants[:, 4]) # any column will do. This is τ_5000.
+
+        if spherical
+            R = sqrt(G_cgs * solar_mass_cgs / 10^(logg)) 
+            ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[nanmask, 4], 
+                                                  sinh.(atm_quants[nanmask, 5]), 
+                                                  atm_quants[nanmask, 1],
+                                                  exp.(atm_quants[nanmask, 2]), 
+                                                  exp.(atm_quants[nanmask, 3])), R)
+        else
+            PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[nanmask, 4], 
+                                                   sinh.(atm_quants[nanmask, 5]), 
+                                                   atm_quants[nanmask, 1],
+                                                   exp.(atm_quants[nanmask, 2]), 
+                                                   exp.(atm_quants[nanmask, 3])))
+        end
     end
 end
