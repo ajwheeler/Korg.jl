@@ -113,6 +113,14 @@
             atm1 = interpolate_marcs(5000.0, 4.5, -2.5+δ, 0.4)
             atm2 = interpolate_marcs(5000.0, 4.5, -2.5-δ, 0.4)
             @test assert_atmospheres_close(atm1, atm2; rtol=1e-2)
+
+            # set up A_X with abundances that don't match the MARCS standard comp
+            # it should still work
+            A_X = format_A_X(-2.5-δ, 0.3, Dict("C"=>0.1); solar_abundances=Korg.grevesse_2007_solar_abundances)
+            atm3 = interpolate_marcs(5000.0, 4.5, A_X)
+            @test assert_atmospheres_close(atm2, atm3; rtol=1e-10)
+
+            @test_throws ArgumentError interpolate_marcs(5000, 4.5, -3, 0)
         end
     end
 end
