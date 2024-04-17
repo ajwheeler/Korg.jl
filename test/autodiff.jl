@@ -1,8 +1,7 @@
 @testset "autodiff" begin
     using ForwardDiff, FiniteDiff
 
-    linelist = read_linelist("data/linelists/5000-5005.vald")
-
+    linelist = [Korg.get_VALD_solar_linelist() ; Korg.get_APOGEE_DR17_linelist()]
     #cover the optical and the IR to catch different H lines 
     wls = [6564:0.01:6565, 15_045:0.01:15_046] 
     for (atm_file, threshold) in [("data/sun.mod", 0.1),
