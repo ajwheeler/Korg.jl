@@ -1,6 +1,5 @@
 @testset "linelists" begin 
     @testset "built-in linelists" begin
-        atm = read_model_atmosphere("data/sun.mod")
 
         # iterate over fns, not lists, because they make the output of the test suite way too long
         @testset for linelist_fn in [Korg.get_VALD_solar_linelist, 
@@ -9,8 +8,13 @@
             linelist = linelist_fn()
             @test issorted(linelist, by=l->l.wl)
 
+            # trucate model atmosphere for speed
+            atm = read_model_atmosphere("data/sun.mod")
+            atm = Korg.PlanarAtmosphere(atm.layers[1:3])
+
             # make sure things run (types have caused problems in the past)
-            synthesize(atm, linelist, format_A_X(), 5000, 5000)
+            λ = linelist[1].wl*1e8
+            synthesize(atm, linelist, format_A_X(), λ, λ)
         end
     end
 
