@@ -371,7 +371,7 @@ See also [`get_alpha_H`](@ref).
   convenience.
 - `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating 
   [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`, 
-  the alpha elements (here defined as C, O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
+  then both carbon and the alpha elements (here defined as O, Ne, Mg, Si, S, Ar, Ca, Ti) are ignored.
 """
 function get_metals_H(A_X; solar_abundances=default_solar_abundances, ignore_alpha=true)
     els = if ignore_alpha
