@@ -8,7 +8,7 @@
             linelist = linelist_fn()
             @test issorted(linelist, by=l->l.wl)
 
-            # trucate model atmosphere for speed
+            # truncate model atmosphere for speed
             atm = read_model_atmosphere("data/sun.mod")
             atm = Korg.PlanarAtmosphere(atm.layers[1:3])
 
