@@ -7,7 +7,7 @@ It also contains pre-constructed interpolation objects.
 """
 module Stancil1994
 
-using Interpolations: linear_interpolation, Linear
+using Interpolations: linear_interpolation, Line
 Ts_He2plus      = [4200,6300,8400,12600,16800,25200,33600,50400]
 K_He2plus_vals = 1e21 .* [0.3606, 2.6330, 7.1409, 21.097, 39.842, 87.960, 147.41, 293.57] 
 Ts_H2plus       = [3150,4200,5040,6300,8400,12600,16800,25200]
@@ -202,18 +202,18 @@ K_H2plus_vals  = 1e19 .* [0.9600,9.7683,29.997,89.599,265.32,845.01,1685.3,4289.
 
 # construct interpolations, converting cross-sections coeffs to cgs
 σ_He2plus_ff = linear_interpolation((λs_He2plus_ff, Ts_He2plus), σ_He2plus_ff_table .* 1e-39;
-                                   extrapolation_bc=Linear())
+                                   extrapolation_bc=Line())
 σ_He2plus_bf = linear_interpolation((λs_bf, Ts_He2plus), σ_He2plus_bf_table .* 1e-18;
-                                   extrapolation_bc=Linear())
+                                   extrapolation_bc=Line())
 σ_H2plus_ff  = linear_interpolation((λs_H2plus_ff, Ts_H2plus), σ_H2plus_ff_table .* 1e-39; 
-                                   extrapolation_bc=Linear())
+                                   extrapolation_bc=Line())
 σ_H2plus_bf  = linear_interpolation((λs_bf, Ts_H2plus), σ_H2plus_bf_table .* 1e-18;
-                                   extrapolation_bc=Linear())
+                                   extrapolation_bc=Line())
 
 # construct equilibrium constants.  
 # When Korg supports ionized molecules, we can use the Barklem and Collet values.  
 # For now, these are fine.
-K_He2plus = linear_interpolation(Ts_He2plus, K_He2plus_vals; extrapolation_bc=Linear())
-K_H2plus  = linear_interpolation(Ts_H2plus, K_H2plus_vals; extrapolation_bc=Linear())
+K_He2plus = linear_interpolation(Ts_He2plus, K_He2plus_vals; extrapolation_bc=Line())
+K_H2plus  = linear_interpolation(Ts_H2plus, K_H2plus_vals; extrapolation_bc=Line())
 
 end #module

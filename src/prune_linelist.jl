@@ -86,7 +86,7 @@ function prune_linelist(atm, linelist, A_X, wls...;
     # sort lines by approximate EW or leave them in wavelength order
     if sort_by_EW
         label = "measuring $(length(strong_lines)) lines"
-        approx_EWs = @showprogress label enabled=verbose map(strong_lines) do line
+        approx_EWs = @showprogress desc=label enabled=verbose map(strong_lines) do line
             line_center = line.wl*1e8
             wls = line_center / 1.0003, line_center * 1.0003 # ± 90 km/s (~1.5 Å @ 5000 Å)
             sol = synthesize(atm, [line], A_X, wls...; 
