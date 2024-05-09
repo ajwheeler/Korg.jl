@@ -280,7 +280,11 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             flux = try
                 synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthesis_kwargs)
             catch e
-                if e isa Korg.ChemicalEquilibriumError
+                if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError)
+                    # chemical equilibrium errors happen for a few unphysical model atmospheres
+
+                    # LazyMultilinearInterpError happens when logg is oob for the low-Z atmosphere grid
+
                     # This is a nice huge chi2 value, but not too big.  It's what you get if 
                     # difference at each pixel in the (rectified) spectra is 1, which is 
                     # more-or-less an upper bound.

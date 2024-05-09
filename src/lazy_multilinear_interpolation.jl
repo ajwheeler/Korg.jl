@@ -1,3 +1,9 @@
+struct LazyMultilinearInterpError <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::LazyMultilinearInterpError) = 
+    print(io, "LazyMultilinearInterpError: ", e.msg)
+
 """
     lazy_multilinear_interpolation(params, nodes, grid; kwargs...)
 
@@ -28,7 +34,7 @@ function lazy_multilinear_interpolation(params, nodes, grid;
         if !(p_nodes[1] <= p <= p_nodes[end])
             msg = "Can't interpolate grid.  $(p_name) is out of bounds. ($(p) ∉ [$(first(p_nodes)), $(last(p_nodes))])." * 
                   " If you got the message calling `interpolate_marcs`, consider setting `clamp_abundances=true`."
-            throw(ArgumentError(msg))
+            throw(LazyMultilinearInterpError(msg))
         end
         findfirst(p .<= p_nodes)
     end
