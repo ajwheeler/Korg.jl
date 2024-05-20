@@ -208,8 +208,8 @@ end
     apply_rotation(flux, wls, vsini, ε=0.6)
 
 Given a spectrum `flux` sampled at wavelengths `wls` for a non-rotating star, compute the spectrum 
-that would emerge given projected rotational velocity `vsini` and linear limb-darkening coefficient
-`ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example, 
+that would emerge given projected rotational velocity `vsini` (in km/s) and linear limb-darkening 
+coefficient `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example, 
 Gray equation 18.14.
 """
 function apply_rotation(flux, wls::R, vsini, ε=0.6) where R <: AbstractRange
