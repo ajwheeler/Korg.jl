@@ -34,7 +34,7 @@ function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points;
                                     tau_method=:anchored, I_method=:linear)
 end
 function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; include_inward_rays=false,
-                                    τ_method=:anchored, I_method=:linear, α_ref=nothing)
+                                    τ_scheme=:anchored, I_scheme=:linear, α_ref=nothing)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2 
 
@@ -44,7 +44,7 @@ function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; in
         nothing
     end
     F, I = spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; 
-                              α_ref=α_ref, τ_ref=τ_ref, I_method=I_method, τ_method=τ_method)
+                              α_ref=α_ref, τ_ref=τ_ref, I_scheme=I_scheme, τ_scheme=τ_scheme)
     photosphere_correction .* F, I
 end
 
@@ -73,7 +73,11 @@ function calculate_rays(μ_surface_grid, radii)
 end
 
 function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_ref=nothing, τ_ref=nothing, 
-                            I_method=:linear, τ_method=:anchored)
+                            I_scheme="linear_flux_only", τ_scheme="anchored")
+    if τ_scheme == "spline"
+        println("Warning: the spline τ scheme is not bug-free and may fail.")
+    end
+
     μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) # TODO move this to the caller?
 
     # vector of path_length, layer_inds pairs
@@ -92,7 +96,12 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
     # intensity at every for every μ, λ, and layer. This is returned.
     # initialize with zeros because not every ray will pass through every layer
-    I = zeros(el_type, (n_inward_rays + length(μ_surface_grid), size(α')...))
+    I = if I_scheme == "linear_flux_only"
+        # no "layers" dimension if we're only calculating the flux at the top of the atmosphere
+        zeros(el_type, (n_inward_rays + length(μ_surface_grid), size(α, 2)))
+    else
+        zeros(el_type, (n_inward_rays + length(μ_surface_grid), size(α')...))
+    end
     # preallocate a single τ vector which gets reused many times
     τ_buffer = Vector{el_type}(undef, length(radii)) 
     integrand_buffer = Vector{el_type}(undef, length(radii))
@@ -103,23 +112,15 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     # TODO why is this twice as slow at the outward rays loop? (That performance is OK for now.)
     for μ_ind in 1:n_inward_rays
         path = -reverse(rays[μ_ind]) 
-        deepest_layer = length(path)
-        layer_inds = deepest_layer : -1 : 1
-
-        _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_method, I_method)
-
-        # set the intensity of the corresponding outward ray at the bottom of the atmosphere
-        @. I[μ_ind + n_inward_rays, :, deepest_layer] = I[μ_ind, :, deepest_layer] 
+        layer_inds = length(path) : -1 : 1
+        _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_scheme, I_scheme)
     end
-
-    # it make make sense at some point to set the intensity at the bottom of the atmosphere to 
-    # something nonzero, but the direct effect on the flux at the top is immeasurable
 
     # outward rays
     for μ_ind in n_inward_rays+1 : n_inward_rays+length(μ_surface_grid)
         path = rays[μ_ind - n_inward_rays]
         layer_inds = 1:length(path)
-        _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_method, I_method)
+        _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
     #just the outward rays at the top layer
@@ -129,7 +130,7 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     F, I
 end
 
-function _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_method, I_method)
+function _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_scheme, I_scheme)
     # view into τ corresponding to the current ray TODO eliminate?
     τ = view(τ_buffer, layer_inds)
 
@@ -145,27 +146,42 @@ function _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand
 
         # using more views below was not faster when I tested it
         # TODO: α is access in a cache-unfriendly way here
-        if τ_method == :anchored
+        if τ_scheme == "anchored"
             compute_tau_anchored!(τ, view(α, layer_inds, λ_ind), integrand_factor, log_τ_ref[layer_inds], integrand_buffer)
-        elseif τ_method == :bezier
+        elseif τ_scheme == "bezier"
             compute_tau_bezier!(τ, path, view(α, layer_inds, λ_ind))
-        elseif τ_method == :spline
+        elseif τ_scheme == "spline"
             @info "spline scheme sometimes fails" #TODO 
             compute_tau_spline_analytic!(τ, path, view(α, layer_inds, λ_ind))
         else
-            throw(ArgumentError("τ_method must be one of :anchored, :bezier, or :spline"))
+            throw(ArgumentError("τ_scheme must be one of \"anchored\", \"bezier\", or \"spline\" (not recommended)"))
         end
 
         # these views into I are required because the function modifies I in place
-        if I_method == :linear
+        if I_scheme == "linear"
+            #TODO switch S index order?
             linear_ray_transfer_integral!(view(I, μ_ind, λ_ind,  layer_inds), τ,
                                           view(S, layer_inds, λ_ind))
-        elseif I_method == :bezier
-            #TODO switch S index order?
+        elseif I_scheme == "linear_flux_only"
+            # += because the intensity at the bottom of the atmosphere is already set for some rays
+            I[μ_ind, λ_ind] += linear_ray_transfer_integral_flux_only(τ, view(S, layer_inds, λ_ind))
+        elseif I_scheme == "bezier"
             bezier_ray_transfer_integral!(view(I, μ_ind, λ_ind, layer_inds), τ,
                                           view(S, layer_inds, λ_ind))
         else
-            throw(ArgumentError("I_method must be one of :linear or :bezier"))
+            throw(ArgumentError("I_scheme must be one of \"linear\", \"bezier\", or \"linear_flux_only\""))
+        end
+
+        # set the intensity of the corresponding outward ray at the bottom of the atmosphere
+        # this isn't correct for rays which go below the atmosphere, but the effect is immeasurable
+        if μ_ind <= n_inward_rays # if ray is inwards
+            if I_scheme == "linear_flux_only"
+                # exp(-τ_buffer[1]) is the optical depth of the bottom of the atmosphere/end of the ray
+                I[μ_ind + n_inward_rays, λ_ind] = I[μ_ind, λ_ind] * exp(-τ_buffer[1])
+            else
+                # TODO this branch does effectively nothing.  Which one is right?
+                I[μ_ind + n_inward_rays, λ_ind, length(path)] = I[μ_ind, λ_ind, length(path)] 
+            end
         end
     end
 end
@@ -231,6 +247,7 @@ which is equal to
 """
 function linear_ray_transfer_integral!(I, τ, S)
     @assert length(I) == length(τ) == length(S) # because of the @inbounds below
+
     I[end] = 0
     if length(τ) == 1
         return
@@ -242,6 +259,24 @@ function linear_ray_transfer_integral!(I, τ, S)
         @inbounds I[k] = (I[k+1] - S[k] -  m*(δ+1)) * (@fastmath exp(-δ)) + m + S[k]
     end
     ;
+end
+
+"""
+TODO
+"""
+function linear_ray_transfer_integral_flux_only(τ, S)
+    if length(τ) == 1
+        return 0.0
+    end
+    I = 0.0
+    next_exp_negτ = exp(-τ[1])
+    for i in 1:length(τ)-1
+        @inbounds m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
+        cur_exp_negτ = next_exp_negτ
+        @inbounds next_exp_negτ = exp(-τ[i+1])
+        @inbounds I += (-next_exp_negτ * (S[i+1] + m) + cur_exp_negτ * (S[i] + m))
+    end
+    I
 end
 
 """
