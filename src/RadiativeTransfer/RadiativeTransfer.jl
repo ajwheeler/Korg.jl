@@ -16,6 +16,7 @@ function generate_mu_grid(n_points)
     μ_grid, μ_weights
 end
 
+#TODO elliminate
 include("BezierTransfer.jl")
 include("MoogStyleTransfer.jl")
 
@@ -52,43 +53,50 @@ end
 TODO
 
 # Returns
-- l, the coordinate along the ray
- - the index of the lowest atmospheric layer pierced by each ray
+- a spatial coordinate TODO increasing/decreasing along the ray
+- the index of the lowest atmospheric layer pierced by each ray
 """
 function calculate_rays(μ_surface_grid, radii)
-    map(enumerate(μ_surface_grid)) do (μ_ind, μ_surface)
+    map(μ_surface_grid) do μ_surface
         b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
-        
 
         if b < radii[end] # ray goes below the atmosphere
-            @. sqrt(radii^2 - b^2)
+            (@. sqrt(radii^2 - b^2)), 1:length(radii)
         else
-            #doing this with `findfirst` is messier at first and last index
+            # doing this with `findfirst` is messier at first and last index
             lowest_layer_index = argmin(abs.(radii .- b)) 
             if radii[lowest_layer_index] < b
                 lowest_layer_index -= 1
             end
-            path = @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
-            #path[end] *= 2
-            #path = [path ; -path[end-1:-1:1]]
-            #path[1: min(length(radii), length(path))]
+
+            forward_path = @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
+
+            if μ_surface > 0
+                # return a path all the way to the back of the star only if the ray is going 
+                # outwards and staying within the atmosphere.
+                [-reverse(forward_path) ; forward_path], [lowest_layer_index:-1:1 ; 1:lowest_layer_index]
+            else
+                forward_path, 1:lowest_layer_index
+            end
         end
     end
 end
 
 function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=nothing, τ_ref=nothing, 
                             I_method=:linear, τ_method=:anchored)
-    μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points)
-
-    path_lengths = calculate_rays(μ_surface_grid, radii)
+    μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) # TODO move this to the caller?
 
     # all_μ_surface_grid is the μ_surface_grid, but with negative μ values appended if they are 
-    # being used
+    # being used. Outward rays must be first so that indices into μ_surface_grid refer to the same 
+    # values in all_μ_surface_grid. 
     all_μ_surface_grid = if do_negative_rays
         [μ_surface_grid ; -μ_surface_grid]
     else
         μ_surface_grid
     end
+
+    # vector of path_length, layer_inds pairs
+    rays = calculate_rays(all_μ_surface_grid, radii)
 
     #type with which to preallocate arrays (enables autodiff)
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
@@ -97,90 +105,53 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
 
     # intensity at every layer, for every μ, for every λ. This is returned.
     # initialize with zeros because not every ray will pass through every layer
-    I = zeros(el_type, (length(all_μ_surface_grid), size(α)...))
+    most_points_needed = maximum(length.(first.(rays)))
+    I = zeros(el_type, (most_points_needed, size(α)...))
     # preallocate a single τ vector which gets reused many times
-    τ_buffer = Vector{el_type}(undef, length(radii)) 
-    integrand_buffer = Vector{el_type}(undef, length(radii))
-
-    #=
-    # first handle I contributions from the other side of the star
-    for μ_ind in μ_surface_grid #only outward going rays
-        # if the ray goes through the atmosphere (and it's not too shallow)
-        if 3 <= length(paths[μ_ind]) <= length(radii) 
-            #TODO
-            # indices of layers along this ray, in the correct order
-            layer_inds = if μ_ind <= length(μ_surface_grid)
-                1:n_layers #ray coming out
-            else
-                path .*= -1
-                n_layers:-1:1 #ray going in
-            end
-        end
-    end
-    =#
+    τ_buffer = Vector{el_type}(undef, most_points_needed) 
+    integrand_buffer = Vector{el_type}(undef, most_points_needed)
 
     # do each ray in turn
     for μ_ind in 1:length(all_μ_surface_grid)
-        # index of the ray in the μ_surface_grid with the same |μ| as this ray
-        positive_μ_ind = μ_ind <= length(μ_surface_grid) ? μ_ind : μ_ind - length(μ_surface_grid)
+        path, layer_inds = rays[μ_ind]
 
-        path = path_lengths[positive_μ_ind]
-        n_layers = length(path) # possibly counting layers which the ray passes through twice
-
-        # indices of layers along this ray, in the correct order
-        layer_inds = if μ_ind <= length(μ_surface_grid)
-            1:n_layers #ray coming out
-        else
-            path .*= -1
-            n_layers:-1:1 #ray going in
-        end
-
-        # view into τ_buffer with the right size
-        τ = view(τ_buffer, 1:n_layers)
-        path = view(path, layer_inds)
+        # view into τ corresponding to the current ray
+        τ = view(τ_buffer, 1:length(layer_inds))
 
         #TODO name better
         integrand_factor = @. (radii[layer_inds] * τ_ref[layer_inds]) / (abs(path) * α_ref[layer_inds])
         log_τ_ref = log.(τ_ref[layer_inds])
 
         for λ_ind in 1:size(α, 2)
-            if n_layers <= 2
+            if length(path) <= 2
+                # TODO try to do something smarter here
                 # don't need to write anything because I is initialized to 0
                 continue
             end
 
             if τ_method == :anchored
-                compute_tau_anchored!(τ, α[layer_inds, λ_ind], integrand_factor, log_τ_ref, integrand_buffer)
+                compute_tau_anchored!(τ, view(α, layer_inds, λ_ind), integrand_factor, log_τ_ref, integrand_buffer)
             elseif τ_method == :bezier
-                compute_tau_bezier!(τ, path, α[layer_inds, λ_ind])
+                compute_tau_bezier!(τ, path, view(α, layer_inds, λ_ind))
             elseif τ_method == :spline
-                @info "spline scheme sometimes fails"
-                compute_tau_spline_analytic!(τ, path, α[layer_inds, λ_ind])
+                @info "spline scheme sometimes fails" #TODO 
+                compute_tau_spline_analytic!(τ, path, view(α, layer_inds, λ_ind))
             else
                 throw(ArgumentError("τ_method must be one of :anchored, :bezier, or :spline"))
             end
 
             # TODO switch this to whatever
             if I_method == :linear
-                linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
+                linear_ray_transfer_integral!(view(I, μ_ind, 1:length(layer_inds), λ_ind), τ,
                                               view(S, layer_inds, λ_ind))
             elseif I_method == :bezier
-                bezier_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
+                bezier_ray_transfer_integral!(view(I, μ_ind, 1:length(layer_ind), λ_ind), τ,
                                               view(S, layer_inds, λ_ind))
             else
                 throw(ArgumentError("I_method must be one of :linear or :bezier"))
             end
 
-            #if  λ_ind == 1 && μ_ind==17 #isnan.(I[μ_ind, 1, λ_ind])
-            #    println("μ_ind = $μ_ind, μ = $(all_μ_surface_grid[μ_ind])")
-            #    display(["path" "alpha" "τ" "I" "S" ; 
-            #             path α[layer_inds, λ_ind] τ view(I, μ_ind, layer_inds, λ_ind)  view(S, layer_inds, λ_ind)])
-            #    println()
-            #    println()
-            #end
         end
-
-        #TODO handle other side of the star
     end
 
     #just the outward rays at the top layer
@@ -259,7 +230,7 @@ function linear_ray_transfer_integral!(I, τ, S)
     for k in length(τ)-1:-1:1
         @inbounds δ = τ[k+1] - τ[k]
         @inbounds m = (S[k+1] - S[k])/δ
-        @inbounds I[k] = (I[k+1] - S[k] -  m*(δ+1)) * exp(-δ) + m + S[k]
+        @inbounds I[k] = (I[k+1] - S[k] -  m*(δ+1)) * (@fastmath exp(-δ)) + m + S[k]
     end
     ;
 end
