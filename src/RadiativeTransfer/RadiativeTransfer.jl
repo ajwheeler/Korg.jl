@@ -61,23 +61,14 @@ function calculate_rays(μ_surface_grid, radii)
         b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
 
         if b < radii[end] # ray goes below the atmosphere
-            (@. sqrt(radii^2 - b^2)), 1:length(radii)
+            @. sqrt(radii^2 - b^2) 
         else
             # doing this with `findfirst` is messier at first and last index
             lowest_layer_index = argmin(abs.(radii .- b)) 
             if radii[lowest_layer_index] < b
                 lowest_layer_index -= 1
             end
-
-            forward_path = @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
-
-            if μ_surface > 0
-                # return a path all the way to the back of the star only if the ray is going 
-                # outwards and staying within the atmosphere.
-                [-reverse(forward_path) ; forward_path], [lowest_layer_index:-1:1 ; 1:lowest_layer_index]
-            else
-                forward_path, 1:lowest_layer_index
-            end
+            @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
         end
     end
 end
@@ -86,17 +77,8 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
                             I_method=:linear, τ_method=:anchored)
     μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) # TODO move this to the caller?
 
-    # all_μ_surface_grid is the μ_surface_grid, but with negative μ values appended if they are 
-    # being used. Outward rays must be first so that indices into μ_surface_grid refer to the same 
-    # values in all_μ_surface_grid. 
-    all_μ_surface_grid = if do_negative_rays
-        [μ_surface_grid ; -μ_surface_grid]
-    else
-        μ_surface_grid
-    end
-
     # vector of path_length, layer_inds pairs
-    rays = calculate_rays(all_μ_surface_grid, radii)
+    rays = calculate_rays(μ_surface_grid, radii)
 
     #type with which to preallocate arrays (enables autodiff)
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
@@ -105,22 +87,25 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
 
     # intensity at every layer, for every μ, for every λ. This is returned.
     # initialize with zeros because not every ray will pass through every layer
-    most_points_needed = maximum(length.(first.(rays)))
-    I = zeros(el_type, (most_points_needed, size(α)...))
+    I = zeros(el_type, (length(μ_surface_grid), size(α)...))
     # preallocate a single τ vector which gets reused many times
-    τ_buffer = Vector{el_type}(undef, most_points_needed) 
-    integrand_buffer = Vector{el_type}(undef, most_points_needed)
+    τ_buffer = Vector{el_type}(undef, length(radii)) 
+    integrand_buffer = Vector{el_type}(undef, length(radii))
+    log_τ_ref = log.(τ_ref) 
+
+    #TODO rays from the back half to the midplane of the star
 
     # do each ray in turn
-    for μ_ind in 1:length(all_μ_surface_grid)
-        path, layer_inds = rays[μ_ind]
+    for μ_ind in 1:length(μ_surface_grid)
+        path = rays[μ_ind]
+        nlayers = length(path)
 
-        # view into τ corresponding to the current ray
-        τ = view(τ_buffer, 1:length(layer_inds))
+        # view into τ corresponding to the current ray TODO eliminate?
+        τ = view(τ_buffer, 1:nlayers)
 
-        #TODO name better
-        integrand_factor = @. (radii[layer_inds] * τ_ref[layer_inds]) / (abs(path) * α_ref[layer_inds])
-        log_τ_ref = log.(τ_ref[layer_inds])
+        # TODO name better
+        # TODO try @views
+        integrand_factor = @. (radii[1:nlayers] * τ_ref[1:nlayers]) / (abs(path) * α_ref[1:nlayers])
 
         for λ_ind in 1:size(α, 2)
             if length(path) <= 2
@@ -130,23 +115,23 @@ function spherical_transfer(α, S, radii, n_μ_points, do_negative_rays; α_ref=
             end
 
             if τ_method == :anchored
-                compute_tau_anchored!(τ, view(α, layer_inds, λ_ind), integrand_factor, log_τ_ref, integrand_buffer)
+                compute_tau_anchored!(τ, view(α, 1:nlayers, λ_ind), integrand_factor, log_τ_ref[1:nlayers], integrand_buffer)
             elseif τ_method == :bezier
-                compute_tau_bezier!(τ, path, view(α, layer_inds, λ_ind))
+                compute_tau_bezier!(τ, path, view(α, 1:nlayers, λ_ind))
             elseif τ_method == :spline
                 @info "spline scheme sometimes fails" #TODO 
-                compute_tau_spline_analytic!(τ, path, view(α, layer_inds, λ_ind))
+                compute_tau_spline_analytic!(τ, path, view(α, 1:nlayers, λ_ind))
             else
                 throw(ArgumentError("τ_method must be one of :anchored, :bezier, or :spline"))
             end
 
             # TODO switch this to whatever
             if I_method == :linear
-                linear_ray_transfer_integral!(view(I, μ_ind, 1:length(layer_inds), λ_ind), τ,
-                                              view(S, layer_inds, λ_ind))
+                linear_ray_transfer_integral!(view(I, μ_ind, 1:nlayers, λ_ind), τ,
+                                              view(S, 1:nlayers, λ_ind))
             elseif I_method == :bezier
-                bezier_ray_transfer_integral!(view(I, μ_ind, 1:length(layer_ind), λ_ind), τ,
-                                              view(S, layer_inds, λ_ind))
+                bezier_ray_transfer_integral!(view(I, μ_ind, 1:nlayers, λ_ind), τ,
+                                              view(S, 1:nlayers, λ_ind))
             else
                 throw(ArgumentError("I_method must be one of :linear or :bezier"))
             end
