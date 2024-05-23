@@ -123,7 +123,7 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     end
 
     #just the outward rays at the top layer
-    surface_I = I[1:length(μ_surface_grid), 1, :]
+    surface_I = I[n_inward_rays+1:end, 1, :]
     F = 2π * (surface_I' * (μ_weights .* μ_surface_grid))
 
     F, I
