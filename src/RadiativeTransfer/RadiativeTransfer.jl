@@ -236,8 +236,6 @@ function linear_ray_transfer_integral!(I, τ, S)
         return
     end
 
-    #expδs = exp.(-diff(tau)) #TODO put in buffer
-
     for k in length(τ)-1:-1:1
         @inbounds δ = τ[k+1] - τ[k]
         @inbounds m = (S[k+1] - S[k])/δ
