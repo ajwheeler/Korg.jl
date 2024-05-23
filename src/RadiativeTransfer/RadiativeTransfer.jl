@@ -1,7 +1,6 @@
 module RadiativeTransfer
 using ...Korg: PlanarAtmosphere, ShellAtmosphere, CubicSplines, get_tau_5000s
 
-
 # for generate_mu_grid
 using FastGaussQuadrature: gausslegendre
 """
@@ -103,14 +102,13 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     # inward rays
     # TODO why is this twice as slow at the outward rays loop? (That performance is OK for now.)
     for μ_ind in 1:n_inward_rays
-        path = -reverse(rays[μ_ind]) #TODO should this be negative?
+        path = -reverse(rays[μ_ind]) 
         deepest_layer = length(path)
         layer_inds = deepest_layer : -1 : 1
 
         _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_method, I_method)
 
         # set the intensity of the corresponding outward ray at the bottom of the atmosphere
-        # TODO assess accuracy
         @. I[μ_ind + n_inward_rays, deepest_layer, :] = I[μ_ind, deepest_layer, :] 
     end
 
@@ -146,6 +144,7 @@ function _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand
         end
 
         # using more views below was not faster when I tested it
+        # TODO: α is access in a cache-unfriendly way here
         if τ_method == :anchored
             compute_tau_anchored!(τ, view(α, layer_inds, λ_ind), integrand_factor, log_τ_ref[layer_inds], integrand_buffer)
         elseif τ_method == :bezier
