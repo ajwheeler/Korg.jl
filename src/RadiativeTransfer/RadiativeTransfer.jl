@@ -90,9 +90,9 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
 
     #type with which to preallocate arrays (enables autodiff)
     el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
-    # intensity at every layer, for every μ, for every λ. This is returned.
+    # intensity at every for every μ, λ, and layer. This is returned.
     # initialize with zeros because not every ray will pass through every layer
-    I = zeros(el_type, (n_inward_rays + length(μ_surface_grid), size(α)...))
+    I = zeros(el_type, (n_inward_rays + length(μ_surface_grid), size(α')...))
     # preallocate a single τ vector which gets reused many times
     τ_buffer = Vector{el_type}(undef, length(radii)) 
     integrand_buffer = Vector{el_type}(undef, length(radii))
@@ -109,7 +109,7 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
         _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_method, I_method)
 
         # set the intensity of the corresponding outward ray at the bottom of the atmosphere
-        @. I[μ_ind + n_inward_rays, deepest_layer, :] = I[μ_ind, deepest_layer, :] 
+        @. I[μ_ind + n_inward_rays, :, deepest_layer] = I[μ_ind, :, deepest_layer] 
     end
 
     # it make make sense at some point to set the intensity at the bottom of the atmosphere to 
@@ -123,7 +123,7 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     end
 
     #just the outward rays at the top layer
-    surface_I = I[n_inward_rays+1:end, 1, :]
+    surface_I = I[n_inward_rays+1:end, :, 1]
     F = 2π * (surface_I' * (μ_weights .* μ_surface_grid))
 
     F, I
@@ -158,10 +158,11 @@ function _spherical_transfer_core(μ_ind, layer_inds, path, τ_buffer, integrand
 
         # these views into I are required because the function modifies I in place
         if I_method == :linear
-            linear_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
+            linear_ray_transfer_integral!(view(I, μ_ind, λ_ind,  layer_inds), τ,
                                           view(S, layer_inds, λ_ind))
         elseif I_method == :bezier
-            bezier_ray_transfer_integral!(view(I, μ_ind, layer_inds, λ_ind), τ,
+            #TODO switch S index order?
+            bezier_ray_transfer_integral!(view(I, μ_ind, λ_ind, layer_inds), τ,
                                           view(S, layer_inds, λ_ind))
         else
             throw(ArgumentError("I_method must be one of :linear or :bezier"))
@@ -174,7 +175,7 @@ function compute_tau_anchored!(τ, α, integrand_factor, log_τ_ref, integrand_b
     for k in eachindex(integrand_factor) #I can't figure out how to write this as a fast one-liner
         integrand_buffer[k] = α[k] * integrand_factor[k]
     end
-    #MoogStyleTransfer.cumulative_trapezoid_rule!(τ, log_τ_ref, integrand_buffer)
+    #MoogStyleTransfer.cumulative_trapezoid_rule!(τ, log_τ_ref, integrand_buffer) #TODO
     τ[1] = 0.0
     for i in 2:length(log_τ_ref)
         τ[i] = τ[i-1] + 0.5*(integrand_buffer[i]+integrand_buffer[i-1])*(log_τ_ref[i]-log_τ_ref[i-1])
@@ -235,6 +236,8 @@ function linear_ray_transfer_integral!(I, τ, S)
         return
     end
 
+    #expδs = exp.(-diff(tau)) #TODO put in buffer
+
     for k in length(τ)-1:-1:1
         @inbounds δ = τ[k+1] - τ[k]
         @inbounds m = (S[k+1] - S[k])/δ
@@ -265,7 +268,7 @@ function bezier_ray_transfer_integral!(I, τ, S)
         α = (2 + δ^2 - 2*δ - 2*exp(-δ)) / δ^2
         β = (2 - (2 + 2δ + δ^2)*exp(-δ)) / δ^2
         γ = (2*δ - 4 + (2δ + 4)*exp(-δ)) / δ^2
-    
+
         @inbounds I[k] = I[k+1]*exp(-δ) + α*S[k] + β*S[k+1] + γ*C[k]
     end
     @inbounds I[1] *= exp(-τ[1]) #the second term isn't in the paper but it's necessary if τ[1] != 0
