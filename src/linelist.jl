@@ -164,7 +164,8 @@ The `format` keyword argument can be used to specify one of these linelist forma
    (format=kurucz_vac if it uses vacuum wavelengths; be warned that Korg will not assume that 
    wavelengths are vacuum below 2000 Å),
 - `"moog"` for a [MOOG linelist](http://www.as.utexas.edu/~chris/moog.html)
-   (doesn't support broadening parameters or dissociation energies).  
+   (doesn't support broadening parameters or dissociation energies, assumed to be in vacuum wavelengths).  
+- `"moog_air"` for a MOOG linelist in air wavelengths.
 - `"turbospectrum"` for a 
    [Turbospectrum linelist](https://github.com/bertrandplez/Turbospectrum2019/blob/master/DOC/Readme-Linelist_format_v.19) 
    in air wavelengths. Note that Korg doesn't make use of the (optional) orbital angular momentum quantum number, l, 
@@ -200,7 +201,9 @@ function read_linelist(fname::String; format="vald", isotopic_abundances=isotopi
         elseif format == "vald"
             parse_vald_linelist(f, isotopic_abundances)
         elseif format == "moog"
-            parse_moog_linelist(f, isotopic_abundances)
+            parse_moog_linelist(f, isotopic_abundances, true)
+        elseif format == "moog_air"
+            parse_moog_linelist(f, isotopic_abundances, false)
         elseif format == "turbospectrum"
             parse_turbospectrum_linelist(f, isotopic_abundances, false)
         elseif format == "turbospectrum_vac"
@@ -383,7 +386,7 @@ function parse_vald_linelist(f, isotopic_abundances)
 end
 
 #todo support moog linelists with broadening parameters?
-function parse_moog_linelist(f, isotopic_abundances)
+function parse_moog_linelist(f, isotopic_abundances, vacuum_wavelengths)
     lines = collect(eachline(f))
     # The first line is ignored.  It's for human-readability only.
     linelist = map(lines[2:end]) do line
@@ -414,7 +417,12 @@ function parse_moog_linelist(f, isotopic_abundances)
             end |> sum
         end
 
-        Line(parse(Float64, toks[1]) * 1e-8, #convert Å to cm
+        wl = parse(Float64, toks[1]) * 1e-8 #convert Å to cm
+        if !vacuum_wavelengths
+            wl = air_to_vacuum(wl)
+        end
+
+        Line(wl,
              parse(Float64, toks[4]) + Δ_log_gf,
              spec,
              parse(Float64, toks[3]))

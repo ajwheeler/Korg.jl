@@ -132,7 +132,10 @@
     end
 
     moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
+    moog_linelist_as_air = read_linelist("data/linelists/s5eqw_short.moog"; format="moog_air")
     @testset "moog linelist parsing" begin
+        @test all(Korg.air_to_vacuum(l1.wl) .≈ l2.wl for (l1, l2) in zip(moog_linelist, moog_linelist_as_air))
+
         @test issorted(moog_linelist, by=l->l.wl)
         @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
         @test moog_linelist[1].log_gf ≈ -0.280
