@@ -38,10 +38,7 @@ function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points; i
         nothing
     end
 
-    depths = get_zs(atm)
-    depths .-= 2 * depths[end] #shift coordinates to avoid crossing zero
-
-    radiative_transfer(α, S, depths, n_μ_points, include_inward_rays, false; 
+    radiative_transfer(α, S, get_zs(atm), n_μ_points, include_inward_rays, false; 
                        α_ref=α_ref, τ_ref=τ_ref, I_scheme=I_scheme, τ_scheme=τ_scheme)
 end
 function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; include_inward_rays=false,
@@ -63,28 +60,30 @@ end
 TODO
 
 # Returns
-- a spatial coordinate TODO increasing/decreasing along the ray
-- the index of the lowest atmospheric layer pierced by each ray
+ spatial coordinate s decreasing along the ray, and ds/dz
 """
 function calculate_rays(μ_surface_grid, spatial_coord, spherical)
-    if spherical
+    if spherical # spatial_coord is radius
         map(μ_surface_grid) do μ_surface
             b = spatial_coord[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
 
-            if b < spatial_coord[end] # ray goes below the atmosphere
-                @. sqrt(spatial_coord^2 - b^2) 
+            lowest_layer_index = if b < spatial_coord[end] # ray goes below the atmosphere
+                length(spatial_coord)
             else
                 # doing this with `findfirst` is messier at first and last index
                 lowest_layer_index = argmin(abs.(spatial_coord .- b)) 
                 if spatial_coord[lowest_layer_index] < b
                     lowest_layer_index -= 1
                 end
-                @. sqrt(spatial_coord[1:lowest_layer_index]^2 - b^2)
+                lowest_layer_index
             end
+            s = @. sqrt(spatial_coord[1:lowest_layer_index]^2 - b^2)
+            dsdr = @. spatial_coord[1:lowest_layer_index] ./ s # TODO isn't there a missing factor of 1/2???
+            s, dsdr
         end
-    else
+    else #spatial_coord measured relative to whatever
         map(μ_surface_grid) do μ_surface
-            spatial_coord ./ μ_surface
+            (spatial_coord ./ μ_surface), ones(length(spatial_coord)) ./ μ_surface
         end
     end
 end
@@ -95,9 +94,9 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
         println("Warning: the spline τ scheme is not bug-free and may fail.")
     end
 
-    μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) # TODO move this to the caller?
+    μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) 
 
-    # vector of path_length, layer_inds pairs
+    # distance along ray, and derivative wrt spatial coord
     rays = calculate_rays(μ_surface_grid, spatial_coord, spherical)
 
     # do inward rays either for everything, or just for the rays where we need to seed the bottom of
@@ -105,7 +104,7 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     inward_μ_surface_grid = if include_inward_rays
         -μ_surface_grid
     else
-        -μ_surface_grid[length.(rays) .< length(spatial_coord)]
+        -μ_surface_grid[length.(first.(rays)) .< length(spatial_coord)]
     end
     n_inward_rays = length(inward_μ_surface_grid)
 
@@ -128,16 +127,20 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     # inward rays
     # TODO why is this twice as slow at the outward rays loop? (That performance is OK for now.)
     for μ_ind in 1:n_inward_rays
-        path = -reverse(rays[μ_ind]) 
+        path, dsdz = reverse.(rays[μ_ind])
         layer_inds = length(path) : -1 : 1
-        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, spatial_coord, τ_ref, α_ref, τ_scheme, I_scheme)
+        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
+                                 τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, spatial_coord,
+                                 τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
     # outward rays
     for μ_ind in n_inward_rays+1 : n_inward_rays+length(μ_surface_grid)
-        path = rays[μ_ind - n_inward_rays]
+        path, dsdz = rays[μ_ind - n_inward_rays]
         layer_inds = 1:length(path)
-        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord, τ_ref, α_ref, τ_scheme, I_scheme)
+        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
+                                 τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord,
+                                 τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
     #just the outward rays at the top layer
@@ -147,11 +150,15 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     F, I
 end
 
-function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord, τ_ref, α_ref, τ_scheme, I_scheme)
+function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
+                                  τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord,
+                                  τ_ref, α_ref, τ_scheme, I_scheme)
+
     # view into τ corresponding to the current ray TODO eliminate?
     τ = view(τ_buffer, layer_inds)
 
-    integrand_factor = @. (spatial_coord[layer_inds] * τ_ref[layer_inds]) / (abs(path) * α_ref[layer_inds])
+    # this is τref/αref * ds/dz
+    integrand_factor = @. τ_ref[layer_inds] / α_ref[layer_inds] * dsdz
 
     for λ_ind in 1:size(α, 2)
         if length(path) <= 2
