@@ -22,6 +22,6 @@ include("synthesize.jl")
 include("prune_linelist.jl")
 include("utils.jl")
 include("line_absorption.jl")
-
+include("qfactors.jl")
 
 end #top-level testset
