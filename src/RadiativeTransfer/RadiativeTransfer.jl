@@ -15,10 +15,6 @@ function generate_mu_grid(n_points)
     μ_grid, μ_weights
 end
 
-#TODO elliminate
-#include("BezierTransfer.jl")
-#include("MoogStyleTransfer.jl")
-
 """
 
 # Arguments:
@@ -153,8 +149,7 @@ end
 function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
                                   τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord,
                                   τ_ref, α_ref, τ_scheme, I_scheme)
-
-    # view into τ corresponding to the current ray TODO eliminate?
+    # view into τ corresponding to the current ray
     τ = view(τ_buffer, layer_inds)
 
     # this is τref/αref * ds/dz
@@ -212,7 +207,6 @@ function compute_tau_anchored!(τ, α, integrand_factor, log_τ_ref, integrand_b
     for k in eachindex(integrand_factor) #I can't figure out how to write this as a fast one-liner
         integrand_buffer[k] = α[k] * integrand_factor[k]
     end
-    #MoogStyleTransfer.cumulative_trapezoid_rule!(τ, log_τ_ref, integrand_buffer) #TODO
     τ[1] = 0.0
     for i in 2:length(log_τ_ref)
         τ[i] = τ[i-1] + 0.5*(integrand_buffer[i]+integrand_buffer[i-1])*(log_τ_ref[i]-log_τ_ref[i-1])
