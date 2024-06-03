@@ -18,8 +18,7 @@
     atm = Korg.interpolate_marcs(5777, 4.4, Korg.grevesse_2007_solar_abundances)
     kout = synthesize(atm, apolines, A_X, wl_lo, wl_hi, wl_step, vmic=0, hydrogen_lines=true, hydrogen_line_window_size=300, electron_number_density_warn_threshold=1e10);
     tspec = (kout.flux)./(kout.cntm);
-    Q = Korg.Qfactor(tspec, x_model, wavetarg, LSF_model)
-    @test abs(Q-1182.420317367743)<1e-10
+    @test abs(Korg.Qfactor(tspec, x_model, wavetarg, LSF_model)-1182.420317367743)<1e-10
 
     msk = ones(Bool,length(wavetarg))
     msk[1:100].=false
