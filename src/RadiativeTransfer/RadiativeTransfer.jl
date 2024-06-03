@@ -1,5 +1,5 @@
 module RadiativeTransfer
-using ...Korg: PlanarAtmosphere, ShellAtmosphere, CubicSplines, get_tau_5000s
+using ...Korg: PlanarAtmosphere, ShellAtmosphere, CubicSplines, get_tau_5000s, get_zs
 
 # for generate_mu_grid
 using FastGaussQuadrature: gausslegendre
@@ -30,8 +30,19 @@ include("MoogStyleTransfer.jl")
 - `μs`: the number of quadrature points to use when integrating over I_surface(μ) to obtain 
    the astrophysical flux. (TODO make this either a number or a vector of μ values)
 """
-function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points; 
-                                    tau_method=:anchored, I_method=:linear)
+function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points; include_inward_rays=false,
+                                    τ_scheme="linear", I_scheme="linear_flux_only", α_ref=nothing)
+    τ_ref = if !isnothing(α_ref) 
+        get_tau_5000s(atm)
+    else
+        nothing
+    end
+
+    depths = get_zs(atm)
+    depths .-= 2 * depths[end] #shift coordinates to avoid crossing zero
+
+    radiative_transfer(α, S, depths, n_μ_points, include_inward_rays, false; 
+                       α_ref=α_ref, τ_ref=τ_ref, I_scheme=I_scheme, τ_scheme=τ_scheme)
 end
 function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; include_inward_rays=false,
                                     τ_scheme=:anchored, I_scheme=:linear, α_ref=nothing)
@@ -43,7 +54,7 @@ function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; in
     else
         nothing
     end
-    F, I = spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; 
+    F, I = radiative_transfer(α, S, radii, n_μ_points, include_inward_rays, true; 
                               α_ref=α_ref, τ_ref=τ_ref, I_scheme=I_scheme, τ_scheme=τ_scheme)
     photosphere_correction .* F, I
 end
@@ -55,25 +66,31 @@ TODO
 - a spatial coordinate TODO increasing/decreasing along the ray
 - the index of the lowest atmospheric layer pierced by each ray
 """
-function calculate_rays(μ_surface_grid, radii)
-    map(μ_surface_grid) do μ_surface
-        b = radii[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
+function calculate_rays(μ_surface_grid, spatial_coord, spherical)
+    if spherical
+        map(μ_surface_grid) do μ_surface
+            b = spatial_coord[1] * sqrt(1 - μ_surface^2) # impact parameter of ray
 
-        if b < radii[end] # ray goes below the atmosphere
-            @. sqrt(radii^2 - b^2) 
-        else
-            # doing this with `findfirst` is messier at first and last index
-            lowest_layer_index = argmin(abs.(radii .- b)) 
-            if radii[lowest_layer_index] < b
-                lowest_layer_index -= 1
+            if b < spatial_coord[end] # ray goes below the atmosphere
+                @. sqrt(spatial_coord^2 - b^2) 
+            else
+                # doing this with `findfirst` is messier at first and last index
+                lowest_layer_index = argmin(abs.(spatial_coord .- b)) 
+                if spatial_coord[lowest_layer_index] < b
+                    lowest_layer_index -= 1
+                end
+                @. sqrt(spatial_coord[1:lowest_layer_index]^2 - b^2)
             end
-            @. sqrt(radii[1:lowest_layer_index]^2 - b^2)
+        end
+    else
+        map(μ_surface_grid) do μ_surface
+            spatial_coord ./ μ_surface
         end
     end
 end
 
-function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_ref=nothing, τ_ref=nothing, 
-                            I_scheme="linear_flux_only", τ_scheme="anchored")
+function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_rays, spherical;
+                            α_ref=nothing, τ_ref=nothing, I_scheme="linear_flux_only", τ_scheme="anchored")
     if τ_scheme == "spline"
         println("Warning: the spline τ scheme is not bug-free and may fail.")
     end
@@ -81,19 +98,19 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) # TODO move this to the caller?
 
     # vector of path_length, layer_inds pairs
-    rays = calculate_rays(μ_surface_grid, radii)
+    rays = calculate_rays(μ_surface_grid, spatial_coord, spherical)
 
     # do inward rays either for everything, or just for the rays where we need to seed the bottom of
     # of the atmosphere
     inward_μ_surface_grid = if include_inward_rays
         -μ_surface_grid
     else
-        -μ_surface_grid[length.(rays) .< length(radii)]
+        -μ_surface_grid[length.(rays) .< length(spatial_coord)]
     end
     n_inward_rays = length(inward_μ_surface_grid)
 
     #type with which to preallocate arrays (enables autodiff)
-    el_type = typeof(promote(radii[1], α[1], S[1], μ_surface_grid[1])[1])
+    el_type = typeof(promote(spatial_coord[1], α[1], S[1], μ_surface_grid[1])[1])
     # intensity at every for every μ, λ, and layer. This is returned.
     # initialize with zeros because not every ray will pass through every layer
     I = if I_scheme == "linear_flux_only"
@@ -103,8 +120,8 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
         zeros(el_type, (n_inward_rays + length(μ_surface_grid), size(α')...))
     end
     # preallocate a single τ vector which gets reused many times
-    τ_buffer = Vector{el_type}(undef, length(radii)) 
-    integrand_buffer = Vector{el_type}(undef, length(radii))
+    τ_buffer = Vector{el_type}(undef, length(spatial_coord)) 
+    integrand_buffer = Vector{el_type}(undef, length(spatial_coord))
     log_τ_ref = log.(τ_ref) 
     #TODO precalculate λ-indenpendent quantities, at least for anchored τ, but maybe for other methods too
 
@@ -113,14 +130,14 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     for μ_ind in 1:n_inward_rays
         path = -reverse(rays[μ_ind]) 
         layer_inds = length(path) : -1 : 1
-        _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_scheme, I_scheme)
+        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, spatial_coord, τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
     # outward rays
     for μ_ind in n_inward_rays+1 : n_inward_rays+length(μ_surface_grid)
         path = rays[μ_ind - n_inward_rays]
         layer_inds = 1:length(path)
-        _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_scheme, I_scheme)
+        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord, τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
     #just the outward rays at the top layer
@@ -130,12 +147,11 @@ function spherical_transfer(α, S, radii, n_μ_points, include_inward_rays; α_r
     F, I
 end
 
-function _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, radii, τ_ref, α_ref, τ_scheme, I_scheme)
+function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord, τ_ref, α_ref, τ_scheme, I_scheme)
     # view into τ corresponding to the current ray TODO eliminate?
     τ = view(τ_buffer, layer_inds)
 
-    # TODO name better, pull out of loop in caller
-    integrand_factor = @. (radii[layer_inds] * τ_ref[layer_inds]) / (abs(path) * α_ref[layer_inds])
+    integrand_factor = @. (spatial_coord[layer_inds] * τ_ref[layer_inds]) / (abs(path) * α_ref[layer_inds])
 
     for λ_ind in 1:size(α, 2)
         if length(path) <= 2
@@ -156,7 +172,7 @@ function _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_bu
         else
             throw(ArgumentError("τ_scheme must be one of \"anchored\", \"bezier\", or \"spline\" (not recommended)"))
         end
-
+        
         # these views into I are required because the function modifies I in place
         if I_scheme == "linear"
             #TODO switch S index order?
@@ -185,7 +201,6 @@ function _spherical_transfer_core(μ_ind, layer_inds, n_inward_rays, path, τ_bu
         end
     end
 end
-
 
 function compute_tau_anchored!(τ, α, integrand_factor, log_τ_ref, integrand_buffer)
     for k in eachindex(integrand_factor) #I can't figure out how to write this as a fast one-liner
