@@ -90,7 +90,12 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
         println("Warning: the spline τ scheme is not bug-free and may fail.")
     end
 
-    μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) 
+    if I_scheme == "linear_flux_only" && τ_scheme == "anchored" && !spherical
+        # in this special case, we can use exponential integral tricks
+        μ_surface_grid, μ_weights = [1], [1]
+    else
+        μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points) 
+    end
 
     # distance along ray, and derivative wrt spatial coord
     rays = calculate_rays(μ_surface_grid, spatial_coord, spherical)
@@ -182,6 +187,8 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
         elseif I_scheme == "linear_flux_only"
             # += because the intensity at the bottom of the atmosphere is already set for some rays
             I[μ_ind, λ_ind] += linear_ray_transfer_integral_flux_only(τ, view(S, layer_inds, λ_ind))
+        elseif I_scheme == "linear_flux_only_expint"
+            throw(ArgumentError("Not implemented"))
         elseif I_scheme == "bezier"
             bezier_ray_transfer_integral!(view(I, μ_ind, λ_ind, layer_inds), τ,
                                           view(S, layer_inds, λ_ind))
