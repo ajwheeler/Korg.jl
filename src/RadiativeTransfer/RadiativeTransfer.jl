@@ -16,8 +16,8 @@ function generate_mu_grid(n_points)
 end
 
 #TODO elliminate
-include("BezierTransfer.jl")
-include("MoogStyleTransfer.jl")
+#include("BezierTransfer.jl")
+#include("MoogStyleTransfer.jl")
 
 """
 
@@ -174,7 +174,6 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
         elseif τ_scheme == "bezier"
             compute_tau_bezier!(τ, path, view(α, layer_inds, λ_ind))
         elseif τ_scheme == "spline"
-            @info "spline scheme sometimes fails" #TODO 
             compute_tau_spline_analytic!(τ, path, view(α, layer_inds, λ_ind))
         else
             throw(ArgumentError("τ_scheme must be one of \"anchored\", \"bezier\", or \"spline\" (not recommended)"))
