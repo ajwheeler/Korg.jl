@@ -21,6 +21,7 @@ module Korg
     include("synthesize.jl")               # top-level API
     include("prune_linelist.jl")           # select strong lines from a linelist
     include("fit.jl")                      # routines to infer stellar params from data
+    include("qfactors.jl")                 # formalism to compute theoretical RV precision
 
     export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs, format_A_X
 end # module
