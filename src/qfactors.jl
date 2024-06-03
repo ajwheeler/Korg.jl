@@ -28,12 +28,12 @@ Compute the Q factor from the high resolution theoretical spectrum, the high res
 - `spec_hres::Vector{Real}`: High resolution theoretical spectrum
 - `wave_hres`: High resolution wavelength grid
 - `wave_lres`: Low resolution wavelength grid
-- `LSF_mat::Matrix{Real}`: LSF matrix
+- `LSF_mat`: LSF matrix
 
 # Keyword Arguments
 - `msk_lres::Vector{Bool}=nothing`: Mask for the low resolution spectrum to account for pixels masked from the observation
 """
-function Qfactor(spec_hres::Vector{Real},wave_hres,wave_lres,LSF_mat::Matrix{Real}; msk_lres::Vector{Bool}=nothing)
+function Qfactor(spec_hres,wave_hres,wave_lres,LSF_mat; msk_lres=nothing)
     nvecLSF = dropdims(sum(LSF_mat,dims=2),dims=2) # normalisation for the LSF
     spec_lres = LSF_mat*spec_hres./nvecLSF
 
@@ -58,14 +58,14 @@ Compute the RV precision using the true observed uncertainties on the continuum 
 - `spec_hres::Vector{Real}`: High resolution theoretical spectrum
 - `wave_hres`: High resolution wavelength grid
 - `wave_lres`: Low resolution wavelength grid
-- `LSF_mat::Matrix{Real}`: LSF matrix
+- `LSF_mat`: LSF matrix
 - `noise_contNorm::Vector{Real}`: Noise in the continuum normalized spectrum
 
 # Keyword Arguments
-- `msk_lres::Vector{Bool}=nothing`: Mask for the low resolution spectrum to account for pixels masked from the observation
+- `msk_lres=nothing`: Mask for the low resolution spectrum to account for pixels masked from the observation
 - `c::Real=299792458`: Speed of light in m/s
 """
-function precRV_MeasuredNoise(spec_hres::Vector{Real},wave_hres,wave_lres,LSF_mat::Matrix{Real},noise_contNorm::Vector{Real};msk_lres::Vector{Bool}=nothing,c::Real = 299792458)
+function precRV_MeasuredNoise(spec_hres,wave_hres,wave_lres,LSF_mat,noise_contNorm; msk_lres=nothing,c::Real = 299792458)
     nvecLSF = dropdims(sum(LSF_mat,dims=2),dims=2)
 
     dspec_dlam = zeros(length(spec_hres))
