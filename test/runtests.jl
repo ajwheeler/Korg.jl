@@ -5,6 +5,9 @@ using Korg, Test, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
 # tools for testing: assert_allclose and assert_allclose_grid
 include("utilities.jl") 
 
+# We use the TimerOutputs package to print the time and allocations for each top-lvel testset
+# particularly interesting inner testsets can also be timed 
+
 reset_timer!()
 @timeit "molecular_cross_sections" include("molecular_cross_sections.jl")
 @timeit "cubic_splines" include("cubic_splines.jl")
@@ -15,10 +18,10 @@ reset_timer!()
 @timeit "partition_funcs" include("partition_funcs.jl")
 @timeit "statmech" include("statmech.jl")
 @timeit "linelist" include("linelist.jl")
-@timeit "fit" include("fit.jl") # slow
-@timeit "autodiff" include("autodiff.jl") # slow
+@timeit "fit" include("fit.jl")                                   # slow
+@timeit "autodiff" include("autodiff.jl")                         # slow
 @timeit "autodiffable_conv" include("autodiffable_conv.jl")
-@timeit "atmosphere" include("atmosphere.jl")
+@timeit "atmosphere" include("atmosphere.jl")                     # slow
 @timeit "synthesize" include("synthesize.jl")
 @timeit "prune_linelist" include("prune_linelist.jl")
 @timeit "utils" include("utils.jl")
