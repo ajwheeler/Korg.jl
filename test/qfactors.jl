@@ -1,6 +1,6 @@
 @testset "qfactors" begin
     # Check a Q factor gives the right RV precision
-    @test Korg.precRV_fromQ(1100,100,8000) ≈ 30.470741601352298 atol=1e-10
+    @test Korg.RV_prec_from_Q(1100,100,8000) ≈ 30.470741601352298 atol=1e-10
 
     # Check that a solar spectrum at APOGEE resolution gives the expected Q factor
     delLog = 6e-6; 
@@ -24,7 +24,7 @@
     msk = ones(Bool,length(wavetarg))
     msk[1:100].=false
     msk[end-100:100].=true
-    @test Korg.precRV_MeasuredNoise(tspec, x_model, wavetarg, LSF_model, 1 ./100*ones(length(wavetarg)),msk_lres=msk) ≈ 29.490659698846365 atol=1e-10
-    @test Korg.precRV_fromQ(Q,100,count(msk)) ≈ 27.34006821159959 atol=1e-10
+    @test Korg.RV_prec_from_noise(tspec, x_model, wavetarg, LSF_model, 1 ./100*ones(length(wavetarg)),msk_lres=msk) ≈ 29.490659698846365 atol=1e-10
+    @test Korg.RV_prec_from_Q(Q,100,count(msk)) ≈ 27.34006821159959 atol=1e-10
     # I think these two should agree... but the problem must be from the continuum defintion and how that propagates to S/N
 end
