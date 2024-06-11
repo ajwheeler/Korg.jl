@@ -16,11 +16,11 @@ function generate_mu_grid(n_points)
 end
 
 """
-
+TODO
 # Arguments:
 - `atm`: the model atmosphere.
-- `α`: a matrix (atmospheric layers × wavelengths) containing the absoprtion coefficient
-- `S`: the source fuction as a matrix of the same shape.
+- `α`: a matrix (atmospheric layers × wavelengths) containing the absorption coefficient
+- `S`: the source function as a matrix of the same shape.
    rescale the total absorption to match the model atmosphere. This value should be calculated by 
    Korg.
 - `μs`: the number of quadrature points to use when integrating over I_surface(μ) to obtain 
@@ -91,6 +91,7 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     end
 
     if I_scheme == "linear_flux_only" && τ_scheme == "anchored" && !spherical
+        I_scheme = "linear_flux_only_expint"
         # in this special case, we can use exponential integral tricks
         μ_surface_grid, μ_weights = [1], [1]
     else
@@ -113,7 +114,7 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     el_type = typeof(promote(spatial_coord[1], α[1], S[1], μ_surface_grid[1])[1])
     # intensity at every for every μ, λ, and layer. This is returned.
     # initialize with zeros because not every ray will pass through every layer
-    I = if I_scheme == "linear_flux_only"
+    I = if startswith(I_scheme, "linear_flux_only") # may or may not end in _expint
         # no "layers" dimension if we're only calculating the flux at the top of the atmosphere
         zeros(el_type, (n_inward_rays + length(μ_surface_grid), size(α, 2)))
     else
@@ -131,7 +132,7 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
         path, dsdz = reverse.(rays[μ_ind])
         layer_inds = length(path) : -1 : 1
         _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
-                                 τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, spatial_coord,
+                                 τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, 
                                  τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
@@ -140,7 +141,7 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
         path, dsdz = rays[μ_ind - n_inward_rays]
         layer_inds = 1:length(path)
         _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
-                                 τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord,
+                                 τ_buffer, integrand_buffer, log_τ_ref, α, S, I, 
                                  τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
@@ -151,8 +152,14 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     F, I
 end
 
+"""
+TODO
+
+n.b. this function has an additional I_scheme ("linear_flux_only_expint") that radiative_transfer 
+will automatically switch to when appropriate.
+"""
 function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
-                                  τ_buffer, integrand_buffer, log_τ_ref, α, S, I, spatial_coord,
+                                  τ_buffer, integrand_buffer, log_τ_ref, α, S, I, 
                                   τ_ref, α_ref, τ_scheme, I_scheme)
     # view into τ corresponding to the current ray
     τ = view(τ_buffer, layer_inds)
@@ -188,7 +195,7 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
             # += because the intensity at the bottom of the atmosphere is already set for some rays
             I[μ_ind, λ_ind] += linear_ray_transfer_integral_flux_only(τ, view(S, layer_inds, λ_ind))
         elseif I_scheme == "linear_flux_only_expint"
-            throw(ArgumentError("Not implemented"))
+            I[μ_ind, λ_ind] += linear_ray_transfer_integral_flux_only_expint(τ, view(S, layer_inds, λ_ind))
         elseif I_scheme == "bezier"
             bezier_ray_transfer_integral!(view(I, μ_ind, λ_ind, layer_inds), τ,
                                           view(S, layer_inds, λ_ind))
@@ -347,6 +354,112 @@ function fritsch_butland_C(x, y)
     C1 = @. y[2:end-1] - h[2:end]*yprime/2
 
     ([C0 ; C1[end]] .+ [C0[1] ; C1]) ./ 2
+end
+
+
+"""
+    linear_ray_transfer_integral_flux_only_expint(τ, S)
+
+Compute exactly the solution to the transfer integral obtained be linearly interpolating the source 
+function, `S` across optical depths `τ`, without approximating the factor of E₂(τ).
+"""
+function linear_ray_transfer_integral_flux_only_expint(τ, S)
+    I = 0
+    for i in 1:length(τ)-1
+        @inbounds m = (S[i+1] - S[i])/(τ[i+1] - τ[i])
+        @inbounds b = S[i] - m*τ[i]
+        @inbounds I += (expint_transfer_integral_core(τ[i+1], m, b) - 
+                        expint_transfer_integral_core(τ[i], m, b))
+    end
+    I
+end
+
+"""
+    expint_transfer_integral_core(τ, m, b)
+
+The exact solution to \$\\int (m\\tau + b) E_2(\\tau)\$ d\\tau\$.
+The exponential integral function, expint, captures the integral over the disk of the star to 
+get the emergent astrophysical flux. You can verify it by substituting the variable of integration 
+in the exponential integal, t, with mu=1/t.
+"""
+function expint_transfer_integral_core(τ, m, b)
+    1/6 * (τ*exponential_integral_2(τ)*(3b+2m*τ) - exp(-τ)*(3b + 2m*(τ+1)))
+end
+
+"""
+    exponential_integral_2(x)
+
+Approximate second order exponential integral, E_2(x).  This stitches together several series 
+expansions to get an approximation which is accurate within 1% for all `x`.
+"""
+function exponential_integral_2(x)  # this implementation could definitely be improved
+    if x == 0
+        0.0
+    elseif x < 1.1
+        _expint_small(x)
+    elseif x < 2.5
+        _expint_2(x)
+    elseif x < 3.5
+        _expint_3(x)
+    elseif x < 4.5
+        _expint_4(x)
+    elseif x < 5.5
+        _expint_5(x)
+    elseif x < 6.5
+        _expint_6(x)
+    elseif x < 7.5
+        _expint_7(x)
+    elseif x < 9
+        _expint_8(x)
+    else
+        _expint_large(x)
+    end
+end
+
+function _expint_small(x) 
+    #euler mascheroni constant
+    ℇ = 0.57721566490153286060651209008240243104215933593992
+    1 + ((log(x) + ℇ - 1) + (-0.5 + (0.08333333333333333 + (-0.013888888888888888 + 
+                                                            0.0020833333333333333*x)*x)*x)*x)*x
+end
+function _expint_large(x)
+    invx = 1/x
+    exp(-x) * (1 + (-2 + (6 + (-24 + 120*invx)*invx)*invx)*invx)*invx
+end
+function _expint_2(x)
+    x -= 2
+    0.037534261820486914 + (-0.04890051070806112 + (0.033833820809153176 + (-0.016916910404576574 + 
+                                          (0.007048712668573576 -0.0026785108140579598*x)*x)*x)*x)*x
+end
+function _expint_3(x)
+    x -= 3
+    0.010641925085272673   + (-0.013048381094197039   + (0.008297844727977323   + 
+            (-0.003687930990212144   + (0.0013061422257001345  - 0.0003995258572729822*x)*x)*x)*x)*x
+end
+function _expint_4(x)
+    x -= 4
+    0.0031982292493385146  + (-0.0037793524098489054  + (0.0022894548610917728  + 
+            (-0.0009539395254549051  + (0.00031003034577284415 - 8.466213288412284e-5*x )*x)*x)*x)*x
+end
+function _expint_5(x)
+    x -= 5
+    0.000996469042708825   + (-0.0011482955912753257  + (0.0006737946999085467  +
+            (-0.00026951787996341863 + (8.310134632205409e-5   - 2.1202073223788938e-5*x)*x)*x)*x)*x
+end
+function _expint_6(x)
+    x -= 6
+    0.0003182574636904001  + (-0.0003600824521626587  + (0.00020656268138886323 + 
+            (-8.032993165122457e-5   + (2.390771775334065e-5   - 5.8334831318151185e-6*x)*x)*x)*x)*x
+end
+function _expint_7(x)
+    x -= 7
+    0.00010350984428214624 + (-0.00011548173161033826 + (6.513442611103688e-5   + 
+            (-2.4813114708966427e-5  + (7.200234178941151e-6   - 1.7027366981408086e-6*x)*x)*x)*x)*x
+end
+function _expint_8(x)
+    x -= 8
+    3.413764515111217e-5   + (-3.76656228439249e-5    + (2.096641424390699e-5   + 
+            (-7.862405341465122e-6   + (2.2386015208338193e-6  - 5.173353514609864e-7*x )*x)*x)*x)*x
 end
 
 end #module
