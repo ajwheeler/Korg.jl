@@ -1,30 +1,50 @@
+
 @testset "qfactors" begin
+    using Statistics: mean
+
     # Check a Q factor gives the right RV precision
     @test Korg.RV_prec_from_Q(1100,100,8000) ≈ 30.470741601352298 atol=1e-10
 
-    # Check that a solar spectrum at APOGEE resolution gives the expected Q factor
+
+    # wavelengths and LSF
+    wl_lo, wl_hi = 15_100, 15_200
+
     delLog = 6e-6; 
-    wavetarg = 10 .^range((start=4.179-125*delLog),step=delLog,length=8575+125)
-    minw, maxw = extrema(wavetarg);
-    
-    wl_lo, wl_hi, wl_step = 15_000, 17_000, 1//100
-    x_model = wl_lo:wl_step:wl_hi
+    apowls = 10 .^range((start=4.179-125*delLog),step=delLog,length=8575+125)
+    apowls = apowls[wl_lo .< apowls .< wl_hi]
 
-    LSF_model = Korg.compute_LSF_matrix(x_model, wavetarg, 22_500, renormalize_edge=true, verbose=false)
+    synth_wls = wl_lo:0.01:wl_hi
 
-    apolines = Korg.get_APOGEE_DR17_linelist(include_water=true);
+    LSF_model = Korg.compute_LSF_matrix(synth_wls, apowls, 22_500; renormalize_edge=true, verbose=false);
 
-    A_X = copy(Korg.grevesse_2007_solar_abundances)
-    atm = Korg.interpolate_marcs(5777, 4.4, Korg.grevesse_2007_solar_abundances)
-    kout = synthesize(atm, apolines, A_X, wl_lo, wl_hi, wl_step, vmic=0, hydrogen_lines=true, hydrogen_line_window_size=300, electron_number_density_warn_threshold=1e10);
-    tspec = (kout.flux)./(kout.cntm);
-    Q = Korg.Qfactor(tspec, x_model, wavetarg, LSF_model)
-    @test Q ≈ 1182.420317367743 atol=1e-10
+    # it's less accurate to not include water lines, but that's fine for this test
+    apolines = Korg.get_APOGEE_DR17_linelist(include_water=false);
+    A_X = format_A_X()
+    atm = Korg.interpolate_marcs(5777, 4.4, A_X)
+    sol = synthesize(atm, apolines, A_X, synth_wls);
 
-    msk = ones(Bool,length(wavetarg))
-    msk[1:100].=false
-    msk[end-100:100].=true
-    @test Korg.RV_prec_from_noise(tspec, x_model, wavetarg, LSF_model, 1 ./100*ones(length(wavetarg)),msk_lres=msk) ≈ 29.490659698846365 atol=1e-10
-    @test Korg.RV_prec_from_Q(Q,100,count(msk)) ≈ 27.34006821159959 atol=1e-10
-    # I think these two should agree... but the problem must be from the continuum defintion and how that propagates to S/N
+    synth_flux = (sol.flux)./(sol.cntm);
+    # this denominator is a normalization factor
+    flux = (LSF_model * synth_flux) 
+
+    # for the Q factor calculation to be exact, the noise must be photon-dominated
+    # (This is approximating the continuum as flat)
+    obs_err = sqrt.(flux) .* 0.0456
+
+    flux = (LSF_model * synth_flux) ./ sum(LSF_model, dims=2)[:];
+    # for the Q factor calculation to be exact, the noise must be photon-dominated
+    obs_err = sqrt.(flux) .* 0.01 
+
+    msk = ones(Bool,length(apowls))
+    msk[1:100] .= false
+
+    Q = Korg.Qfactor(synth_flux, synth_wls, apowls, LSF_model; obs_mask=msk)
+    @test Q ≈ 812.2758941986294
+    SNR = flux ./ obs_err
+    RMS_SNR = sqrt(mean(SNR[msk].^2))
+    Q_prec = Korg.RV_prec_from_Q(Q, RMS_SNR, count(msk)) 
+
+    noise_prec = Korg.RV_prec_from_noise(synth_flux, synth_wls, apowls, LSF_model, obs_err; obs_mask=msk)
+
+    @test Q_prec ≈ noise_prec
 end
