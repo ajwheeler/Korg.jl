@@ -7,35 +7,34 @@ in the spectrum.
 # Arguments
 - `Q::Real`: Q factor of the spectrum
 - `RMS_SNR::Real`: The root mean squared per pixel SNR of the spectrum. For spectra which are not
-   line-blanketed, this is approximately equal to the SNR.
+   line-blanketed, this is approximately equal to the average SNR.
    approximately equal to the SNR.
 - `Npix::Real`: Number of pixels in the spectrum
 
-See also: `Qfactor` and `RV_prec_from_noise`
+See also: [`Qfactor`](@ref) and [`RV_prec_from_noise`](@ref)
 """
 function RV_prec_from_Q(Q::Real, RMS_SNR::Real, Npix::Real)
     return (Korg.c_cgs*1e-2)/(Q*sqrt(Npix)*RMS_SNR)
 end
 
-## Qfactor from the theoreticsl spectrum and LSF model, assuming uniform efficiency as a function of wavelength
 """
     Qfactor(synth_flux, synth_wl, obs_wl, LSF_mat; obs_mask=nothing)
 
 Compute the Q factor from the high-resolution theoretical spectrum, the high resolution wavelength 
 grid, the low resolution (observed) wavelength grid, and the LSF matrix.
 Based on work from [Bouchy et al. 2001, A&A, 374, 733](https://ui.adsabs.harvard.edu/abs/2001A%26A...374..733B/abstract).
-Note that the Q factor is an approximation in the face of non-photon-dominated noise.
+Note that the Q factor is an approximation when the flux uncertainty is not photon-dominated.
 
 # Arguments
-- `synth_flux::Vector{Real}`: High resolution theoretical spectrum
+- `synth_flux`: High resolution theoretical spectrum
 - `synth_wl`: High resolution wavelength grid
 - `obs_wl`: Low resolution wavelength grid
-- `LSF_mat`: LSF matrix
+- `LSF_mat`: LSF matrix (see [`compute_LSF_matrix`](@ref))
 
 # Keyword Arguments
 - `obs_mask::Vector{Bool}=nothing`: Mask for the low resolution spectrum to account for pixels masked from the observation
 
-See also: `RV_prec_from_Q` and `RV_prec_from_noise`
+See also: [`RV_prec_from_Q`](@ref) and [`RV_prec_from_noise`](@ref)
 """
 function Qfactor(synth_flux,synth_wl,obs_wl,LSF_mat; obs_mask=nothing)
     nvecLSF = dropdims(sum(LSF_mat,dims=2),dims=2) # normalisation for the LSF
@@ -58,11 +57,11 @@ end
 Compute the best achievable RV precision given the a spectrum with uncertainties.
 
 # Arguments
-- `synth_flux::Vector{Real}`: High resolution theoretical spectrum
-- `synth_wl`: High resolution wavelength grid
-- `obs_wl`: Low resolution wavelength grid
-- `LSF_mat`: LSF matrix
-- `obs_err::Vector{Real}`: Noise in the continuum normalized spectrum
+- `synth_flux`: High-resolution theoretical spectrum
+- `synth_wl`: High-resolution wavelength grid
+- `obs_wl`: Low-resolution wavelength grid
+- `LSF_mat`: LSF matrix (see [`compute_LSF_matrix`](@ref))
+- `obs_err`: Noise in the continuum normalized spectrum
 
 # Keyword Arguments
 - `obs_mask=nothing`: Mask for the low resolution spectrum to account for pixels masked from the observation
