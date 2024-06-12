@@ -17,6 +17,7 @@ end
 
 """
 TODO
+
 # Arguments:
 - `atm`: the model atmosphere.
 - `α`: a matrix (atmospheric layers × wavelengths) containing the absorption coefficient
@@ -74,10 +75,10 @@ function calculate_rays(μ_surface_grid, spatial_coord, spherical)
                 lowest_layer_index
             end
             s = @. sqrt(spatial_coord[1:lowest_layer_index]^2 - b^2)
-            dsdr = @. spatial_coord[1:lowest_layer_index] ./ s # TODO isn't there a missing factor of 1/2???
+            dsdr = @. spatial_coord[1:lowest_layer_index] ./ s 
             s, dsdr
         end
-    else #spatial_coord measured relative to whatever
+    else # spatial_coord measured relative to whatever
         map(μ_surface_grid) do μ_surface
             (spatial_coord ./ μ_surface), ones(length(spatial_coord)) ./ μ_surface
         end
