@@ -125,7 +125,6 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     τ_buffer = Vector{el_type}(undef, length(spatial_coord)) 
     integrand_buffer = Vector{el_type}(undef, length(spatial_coord))
     log_τ_ref = log.(τ_ref) 
-    #TODO precalculate λ-indenpendent quantities, at least for anchored τ, but maybe for other methods too
 
     # inward rays (this twice as slow at the outward rays loop, which would be good to improve)
     for μ_ind in 1:n_inward_rays
