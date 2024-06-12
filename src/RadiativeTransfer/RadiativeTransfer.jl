@@ -168,7 +168,7 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
 
     for λ_ind in 1:size(α, 2)
         # using more views below was not faster when I tested it
-        # TODO: α is access in a cache-unfriendly way here
+        # α is access in a cache-unfriendly way here. Fixing that might speex things up.
         if τ_scheme == "anchored"
             compute_tau_anchored!(τ, view(α, layer_inds, λ_ind), integrand_factor, log_τ_ref[layer_inds], integrand_buffer)
         elseif τ_scheme == "bezier"
@@ -181,7 +181,7 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
         
         # these views into I are required because the function modifies I in place
         if I_scheme == "linear"
-            #TODO switch S index order?
+            # switching the S index order might speed things up
             linear_ray_transfer_integral!(view(I, μ_ind, λ_ind,  layer_inds), τ,
                                           view(S, layer_inds, λ_ind))
         elseif I_scheme == "linear_flux_only"
