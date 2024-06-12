@@ -27,10 +27,6 @@
     # this denominator is a normalization factor
     flux = (LSF_model * synth_flux) 
 
-    # for the Q factor calculation to be exact, the noise must be photon-dominated
-    # (This is approximating the continuum as flat)
-    obs_err = sqrt.(flux) .* 0.0456
-
     flux = (LSF_model * synth_flux) ./ sum(LSF_model, dims=2)[:];
     # for the Q factor calculation to be exact, the noise must be photon-dominated
     obs_err = sqrt.(flux) .* 0.01 
