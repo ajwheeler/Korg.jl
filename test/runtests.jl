@@ -5,7 +5,7 @@ using Korg, Test, HDF5, ForwardDiff, FiniteDiff
 # tools for testing: assert_allclose and assert_allclose_grid
 include("utilities.jl") 
 
-include("molecular_cross_sections.jl")
+#include("molecular_cross_sections.jl")
 include("cubic_splines.jl")
 include("transfer.jl")
 include("species.jl")

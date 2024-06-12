@@ -1,5 +1,5 @@
 module RadiativeTransfer
-using ...Korg: PlanarAtmosphere, ShellAtmosphere, CubicSplines, get_tau_5000s, get_zs
+using ...Korg: PlanarAtmosphere, ShellAtmosphere, get_tau_5000s, get_zs
 
 # for generate_mu_grid
 using FastGaussQuadrature: gausslegendre
@@ -16,7 +16,7 @@ function generate_mu_grid(n_points)
 end
 
 """
-TODO
+    radiative_transfer(atm)
 
 # Arguments:
 - `atm`: the model atmosphere.
@@ -24,10 +24,21 @@ TODO
 - `S`: the source function as a matrix of the same shape.
    rescale the total absorption to match the model atmosphere. This value should be calculated by 
    Korg.
-- `μs`: the number of quadrature points to use when integrating over I_surface(μ) to obtain 
+- `n_μ_points`: the number of quadrature points to use when integrating over I_surface(μ) to obtain 
    the astrophysical flux. (TODO make this either a number or a vector of μ values)
+
+# Keyword Arguments:
+- `include_inward_rays` (default: `true`): if true, light propogating into the star (negative μs) is included.  If 
+   false, only those which are needed to seed the intensity at the bottom of the atmosphere are
+   included.
+- `τ_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and 
+   "bezier" (not recommended). 
+- `I_scheme` (default: "linear_flux_only"): how to compute the intensity.  Options are "linear", 
+   "linear_flux_only", and "bezier".  "linear_flux_only" is the fastest, but does not return the 
+   intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent 
+   calculation, but stores the intensity at every layer.  "bezier" is not recommended.
 """
-function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points; include_inward_rays=false,
+function radiative_transfer(atm::PlanarAtmosphere, α, S, n_μ_points; include_inward_rays=false,
                                     τ_scheme="linear", I_scheme="linear_flux_only", α_ref=nothing)
     τ_ref = if !isnothing(α_ref) 
         get_tau_5000s(atm)
@@ -35,10 +46,10 @@ function compute_astrophysical_flux(atm::PlanarAtmosphere, α, S, n_μ_points; i
         nothing
     end
 
-    radiative_transfer(α, S, get_zs(atm), n_μ_points, include_inward_rays, false; 
+    radiative_transfer_core(α, S, get_zs(atm), n_μ_points, include_inward_rays, false; 
                        α_ref=α_ref, τ_ref=τ_ref, I_scheme=I_scheme, τ_scheme=τ_scheme)
 end
-function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; include_inward_rays=false,
+function radiative_transfer(atm::ShellAtmosphere, α, S, n_μ_points; include_inward_rays=false,
                                     τ_scheme=:anchored, I_scheme=:linear, α_ref=nothing)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2 
@@ -48,7 +59,7 @@ function compute_astrophysical_flux(atm::ShellAtmosphere, α, S, n_μ_points; in
     else
         nothing
     end
-    F, I = radiative_transfer(α, S, radii, n_μ_points, include_inward_rays, true; 
+    F, I = radiative_transfer_core(α, S, radii, n_μ_points, include_inward_rays, true; 
                               α_ref=α_ref, τ_ref=τ_ref, I_scheme=I_scheme, τ_scheme=τ_scheme)
     photosphere_correction .* F, I
 end
@@ -85,12 +96,8 @@ function calculate_rays(μ_surface_grid, spatial_coord, spherical)
     end
 end
 
-function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_rays, spherical;
+function radiative_transfer_core(α, S, spatial_coord, n_μ_points, include_inward_rays, spherical;
                             α_ref=nothing, τ_ref=nothing, I_scheme="linear_flux_only", τ_scheme="anchored")
-    if τ_scheme == "spline"
-        println("Warning: the spline τ scheme is not bug-free and may fail.")
-    end
-
     if I_scheme == "linear_flux_only" && τ_scheme == "anchored" && !spherical
         I_scheme = "linear_flux_only_expint"
         # in this special case, we can use exponential integral tricks
@@ -130,18 +137,18 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, include_inward_ra
     for μ_ind in 1:n_inward_rays
         path, dsdz = reverse.(rays[μ_ind])
         layer_inds = length(path) : -1 : 1
-        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
-                                 τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, 
-                                 τ_ref, α_ref, τ_scheme, I_scheme)
+        _radiative_transfer_core_core(μ_ind, layer_inds, n_inward_rays, -path, dsdz,
+                                      τ_buffer, integrand_buffer, -log_τ_ref, α, S, I, 
+                                      τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
     # outward rays
     for μ_ind in n_inward_rays+1 : n_inward_rays+length(μ_surface_grid)
         path, dsdz = rays[μ_ind - n_inward_rays]
         layer_inds = 1:length(path)
-        _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
-                                 τ_buffer, integrand_buffer, log_τ_ref, α, S, I, 
-                                 τ_ref, α_ref, τ_scheme, I_scheme)
+        _radiative_transfer_core_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
+                                      τ_buffer, integrand_buffer, log_τ_ref, α, S, I, 
+                                      τ_ref, α_ref, τ_scheme, I_scheme)
     end
 
     #just the outward rays at the top layer
@@ -157,9 +164,15 @@ TODO
 n.b. this function has an additional I_scheme ("linear_flux_only_expint") that radiative_transfer 
 will automatically switch to when appropriate.
 """
-function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
-                                  τ_buffer, integrand_buffer, log_τ_ref, α, S, I, 
-                                  τ_ref, α_ref, τ_scheme, I_scheme)
+function _radiative_transfer_core_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
+                                       τ_buffer, integrand_buffer, log_τ_ref, α, S, I, 
+                                       τ_ref, α_ref, τ_scheme, I_scheme)
+    if length(path) == 1 && ((I_scheme == "bezier") || (τ_scheme == "bezier"))
+        # these schemes requires two layers minimum
+        I[μ_ind, :, 1] .= 0.0
+        return 
+    end 
+
     # view into τ corresponding to the current ray
     τ = view(τ_buffer, layer_inds)
 
@@ -173,10 +186,8 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
             compute_tau_anchored!(τ, view(α, layer_inds, λ_ind), integrand_factor, log_τ_ref[layer_inds], integrand_buffer)
         elseif τ_scheme == "bezier"
             compute_tau_bezier!(τ, path, view(α, layer_inds, λ_ind))
-        elseif τ_scheme == "spline"
-            compute_tau_spline_analytic!(τ, path, view(α, layer_inds, λ_ind))
         else
-            throw(ArgumentError("τ_scheme must be one of \"anchored\", \"bezier\", or \"spline\" (not recommended)"))
+            throw(ArgumentError("τ_scheme must be one of \"anchored\" or \"bezier\""))
         end
         
         # these views into I are required because the function modifies I in place
@@ -199,7 +210,7 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
         # set the intensity of the corresponding outward ray at the bottom of the atmosphere
         # this isn't correct for rays which go below the atmosphere, but the effect is immeasurable
         if μ_ind <= n_inward_rays # if ray is inwards
-            if I_scheme == "linear_flux_only"
+            if startswith(I_scheme, "linear_flux_only") # may or may not end in _expint
                 I[μ_ind + n_inward_rays, λ_ind] = I[μ_ind, λ_ind] * exp(-τ[end])
             else
                 I[μ_ind + n_inward_rays, λ_ind, length(path)] = I[μ_ind, λ_ind, length(path)] 
@@ -238,19 +249,6 @@ function compute_tau_bezier!(τ, s, α)
     end
     ;
 end
- 
-"""
-    compute_tau_spline_analytic(τ, s, α)
-
-Compute τ using a cubic spline to interpolate α.  This is not used by [`radiative_transfer`](@ref),
-but is included for completeness.
-"""
-function compute_tau_spline_analytic!(τ, s, α)
-    s = -s
-    α_itp = CubicSplines.CubicSpline(s, α; extrapolate=true)
-    CubicSplines.cumulative_integral!(τ, α_itp, s[1], s[end])
-end
-
 
 """
     ray_transfer_integral(I, τ, S)
@@ -300,8 +298,6 @@ end
 
 """
     ray_transfer_integral!(I, τ, S)
-
-TODO
 
 Given τ and S along a ray (at a particular wavelength), compute the intensity at the end of the ray 
 (the surface of the star).  This uses the method from 
@@ -380,7 +376,7 @@ end
     exponential_integral_2(x)
 
 Approximate second order exponential integral, E_2(x).  This stitches together several series 
-expansions to get an approximation which is accurate within 1% for all `x`.
+expansions to get an approximation which is accurate within 1% for all `x`
 """
 function exponential_integral_2(x)  # this implementation could definitely be improved
     if x == 0
