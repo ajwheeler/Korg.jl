@@ -207,10 +207,8 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
         # this isn't correct for rays which go below the atmosphere, but the effect is immeasurable
         if μ_ind <= n_inward_rays # if ray is inwards
             if I_scheme == "linear_flux_only"
-                # exp(-τ_buffer[1]) is the optical depth of the bottom of the atmosphere/end of the ray
-                I[μ_ind + n_inward_rays, λ_ind] = I[μ_ind, λ_ind] * exp(-τ_buffer[1])
+                I[μ_ind + n_inward_rays, λ_ind] = I[μ_ind, λ_ind] * exp(-τ[end])
             else
-                # TODO this branch does effectively nothing.  Which one is right?
                 I[μ_ind + n_inward_rays, λ_ind, length(path)] = I[μ_ind, λ_ind, length(path)] 
             end
         end
@@ -277,7 +275,6 @@ which is equal to
 function linear_ray_transfer_integral!(I, τ, S)
     @assert length(I) == length(τ) == length(S) # because of the @inbounds below
 
-    I[end] = 0
     if length(τ) == 1
         return
     end
@@ -285,7 +282,7 @@ function linear_ray_transfer_integral!(I, τ, S)
     for k in length(τ)-1:-1:1
         @inbounds δ = τ[k+1] - τ[k]
         @inbounds m = (S[k+1] - S[k])/δ
-        @inbounds I[k] = (I[k+1] - S[k] -  m*(δ+1)) * (@fastmath exp(-δ)) + m + S[k]
+        @inbounds I[k] = (I[k+1] - S[k] -  m*(δ+1))*(@fastmath exp(-δ)) + m + S[k]
     end
     ;
 end
