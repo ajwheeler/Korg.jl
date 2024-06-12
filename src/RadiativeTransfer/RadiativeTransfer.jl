@@ -169,12 +169,6 @@ function _radiative_transfer_core(μ_ind, layer_inds, n_inward_rays, path, dsdz,
     integrand_factor = @. τ_ref[layer_inds] / α_ref[layer_inds] * dsdz
 
     for λ_ind in 1:size(α, 2)
-        if length(path) <= 2
-            # TODO try to do something smarter here
-            # don't need to write anything because I is initialized to 0
-            continue
-        end
-
         # using more views below was not faster when I tested it
         # TODO: α is access in a cache-unfriendly way here
         if τ_scheme == "anchored"
