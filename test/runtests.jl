@@ -26,7 +26,7 @@ reset_timer!()
 @timeit "prune_linelist" include("prune_linelist.jl")
 @timeit "utils" include("utils.jl")
 @timeit "line_absorption" include("line_absorption.jl")
+@timeit "qfactors" include("qfactors.jl")
 print_timer()
-
 
 end #top-level testset
