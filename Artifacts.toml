@@ -1,3 +1,11 @@
+[Heiter_2021_GES_linelist]
+git-tree-sha1 = "449099fde28068282516612ed15fdda5a71bc4ec"
+lazy = true
+
+    [[Heiter_2021_GES_linelist.download]]
+    sha256 = "f6eedce5e5a1a16428875b4a0ad94bc9fd205098d285ac7a5598c70091f3446e"
+    url = "https://korg-data.s3.amazonaws.com/Heiter_el_al_2021_2024_06_17.tar.gz"
+
 [MARCS_metal_poor_atmospheres]
 git-tree-sha1 = "7ccbdaf1a3709772953d75b0888e6d5ec359d90b"
 
