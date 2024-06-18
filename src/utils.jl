@@ -173,7 +173,14 @@ function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R; windo
         @. convM[i, r] += ϕ
         next!(p)
     end
-    convM .* normalization_factor
+    if renormalize_edge
+        # doing it this way is much more efficient than the obvious broadcasting because of how
+        # sparse matrices are implemented
+        for i in eachindex(obs_wls)
+            convM[:, i] .*= normalization_factor
+        end
+    end
+    convM
 end
 function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractVector}, obs_wls, R; 
                             renormalize_edge=true, verbose=false, kwargs...)
