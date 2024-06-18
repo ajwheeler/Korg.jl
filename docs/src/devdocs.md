@@ -46,5 +46,5 @@ Here are all the documented methods in Korg.
 
 ```@autodocs
 Modules = [Korg, Korg.Fit, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994,
-Korg.ContinuumAbsorption.Peach1970, Korg.RadiativeTransfer, Korg.RadiativeTransfer.MoogStyleTransfer, Korg.RadiativeTransfer.BezierTransfer]
+Korg.ContinuumAbsorption.Peach1970, Korg.RadiativeTransfer]
 ```

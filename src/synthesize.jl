@@ -85,8 +85,13 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to the base-10
    log of their molecular equilibrium constants in partial pressure form.  Defaults to data from 
    Barklem and Collet 2016, `Korg.default_log_equilibrium_constants`.
-- `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
-   testing purposes only.
+- `tau_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and 
+   "bezier" (testing only--not recommended). 
+- `I_scheme` (default: "linear_flux_only"): how to compute the intensity.  Options are "linear", 
+   "linear_flux_only", and "bezier".  "linear_flux_only" is the fastest, but does not return the 
+   intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent 
+   calculation, but stores the intensity at every layer. "bezier" is for testing and not 
+   recommended.
 - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See 
    [`MolecularCrossSection`](@ref) for how to generate these.
 - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by 
@@ -103,7 +108,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
                     electron_number_density_warn_threshold=1.0, 
                     return_cntm=true,
-                    bezier_radiative_transfer=false, ionization_energies=ionization_energies, 
+                    I_scheme="linear_flux_only", tau_scheme="anchored",
+                    ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
@@ -200,7 +206,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         α_cntm_layer = linear_interpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer(all_λs)
 
-        if ! bezier_radiative_transfer
+        if tau_scheme == "anchored"
             α5[i] = total_continuum_absorption([c_cgs/5e-5], layer.temp, nₑ, n_dict, partition_funcs)[1]
         end
 
@@ -217,11 +223,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
     if return_cntm
-        cntm, _ = if bezier_radiative_transfer
-            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
-        else
-            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
-        end
+        cntm, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, n_mu_points; α_ref=α5,
+                                                       I_scheme=I_scheme, τ_scheme=tau_scheme)
     end
 
     if hydrogen_lines
@@ -240,11 +243,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
     
-    flux, intensity = if bezier_radiative_transfer
-        RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
-    else
-        RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
-    end
+    flux, intensity = RadiativeTransfer.radiative_transfer(atm, α, source_fn, n_mu_points; α_ref=α5,
+                                                           I_scheme=I_scheme, τ_scheme=tau_scheme)
 
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
