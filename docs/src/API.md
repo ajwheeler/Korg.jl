@@ -17,9 +17,9 @@ format_A_X
 
 ## Built-in linelists
 ```@docs
-get_APOGEE_DR17_linelist
-get_GALAH_DR3_linelist
-get_GES_linelist
+Korg.get_APOGEE_DR17_linelist
+Korg.get_GALAH_DR3_linelist
+Korg.get_GES_linelist
 ```
 
 # Fitting
