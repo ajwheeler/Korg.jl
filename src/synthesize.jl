@@ -216,6 +216,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
+    cntm_alpha = copy(α)
     if return_cntm
         cntm, _ = if bezier_radiative_transfer
             RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
@@ -243,7 +244,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
-        RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
+        #display(all_λs)
+        i = findfirst(all_λs .≈ 5e-5)
+        println("alpha ref ind: ", i)
+        RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α[:, i], n_mu_points)
     end
 
     # collect the indices corresponding to each wavelength range
