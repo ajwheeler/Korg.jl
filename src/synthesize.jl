@@ -259,6 +259,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         wl_lb_ind += length(λs)
     end
 
+    if return_cntm
+        cntm, _ = if bezier_radiative_transfer
+            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
+        else
+            i = findfirst(all_λs .≈ 5e-5)
+            println("alpha ref ind: ", i)
+            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, cntm_alpha, source_fn, α[:, i], n_mu_points)
+        end
+    end
+
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
     electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
 end
