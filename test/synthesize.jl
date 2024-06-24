@@ -112,4 +112,21 @@
         linelist = [Korg.Line(5000e-8, 1.0, Korg.species"Na I", 0.0)]
         @test_warn msg synthesize(atm, linelist, format_A_X(), 6000, 6000)
     end
+
+    @testset "linelist filtering" begin
+        function naive_filter(linelist, wl_ranges, line_buffer)
+            filter(linelist) do line
+                map(wl_ranges) do r
+                    r[1] - line_buffer <= line.wl <= r[end] + line_buffer
+                end |> any
+            end
+        end
+
+        b = 2.0 * 1e-8 # line_buffer
+        linelist = Korg.get_APOGEE_DR17_linelist(include_water=false)
+        @testset "linelist filtering" for wl_ranges in [[6000:7000], [15100:15200], [6000:7000, 15100:15200, 16900:17100]]
+            wlr = wl_ranges .* 1e-8 #comvert to cm
+            @test length(Korg.filter_linelist(linelist, wlr, b)) == length(naive_filter(linelist, wlr, b))
+        end
+    end
 end

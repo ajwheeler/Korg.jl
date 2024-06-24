@@ -1,4 +1,5 @@
-using CSV, HDF5
+using CSV, HDF5, LazyArtifacts
+using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
 struct Line{F1, F2, F3, F4, F5, F6} 
@@ -235,8 +236,8 @@ function first_nonempty_line(io)
 end
 
 #used to handle missing gammas in vald and kurucz lineslist parsers
-tentotheOrMissing(x) = x == 0.0 ? missing : 10.0^x
-idOrMissing(x) = x == 0.0 ? missing : x
+tentotheOrMissing(x) = x == 0 ? missing : 10^x
+idOrMissing(x) = x == 0 ? missing : x
 
 function parse_kurucz_linelist(f; vacuum=false)
     lines = Line{Float64, Float64, Float64, Float64, Float64, Float64}[]
@@ -605,5 +606,27 @@ function get_GALAH_DR3_linelist()
             #take out the hydrogen lines
             line.species != species"H I"
         end
+    end
+end
+
+"""
+    get_GES_linelist()
+
+The Gaia-ESO survey linelist from 
+[Heiter et al. 2021](https://ui.adsabs.harvard.edu/abs/2021A&A...645A.106H/abstract).
+"""
+function get_GES_linelist()
+    path = joinpath(artifact"Heiter_2021_GES_linelist", 
+                    "Heiter_et_al_2021_2022_06_17",
+                    "Heiter_et_al_2021.h5")
+    h5open(path, "r") do f
+        Line.(
+            Float64.(air_to_vacuum.(read(f["wl"]))),
+            Float64.(read(f["log_gf"])),
+            [Species(s) for s in read(f["species"])],
+            Float64.(read(f["E_lower"])),
+            tentotheOrMissing.(Float64.(read(f["gamma_rad"]))),
+            tentotheOrMissing.(Float64.(read(f["gamma_stark"]))),
+            read(f["vdW"]))
     end
 end

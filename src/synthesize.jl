@@ -152,18 +152,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # frequencies at which to calculate the continuum, as a single vector
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) 
 
-    #sort the lines if necessary
-    issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
-    #discard lines far from the wavelength range being synthesized
-    nlines_before = length(linelist)
-    linelist = filter(linelist) do line # don't "filter!".  It mutates the linelist.
-        map(wl_ranges) do wl_range
-            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
-        end |> any
-    end
-    if nlines_before != 0 && length(linelist) == 0
-        @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
-    end
+    # sort linelist and remove lines far from the synthesis region 
+    linelist = filter_linelist(linelist, wl_ranges, line_buffer)
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
@@ -270,6 +260,36 @@ function construct_wavelength_ranges(λ_start, λ_stop, λ_step=0.01)
 end
 construct_wavelength_ranges(wls::AbstractVector{<:AbstractRange}) = wls
 construct_wavelength_ranges(wls::AbstractRange) = [wls]
+
+"""
+    filter_linelist(linelist, wl_ranges, line_buffer)
+
+Return a new linelist containing only lines within the provided wavelength ranges.
+"""
+function filter_linelist(linelist, wl_ranges, line_buffer)
+    # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
+
+    #sort the lines if necessary
+    if ! issorted(linelist; by=l->l.wl) 
+        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
+        linelist = sort(linelist, by=l->l.wl)
+    end
+    nlines_before = length(linelist)
+
+    linelist = filter(linelist) do line
+        for wl_range in wl_ranges
+            if (wl_range[1] - line_buffer) <=  line.wl <= (wl_range[end] + line_buffer)
+                return true
+            end
+        end
+        return false
+    end
+
+    if nlines_before != 0 && length(linelist) == 0
+        @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
+    end
+    linelist
+end
 
 """
     format_A_X(default_metals_H, default_alpha_H, abundances; kwargs... )
