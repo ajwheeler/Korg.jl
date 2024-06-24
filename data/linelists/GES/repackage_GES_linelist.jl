@@ -2,7 +2,7 @@ using Korg, HDF5, FITSIO
 
 # this should point to the base dir of the Korg_data repo
 # https://github.com/ajwheeler/Korg_data
-Korg_data_dir = "../../../../Korg_data"
+Korg_data_dir = joinpath(@__DIR__,"../../../../Korg_data")
 linelist_dir = joinpath(Korg_data_dir, "linelists/GES")
 
 atomic_lines = FITS(joinpath(linelist_dir, "J_A+A_645_A106_geslines.dat.gz.fits")) do f
