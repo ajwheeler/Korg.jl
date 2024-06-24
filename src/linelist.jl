@@ -621,10 +621,10 @@ function get_GES_linelist()
                     "Heiter_et_al_2021.h5")
     h5open(path, "r") do f
         Line.(
-            air_to_vacuum.(read(f["wl"])),
-            read(f["log_gf"]),
+            Float64.(air_to_vacuum.(read(f["wl"]))),
+            Float64.(read(f["log_gf"])),
             [Species(s) for s in read(f["species"])],
-            read(f["E_lower"]),
+            Float64.(read(f["E_lower"])),
             tentotheOrMissing.(Float64.(read(f["gamma_rad"]))),
             tentotheOrMissing.(Float64.(read(f["gamma_stark"]))),
             read(f["vdW"]))
