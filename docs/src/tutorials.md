@@ -1,5 +1,5 @@
 # [Tutorial notebooks](@id tutorials)
-Here are a few tutorials in the form of Jupyter Notebooks to help you get started using Korg.  Each of these is a link to a folder in GitHub containing the notebook (the `.ipynb` file) and any supporting data.  You can download everything if you want to run the notebook yourself, or just view the notebook on GitHub.
+Here are a few tutorials in the form of Jupyter Notebooks to help you get started using Korg.  Each of these is a link to a folder in GitHub containing the notebooks (the `.ipynb` files) in both Julia and Python and any supporting data.  You can download everything if you want to run the notebook yourself, or just view the notebook on GitHub.
 - [The Basics](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks/basics) demonstrates how to read linelists, read or interpolate model atmospheres, and synthesize spectra. It also goes into some of the other data returned when you synthesize a spectrum.
 - [Fitting](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks/fitting) demonstrates the use of [`Korg.Fit.fit_spectrum`](@ref) to fit observational data.
 - [EW fitting](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks/EW%20fitting) demonstrates the use of [`Korg.Fit.ews_to_abundances`](@ref) to calculate abundances from equivalent widths.
