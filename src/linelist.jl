@@ -46,22 +46,22 @@ struct Line{F1, F2, F3, F4, F5, F6}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
-        if ismissing(gamma_stark) || ismissing(vdW)
+        if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) || isnan(vdW)
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
-            if ismissing(gamma_stark)
+            if ismissing(gamma_stark) || isnan(gamma_stark)
                 gamma_stark = gamma_stark_approx
             end
-            if ismissing(vdW)
+            if ismissing(vdW) || isnan(vdW)
                 vdW = vdW_approx
             end
         end
-        if ismissing(gamma_rad)
+        if ismissing(gamma_rad) || isnan(gamma_rad)
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
         
         # if vdW is a tuple, assume it's (σ, α) from ABO theory
         # if it's a float, there are four possibilities
-        if !ismissing(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
+        if !ismissing(vdW) && !isnan(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
             if vdW < 0 
                 vdW = 10^vdW  # if vdW is negative, assume it's log(γ_vdW) 
             elseif vdW == 0
