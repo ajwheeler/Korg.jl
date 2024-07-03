@@ -616,6 +616,7 @@ The Gaia-ESO survey linelist from
 [Heiter et al. 2021](https://ui.adsabs.harvard.edu/abs/2021A&A...645A.106H/abstract).
 """
 function get_GES_linelist()
+    @warn "This function is may fail on some systems. See https://github.com/ajwheeler/Korg.jl/issues/309 for details."
     path = joinpath(artifact"Heiter_2021_GES_linelist", 
                     "Heiter_et_al_2021_2022_06_17",
                     "Heiter_et_al_2021.h5")
