@@ -76,7 +76,7 @@ end
 Interpolate the molecular cross-sections and add them to the total absorption coefficient `α`.
 See [`MolecularCrossSection`](@ref) for more information.
 """
-function interpolate_molecular_cross_sections!(α::Matrix{R}, molecular_cross_sections, Ts, vmic,
+function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_cross_sections, Ts, vmic,
                                                number_densities) where R <: Real
     if length(molecular_cross_sections) == 0
         return

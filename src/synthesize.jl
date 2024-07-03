@@ -153,6 +153,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) 
 
     # sort linelist and remove lines far from the synthesis region 
+    # first just the ones needed for α5
+    linelist5 = filter_linelist(linelist, 5e-5:5e-5, line_buffer)
+    # now the ones for the synthesis
     linelist = filter_linelist(linelist, wl_ranges, line_buffer)
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
@@ -204,9 +207,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
 
+    # line contributions to α5
+    if ! bezier_radiative_transfer
+        line_absorption!(view(α5, :, 1), linelist5, [5e-5:1:5e-5], get_temps(atm), nₑs, number_densities,
+                         partition_funcs, vmic*1e5, α_cntm; cutoff_threshold=line_cutoff_threshold)
+        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
+                                              get_temps(atm), vmic, number_densities)
+    end
+
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
-    cntm_alpha = copy(α)
     if return_cntm
         cntm, _ = if bezier_radiative_transfer
             RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
@@ -226,18 +236,14 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
-        number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
-        verbose=verbose)
+    line_absorption!(α, linelist, wl_ranges, get_temps(atm), nₑs, number_densities, partition_funcs,
+                     vmic*1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
     
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
     else
-        #display(all_λs)
-        i = findfirst(all_λs .≈ 5e-5)
-        println("alpha ref ind: ", i)
-        RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α[:, i], n_mu_points)
+        RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, α, source_fn, α5, n_mu_points)
     end
 
     # collect the indices corresponding to each wavelength range
@@ -247,16 +253,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         wl_inds = wl_lb_ind : wl_lb_ind + length(λs) - 1
         push!(subspectra, wl_inds)
         wl_lb_ind += length(λs)
-    end
-
-    if return_cntm
-        cntm, _ = if bezier_radiative_transfer
-            RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)
-        else
-            i = findfirst(all_λs .≈ 5e-5)
-            println("alpha ref ind: ", i)
-            RadiativeTransfer.MoogStyleTransfer.radiative_transfer(atm, cntm_alpha, source_fn, α[:, i], n_mu_points)
-        end
     end
 
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
