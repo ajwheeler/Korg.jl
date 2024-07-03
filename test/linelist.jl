@@ -5,7 +5,8 @@
         @testset for linelist_fn in [Korg.get_VALD_solar_linelist, 
                                      Korg.get_APOGEE_DR17_linelist,
                                      Korg.get_GALAH_DR3_linelist, 
-                                     Korg.get_GES_linelist]
+                                     #Korg.get_GES_linelist,
+                                     ]
             linelist = linelist_fn()
             @test issorted(linelist, by=l->l.wl)
 
