@@ -209,9 +209,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # line contributions to α5
     if ! bezier_radiative_transfer
+        ac5 = copy(α5)
+        α_cntm_5(x) = ac5
         line_absorption!(view(α5, :, 1), linelist5, [5e-5:1:5e-5], get_temps(atm), nₑs, number_densities,
-                         partition_funcs, vmic*1e5, α_cntm; cutoff_threshold=line_cutoff_threshold)
-        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
+                         partition_funcs, vmic*1e5, α_cntm_5; cutoff_threshold=line_cutoff_threshold)
+        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections, [5e-5],
                                               get_temps(atm), vmic, number_densities)
     end
 
@@ -238,7 +240,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     line_absorption!(α, linelist, wl_ranges, get_temps(atm), nₑs, number_densities, partition_funcs,
                      vmic*1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
-    interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, all_λs, get_temps(atm), vmic, number_densities)
     
     flux, intensity = if bezier_radiative_transfer
         RadiativeTransfer.BezierTransfer.radiative_transfer(atm, α, source_fn, n_mu_points)

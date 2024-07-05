@@ -1,9 +1,9 @@
-using Interpolations: GriddedInterpolation, interpolate!, Gridded, NoInterp, Linear
+using Interpolations: interpolate!, Gridded, Linear, extrapolate
 using HDF5
 
 struct MolecularCrossSection
     wls # just for debugging
-    itp :: GriddedInterpolation
+    itp
     species :: Korg.Species
 end
 
@@ -63,9 +63,9 @@ function MolecularCrossSection(linelist, wls; cutoff_alpha=1e-32,
     end
 
     species = all_specs[1]
-    itp = interpolate!((vmic_vals, log_temp_vals, 1:size(α, 3)),
-                       α .* cutoff_alpha, 
-                       (Gridded(Linear()), Gridded(Linear()), NoInterp()))
+    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, vcat(wls...)*1e-8),
+                      α .* cutoff_alpha, 
+                      (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))), 0.0)
     MolecularCrossSection(wls, itp, species)
 end
 
@@ -76,8 +76,8 @@ end
 Interpolate the molecular cross-sections and add them to the total absorption coefficient `α`.
 See [`MolecularCrossSection`](@ref) for more information.
 """
-function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_cross_sections, Ts, vmic,
-                                               number_densities) where R <: Real
+function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_cross_sections, λs,
+                                               Ts, vmic, number_densities) where R <: Real
     if length(molecular_cross_sections) == 0
         return
     end
@@ -86,7 +86,7 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
         for i in 1:size(α, 1)
             # this is an inefficient order in which to write to α, but doing the interpolations this
             # way uses less memory.
-            view(α, i, :) .+= sigma.itp(vmic, log10(Ts[i]), 1:size(α, 2)) * number_densities[sigma.species][i]
+            view(α, i, :) .+= sigma.itp.(vmic, log10(Ts[i]), λs) * number_densities[sigma.species][i]
         end
     end
     ;
@@ -105,9 +105,9 @@ function save_molecular_cross_section(filename, cross_section)
 
     HDF5.h5open(filename, "w") do file
         HDF5.write(file, "wls", [(l[begin], step(l), l[end]) for l in wls])
-        HDF5.write(file, "vmic_vals", collect(itp.knots[1]))
-        HDF5.write(file, "T_vals", collect(itp.knots[2]))
-        HDF5.write(file, "vals", itp.coefs)
+        HDF5.write(file, "vmic_vals", collect(itp.itp.knots[1]))
+        HDF5.write(file, "T_vals", collect(itp.itp.knots[2]))
+        HDF5.write(file, "vals", itp.itp.coefs)
         HDF5.write(file, "species", string(species))
     end
 end
@@ -125,13 +125,15 @@ function read_molecular_cross_section(filename)
             start:step:stop
         end
         vmic_vals = HDF5.read(file, "vmic_vals")
-        T_vals = HDF5.read(file, "T_vals")
-        alpha_vals = HDF5.read(file, "vals")
+        logT_vals = HDF5.read(file, "T_vals")
+        # doesn't actually matter that it's mmaped because it's passed to interpolate!
+        alpha_vals = HDF5.readmmap(file["vals"]) 
         species = Species(HDF5.read(file, "species"))
 
-        itp = interpolate!((vmic_vals, T_vals, 1:sum(length.(wls))),
-                           alpha_vals,
-                           (Gridded(Linear()), Gridded(Linear()), NoInterp()))
+        itp = extrapolate(interpolate!((vmic_vals, logT_vals, vcat(wls...)*1e8),
+                                        alpha_vals,
+                                        (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
+                          0.0)
 
         MolecularCrossSection(wls, itp, species)
     end
