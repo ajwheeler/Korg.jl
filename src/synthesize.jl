@@ -154,7 +154,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # sort linelist and remove lines far from the synthesis region 
     # first just the ones needed for α5
-    linelist5 = filter_linelist(linelist, 5e-5:5e-5, line_buffer)
+    linelist5 = filter_linelist(linelist, 5e-5:5e-5, line_buffer; warn_empty=false)
     # now the ones for the synthesis
     linelist = filter_linelist(linelist, wl_ranges, line_buffer)
 
@@ -209,8 +209,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # line contributions to α5
     if ! bezier_radiative_transfer
-        ac5 = copy(α5)
-        α_cntm_5(x) = ac5
+        α_cntm_5 = [_->a for a in copy(α5)] # lambda per layer
         line_absorption!(view(α5, :, 1), linelist5, [5e-5:1:5e-5], get_temps(atm), nₑs, number_densities,
                          partition_funcs, vmic*1e5, α_cntm_5; cutoff_threshold=line_cutoff_threshold)
         interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections, [5e-5],
@@ -278,7 +277,7 @@ construct_wavelength_ranges(wls::AbstractRange) = [wls]
 
 Return a new linelist containing only lines within the provided wavelength ranges.
 """
-function filter_linelist(linelist, wl_ranges, line_buffer)
+function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
     # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
 
     #sort the lines if necessary
@@ -297,7 +296,7 @@ function filter_linelist(linelist, wl_ranges, line_buffer)
         return false
     end
 
-    if nlines_before != 0 && length(linelist) == 0
+    if nlines_before != 0 && length(linelist) == 0 && warn_empty
         @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
     end
     linelist
