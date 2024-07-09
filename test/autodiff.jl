@@ -19,10 +19,13 @@
 
     @testset "autodiff just one abundance"  begin
         atm = read_model_atmosphere("data/sun.mod")
-        linelist = [Korg.Line(5000e-8, 0.0, Korg.species"C I", 0.0)]
+        linelist = [Korg.Line(6000e-8, 0.0, Korg.species"C I", 0.0)]
+        # If this line is super weak (or removed), the test will fail due to numerics in the 
+        # abundances and continuum opacities. It used to be a fake line at 5000, but the fact that 
+        # that's the reference wavelength caused instability in the finie differnces calculation.
         function f(A_C)
             A_X = format_A_X(Dict("C"=>A_C))
-            synthesize(atm, linelist, A_X, 5000, 5000).flux[1]
+            synthesize(atm, linelist, A_X, 6000, 6000).flux[1]
         end
         @test FiniteDiff.finite_difference_derivative(f, 0.0) ≈ ForwardDiff.derivative(f, 0.0) rtol=1e-4
     end
@@ -30,8 +33,10 @@
     @testset "line params" begin
         atm = read_model_atmosphere("data/sun.mod")
         function f(loggf)
-            linelist = [Korg.Line(5000e-8, loggf, Korg.species"Na I", 0.0)]
-            synthesize(atm, linelist, format_A_X(), 5000, 5000).flux[1]
+            linelist = [Korg.Line(6000e-8, loggf, Korg.species"Na I", 0.0)]
+            # This used to be a fake line at 5000, but the fact that that's the reference wavelength
+            # caused instability in the finie differnces calculation.
+            synthesize(atm, linelist, format_A_X(), 6000, 6000).flux[1]
         end
         @test FiniteDiff.finite_difference_derivative(f, 0.0) ≈ ForwardDiff.derivative(f, 0.0) rtol=1e-4
     end
