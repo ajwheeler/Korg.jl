@@ -46,7 +46,7 @@ struct Line{F1, F2, F3, F4, F5, F6}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
-        if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) || isnan(vdW)
+        if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) || (!(vdW isa Tuple) && isnan(vdW))
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
             if ismissing(gamma_stark) || isnan(gamma_stark)
                 gamma_stark = gamma_stark_approx
@@ -61,7 +61,7 @@ struct Line{F1, F2, F3, F4, F5, F6}
         
         # if vdW is a tuple, assume it's (σ, α) from ABO theory
         # if it's a float, there are four possibilities
-        if !ismissing(vdW) && !isnan(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
+        if !ismissing(vdW) && !(vdW isa Tuple) !isnan(vdW) #F6 will not be defined if vdW is missing
             if vdW < 0 
                 vdW = 10^vdW  # if vdW is negative, assume it's log(γ_vdW) 
             elseif vdW == 0
@@ -631,3 +631,20 @@ function get_GES_linelist()
             read(f["vdW"]))
     end
 end
+
+"""
+TODO
+"""
+function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_5000", "alpha_5000_lines.csv"))
+    csv = CSV.File(path)
+    map(csv) do row
+        vdW = if ',' in row.vdW
+            σ, α = split(row.vdW[2:end-1], ',')
+            (parse(Float64, σ), parse(Float64, α))
+        else
+            parse(Float64, row.vdW)
+        end
+        Line(row.wl, row.log_gf, Species(row.species), row.E_lower, row.gamma_rad, row.gamma_stark, vdW)
+    end
+end
+const _alpha_5000_default_linelist = _load_alpha_5000_linelist()
