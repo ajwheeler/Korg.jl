@@ -42,12 +42,13 @@ Here's the quick version:
 Install juliacall with
 ```bash
 pip install juliacall
+pip install juliapkg
 ```
 Then, to install Korg, do this from a Python shell:
 ```python
-from juliacall import Main as jl
-jl.seval("using Pkg")
-jl.Pkg.add("Korg")
+import juliapkg
+juliapkg.add("Korg", "acafc109-a718-429c-b0e5-afd7f8c7ae46")
+juliapkg.resolve()
 ```
 That's it! To use Korg from Python, just put these lines at the top of your script/notebook.
 ```python
