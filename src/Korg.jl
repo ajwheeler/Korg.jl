@@ -7,11 +7,11 @@ module Korg
     include("atomic_data.jl")              # symbols and atomic weights
     include("isotopic_data.jl")            # abundances and nuclear spins
     include("species.jl")                  # types for chemical formulae and species
+    include("read_statmech_quantities.jl") # approximate Us, Ks, chis
     include("linelist.jl")                 # parse linelists, define Line type
     include("line_absorption.jl")          # opacity, line profile, voigt function
     include("hydrogen_line_absorption.jl") # hydrogen lines get special treatment
     include("autodiffable_conv.jl")        # wrap DSP.conv to be autodiffable
-    include("read_statmech_quantities.jl") # approximate Us, Ks, chis
     include("statmech.jl")                 # statistical mechanics, molecular equilibrium
     include("atmosphere.jl")               # parse model atmospheres
     include("RadiativeTransfer/RadiativeTransfer.jl") # radiative transfer formal solution
