@@ -27,7 +27,7 @@ All other kwargs are passed to internal calls to [`synthesize`](@ref).
 !!! caution
     While this function can be used to prune a linelist for synthesis, the default behavior too 
     aggressive for this purpose.  Set a much lower threshold (e.g. `threshold=1e-4`) and use 
-    `sort=false` if you are pruning the linelist to speedup synthesis.  Note that Korg will 
+    `sort_by_EW=false` if you are pruning the linelist to speedup synthesis.  Note that Korg will 
     dynamically choose which lines to include even if you use a large linelist (see 
     the `line_cutoff_threshold` keyword argument to [`synthesize`](@ref)).
 
