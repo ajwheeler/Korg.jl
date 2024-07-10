@@ -152,9 +152,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # frequencies at which to calculate the continuum, as a single vector
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) 
 
-    # sort linelist and remove lines far from the synthesis region 
-    # first just the ones needed for α5
-    linelist5 = filter_linelist(linelist, 5e-5:5e-5, line_buffer; warn_empty=false)
+    # sort linelist and remove lines far from the synthesis region
+    # first just the ones needed for α5 (fall back to default if they aren't provided)
+    linelist5 = get_alpha_5000_linelist(linelist, line_buffer)
     # now the ones for the synthesis
     linelist = filter_linelist(linelist, wl_ranges, line_buffer)
 
@@ -300,6 +300,30 @@ function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
         @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
     end
     linelist
+end
+
+"""
+    get_alpha_5000_linelist(linelist, line_buffer)
+
+Return a linelist which can be used to calculate the absorption at 5000 Å, which is required for 
+the standard radiative transfer scheme.  If the provided linelist doesn't contain lines near 5000 Å,
+use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
+"""
+function get_alpha_5000_linelist(linelist, line_buffer)
+    # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
+    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], line_buffer; warn_empty=false)
+    # if there aren't any, use the built-in one
+    if length(linelist5) == 0
+        _alpha_5000_default_linelist
+    # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they 
+    # aren't present
+    elseif (linelist5[1].wl > 5e-5) || (linelist5[end].wl < 5e-5)
+        filter(_alpha_5000_default_linelist) do line
+            (line.wl < linelist5[1].wl) || (line.wl > linelist5[end].wl)
+        end
+    else # if the built-in lines span 5000 Å, use them
+        linelist5
+    end
 end
 
 """
