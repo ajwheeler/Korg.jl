@@ -485,7 +485,7 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
             l2_ind = Int(round((wl2 - wl_range[1]) / step(wl_range))) + 1
             boundary_index = argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
             if absorption[boundary_index] > blend_warn_threshold
-                @warn "Lines $(line_indices[i]) and $(line_indices[i+1]) ($(linelist[line_indices[i]].wl*1e8) Å and $(linelist[line_indices[i+1]].wl*1e8)) Å appear to be blended.  Between them, the absorption never drops below $(blend_warn_threshold) (minimum: $(absorption[boundary_index])). You can adjust this threshold with the blend_warn_threshold keyword argument."
+                @warn "Lines $(line_indices[i]) and $(line_indices[i+1]) ($(linelist[line_indices[i]].wl*1e8) Å and $(linelist[line_indices[i+1]].wl*1e8)) Å appear to be blended.  Between them, the absorption never drops below $(blend_warn_threshold) (minimum: $(ForwardDiff.value(absorption[boundary_index]))). You can adjust this threshold with the blend_warn_threshold keyword argument."
             end
             boundary_index
         end
