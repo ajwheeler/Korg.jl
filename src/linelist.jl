@@ -83,6 +83,9 @@ function Base.show(io::IO, ::MIME"text/plain", line::Line)
     print(io, " ", round(line.wl*1e8, digits=6), " Å (log gf = ", round(line.log_gf, digits=2) ,")")
 end
 
+# make it broadcast like a scalar
+Base.broadcastable(l::Line) = Ref(l)
+
 """
     approximate_radiative_gamma(wl, log_gf)
 
