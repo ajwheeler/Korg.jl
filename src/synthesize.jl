@@ -154,7 +154,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
-    linelist5 = get_alpha_5000_linelist(linelist, line_buffer)
+    if !bezier_radiative_transfer
+        linelist5 = get_alpha_5000_linelist(linelist, line_buffer)
+    end
     # now the ones for the synthesis
     linelist = filter_linelist(linelist, wl_ranges, line_buffer)
 
