@@ -155,7 +155,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
     if !bezier_radiative_transfer
-        linelist5 = get_alpha_5000_linelist(linelist, line_buffer)
+        linelist5 = get_alpha_5000_linelist(linelist)
     end
     # now the ones for the synthesis
     linelist = filter_linelist(linelist, wl_ranges, line_buffer)
@@ -305,15 +305,19 @@ function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
 end
 
 """
-    get_alpha_5000_linelist(linelist, line_buffer)
+    get_alpha_5000_linelist(linelist)
+
+Arguments:
+- `linelist`: the synthesis linelist, which will be used if it covers the 5000 Å region.
 
 Return a linelist which can be used to calculate the absorption at 5000 Å, which is required for 
 the standard radiative transfer scheme.  If the provided linelist doesn't contain lines near 5000 Å,
 use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
 """
-function get_alpha_5000_linelist(linelist, line_buffer)
+function get_alpha_5000_linelist(linelist)
     # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
-    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], line_buffer; warn_empty=false)
+    # use a 20 Å line buffer, which is the coverage of the fallback linelist is.
+    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], 20e-8; warn_empty=false)
     # if there aren't any, use the built-in one
     if length(linelist5) == 0
         _alpha_5000_default_linelist
