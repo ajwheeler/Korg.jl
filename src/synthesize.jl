@@ -316,17 +316,23 @@ use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
 """
 function get_alpha_5000_linelist(linelist)
     # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
-    # use a 20 Å line buffer, which is the coverage of the fallback linelist is.
-    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], 20e-8; warn_empty=false)
+    # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
+    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], 21e-8; warn_empty=false)
     # if there aren't any, use the built-in one
     if length(linelist5) == 0
         _alpha_5000_default_linelist
     # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they 
     # aren't present
-    elseif (linelist5[1].wl > 5e-5) || (linelist5[end].wl < 5e-5)
-        filter(_alpha_5000_default_linelist) do line
-            (line.wl < linelist5[1].wl) || (line.wl > linelist5[end].wl)
+    elseif linelist5[1].wl   > 5e-5
+        ll = filter(_alpha_5000_default_linelist) do line
+            line.wl < linelist5[1].wl
         end
+        [ll ; linelist5]
+    elseif linelist5[end].wl < 5e-5
+        ll = filter(_alpha_5000_default_linelist) do line
+            line.wl > linelist5[end].wl
+        end
+        [linelist5 ; ll]
     else # if the built-in lines span 5000 Å, use them
         linelist5
     end
