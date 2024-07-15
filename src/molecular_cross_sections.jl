@@ -2,7 +2,7 @@ using Interpolations: interpolate!, Gridded, Linear, extrapolate
 using HDF5
 
 struct MolecularCrossSection
-    wls # just for debugging
+    wls 
     itp
     species :: Korg.Species
 end
@@ -13,13 +13,13 @@ end
 Precompute the molecular absorption cross section for a given linelist and set of wavelengths. The 
 `MolecularCrossSection` object can be passed to [`synthesize`](@ref) and potentially speed up the 
 calculation significantly.  At present, Korg only supports precomputed cross-sections created by 
-this function.
+this function, though they can be saved and loaded using [`save_molecular_cross_section`](@ref) and 
+[`read_molecular_cross_section`](@ref).
 
 # Arguments
 - `linelist`: A vector of `Line` objects representing the molecular linelist.  These must be of the 
    same species.
-- `wls`: A vector of wavelength ranges (in Å) at which to precompute the cross section.  *These must
-  match the wavelengths used for any subsequent synthesis exactly*.
+- `wls`: A vector of wavelength ranges (in Å) at which to precompute the cross section.
 
 # Keyword Arguments
 - `cutoff_alpha` (default: 1e-30): The value of the single-line absorption coefficient (in cm^-1) at 
@@ -71,7 +71,7 @@ end
 
 
 """
-    interpolate_molecular_cross_sections!(α, molecular_cross_sections, Ts, vmic, number_densities)
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, λs, Ts, vmic, number_densities)
 
 Interpolate the molecular cross-sections and add them to the total absorption coefficient `α`.
 See [`MolecularCrossSection`](@ref) for more information.
