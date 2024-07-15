@@ -158,29 +158,25 @@ function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R; windo
     if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
     end
-    convM = spzeros((length(obs_wls), length(synth_wls)))
-    lb, ub = 1,1 #initialize window bounds
-    nwls = length(obs_wls)
+    LSF = spzeros((length(obs_wls), length(synth_wls)))
     normalization_factor = if renormalize_edge
         zeros(length(obs_wls))
     else
         ones(length(obs_wls))
     end
-    p = Progress(nwls; desc="Constructing LSF matrix", enabled=verbose)
-    for i in eachindex(obs_wls)
+    @showprogress desc="Constructing LSF matrix" enabled=verbose for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
         r, ϕ, normalization_factor[i] = line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
-        @. convM[i, r] += ϕ
-        next!(p)
+        @. LSF[i, r] += ϕ
     end
     if renormalize_edge
         # doing it this way is much more efficient than the obvious broadcasting because of how
         # sparse matrices are implemented
-        for i in eachindex(obs_wls)
-            convM[:, i] .*= normalization_factor
+        for i in axes(LSF, 2)
+            LSF[:, i] .*= normalization_factor
         end
     end
-    convM
+    LSF
 end
 function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractVector}, obs_wls, R; 
                             renormalize_edge=true, verbose=false, kwargs...)
@@ -191,7 +187,7 @@ function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractVector}, 
     LSF = hcat(LSFmats...)
     s = 0.0
     if renormalize_edge
-        @showprogress for i in 1:size(LSF, 1)
+        @showprogress for i in axes(LSF, 1)
             s = sum(LSF[i, :])
             if s != 0 
                 LSF[i, :] ./= sum(LSF[i, :])
