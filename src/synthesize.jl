@@ -88,7 +88,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 - `bezier_radiative_transfer` (default: false): Use the radiative transfer scheme.  This is for 
    testing purposes only.
 - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See 
-   [`MolecularCrossSection`](@ref) for how to generate these.
+   [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
+    transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
 - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by 
    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object, 
    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
