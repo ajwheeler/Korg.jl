@@ -641,6 +641,8 @@ end
 Load the default linelist for calculating the absorption coefficient at 5000 Å.  This for internal 
 use when the provided linelist doesn't cover the region and a radiative transfer scheme using 
 τ_5000 is used.
+
+This linelist loaded into `Korg._alpha_5000_default_linelist` when Korg is imported.
 """
 function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_5000", "alpha_5000_lines.csv"))
     csv = CSV.File(path)
@@ -654,4 +656,12 @@ function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_
         Line(row.wl, row.log_gf, Species(row.species), row.E_lower, row.gamma_rad, row.gamma_stark, vdW)
     end
 end
+
+"""
+The default linelist for calculating the absorption coefficient at 5000 Å.  This for internal 
+use when the provided linelist doesn't cover the region and a radiative transfer scheme using 
+τ_5000 is used.
+
+See also [`_load_alpha_5000_linelist`](@ref).
+"""
 const _alpha_5000_default_linelist = _load_alpha_5000_linelist()
