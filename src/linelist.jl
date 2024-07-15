@@ -636,7 +636,11 @@ function get_GES_linelist()
 end
 
 """
-TODO
+    _load_alpha_5000_linelist([path])
+
+Load the default linelist for calculating the absorption coefficient at 5000 Å.  This for internal 
+use when the provided linelist doesn't cover the region and a radiative transfer scheme using 
+τ_5000 is used.
 """
 function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_5000", "alpha_5000_lines.csv"))
     csv = CSV.File(path)
