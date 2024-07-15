@@ -21,18 +21,21 @@ equivalent width.
    order is much faster, but sorting by strength is useful for visualizing the strongest lines.
 - `verbose=true`: If `true`, a progress bar will be displayed while measuring the EWs.
 All other kwargs are passed to internal calls to [`synthesize`](@ref).
+- `max_distance=0.0`, how far from `wls` lines can be before they are excluded from the returned 
+   list. 
 
 !!! caution
     While this function can be used to prune a linelist for synthesis, the default behavior too 
     aggressive for this purpose.  Set a much lower threshold (e.g. `threshold=1e-4`) and use 
-    `sort=false` if you are pruning the linelist to speedup synthesis.  Note that Korg will 
+    `sort_by_EW=false` if you are pruning the linelist to speedup synthesis.  Note that Korg will 
     dynamically choose which lines to include even if you use a large linelist (see 
     the `line_cutoff_threshold` keyword argument to [`synthesize`](@ref)).
 
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
 function prune_linelist(atm, linelist, A_X, wls...; 
-                        threshold=0.1, sort_by_EW=true, verbose=true, synthesis_kwargs...)
+                        threshold=0.1, sort_by_EW=true, verbose=true, max_distance=0.0,
+                        synthesis_kwargs...)
     # linelist will be sorted after call to synthesize
     sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
     cntm_sol = synthesize(atm, [], A_X, wls...; synthesis_kwargs...) 
@@ -59,7 +62,7 @@ function prune_linelist(atm, linelist, A_X, wls...;
     strong_lines = eltype(linelist)[]
     for line in linelist
         line_center = line.wl * 1e8
-        if !any(λs[begin] < line_center < λs[end] for λs in wl_ranges)
+        if !any((λs[begin]-max_distance) < line_center < (λs[end]+max_distance) for λs in wl_ranges)
             continue
         end
 

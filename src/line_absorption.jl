@@ -2,7 +2,7 @@ using SpecialFunctions: gamma
 using ProgressMeter: @showprogress
 
 """
-    line_absorption(linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
+    line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
                    ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
 
 Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
