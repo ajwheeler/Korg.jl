@@ -93,7 +93,8 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    calculation, but stores the intensity at every layer. "bezier" is for testing and not 
    recommended.
 - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See 
-   [`MolecularCrossSection`](@ref) for how to generate these.
+   [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
+    transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
 - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by 
    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object, 
    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
@@ -158,18 +159,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # frequencies at which to calculate the continuum, as a single vector
     sorted_cntmνs = c_cgs ./ reverse(cntmλs) 
 
-    #sort the lines if necessary
-    issorted(linelist; by=l->l.wl) || sort!(linelist, by=l->l.wl)
-    #discard lines far from the wavelength range being synthesized
-    nlines_before = length(linelist)
-    linelist = filter(linelist) do line # don't "filter!".  It mutates the linelist.
-        map(wl_ranges) do wl_range
-            wl_range[1] - line_buffer <= line.wl <= wl_range[end]
-        end |> any
+    # sort linelist and remove lines far from the synthesis region
+    # first just the ones needed for α5 (fall back to default if they aren't provided)
+    if !bezier_radiative_transfer
+        linelist5 = get_alpha_5000_linelist(linelist)
     end
-    if nlines_before != 0 && length(linelist) == 0
-        @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
-    end
+    # now the ones for the synthesis
+    linelist = filter_linelist(linelist, wl_ranges, line_buffer)
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
@@ -220,6 +216,15 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     #vector of continuum-absorption interpolators
     α_cntm = last.(triples) 
 
+    # line contributions to α5
+    if ! bezier_radiative_transfer
+        α_cntm_5 = [_->a for a in copy(α5)] # lambda per layer
+        line_absorption!(view(α5, :, 1), linelist5, [5e-5:1:5e-5], get_temps(atm), nₑs, number_densities,
+                         partition_funcs, vmic*1e5, α_cntm_5; cutoff_threshold=line_cutoff_threshold)
+        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections, [5e-5],
+                                              get_temps(atm), vmic, number_densities)
+    end
+
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
     if return_cntm
@@ -238,10 +243,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wl_ranges, [layer.temp for layer in atm.layers], nₑs,
-        number_densities, partition_funcs, vmic*1e5, α_cntm, cutoff_threshold=line_cutoff_threshold;
-        verbose=verbose)
-    interpolate_molecular_cross_sections!(α, molecular_cross_sections, get_temps(atm), vmic, number_densities)
+    line_absorption!(α, linelist, wl_ranges, get_temps(atm), nₑs, number_densities, partition_funcs,
+                     vmic*1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, all_λs, get_temps(atm), vmic, number_densities)
     
     flux, intensity = RadiativeTransfer.radiative_transfer(atm, α, source_fn, n_mu_points; α_ref=α5,
                                                            I_scheme=I_scheme, τ_scheme=tau_scheme)
@@ -270,6 +274,70 @@ function construct_wavelength_ranges(λ_start, λ_stop, λ_step=0.01)
 end
 construct_wavelength_ranges(wls::AbstractVector{<:AbstractRange}) = wls
 construct_wavelength_ranges(wls::AbstractRange) = [wls]
+
+"""
+    filter_linelist(linelist, wl_ranges, line_buffer)
+
+Return a new linelist containing only lines within the provided wavelength ranges.
+"""
+function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
+    # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
+
+    #sort the lines if necessary
+    if ! issorted(linelist; by=l->l.wl) 
+        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
+        linelist = sort(linelist, by=l->l.wl)
+    end
+    nlines_before = length(linelist)
+
+    linelist = filter(linelist) do line
+        for wl_range in wl_ranges
+            if (wl_range[1] - line_buffer) <=  line.wl <= (wl_range[end] + line_buffer)
+                return true
+            end
+        end
+        return false
+    end
+
+    if nlines_before != 0 && length(linelist) == 0 && warn_empty
+        @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
+    end
+    linelist
+end
+
+"""
+    get_alpha_5000_linelist(linelist)
+
+Arguments:
+- `linelist`: the synthesis linelist, which will be used if it covers the 5000 Å region.
+
+Return a linelist which can be used to calculate the absorption at 5000 Å, which is required for 
+the standard radiative transfer scheme.  If the provided linelist doesn't contain lines near 5000 Å,
+use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
+"""
+function get_alpha_5000_linelist(linelist)
+    # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
+    # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
+    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], 21e-8; warn_empty=false)
+    # if there aren't any, use the built-in one
+    if length(linelist5) == 0
+        _alpha_5000_default_linelist
+    # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they 
+    # aren't present
+    elseif linelist5[1].wl   > 5e-5
+        ll = filter(_alpha_5000_default_linelist) do line
+            line.wl < linelist5[1].wl
+        end
+        [ll ; linelist5]
+    elseif linelist5[end].wl < 5e-5
+        ll = filter(_alpha_5000_default_linelist) do line
+            line.wl > linelist5[end].wl
+        end
+        [linelist5 ; ll]
+    else # if the built-in lines span 5000 Å, use them
+        linelist5
+    end
+end
 
 """
     format_A_X(default_metals_H, default_alpha_H, abundances; kwargs... )

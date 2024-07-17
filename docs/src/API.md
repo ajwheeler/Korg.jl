@@ -15,6 +15,13 @@ interpolate_marcs
 format_A_X
 ```
 
+## Built-in linelists
+```@docs
+Korg.get_APOGEE_DR17_linelist
+Korg.get_GALAH_DR3_linelist
+Korg.get_GES_linelist
+```
+
 # Fitting
 ```@docs
 Korg.Fit.ews_to_abundances

@@ -1,4 +1,5 @@
-using CSV, HDF5
+using CSV, HDF5, LazyArtifacts
+using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
 struct Line{F1, F2, F3, F4, F5, F6} 
@@ -45,22 +46,22 @@ struct Line{F1, F2, F3, F4, F5, F6}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
-        if ismissing(gamma_stark) || ismissing(vdW)
+        if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) || (!(vdW isa Tuple) && isnan(vdW))
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
-            if ismissing(gamma_stark)
+            if ismissing(gamma_stark) || isnan(gamma_stark)
                 gamma_stark = gamma_stark_approx
             end
-            if ismissing(vdW)
+            if ismissing(vdW) || isnan(vdW)
                 vdW = vdW_approx
             end
         end
-        if ismissing(gamma_rad)
+        if ismissing(gamma_rad) || isnan(gamma_rad)
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
         
         # if vdW is a tuple, assume it's (σ, α) from ABO theory
         # if it's a float, there are four possibilities
-        if !ismissing(vdW) && !(vdW isa Tuple) #F6 will not be defined if vdW is missing
+        if !ismissing(vdW) && !(vdW isa Tuple) !isnan(vdW) #F6 will not be defined if vdW is missing
             if vdW < 0 
                 vdW = 10^vdW  # if vdW is negative, assume it's log(γ_vdW) 
             elseif vdW == 0
@@ -81,6 +82,9 @@ function Base.show(io::IO, ::MIME"text/plain", line::Line)
     show(io, line.species)
     print(io, " ", round(line.wl*1e8, digits=6), " Å (log gf = ", round(line.log_gf, digits=2) ,")")
 end
+
+# make it broadcast like a scalar
+Base.broadcastable(l::Line) = Ref(l)
 
 """
     approximate_radiative_gamma(wl, log_gf)
@@ -235,8 +239,8 @@ function first_nonempty_line(io)
 end
 
 #used to handle missing gammas in vald and kurucz lineslist parsers
-tentotheOrMissing(x) = x == 0.0 ? missing : 10.0^x
-idOrMissing(x) = x == 0.0 ? missing : x
+tentotheOrMissing(x) = x == 0 ? missing : 10^x
+idOrMissing(x) = x == 0 ? missing : x
 
 function parse_kurucz_linelist(f; vacuum=false)
     lines = Line{Float64, Float64, Float64, Float64, Float64, Float64}[]
@@ -607,3 +611,57 @@ function get_GALAH_DR3_linelist()
         end
     end
 end
+
+"""
+    get_GES_linelist()
+
+The Gaia-ESO survey linelist from 
+[Heiter et al. 2021](https://ui.adsabs.harvard.edu/abs/2021A&A...645A.106H/abstract).
+"""
+function get_GES_linelist()
+    @warn "This function is may fail on some systems. See https://github.com/ajwheeler/Korg.jl/issues/309 for details."
+    path = joinpath(artifact"Heiter_2021_GES_linelist", 
+                    "Heiter_et_al_2021_2022_06_17",
+                    "Heiter_et_al_2021.h5")
+    h5open(path, "r") do f
+        Line.(
+            Float64.(air_to_vacuum.(read(f["wl"]))),
+            Float64.(read(f["log_gf"])),
+            [Species(s) for s in read(f["species"])],
+            Float64.(read(f["E_lower"])),
+            tentotheOrMissing.(Float64.(read(f["gamma_rad"]))),
+            tentotheOrMissing.(Float64.(read(f["gamma_stark"]))),
+            read(f["vdW"]))
+    end
+end
+
+"""
+    _load_alpha_5000_linelist([path])
+
+Load the default linelist for calculating the absorption coefficient at 5000 Å.  This for internal 
+use when the provided linelist doesn't cover the region and a radiative transfer scheme using 
+τ_5000 is used.
+
+This linelist loaded into `Korg._alpha_5000_default_linelist` when Korg is imported.
+"""
+function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_5000", "alpha_5000_lines.csv"))
+    csv = CSV.File(path)
+    map(csv) do row
+        vdW = if ',' in row.vdW
+            σ, α = split(row.vdW[2:end-1], ',')
+            (parse(Float64, σ), parse(Float64, α))
+        else
+            parse(Float64, row.vdW)
+        end
+        Line(row.wl, row.log_gf, Species(row.species), row.E_lower, row.gamma_rad, row.gamma_stark, vdW)
+    end
+end
+
+"""
+The default linelist for calculating the absorption coefficient at 5000 Å.  This for internal 
+use when the provided linelist doesn't cover the region and a radiative transfer scheme using 
+τ_5000 is used.
+
+See also [`_load_alpha_5000_linelist`](@ref).
+"""
+const _alpha_5000_default_linelist = _load_alpha_5000_linelist()
