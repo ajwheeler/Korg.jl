@@ -282,7 +282,7 @@ end
     compute_I_linear_flux_only(τ, S)
 
 Returns the intensity at the end of the ray (the surface of the star) given τ and S along the ray.
-Uses the same numerical method as [`compute_I_linear`](@ref), but doesn't retain the intensity at 
+Uses the same numerical method as [`compute_I_linear!`](@ref), but doesn't retain the intensity at 
 each layer.
 """
 function compute_I_linear_flux_only(τ, S)
@@ -334,7 +334,7 @@ Given a set of x and y values, compute the bezier control points using the metho
 [Fritch & Butland 1984](https://doi.org/10.1137/0905021), as suggested in 
 [de la Cruz Rodríguez and Piskunov 2013](https://ui.adsabs.harvard.edu/abs/2013ApJ...764...33D/abstract).
 
-Used in [`compute_I_bezier`](@ref).
+Used in [`compute_I_bezier!`](@ref).
 """
 function fritsch_butland_C(x, y)
     h = diff(x) #h[k] = x[k+1] - x[k]
