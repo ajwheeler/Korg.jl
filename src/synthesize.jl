@@ -151,7 +151,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     cntm_wl_ranges = map(wl_ranges) do λs 
         collect((λs[1] - line_buffer - cntm_step) : cntm_step : (λs[end] + line_buffer + cntm_step))
     end
-    # eliminate portions where ranges overlap.  One fitting is merged, there will be functions for this.
+    # eliminate portions where ranges overlap.  One fitting is merged, there wull be functions for this.
     for i in 1:length(cntm_wl_ranges)-1 
         cntm_wl_ranges[i] = cntm_wl_ranges[i][cntm_wl_ranges[i] .< first(cntm_wl_ranges[i+1])]
     end
@@ -161,7 +161,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
-    if !bezier_radiative_transfer
+    if tau_scheme == "anchored"
         linelist5 = get_alpha_5000_linelist(linelist)
     end
     # now the ones for the synthesis
@@ -179,8 +179,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                           eltype(all_λs), typeof(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(all_λs))
-    # each layer's absorption at reference λ (5000 Å)
-    # This isn't used with bezier radiative transfer.
+    # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
     α5 = Vector{α_type}(undef, length(atm.layers)) 
     triples = map(enumerate(atm.layers)) do (i, layer)
         nₑ, n_dict = if isnothing(use_chemical_equilibrium_from)
@@ -217,7 +216,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     α_cntm = last.(triples) 
 
     # line contributions to α5
-    if ! bezier_radiative_transfer
+    if tau_scheme == "anchored"
         α_cntm_5 = [_->a for a in copy(α5)] # lambda per layer
         line_absorption!(view(α5, :, 1), linelist5, [5e-5:1:5e-5], get_temps(atm), nₑs, number_densities,
                          partition_funcs, vmic*1e5, α_cntm_5; cutoff_threshold=line_cutoff_threshold)

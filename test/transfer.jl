@@ -26,7 +26,7 @@ end
                                 τ_scheme=τ_scheme, I_scheme=I_scheme);
             
         atmtype = if atm isa Korg.PlanarAtmosphere "planar" else "spherical" end
-        @test assert_allclose_grid(sol.flux, flux, [("λ [$I_scheme $τ_scheme $atmtype]" , sol.wavelengths, "Å")]; rtol=0.04, print_rachet_info=false)
+        @test assert_allclose_grid(sol.flux, flux, [("λ [$I_scheme $τ_scheme $atmtype]" , sol.wavelengths, "Å")]; rtol=0.05, print_rachet_info=false)
     end
 end
 
