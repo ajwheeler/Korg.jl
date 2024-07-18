@@ -1,29 +1,33 @@
 @testset "transfer" begin
 
 using SpecialFunctions: expint
-using Korg.RadiativeTransfer: MoogStyleTransfer
 
-@testset "transfer" begin
+@testset "expint" begin
     xs = 2:0.01:8
-    @test MoogStyleTransfer.exponential_integral_2.(xs) ≈ expint.(2, xs) rtol=1e-3
+    @test Korg.RadiativeTransfer.exponential_integral_2.(xs) ≈ expint.(2, xs) rtol=1e-3
 end
 
-@testset "trapezoid rule" begin
-    #gaussian PDF should integral to 1.
-    pdf(x) = exp(-1/2 * x^2) / sqrt(2π)
-    xs = -10:0.1:10
-    fs = pdf.(xs)
+@testset "compare transfer schemes" begin
+    # 3.0 is where we transition from planar to spherical atmospheres in the marcs grid
+    atm = interpolate_marcs(5000.0, 3.0)
+    patm = Korg.PlanarAtmosphere(atm)
 
-    partial_ints = similar(xs)
-    MoogStyleTransfer.cumulative_trapezoid_rule!(partial_ints, xs, fs)
-    @test partial_ints[end] ≈ 1.0 atol=1e-5
-end
+    sol = synthesize(atm, [], format_A_X(), 5000, 5010)
+    ref_ind = 1
 
-@testset "synthesize spectrum with bezier transfer" begin
-    atm = read_model_atmosphere("data/sun.mod")
-    bezier_sol = synthesize(atm, [], format_A_X(), 5000, 5001; bezier_radiative_transfer=true, n_mu_points=50)
-    sol = synthesize(atm, [], format_A_X(), 5000, 5001 )
-    @test assert_allclose_grid(bezier_sol.flux, sol.flux, [("λ" , sol.wavelengths, "Å")]; rtol=0.03)
+    wl_cm = sol.wavelengths * 1e-8;
+    S = Korg.blackbody.(Korg.get_temps(atm), wl_cm');
+
+    for atm in [atm, patm], τ_scheme in ["anchored", "bezier"], 
+        I_scheme in ["linear", "linear_flux_only", "bezier"], include_inward_rays in [true, false]
+
+        flux, _ = Korg.RadiativeTransfer.radiative_transfer(atm, sol.alpha, S, 20; 
+                                include_inward_rays=include_inward_rays, α_ref=sol.alpha[:, ref_ind],
+                                τ_scheme=τ_scheme, I_scheme=I_scheme);
+            
+        atmtype = if atm isa Korg.PlanarAtmosphere "planar" else "spherical" end
+        @test assert_allclose_grid(sol.flux, flux, [("λ [$I_scheme $τ_scheme $atmtype]" , sol.wavelengths, "Å")]; rtol=0.05, print_rachet_info=false)
+    end
 end
 
 end
