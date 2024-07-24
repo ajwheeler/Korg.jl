@@ -12,7 +12,7 @@ end
     atm = interpolate_marcs(5000.0, 3.0)
     patm = Korg.PlanarAtmosphere(atm)
 
-    sol = synthesize(atm, [], format_A_X(), 5000, 5010)
+    sol = synthesize(atm, [], format_A_X(), 5000, 5001)
     ref_ind = 1
 
     wl_cm = sol.wavelengths * 1e-8;
@@ -27,6 +27,28 @@ end
             
         atmtype = if atm isa Korg.PlanarAtmosphere "planar" else "spherical" end
         @test assert_allclose_grid(sol.flux, flux, [("λ [$I_scheme $τ_scheme $atmtype]" , sol.wavelengths, "Å")]; rtol=0.05, print_rachet_info=false)
+    end
+end
+
+@testset "mu grid" begin
+    @testset "valid specifications" for mu_specification in [5, 20, [0, 0.2, 1.0], 0:0.5:1.0]
+        # what length should it be?
+        if mu_specification isa Number
+            n = mu_specification
+        else
+            n = length(mu_specification)
+        end
+
+        μs, ws = Korg.RadiativeTransfer.generate_mu_grid(mu_specification)
+        @test length(μs) == n
+        @test length(ws) == n
+        @test sum(ws) ≈ 1.0
+    end
+
+    @testset "invalid mu specifications" begin
+        @test_throws ArgumentError Korg.RadiativeTransfer.generate_mu_grid(1:-0.5:0)
+        @test_throws ArgumentError Korg.RadiativeTransfer.generate_mu_grid(1:0.5:2)
+        @test_throws ArgumentError Korg.RadiativeTransfer.generate_mu_grid([-0.5, 0.5])
     end
 end
 

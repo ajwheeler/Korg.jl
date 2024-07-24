@@ -27,8 +27,12 @@ must be sorted and non-overlapping.
 A named tuple with keys:
 - `flux`: the output spectrum
 - `cntm`: the continuum at each wavelength
+- `intensity`: the intensity at each wavelength and mu value, and possibly each layer in the model 
+   atmosphere, depending on the radiative transfer scheme.
 - `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer a Matrix of 
    size (layers x wavelengths)
+- `mu_grid`: a vector of tuples containing the μ values and weights used in the radiative transfer
+   calculation. Can be controlled with the `mu_values` keyword argument.
 - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each 
    atmospheric layer
 - `electron_number_density`: the electron number density at each atmospheric layer
@@ -66,9 +70,13 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    probability formalism for hydrogen lines. (MHD is always used for hydrogen bound-free absorption.)
 - `hydrogen_line_window_size` (default: 150): the maximum distance (in Å) from each hydrogen line 
    center at which to calculate its contribution to the total absorption coefficient.
-- `n_mu_points` (default: 20): the number of μ values at which to calculate the surface flux when doing 
-   transfer in spherical geometry (when `atm` is a `ShellAtmosphere`). 20 points is sufficient for
-   accuracy at the 10^-3 level.
+- `mu_values` (default: 20): the number of μ values at which to calculate the surface flux, or a 
+   vector of the specific values to use when doing transfer in spherical geometry. If `mu_points` is 
+   an integer, the values are chosen per Gauss-Legendre integration. If they are specified directly,
+   the trapezoid rule is used for the astrophysical flux. The default values is sufficient for
+   accuracy at the 10^-3 level. Note that if you are using the default radiative transfer scheme, 
+   with a plane-parallel model atmosphere, the integral over μ is exact, so this parameter has no
+   effect. The points and weights are returned in the `mu_grid` field of the output.
 - `line_cutoff_threshold` (default: `3e-4`): the fraction of the continuum absorption coefficient 
    at which line profiles are truncated.  This has major performance impacts, since line absorption
    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
@@ -106,9 +114,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0, 
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true, 
-                    hydrogen_line_window_size=150, n_mu_points=20, line_cutoff_threshold=3e-4, 
-                    electron_number_density_warn_threshold=1.0, 
-                    return_cntm=true,
+                    hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4, 
+                    electron_number_density_warn_threshold=1.0, return_cntm=true,
                     I_scheme="linear_flux_only", tau_scheme="anchored",
                     ionization_energies=ionization_energies, 
                     partition_funcs=default_partition_funcs, 
@@ -227,8 +234,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     source_fn = blackbody.((l->l.temp).(atm.layers), all_λs')
     cntm = nothing
     if return_cntm
-        cntm, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, n_mu_points; α_ref=α5,
-                                                       I_scheme=I_scheme, τ_scheme=tau_scheme)
+        cntm, _, _, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, mu_values; α_ref=α5,
+                                                             I_scheme=I_scheme, τ_scheme=tau_scheme)
     end
 
     if hydrogen_lines
@@ -246,8 +253,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                      vmic*1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, all_λs, get_temps(atm), vmic, number_densities)
     
-    flux, intensity = RadiativeTransfer.radiative_transfer(atm, α, source_fn, n_mu_points; α_ref=α5,
-                                                           I_scheme=I_scheme, τ_scheme=tau_scheme)
+    flux, intensity, μ_grid, μ_weights = RadiativeTransfer.radiative_transfer(atm, α, source_fn, mu_values; α_ref=α5,
+                                                                              I_scheme=I_scheme, τ_scheme=tau_scheme)
 
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
@@ -258,8 +265,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         wl_lb_ind += length(λs)
     end
 
-    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, number_densities=number_densities, 
-    electron_number_density=nₑs, wavelengths=all_λs.*1e8, subspectra=subspectra)
+    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, mu_grid=collect(zip(μ_grid, μ_weights)),
+     number_densities=number_densities, electron_number_density=nₑs, wavelengths=all_λs.*1e8, 
+     subspectra=subspectra)
 end
 
 """

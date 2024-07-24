@@ -1,10 +1,12 @@
 @testset "synthesize" begin
+    # use this for everything
+    atm = read_model_atmosphere("data/sun.mod")
+
     @testset "line buffer" begin
         # strong line at 5999 Å
         line1 = Korg.Line(5999e-8, 1.0, Korg.species"Na I", 0.0)
         # strong line at 5997 Å
         line2 = Korg.Line(5997e-8, 1.0, Korg.species"Na I", 0.0)
-        atm = read_model_atmosphere("data/sun.mod")
 
         # use a 2 Å line buffer so only line1 in included
         sol_no_lines = synthesize(atm, [], format_A_X(), 6000, 6000; line_buffer=2.0) #synthesize at 6000 Å only
@@ -17,7 +19,6 @@
 
     @testset "precomputed chemical equilibrium" begin
         # test that the precomputed chemical equilibrium works
-        atm = read_model_atmosphere("data/sun.mod")
         A_X = format_A_X()
         sol = synthesize(atm, [], A_X, 5000, 5000)
         sol_eq = synthesize(atm, [], A_X, 5000, 5000; use_chemical_equilibrium_from=sol)
@@ -28,7 +29,6 @@
         # these are essentially tests of Korg.construct_wavelength_ranges, but we test "through"
         # synthesize because it's crucial that synthesize works
 
-        atm = read_model_atmosphere("data/sun.mod")
         wls = 15000:0.01:15500
         A_X = format_A_X()
         @test synthesize(atm, [], A_X, 15000, 15500).wavelengths ≈ wls
@@ -48,6 +48,17 @@
         @test sol2.wavelengths == sol3.wavelengths[sol3.subspectra[2]]
         @test sol1.flux == sol3.flux[sol3.subspectra[1]]
         @test sol2.flux == sol3.flux[sol3.subspectra[2]]
+    end
+
+    @testset "mu specification" begin
+        sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=5, I_scheme="linear")
+        @test length(sol.mu_grid) == 5
+
+        sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0, I_scheme="linear")
+        @test length(sol.mu_grid) == 3
+
+        sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0, I_scheme="linear_flux_only")
+        @test sol.mu_grid == [(1,1)]
     end
 
     @testset "abundances" begin
@@ -108,7 +119,6 @@
 
     @testset "linelist checking" begin
         msg = "The provided linelist was not empty"
-        atm = interpolate_marcs(5000.0, 4.4)
         linelist = [Korg.Line(5000e-8, 1.0, Korg.species"Na I", 0.0)]
         @test_warn msg synthesize(atm, linelist, format_A_X(), 6000, 6000)
     end
