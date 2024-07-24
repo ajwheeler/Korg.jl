@@ -1,17 +1,27 @@
 module RadiativeTransfer
 using ...Korg: PlanarAtmosphere, ShellAtmosphere, get_tau_5000s, get_zs
-
-# for generate_mu_grid
 using FastGaussQuadrature: gausslegendre
+
 """
     generate_mu_grid(n_points)
+    generate_mu_grid(μ_values)
 
 Used by both radiative transfer schemes to compute quadature over μ. Returns `(μ_grid, μ_weights)`.
+If an integer is passed, generate a grid of Gauss-Legendre quadrature points of corresponding size.
+Otherwise, use the provided μ values.
 """
-function generate_mu_grid(n_points)
+function generate_mu_grid(n_points::Integer)
     μ_grid, μ_weights = gausslegendre(n_points)
     μ_grid = @. μ_grid/2 + 0.5
     μ_weights ./= 2
+    μ_grid, μ_weights
+end
+function generate_mu_grid(μ_grid::AbstractVector{<:Real})
+    if !issorted(μ_grid) || μ_grid[1] < 0 || μ_grid[end] > 1
+        throw(ArgumentError("μ_grid must be sorted and bounded between 0 and 1"))
+    end
+    Δ = diff(μ_grid)
+    μ_weights = 0.5 * [Δ[1] ; (@. Δ[1:end-1] + Δ[2:end]) ; Δ[end]]
     μ_grid, μ_weights
 end
 
@@ -48,14 +58,14 @@ function radiative_transfer(atm::PlanarAtmosphere, α, S, n_μ_points;
     radiative_transfer(α, S, get_zs(atm), n_μ_points, false; α_ref=α_ref, τ_ref=τ_ref,
                        I_scheme=I_scheme, τ_scheme=τ_scheme, kwargs...)
 end
-function radiative_transfer(atm::ShellAtmosphere, α, S, n_μ_points; include_inward_rays=false,
+function radiative_transfer(atm::ShellAtmosphere, α, S, n_μ_points; 
                             α_ref=nothing, τ_ref=isnothing(α_ref) ? nothing : get_tau_5000s(atm),
                             τ_scheme="anchored", I_scheme="linear", kwargs...)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2 
-    F, I = radiative_transfer(α, S, radii, n_μ_points, true; α_ref=α_ref, τ_ref=τ_ref,
+    F, others... = radiative_transfer(α, S, radii, n_μ_points, true; α_ref=α_ref, τ_ref=τ_ref,
                               I_scheme=I_scheme, τ_scheme=τ_scheme, kwargs...)
-    photosphere_correction .* F, I
+    photosphere_correction .* F, others...
 end
 function radiative_transfer(α, S, spatial_coord, n_μ_points, spherical;
                             include_inward_rays=false,
@@ -118,7 +128,7 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, spherical;
     surface_I = I[n_inward_rays+1:end, :, 1]
     F = 2π * (surface_I' * (μ_weights .* μ_surface_grid))
 
-    F, I
+    F, I, μ_surface_grid, μ_weights
 end
 
 """
