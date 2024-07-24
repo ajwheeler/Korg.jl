@@ -6,7 +6,7 @@ using FastGaussQuadrature: gausslegendre
     generate_mu_grid(n_points)
     generate_mu_grid(μ_values)
 
-Used by both radiative transfer schemes to compute quadature over μ. Returns `(μ_grid, μ_weights)`.
+Used by both radiative transfer schemes to compute quadrature over μ. Returns `(μ_grid, μ_weights)`.
 If an integer is passed, generate a grid of Gauss-Legendre quadrature points of corresponding size.
 Otherwise, use the provided μ values.
 """
@@ -42,7 +42,7 @@ end
 - `spherical`: whether the atmosphere is spherical or plane-parallel.
 
 # Keyword Arguments:
-- `include_inward_rays` (default: `false`): if true, light propogating into the star (negative μs) is included.  If 
+- `include_inward_rays` (default: `false`): if true, light propagating into the star (negative μs) is included.  If 
    false, only those which are needed to seed the intensity at the bottom of the atmosphere are
    included.
 - `τ_scheme` (default: "anchored"): how to compute the optical depth.  Options are "linear" and 

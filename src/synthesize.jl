@@ -72,7 +72,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
    center at which to calculate its contribution to the total absorption coefficient.
 - `mu_values` (default: 20): the number of μ values at which to calculate the surface flux, or a 
    vector of the specific values to use when doing transfer in spherical geometry. If `mu_points` is 
-   an integrer, the values are chosen per Gauss-Legendre integration. If they are specified directly,
+   an integer, the values are chosen per Gauss-Legendre integration. If they are specified directly,
    the trapezoid rule is used for the astrophysical flux. The default values is sufficient for
    accuracy at the 10^-3 level. Note that if you are using the default radiative transfer scheme, 
    with a plane-parallel model atmosphere, the integral over μ is exact, so this parameter has no
