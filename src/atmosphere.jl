@@ -275,6 +275,7 @@ end
 function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5, 
                            perturb_at_grid_values=true, resampled_cubic_for_cool_dwarfs=true,
                            archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres))
+    # cool dwarfs
     if Teff <= 4000 && logg >= 3.5 && m_H >= -2.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]
         atm_quants = itp(1:nlayers, 1:5, Teff, logg, m_H, alpha_m, C_m)
@@ -285,6 +286,7 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
             exp.(atm_quants[:, 2]), 
             exp.(atm_quants[:, 3])))
     else
+        # low metallicity
         if m_H < -2.5
             nodes, grid = archives[3]
             if alpha_m != 0.4 || C_m != 0
@@ -292,6 +294,7 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
             end
             params = [Teff, logg, m_H]
             param_names = ["Teff", "log(g)", "[M/H]"]
+        # standard 
         else
             nodes, grid = archives[1]
             params = [Teff, logg, m_H, alpha_m, C_m]
@@ -320,3 +323,6 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
         end
     end
 end
+# handle the case where Teff is an integer. As long as not all params are passed in as integers, 
+# there's no problem. 
+interpolate_marcs(Teff::Int, args...; kwargs...) = interpolate_marcs(Float64(Teff), args...; kwargs...)

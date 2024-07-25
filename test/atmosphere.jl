@@ -109,8 +109,8 @@
 
         @testset "low-metallicity" begin
             δ = 1e-3
-            atm1 = interpolate_marcs(5000.0, 4.5, -2.5+δ, 0.4)
-            atm2 = interpolate_marcs(5000.0, 4.5, -2.5-δ, 0.4)
+            atm1 = interpolate_marcs(5000, 4.5, -2.5+δ, 0.4)
+            atm2 = interpolate_marcs(5000, 4.5, -2.5-δ, 0.4)
             @test assert_atmospheres_close(atm1, atm2; rtol=1e-2)
 
             # set up A_X with abundances that don't match the MARCS standard comp
@@ -120,6 +120,18 @@
             @test assert_atmospheres_close(atm2, atm3; rtol=1e-10)
 
             @test_throws ArgumentError interpolate_marcs(5000, 4.5, -3, 0)
+        end
+
+
+        @testset "integer arguments" begin
+            # make sure it doesn't crash when it's all integers
+
+            # low metallicity
+            @test interpolate_marcs(5000, 1,-3, 0.4,0) isa Korg.ModelAtmosphere
+            # standard
+            @test interpolate_marcs(5000, 1, -1, 0,0) isa Korg.ModelAtmosphere
+            # cool dwarf
+            @test interpolate_marcs(5000, 1,-3, 0.4,0) isa Korg.ModelAtmosphere
         end
     end
 end
