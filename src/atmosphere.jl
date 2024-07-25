@@ -323,6 +323,6 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
         end
     end
 end
-# handle the case where Teff is an integer. As long as not all params are passed in as integers, 
-# there's no problem. 
-interpolate_marcs(Teff::Int, args...; kwargs...) = interpolate_marcs(Float64(Teff), args...; kwargs...)
+# handle the case where Teff, logg, and [m/H] are integers. As long as not all (interpolated) params 
+# are passed in as integers, there's no problem. 
+interpolate_marcs(Teff::Int, logg::Int, m_H::Int, args...; kwargs...) = interpolate_marcs(Float64(Teff), args...; kwargs...)
