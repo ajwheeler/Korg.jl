@@ -357,7 +357,11 @@ function parse_vald_linelist(f, isotopic_abundances)
 
     Δlog_gf = if scale_isotopes
         refs = if !shortformat #the references are on different lines
+            # this line breaks the code formatter. 
+            # https://github.com/domluna/JuliaFormatter.jl/issues/860
+            #! format: off
             lines[firstline+3 .+ ((0:length(body)-1) .* 4)]
+            #! format: on
         else #references are in the last column
             body.reference
         end
