@@ -562,7 +562,7 @@ A tuple containing:
 - `max_iterations` (default: 30) is the maximum number of iterations to allow before stopping the 
    optimization.
 """
-function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(length(measured_EWs)); 
+function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=nothing; 
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
@@ -574,7 +574,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     if :vmic in keys(passed_kwargs)
         throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
     end
-    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
+    if length(linelist) != length(measured_EWs) || (!isnothing(measured_EW_err) && (length(linelist) != length(measured_EW_err)))
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
     formulas = [line.species.formula for line in linelist]
@@ -703,14 +703,14 @@ function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, p
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
     A = Korg.Fit.ews_to_abundances(atm, linelist, A_X, EW, vmic=vmic; 
                                                  passed_kwargs...)
-    if EW_err == ones(length(EW))
+    if isnothing(EW_err)
         # no EW uncertainties specified. Let's set the same inverse variance for all lines
         A_inv_var = ones(length(EW))
     else
         # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
         A_inv_var = (EW .* A ./ EW_err) .^ 2
     end
-    
+
     neutrals = [l.species.charge == 0 for l in linelist]
     REWs = log10.(EW[neutrals] ./ [line.wl for line in linelist[neutrals]])
     # this is guaranteed not to be a mol (checked by ews_to_stellar_parameters).
