@@ -703,9 +703,14 @@ function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, p
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
     A = Korg.Fit.ews_to_abundances(atm, linelist, A_X, EW, vmic=vmic; 
                                                  passed_kwargs...)
-    # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
-    A_inv_var = (EW .* A ./ EW_err) .^ 2
-
+    if EW_err == ones(length(EW))
+        # no EW uncertainties specified. Let's set the same inverse variance for all lines
+        A_inv_var = ones(length(EW))
+    else
+        # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
+        A_inv_var = (EW .* A ./ EW_err) .^ 2
+    end
+    
     neutrals = [l.species.charge == 0 for l in linelist]
     REWs = log10.(EW[neutrals] ./ [line.wl for line in linelist[neutrals]])
     # this is guaranteed not to be a mol (checked by ews_to_stellar_parameters).
