@@ -91,9 +91,12 @@ keyword arguments:
 
   - `x0` (default: `nothing`) is an initial guess for the solution (in the format internal to
     `chemical_equilibrium`). If not supplied, a good guess is computed by neglecting molecules.
-  - `electron_number_density_warn_threshold` (default: `0.25`) is the fractional difference between
+  - `electron_number_density_warn_threshold` (default: `0.1`) is the fractional difference between
     the calculated electron number density and the model atmosphere electron number density at which
     a warning is issued.
+  - `electron_number_density_warn_min_value` (default: `1e-4`) is the minimum value of the electron
+    number density at which a warning is issued.  This is to avoid warnings when the electron number
+    density is very small.
 
 The system of equations is specified with the number densities of the neutral atoms as free
 parameters.  Each equation specifies the conservation of a particular species, e.g. (simplified)
@@ -116,7 +119,8 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 """
 function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies,
                               partition_fns, log_equilibrium_constants;
-                              electron_number_density_warn_threshold=0.25)
+                              electron_number_density_warn_threshold=0.1,
+                              electron_number_density_warn_min_value=1e-4)
     #compute good first guess by neglecting molecules
     neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
         wII, wIII = saha_ion_weights(temp, model_atm_nₑ, Z, ionization_energies, partition_fns)
@@ -128,7 +132,8 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
                                                        ionization_energies, partition_fns,
                                                        log_equilibrium_constants)
 
-    if abs((nₑ - model_atm_nₑ) / model_atm_nₑ) > electron_number_density_warn_threshold
+    if ((nₑ / nₜ > electron_number_density_warn_min_value) &&
+        (abs((nₑ - model_atm_nₑ) / model_atm_nₑ) > electron_number_density_warn_threshold))
         @warn "Electron number density differs from model atmosphere by a factor greater than $electron_number_density_warn_threshold. (calculated nₑ = $nₑ, model atmosphere nₑ = $model_atm_nₑ)"
     end
 
