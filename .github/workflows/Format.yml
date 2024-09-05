@@ -1,13 +1,21 @@
 name: Format suggestions
+
 on:
   pull_request:
-    # this argument is not required if you don't use the `suggestion-label` input
-    types: [ opened, reopened, synchronize, labeled, unlabeled ]
+
 jobs:
-  code-style:
+  format:
     runs-on: ubuntu-latest
     steps:
-      - uses: julia-actions/julia-format@v3
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
         with:
-          version: '1' # Set `version` to '1.0.54' if you need to use JuliaFormatter.jl v1.0.54 (default: '1')
-          #suggestion-label: 'format-suggest' # leave this unset or empty to show suggestions for all PRs
+          version: 1
+      - run: |
+          julia  -e 'using Pkg; Pkg.add("JuliaFormatter")'
+          julia  -e 'using JuliaFormatter; format("."; verbose=true)'
+      - uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: JuliaFormatter
+          fail_on_error: true
+          filter_mode: added
