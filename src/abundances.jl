@@ -6,6 +6,8 @@ numbers from 8-22. This definition is used by default in [`format_A_X`](@ref),
  [`get_metals_H`](@ref), and [`get_alpha_H`](@ref), but can be overridden with a keyword argument.
 """
 const default_alpha_elements = SA[8, 10, 12, 14, 16, 18, 20, 22] # O to Ti
+# note that changing this requires special consideration of interpolate_marcs, since we must account
+# for the definition of the "alphas" they used.
 
 """
     format_A_X(default_metals_H, default_alpha_H, abundances; kwargs... )
