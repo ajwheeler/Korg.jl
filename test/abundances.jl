@@ -27,6 +27,19 @@
         @test Korg.get_metals_H(format_A_X(0.1, 0.5)) ≈ 0.1
         @test Korg.get_metals_H(format_A_X(-0.2, 0.5)) ≈ -0.2
 
+        # test consistency of alpha treatment by flipping each element to Inf and checking the result
+        @testset for Z in 3:Korg.MAX_ATOMIC_NUMBER
+            A_X = format_A_X()
+            A_X[Z] = Inf
+            if Z in Korg.default_alpha_elements
+                @test Korg.get_metals_H(A_X) ≈ 0
+                @test Korg.get_alpha_H(A_X) == Inf
+            else
+                @test Korg.get_metals_H(A_X) == Inf
+                @test Korg.get_alpha_H(A_X) ≈ 0
+            end
+        end
+
         @test Korg.get_metals_H(Korg.grevesse_2007_solar_abundances; 
                                 solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 
         @test Korg.get_alpha_H(Korg.grevesse_2007_solar_abundances;

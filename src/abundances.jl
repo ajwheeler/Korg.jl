@@ -1,3 +1,7 @@
+using StaticArrays: SA
+
+const default_alpha_elements = SA[8, 10, 12, 14, 16, 18, 20, 22] # O to Ti
+
 """
     format_A_X(default_metals_H, default_alpha_H, abundances; kwargs... )
 
@@ -25,10 +29,13 @@ You can specify abundance with these positional arguments.  All are optional, bu
 - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
   use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances` and 
   `Korg.grevesse_2007_solar_abundances` are also provided for convenience.
+- `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): The list of atomic numbers of 
+   the alpha elements. (Useful since conventions vary.)
 """
 function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals_H, 
                     abundances::AbstractDict{K, V}=Dict{UInt8, Float64}();  
-                    solar_relative=true, solar_abundances=default_solar_abundances
+                    solar_relative=true, solar_abundances=default_solar_abundances,
+                    alpha_elements=default_alpha_elements
                     ) where {K, V, R1 <: Real, R2 <: Real}
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
     clean_abundances = Dict{UInt8, V}()
@@ -61,7 +68,6 @@ function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals
     end
 
     #populate A(X) vector
-    alpha_els = [8, 10, 12, 14, 16, 18, 20, 22]
     map(1:MAX_ATOMIC_NUMBER) do Z
         if Z == 1 #handle hydrogen
             12.0
@@ -71,7 +77,7 @@ function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals
             else
                 clean_abundances[Z]
             end
-        elseif Z in alpha_els
+        elseif Z in alpha_elements
             solar_abundances[Z] + default_alpha_H
         else #if not set, use solar value adjusted for metallicity
             Δ = default_metals_H * (Z >= 3) #only adjust for metals, not H or He
