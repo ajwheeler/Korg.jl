@@ -18,4 +18,4 @@ jobs:
         with:
           tool_name: JuliaFormatter
           fail_on_error: true
-          filter_mode: added
+          filter_mode: nofilter
