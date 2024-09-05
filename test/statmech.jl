@@ -59,11 +59,15 @@ end
                                                Korg.default_partition_funcs,
                                                Korg.default_log_equilibrium_constants)
 
-        @test_logs (:warn, r"Electron number density differs") Korg.chemical_equilibrium(T, nₜ, 1.0,
-                                                                                         nX_ntot,
-                                                                                         Korg.ionization_energies,
-                                                                                         Korg.default_partition_funcs,
-                                                                                         Korg.default_log_equilibrium_constants)
+        args = [T, nₜ, 1.2nₑ, nX_ntot, Korg.ionization_energies,
+            Korg.default_partition_funcs, Korg.default_log_equilibrium_constants]
+        @test_logs (:warn, r"Electron number density differs") Korg.chemical_equilibrium(args...)
+        # no warning logged if we tweak either the threshold or the minimum applicable nₑ
+        @test_logs min_level=Logging.Warn Korg.chemical_equilibrium(args...;
+                                                                    electron_number_density_warn_threshold=0.3)
+        @test_logs min_level=Logging.Warn Korg.chemical_equilibrium(args...;
+                                                                    electron_number_density_warn_min_value=1.01 *
+                                                                                                           nₑ)
 
         # plasma is net-neutral
         positive_charge_density = mapreduce(+, pairs(n_dict)) do (species, n)

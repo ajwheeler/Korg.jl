@@ -88,9 +88,10 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
     at which line profiles are truncated.  This has major performance impacts, since line absorption
     calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
     The default value should effect final spectra below the 10^-3 level.
-  - `electron_number_density_warn_threshold` (default: `1.0`): if the relative difference between the
+  - `electron_number_density_warn_threshold` (default: `0.1`): if the relative difference between the
     calculated electron number density and the input electron number density is greater than this value,
     a warning is printed.  Set to `Inf` to suppress this warning.
+    See also `electron_number_density_warn_min_value`, below.
   - `electron_number_density_warn_min_value` (default: `1e-4`): The minimum value of the ratio of
     the electron number density to the total number density at which a warning is printed.
   - `return_cntm` (default: `true`): whether or not to return the continuum at each wavelength.  If
@@ -112,12 +113,11 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
   - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See
     [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
     transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
-
-      + `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by
-        `synthesize`. When provided, the chemical equilibrium solution will be taken from this object,
-        rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
-        and model atmosphere, `atm`, are unchanged.
-      + `verbose` (default: `false`): Whether or not to print information about progress, etc.
+  - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by
+    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object,
+    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
+    and model atmosphere, `atm`, are unchanged.
+  - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
@@ -206,7 +206,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                  layer.electron_number_density,
                                  abs_abundances, ionization_energies,
                                  partition_funcs, log_equilibrium_constants;
-                                 electron_number_density_warn_threshold=electron_number_density_warn_threshold)
+                                 electron_number_density_warn_threshold=electron_number_density_warn_threshold,
+                                 electron_number_density_warn_min_value=electron_number_density_warn_min_value)
         else
             let sol = use_chemical_equilibrium_from
                 (sol.electron_number_density[i],
