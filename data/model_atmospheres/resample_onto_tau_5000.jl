@@ -9,16 +9,17 @@ using Korg, HDF5, ProgressMeter, Interpolations
 function resample_grid(grid, new_log_taus; tau_index=4)
     dims = size(grid)[3:end] # number of m_h, alpha_m, c_m points
     resampled_grid = Array{Float32}(undef, (length(new_log_taus), 5, dims...))
-    
+
     @showprogress for I in CartesianIndices(dims)
         for quant_ind in 1:5
             if quant_ind != tau_index
-                itp = linear_interpolation(log10.(grid[:, tau_index, I]), grid[:, quant_ind, I], extrapolation_bc=Interpolations.Line())
+                itp = linear_interpolation(log10.(grid[:, tau_index, I]), grid[:, quant_ind, I];
+                                           extrapolation_bc=Interpolations.Line())
                 resampled_grid[:, quant_ind, I] = itp.(new_log_taus)
             end
         end
         resampled_grid[:, tau_index, I] .= 10 .^ new_log_taus
-        
+
         # replace extrapolated values with nans.
         # layers filled with NaNs will be dropped when constructing the atmosphere object
         #taumin, taumax = grid[begin, tau_index, I], grid[end, tau_index, I]
@@ -36,7 +37,7 @@ nodes[1] = nodes[1][Teff_mask]
 nodes[2] = nodes[2][logg_mask]
 grid = grid[:, :, Teff_mask, logg_mask, :, :, :]
 
-new_log_taus = -6 : 0.1 : 2
+new_log_taus = -6:0.1:2
 
 resampled_grid = resample_grid(grid, new_log_taus)
 

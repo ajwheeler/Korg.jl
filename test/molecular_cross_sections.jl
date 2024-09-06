@@ -18,8 +18,8 @@
 
     @testset for vmic in [0.5, 2.5]
         sol_without = synthesize(atm, linelist, format_A_X(), wls; verbose=false, vmic=vmic)
-        sol_with = synthesize(atm, linelist_less_water, format_A_X(), wls; 
-                            molecular_cross_sections=[table], verbose=false, vmic=vmic)
+        sol_with = synthesize(atm, linelist_less_water, format_A_X(), wls;
+                              molecular_cross_sections=[table], verbose=false, vmic=vmic)
 
         @test assert_allclose(sol_without.flux, sol_with.flux; rtol=1e-3)
     end

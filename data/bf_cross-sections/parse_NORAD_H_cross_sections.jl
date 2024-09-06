@@ -5,7 +5,7 @@ function parse_NORAD_H_cross_sections(filename, norad_format=false)
     lines = readlines(filename)
 
     #points to "current" line. This could be trivially rewritten to stream line-by-line from disk.
-    i = 1 
+    i = 1
 
     #skip the big header in norad formatted files
     while !startswith(lines[i], "---------------------------------------------------------")
@@ -24,7 +24,7 @@ function parse_NORAD_H_cross_sections(filename, norad_format=false)
         # cross-section is evaluated at
         toks = split(lines[i+1])
         binding_E = parse(Float64, toks[1])
-        npoints = parse(Int,toks[2])
+        npoints = parse(Int, toks[2])
 
         # map the electron state the cross-section interpolator in the cross_sections dict.
         Es = Vector{Float64}(undef, npoints)
@@ -36,11 +36,10 @@ function parse_NORAD_H_cross_sections(filename, norad_format=false)
             σs[j] = parse(Float64, lines[i+j-1][26:36])
         end
 
-        push!(cross_sections, (n, L, binding_E*RydbergH_eV, Es*RydbergH_eV, σs))
+        push!(cross_sections, (n, L, binding_E * RydbergH_eV, Es * RydbergH_eV, σs))
 
         i += npoints #move i to the next electron state
     end
 
     cross_sections
 end
-

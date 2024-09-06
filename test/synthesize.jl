@@ -10,8 +10,8 @@
 
         # use a 2 Å line buffer so only line1 in included
         sol_no_lines = synthesize(atm, [], format_A_X(), 6000, 6000; line_buffer=2.0) #synthesize at 6000 Å only
-        sol_one_lines = synthesize(atm, [line1], format_A_X(), 6000, 6000; line_buffer=2.0) 
-        sol_two_lines = synthesize(atm, [line1, line2], format_A_X(), 6000, 6000; line_buffer=2.0) 
+        sol_one_lines = synthesize(atm, [line1], format_A_X(), 6000, 6000; line_buffer=2.0)
+        sol_two_lines = synthesize(atm, [line1, line2], format_A_X(), 6000, 6000; line_buffer=2.0)
 
         @test sol_no_lines.flux != sol_one_lines.flux
         @test sol_two_lines.flux == sol_one_lines.flux
@@ -32,8 +32,9 @@
         wls = 15000:0.01:15500
         A_X = format_A_X()
         @test synthesize(atm, [], A_X, 15000, 15500).wavelengths ≈ wls
-        @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈ Korg.air_to_vacuum.(wls)
-        @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true, 
+        @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈
+              Korg.air_to_vacuum.(wls)
+        @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true,
                                               wavelength_conversion_warn_threshold=1e-20)
         @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
 
@@ -57,8 +58,9 @@
         sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0, I_scheme="linear")
         @test length(sol.mu_grid) == 3
 
-        sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0, I_scheme="linear_flux_only")
-        @test sol.mu_grid == [(1,1)]
+        sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0,
+                         I_scheme="linear_flux_only")
+        @test sol.mu_grid == [(1, 1)]
     end
 
     @testset "linelist checking" begin
@@ -77,10 +79,15 @@
         end
 
         b = 2.0 * 1e-8 # line_buffer
-        linelist = Korg.get_APOGEE_DR17_linelist(include_water=false)
-        @testset "linelist filtering" for wl_ranges in [[6000:7000], [15100:15200], [6000:7000, 15100:15200, 16900:17100]]
+        linelist = Korg.get_APOGEE_DR17_linelist(; include_water=false)
+        @testset "linelist filtering" for wl_ranges in [
+            [6000:7000],
+            [15100:15200],
+            [6000:7000, 15100:15200, 16900:17100]
+        ]
             wlr = wl_ranges .* 1e-8 #comvert to cm
-            @test length(Korg.filter_linelist(linelist, wlr, b)) == length(naive_filter(linelist, wlr, b))
+            @test length(Korg.filter_linelist(linelist, wlr, b)) ==
+                  length(naive_filter(linelist, wlr, b))
         end
     end
 
@@ -90,18 +97,18 @@
 
         # synthesis linelist
         ll = filter(Korg.get_VALD_solar_linelist()) do line
-            4980 < line.wl*1e8 < 5100
+            4980 < line.wl * 1e8 < 5100
         end
 
         # if there's full coverage, don't insert anything
-        @test issubset(Korg.get_alpha_5000_linelist(ll),  ll)
+        @test issubset(Korg.get_alpha_5000_linelist(ll), ll)
 
         #if there's no coverage, use the fallback linelist
         @test Korg.get_alpha_5000_linelist([]) == Korg._alpha_5000_default_linelist
 
         # if there's partial coverage, insert the fallback linelist where needed
         small_ll = filter(ll) do line
-            line.wl*1e8 > 5000
+            line.wl * 1e8 > 5000
         end
         ll5 = Korg.get_alpha_5000_linelist(small_ll)
         @test issorted([line.wl for line in ll5])
@@ -111,7 +118,7 @@
         @test issubset(ll5[i:end], small_ll)
 
         small_ll = filter(ll) do line
-            line.wl*1e8 < 4995
+            line.wl * 1e8 < 4995
         end
         ll5 = Korg.get_alpha_5000_linelist(small_ll)
         @test issorted([line.wl for line in ll5])

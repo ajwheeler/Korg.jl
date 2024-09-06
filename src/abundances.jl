@@ -1,9 +1,9 @@
 using StaticArrays: SA
 
 """
-The "alpha elements" are defined as O, Ne, Mg, Si, S, Ar, Ca, Ti, i.e. all elements with even atomic 
+The "alpha elements" are defined as O, Ne, Mg, Si, S, Ar, Ca, Ti, i.e. all elements with even atomic
 numbers from 8-22. This definition is used by default in [`format_A_X`](@ref),
- [`get_metals_H`](@ref), and [`get_alpha_H`](@ref), but can be overridden with a keyword argument.
+[`get_metals_H`](@ref), and [`get_alpha_H`](@ref), but can be overridden with a keyword argument.
 """
 const default_alpha_elements = SA[8, 10, 12, 14, 16, 18, 20, 22] # O to Ti
 # note that changing this requires special consideration of interpolate_marcs, since we must account
@@ -16,47 +16,49 @@ Returns a 92 element vector containing abundances in ``A(X)`` (``\\log_{10}(X/H)
 elements from hydrogen to uranium.
 
 # Arguments
-You can specify abundance with these positional arguments.  All are optional, but if 
-`default_alpha_H` is provided, `default_metals_H` must be as well. 
-- `default_metals_H` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier 
-   than He. It is overridden by `default_alpha` and `abundances` on a per-element basis.  
-- `default_alpha_H` (default: same as `default_metals_H`), i.e. [alpha/H] is the ``\\log_{10}`` 
-   solar-relative abundance of the alpha elements (See `alpha_elements`, below). 
-   It is overridden by `abundances` on a per-element basis.
-- `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set 
-  `solar_relative=false` to use ``A(X)`` abundances instead.) These override `default_metals_H`.
-  This is the only way to specify an abundance of He that is non-solar.
+
+You can specify abundance with these positional arguments.  All are optional, but if
+`default_alpha_H` is provided, `default_metals_H` must be as well.
+
+  - `default_metals_H` (default: 0), i.e. [metals/H] is the ``\\log_{10}`` solar-relative abundance of elements heavier
+    than He. It is overridden by `default_alpha` and `abundances` on a per-element basis.
+  - `default_alpha_H` (default: same as `default_metals_H`), i.e. [alpha/H] is the ``\\log_{10}``
+    solar-relative abundance of the alpha elements (See `alpha_elements`, below).
+    It is overridden by `abundances` on a per-element basis.
+  - `abundances` is a `Dict` mapping atomic numbers or symbols to [``X``/H] abundances.  (Set
+    `solar_relative=false` to use ``A(X)`` abundances instead.) These override `default_metals_H`.
+    This is the only way to specify an abundance of He that is non-solar.
 
 # Keyword arguments
-- `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\] 
-  (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e. 
-   ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
-   Note that abundances not specified default to the solar value still depend on the solar value, as
-   they are set according to `default_metals_H` and `default_alpha_H`.
-- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
-  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances` and 
-  `Korg.grevesse_2007_solar_abundances` are also provided for convenience.
-- `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): vector of atomic numbers of 
-   the alpha elements. (Useful since conventions vary.)
+
+  - `solar_relative` (default: true): When true, interpret abundances as being in \\[``X``/H\\]
+    (``\\log_{10}`` solar-relative) format.  When false, interpret them as ``A(X)`` abundances, i.e.
+    ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
+    Note that abundances not specified default to the solar value still depend on the solar value, as
+    they are set according to `default_metals_H` and `default_alpha_H`.
+  - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to
+    use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances` and
+    `Korg.grevesse_2007_solar_abundances` are also provided for convenience.
+  - `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): vector of atomic numbers of
+    the alpha elements. (Useful since conventions vary.)
 """
-function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals_H, 
-                    abundances::AbstractDict{K, V}=Dict{UInt8, Float64}();  
+function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals_H,
+                    abundances::AbstractDict{K,V}=Dict{UInt8,Float64}();
                     solar_relative=true, solar_abundances=default_solar_abundances,
-                    alpha_elements=default_alpha_elements
-                    ) where {K, V, R1 <: Real, R2 <: Real}
+                    alpha_elements=default_alpha_elements) where {K,V,R1<:Real,R2<:Real}
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
-    clean_abundances = Dict{UInt8, V}()
+    clean_abundances = Dict{UInt8,V}()
     for (el, abund) in abundances
         if el isa AbstractString
-            if ! (el in keys(Korg.atomic_numbers))
+            if !(el in keys(Korg.atomic_numbers))
                 throw(ArgumentError("$el isn't a valid atomic symbol."))
             elseif Korg.atomic_numbers[el] in keys(abundances)
                 throw(ArgumentError("The abundances of $el was specified by both atomic number and atomic symbol."))
             else
-                clean_abundances[Korg.atomic_numbers[el]] =  abund
+                clean_abundances[Korg.atomic_numbers[el]] = abund
             end
         elseif el isa Integer
-            if ! (1 <= el <= MAX_ATOMIC_NUMBER)
+            if !(1 <= el <= MAX_ATOMIC_NUMBER)
                 throw(ArgumentError("Z = $el is not a supported atomic number."))
             else
                 clean_abundances[el] = abund
@@ -95,8 +97,9 @@ end
 # handle case where metallicity and alpha aren't specified but individual abundances are
 format_A_X(abundances::AbstractDict; kwargs...) = format_A_X(0, abundances; kwargs...)
 # handle case where alpha isn't specified but individual abundances are
-format_A_X(default_metallicity::R, abundances::AbstractDict; kwargs...) where R <: Real = 
-    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...) 
+function format_A_X(default_metallicity::R, abundances::AbstractDict; kwargs...) where R<:Real
+    format_A_X(default_metallicity, default_metallicity, abundances; kwargs...)
+end
 
 """
     get_metals_H(A_X; kwargs...)
@@ -105,50 +108,52 @@ Calculate [metals/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\lo
 See also [`get_alpha_H`](@ref).
 
 # Keyword Arguments
-- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
-  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
-  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
-  convenience.
-- `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating 
-  [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`, 
-  then both carbon and the alpha elements are ignored.
-- `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): vector of atomic numbers of 
-   the alpha elements. (Useful since conventions vary.)
+
+  - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to
+    use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`,
+    `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for
+    convenience.
+  - `ignore_alpha` (default: `true`): Whether or not to ignore the alpha elements when calculating
+    [metals/H].  If `true`, [metals/H] is calculated using all elements heavier than He.  If `false`,
+    then both carbon and the alpha elements are ignored.
+  - `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): vector of atomic numbers of
+    the alpha elements. (Useful since conventions vary.)
 """
 function get_metals_H(A_X;
-                      solar_abundances=default_solar_abundances, ignore_alpha=true, 
+                      solar_abundances=default_solar_abundances, ignore_alpha=true,
                       alpha_elements=default_alpha_elements)
     els = if ignore_alpha
         [Z for Z in 3:MAX_ATOMIC_NUMBER if !(Z in alpha_elements)]
     else
         3:MAX_ATOMIC_NUMBER
     end
-   _get_multi_X_H(A_X, els, solar_abundances)
+    _get_multi_X_H(A_X, els, solar_abundances)
 end
 
 """
     get_alpha_H(A_X; kwargs...)
 
 Calculate [α/H] given a vector, `A_X` of absolute abundances, ``A(X) = \\log_{10}(n_α/n_\\mathrm{H})``.
-Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also 
+Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See also
 [`get_metals_H`](@ref).
 
 # Keyword Arguments
-- `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to 
-  use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`, 
-  `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for 
-  convenience.
-- `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): vector of atomic numbers of 
-   the alpha elements. (Useful since conventions vary.)
+
+  - `solar_abundances` (default: `Korg.asplund_2020_solar_abundances`) is the set of solar abundances to
+    use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`,
+    `Korg.grevesse_2007_solar_abundances`, and `Korg.magg_2022_solar_abundances` are also provided for
+    convenience.
+  - `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): vector of atomic numbers of
+    the alpha elements. (Useful since conventions vary.)
 """
-function get_alpha_H(A_X; 
+function get_alpha_H(A_X;
                      solar_abundances=default_solar_abundances,
                      alpha_elements=default_alpha_elements)
     _get_multi_X_H(A_X, alpha_elements, solar_abundances)
 end
 
 """
-Given a vector of abundances, `A_X`, get [I+J+K/H], where `Zs = [I,J,K]` is a vector of atomic 
+Given a vector of abundances, `A_X`, get [I+J+K/H], where `Zs = [I,J,K]` is a vector of atomic
 numbers.  This is used to calculate, for example, [α/H] and [metals/H].
 """
 function _get_multi_X_H(A_X, Zs, solar_abundances)
