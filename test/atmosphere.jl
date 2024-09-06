@@ -5,7 +5,13 @@
     """
     function assert_atmospheres_close(atm1, atm2; tol=1e-3)
         val = true
-        for f in [Korg.get_tau_5000s, Korg.get_zs, Korg.get_temps, Korg.get_number_densities, Korg.get_electron_number_densities]
+        for f in [
+            Korg.get_tau_5000s,
+            Korg.get_zs,
+            Korg.get_temps,
+            Korg.get_number_densities,
+            Korg.get_electron_number_densities
+        ]
             # convert rtol to atol to avoid issues with z values, which cross 0.
             atol = tol * maximum(abs.(f(atm1)))
             val &= assert_allclose(f(atm1), f(atm2); atol=atol, rtol=0, print_rachet_info=false)
@@ -33,10 +39,9 @@
         Korg.get_number_densities(atm)
     end
     @testset "spherical atmosphere" begin
-        atm = Korg.read_model_atmosphere(
-                "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
+        atm = Korg.read_model_atmosphere("data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
         @test atm isa Korg.ShellAtmosphere
-        @test length(atm.layers) == 56 
+        @test length(atm.layers) == 56
         @test issorted([l.temp for l in atm.layers])
         @test atm.R == 2.5827E+12
         @test atm.layers[1].tau_5000 ≈ 4.584584692493259e-5
@@ -51,16 +56,15 @@
         atm2 = Korg.PlanarAtmosphere(Korg.ShellAtmosphere(atm, 7e10)) #arbitrary radius
         @test atm.layers == atm2.layers
 
-        atm = Korg.read_model_atmosphere(
-                "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
+        atm = Korg.read_model_atmosphere("data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod")
         atm2 = Korg.ShellAtmosphere(Korg.PlanarAtmosphere(atm), 1.0)
-        @test [l.tau_5000 for l in atm.layers]                == [l.tau_5000 for l in atm2.layers]
-        @test [l.z for l in atm.layers]                       == [l.z for l in atm2.layers]
-        @test [l.temp for l in atm.layers]                    == [l.temp for l in atm2.layers]
-        @test [l.number_density for l in atm.layers]          == [l.number_density for l in atm2.layers]
-        @test [l.electron_number_density for l in atm.layers] == [l.electron_number_density for l in atm2.layers]
+        @test [l.tau_5000 for l in atm.layers] == [l.tau_5000 for l in atm2.layers]
+        @test [l.z for l in atm.layers] == [l.z for l in atm2.layers]
+        @test [l.temp for l in atm.layers] == [l.temp for l in atm2.layers]
+        @test [l.number_density for l in atm.layers] == [l.number_density for l in atm2.layers]
+        @test [l.electron_number_density for l in atm.layers] ==
+              [l.electron_number_density for l in atm2.layers]
     end
-
 
     @testset "model atmosphere interpolation" begin
         @testset "methods are equivalent" begin
@@ -70,7 +74,8 @@
             alpha_H = 0.2
             C_H = 0.3
             atm1 = interpolate_marcs(teff, logg, m_H, alpha_H - m_H, C_H - m_H)
-            A_X = format_A_X(m_H, alpha_H, Dict("C"=>C_H); solar_abundances=Korg.grevesse_2007_solar_abundances)
+            A_X = format_A_X(m_H, alpha_H, Dict("C" => C_H);
+                             solar_abundances=Korg.grevesse_2007_solar_abundances)
             atm2 = interpolate_marcs(teff, logg, A_X)
 
             @test assert_atmospheres_close(atm1, atm2; tol=1e-5)
@@ -82,7 +87,8 @@
             atm1 = interpolate_marcs(5000.0, 3.0, 0, -1.0)
 
             A_X = format_A_X(0, -5; solar_abundances=Korg.grevesse_2007_solar_abundances)
-            @test_throws Korg.LazyMultilinearInterpError interpolate_marcs(5000.0, 3.0, A_X; clamp_abundances=false)
+            @test_throws Korg.LazyMultilinearInterpError interpolate_marcs(5000.0, 3.0, A_X;
+                                                                           clamp_abundances=false)
             atm2 = interpolate_marcs(5000.0, 3.0, A_X; clamp_abundances=true)
 
             @test assert_atmospheres_close(atm1, atm2; tol=1e-2)
@@ -113,29 +119,29 @@
 
         @testset "low-metallicity" begin
             δ = 1e-3
-            atm1 = interpolate_marcs(5000, 4.5, -2.5+δ, 0.4)
-            atm2 = interpolate_marcs(5000, 4.5, -2.5-δ, 0.4)
+            atm1 = interpolate_marcs(5000, 4.5, -2.5 + δ, 0.4)
+            atm2 = interpolate_marcs(5000, 4.5, -2.5 - δ, 0.4)
             @test assert_atmospheres_close(atm1, atm2; tol=1e-2)
 
             # set up A_X with abundances that don't match the MARCS standard comp
             # it should still work
-            A_X = format_A_X(-2.5-δ, 0.3, Dict("C"=>0.1); solar_abundances=Korg.grevesse_2007_solar_abundances)
+            A_X = format_A_X(-2.5 - δ, 0.3, Dict("C" => 0.1);
+                             solar_abundances=Korg.grevesse_2007_solar_abundances)
             atm3 = interpolate_marcs(5000.0, 4.5, A_X)
             @test assert_atmospheres_close(atm2, atm3; tol=1e-10)
 
             @test_throws ArgumentError interpolate_marcs(5000, 4.5, -3, 0)
         end
 
-
         @testset "integer arguments" begin
             # make sure it doesn't crash when it's all integers
 
             # low metallicity
-            @test interpolate_marcs(5000, 1,-3, 0.4,0) isa Korg.ModelAtmosphere
+            @test interpolate_marcs(5000, 1, -3, 0.4, 0) isa Korg.ModelAtmosphere
             # standard
-            @test interpolate_marcs(5000, 1, -1, 0,0) isa Korg.ModelAtmosphere
+            @test interpolate_marcs(5000, 1, -1, 0, 0) isa Korg.ModelAtmosphere
             # cool dwarf
-            @test interpolate_marcs(5000, 1,-3, 0.4,0) isa Korg.ModelAtmosphere
+            @test interpolate_marcs(5000, 1, -3, 0.4, 0) isa Korg.ModelAtmosphere
         end
     end
 end

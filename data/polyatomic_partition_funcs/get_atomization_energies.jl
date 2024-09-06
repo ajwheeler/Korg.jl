@@ -8,11 +8,11 @@ using DataStructures: OrderedDict
 # grab the CCCBDB table of enthalpies of formation at 0K
 # modified from https://gist.github.com/scls19fr/9ea2fd021d5dd9a97271da317bff6533
 function parsehtmltable(hdoc)
-    qs = eachmatch(Selector("table"), hdoc.root);  # Return an Array{HTMLNode,1}
+    qs = eachmatch(Selector("table"), hdoc.root)  # Return an Array{HTMLNode,1}
     tables = DataFrame[]
     for helm_table in qs
         column_names = String[]
-        d_table = OrderedDict{String, Vector{String}}()
+        d_table = OrderedDict{String,Vector{String}}()
         for (i, row) in enumerate(eachmatch(Selector("tr"), helm_table))
             if (i == 1)
                 for (j, colh) in enumerate(eachmatch(Selector("th"), row))
@@ -46,7 +46,7 @@ end
 cccbdb_html = parsehtml(String(HTTP.get("https://cccbdb.nist.gov/hf0k.asp").body));
 Hfg_table, cccbdb_refs = parsehtmltable(cccbdb_html)[4:5]
 Hfg_table.spec = map(Hfg_table.Species) do sp_str
-    try 
+    try
         Korg.Species(sp_str)
     catch e
         missing # parsing fails because the species contains deuterium, or has more than 6 atoms
@@ -67,7 +67,7 @@ polyatomics = h5open("polyatomic_partition_funcs.h5") do f
 end
 
 # calculate atomization energies by summing enthalpies of formation at 0K and write them to a file
-atomization_energies = DataFrame(spec=Korg.Species[], energy=Float64[])
+atomization_energies = DataFrame(; spec=Korg.Species[], energy=Float64[])
 for spec in polyatomics
     mol_enthalpy = if spec in keys(Hfg)
         Hfg[spec]
@@ -75,7 +75,7 @@ for spec in polyatomics
         println(spec, " has no enthalpy")
         continue
     end
-    
+
     atomic_enthalpy_sum = 0
     for Z in Korg.get_atoms(spec)
         atom_spec = Korg.Species(Korg.Formula(Z), 0)
