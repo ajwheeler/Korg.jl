@@ -18,6 +18,7 @@ module Korg
     include("utils.jl")                    # functions to apply LSF, vac<->air wls, etc.
     include("ContinuumAbsorption/ContinuumAbsorption.jl") # Define continuum absorption functions.
     include("molecular_cross_sections.jl") # precompute molecular cross-sections.
+    include("abundances.jl")               # A(X), etc
     include("synthesize.jl")               # top-level API
     include("prune_linelist.jl")           # select strong lines from a linelist
     include("fit.jl")                      # routines to infer stellar params from data

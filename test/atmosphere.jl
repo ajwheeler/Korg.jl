@@ -1,9 +1,13 @@
 @testset "atmosphere" begin
-    function assert_atmospheres_close(atm1, atm2; rtol=1e-3)
+    """
+    compare two model atmosphere objects, layer by layer.
+    `tol` specifies a precision relative to the max abs value of each field across all layers
+    """
+    function assert_atmospheres_close(atm1, atm2; tol=1e-3)
         val = true
         for f in [Korg.get_tau_5000s, Korg.get_zs, Korg.get_temps, Korg.get_number_densities, Korg.get_electron_number_densities]
             # convert rtol to atol to avoid issues with z values, which cross 0.
-            atol = rtol * maximum(abs.(f(atm1)))
+            atol = tol * maximum(abs.(f(atm1)))
             val &= assert_allclose(f(atm1), f(atm2); atol=atol, rtol=0, print_rachet_info=false)
         end
         val
@@ -69,7 +73,7 @@
             A_X = format_A_X(m_H, alpha_H, Dict("C"=>C_H); solar_abundances=Korg.grevesse_2007_solar_abundances)
             atm2 = interpolate_marcs(teff, logg, A_X)
 
-            @test assert_atmospheres_close(atm1, atm2; rtol=1e-5)
+            @test assert_atmospheres_close(atm1, atm2; tol=1e-5)
         end
 
         @testset "clamping abundances" begin
@@ -81,7 +85,7 @@
             @test_throws Korg.LazyMultilinearInterpError interpolate_marcs(5000.0, 3.0, A_X; clamp_abundances=false)
             atm2 = interpolate_marcs(5000.0, 3.0, A_X; clamp_abundances=true)
 
-            @test assert_atmospheres_close(atm1, atm2; rtol=1e-2)
+            @test assert_atmospheres_close(atm1, atm2; tol=1e-2)
         end
 
         @testset "grid points" begin
@@ -91,7 +95,7 @@
             atm2 = Korg.interpolate_marcs(5000, 3.0)
 
             # values are not precisely identical.  I think this is due to slightly different solar mixtures.
-            @test assert_atmospheres_close(atm1, atm2; rtol=2e-3)
+            @test assert_atmospheres_close(atm1, atm2; tol=2e-3)
 
             # cool dwarf and standard interpolation schemes should give the same result at grid points
             atm1 = Korg.interpolate_marcs(3000, 4.0; resampled_cubic_for_cool_dwarfs=true)
@@ -111,13 +115,13 @@
             δ = 1e-3
             atm1 = interpolate_marcs(5000, 4.5, -2.5+δ, 0.4)
             atm2 = interpolate_marcs(5000, 4.5, -2.5-δ, 0.4)
-            @test assert_atmospheres_close(atm1, atm2; rtol=1e-2)
+            @test assert_atmospheres_close(atm1, atm2; tol=1e-2)
 
             # set up A_X with abundances that don't match the MARCS standard comp
             # it should still work
             A_X = format_A_X(-2.5-δ, 0.3, Dict("C"=>0.1); solar_abundances=Korg.grevesse_2007_solar_abundances)
             atm3 = interpolate_marcs(5000.0, 4.5, A_X)
-            @test assert_atmospheres_close(atm2, atm3; rtol=1e-10)
+            @test assert_atmospheres_close(atm2, atm3; tol=1e-10)
 
             @test_throws ArgumentError interpolate_marcs(5000, 4.5, -3, 0)
         end

@@ -250,7 +250,10 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
                            clamp_abundances=false, 
                            archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp, _low_Z_marcs_atmospheres),
                            kwargs...)
-    m_H =  get_metals_H(A_X; solar_abundances=solar_abundances) 
+
+
+    m_H =  get_metals_H(A_X; solar_abundances=solar_abundances, 
+                       alpha_elements=[6 ; default_alpha_elements]) # ignore C in addition to alphas
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
     alpha_m = alpha_H - m_H
     C_H = A_X[6] - solar_abundances[6]
