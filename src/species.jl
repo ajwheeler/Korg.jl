@@ -119,6 +119,9 @@ end
 # it's important that this produces something parsable by the constructor
 Base.show(io::IO, f::Formula) = print(io, *([atomic_symbols[i] for i in f.atoms if i != 0]...))
 
+# make it broadcast like a scalar
+Base.broadcastable(f::Formula) = Ref(f)
+
 """
     ismolecule(f::Formula)
 
@@ -240,6 +243,9 @@ function Base.show(io::IO, s::Species)
         print(io, " ", s.charge)
     end
 end
+
+# make it broadcast like a scalar
+Base.broadcastable(s::Species) = Ref(s)
 
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
