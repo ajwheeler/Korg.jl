@@ -363,7 +363,7 @@ function parse_vald_linelist(f, isotopic_abundances)
             lines[firstline+3 .+ ((0:length(body)-1) .* 4)]
             #! format: on
         else #references are in the last column
-            body.reference
+              body.reference
         end
 
         map(refs) do ref
