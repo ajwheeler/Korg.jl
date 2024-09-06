@@ -12,13 +12,13 @@ using Trapz
 using Statistics: mean, std
 
 # used by scale and unscale for some parameters
-function tan_scale(p, lower, upper) 
+function tan_scale(p, lower, upper)
     if !(lower <= p <= upper)
         throw(ArgumentError("p=$p is not in the range $lower to $upper"))
     end
-    tan(π * (((p-lower)/(upper-lower))-0.5))
+    tan(π * (((p - lower) / (upper - lower)) - 0.5))
 end
-tan_unscale(p, lower, upper) = (atan(p)/π + 0.5)*(upper - lower) + lower
+tan_unscale(p, lower, upper) = (atan(p) / π + 0.5) * (upper - lower) + lower
 
 # these are the parameters which are scaled by tan_scale
 const tan_scale_params = Dict(
@@ -33,7 +33,7 @@ const tan_scale_params = Dict(
     "m_H" => (-5, 1),
     # this allows all the atmospheres supported by the grid, but also many that are not.
     # alpha will be clamped to the nearest supported value.
-    "alpha_H" => (-3.5, 2), 
+    "alpha_H" => (-3.5, 2),
     map(Korg.atomic_symbols) do el
         el => (-10, +4)
     end...
@@ -83,11 +83,11 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthes
     atm = Korg.interpolate_marcs(params["Teff"], params["logg"], A_X; clamp_abundances=true, perturb_at_grid_values=true)
 
     sol = Korg.synthesize(atm, linelist, A_X, synthesis_wls; vmic=params["vmic"], line_buffer=0,
-                          electron_number_density_warn_threshold=Inf, synthesis_kwargs...)
+        electron_number_density_warn_threshold=Inf, synthesis_kwargs...)
 
     # apply cntm adjustments
     central_wavelength = (sol.wavelengths[begin] + sol.wavelengths[end]) / 2
-    cntm_adjustment = 1 .- params["cntm_offset"] .- params["cntm_slope"]*(sol.wavelengths .- central_wavelength)
+    cntm_adjustment = 1 .- params["cntm_offset"] .- params["cntm_slope"] * (sol.wavelengths .- central_wavelength)
     F = sol.flux ./ (sol.cntm .* cntm_adjustment)
 
     F = Korg.apply_rotation(F, synthesis_wls, params["vsini"], params["epsilon"])
@@ -101,9 +101,9 @@ these can be specified in either initial_guesses or fixed_params, but if they ar
  are inserted into fixed_params
 """
 function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDict;
-                         required_params = ["Teff", "logg"],
-                         default_params = Dict("m_H"=>0.0, "vsini"=>0.0, "vmic"=>1.0, "epsilon"=>0.6, "cntm_offset"=>0.0, "cntm_slope"=>0.0),
-                         allowed_params = Set(["alpha_H" ; required_params ; keys(default_params)... ; Korg.atomic_symbols]))
+    required_params=["Teff", "logg"],
+    default_params=Dict("m_H" => 0.0, "vsini" => 0.0, "vmic" => 1.0, "epsilon" => 0.6, "cntm_offset" => 0.0, "cntm_slope" => 0.0),
+    allowed_params=Set(["alpha_H"; required_params; keys(default_params)...; Korg.atomic_symbols]))
     # convert all parameter values to Float64
     initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
     fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
@@ -122,32 +122,32 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
     end
     if length(unknown_params) > 0
         throw(ArgumentError("These parameters are not recognized: $(unknown_params)"))
-    end 
+    end
 
     # filter out those that the user specified, and fill in the rest
     default_params = filter(collect(pairs(default_params))) do (k, v)
         !(k in keys(initial_guesses)) && !(k in keys(fixed_params))
     end |> Dict
-    fixed_params = merge(default_params, fixed_params) 
+    fixed_params = merge(default_params, fixed_params)
 
     # check that no params are both fixed and initial guesses
     let keys_in_both = collect(keys(initial_guesses) ∩ keys(fixed_params))
         if length(keys_in_both) > 0
             throw(ArgumentError("These parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
-        end 
+        end
     end
 
     initial_guesses, fixed_params
 end
 
 # make it possible to use dicts instead of NamedTuples for the python people
-validate_params(initial_guesses::AbstractDict, fixed_params::NamedTuple; kwargs...) = 
+validate_params(initial_guesses::AbstractDict, fixed_params::NamedTuple; kwargs...) =
     validate_params(initial_guesses, _namedtuple_to_dict(fixed_params); kwargs...)
-validate_params(initial_guesses::NamedTuple, fixed_params=AbstractDict{String, Float64}(); kwargs...) = 
+validate_params(initial_guesses::NamedTuple, fixed_params=AbstractDict{String,Float64}(); kwargs...) =
     validate_params(_namedtuple_to_dict(initial_guesses), fixed_params; kwargs...)
 
 function _namedtuple_to_dict(nt::NamedTuple)
-    Dict{String, Float64}([string(p[1])=>Float64(p[2]) for p in pairs(nt)])
+    Dict{String,Float64}([string(p[1]) => Float64(p[2]) for p in pairs(nt)])
 end
 
 """
@@ -237,15 +237,15 @@ A NamedTuple with the following fields:
     version of Julia, you may want to upgrade.
 """
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
-                      windows=[(obs_wls[1], obs_wls[end])],
-                      synthesis_wls = obs_wls[1] - 10 : 0.01 : obs_wls[end] + 10,
-                      R=nothing, 
-                      LSF_matrix = if isnothing(R)
-                        throw(ArgumentError("Either R or LSF_matrix must be specified."))
-                      else
-                          Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
-                      end,
-                      wl_buffer=1.0, precision=1e-4, synthesis_kwargs...)
+    windows=[(obs_wls[1], obs_wls[end])],
+    synthesis_wls=obs_wls[1]-10:0.01:obs_wls[end]+10,
+    R=nothing,
+    LSF_matrix=if isnothing(R)
+        throw(ArgumentError("Either R or LSF_matrix must be specified."))
+    else
+        Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
+    end,
+    wl_buffer=1.0, precision=1e-4, synthesis_kwargs...)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
     end
@@ -253,8 +253,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         throw(ArgumentError("the first dimension of LSF_matrix must be the length of obs_wls."))
     end
     if (length(synthesis_wls) != size(LSF_matrix, 2))
-        throw(ArgumentError("the second dimension of LSF_matrix must be the length of synthesis_wls " * 
-         "If you provided one as a keyword argument, you must also provide the other."))
+        throw(ArgumentError("the second dimension of LSF_matrix must be the length of synthesis_wls " *
+                            "If you provided one as a keyword argument, you must also provide the other."))
     end
 
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
@@ -266,15 +266,16 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
     windows, _ = merge_bounds(windows, 2wl_buffer)
-    obs_wl_mask, synth_wl_mask, multi_synth_wls = 
+    obs_wl_mask, synth_wl_mask, multi_synth_wls =
         calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
 
-    chi2 = let data=obs_flux[obs_wl_mask], obs_err=obs_err[obs_wl_mask], synthesis_wls=multi_synth_wls, 
-               LSF_matrix=LSF_matrix[obs_wl_mask, synth_wl_mask], linelist=linelist, 
-               params_to_fit=params_to_fit, fixed_params=fixed_params
+    chi2 = let data = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask], synthesis_wls = multi_synth_wls,
+        LSF_matrix = LSF_matrix[obs_wl_mask, synth_wl_mask], linelist = linelist,
+        params_to_fit = params_to_fit, fixed_params = fixed_params
+
         function chi2(scaled_p)
             # this extremely weak prior helps to regularize the optimization
-            negative_log_scaled_prior = sum(@. scaled_p^2/100^2)
+            negative_log_scaled_prior = sum(@. scaled_p^2 / 100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
             flux = try
@@ -288,19 +289,19 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                     # This is a nice huge chi2 value, but not too big.  It's what you get if 
                     # difference at each pixel in the (rectified) spectra is 1, which is 
                     # more-or-less an upper bound.
-                    return sum(1 ./ obs_err.^2) 
+                    return sum(1 ./ obs_err .^ 2)
                 else
                     rethrow(e)
                 end
             end
-            sum(((flux .- data)./obs_err).^2) + negative_log_scaled_prior
+            sum(((flux .- data) ./ obs_err) .^ 2) + negative_log_scaled_prior
         end
-    end 
-    
+    end
+
     # call optimization library
     res = optimize(chi2, p0, BFGS(linesearch=LineSearches.BackTracking(maxstep=1.0)),
-             Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true, 
-                           extended_trace=true); autodiff=:forward)
+        Optim.Options(x_tol=precision, time_limit=10_000, store_trace=true,
+            extended_trace=true); autodiff=:forward)
 
     best_fit_params = unscale(Dict(params_to_fit .=> res.minimizer))
 
@@ -322,7 +323,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         # (used to convert the approximate hessian to a covariance matrix in the unscaled params)
         dp_dscaledp = map(res.minimizer, params_to_fit) do scaled_param, param_name
             ForwardDiff.derivative(scaled_param) do scaled_param
-                unscale(Dict(param_name=>scaled_param))[param_name]
+                unscale(Dict(param_name => scaled_param))[param_name]
             end
         end
         # the fact that the scaling is a diagonal operation means that we can do this as an 
@@ -332,8 +333,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         invH_scaled .* dp_dscaledp .* dp_dscaledp'
     end
 
-    (best_fit_params=best_fit_params, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask, 
-     solver_result=res, trace=trace, covariance=(params_to_fit, invH))
+    (best_fit_params=best_fit_params, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask,
+        solver_result=res, trace=trace, covariance=(params_to_fit, invH))
 end
 
 """
@@ -357,7 +358,7 @@ function merge_bounds(bounds, merge_distance)
     for i in 2:length(bounds)
         # if these bounds are within merge_distance of the previous, extend the previous, 
         # otherwise add them to the list
-        if bounds[i][1] <= new_bounds[end][2] + merge_distance 
+        if bounds[i][1] <= new_bounds[end][2] + merge_distance
             new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
             push!(indices[end], bound_indices[i])
         else
@@ -388,8 +389,8 @@ Returns:
 """
 function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
     # bitmasks for obs_wls synthesis_wls to isolate the subspectra
-    obs_wl_mask = zeros(Bool, length(obs_wls)) 
-    synth_wl_mask = zeros(Bool, length(synthesis_wls)) 
+    obs_wl_mask = zeros(Bool, length(obs_wls))
+    synth_wl_mask = zeros(Bool, length(synthesis_wls))
 
     # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
     multi_synth_wls = map(windows) do (ll, ul)
@@ -409,6 +410,59 @@ function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, 
     obs_wl_mask, synth_wl_mask, multi_synth_wls
 end
 
+"""
+TODO
+"""
+function calculate_EWs(atm, linelist, A_X; ew_window_size::Real=2.0, wl_step=0.01,
+    blend_warn_threshold=0.01, synthesize_kwargs...)
+
+    if !issorted(linelist; by=l -> l.wl)
+        throw(ArgumentError("linelist must be sorted"))
+    end
+
+    merged_windows, lines_per_window =
+        merge_bounds([(line.wl * 1e8 - ew_window_size, line.wl * 1e8 + ew_window_size) for line in linelist], 0.0)
+    wl_ranges = map(merged_windows) do (wl1, wl2)
+        wl1:wl_step:wl2
+    end
+
+    # hydrogen_lines should be disabled for most accurate equivalent widths.  This can be overridden
+    # by passing hydrogen_lines=true as a keyword argument (included in synthesize_kwargs)
+    # line_buffer=0.0 makes things a bit faster, and it causes no problems as long as ew_window_size
+    # is sufficient, which is necessary anyway.
+    sol = Korg.synthesize(atm, linelist, A_X, wl_ranges; line_buffer=0.0, hydrogen_lines=false, synthesize_kwargs...)
+    depth = 1 .- sol.flux ./ sol.cntm
+
+    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
+    EWs = Array{element_type}(undef, length(linelist))
+    all_boundaries = Float64[]
+    for (wl_range, subspec, line_indices) in zip(wl_ranges, sol.subspectra, lines_per_window)
+        absorption = depth[subspec]
+
+        # get the wl-index of least absorption between each pair of lines
+        boundary_indices = map(1:length(line_indices)-1) do i
+            wl1 = linelist[line_indices[i]].wl * 1e8
+            wl2 = linelist[line_indices[i+1]].wl * 1e8
+            l1_ind = Int(round((wl1 - wl_range[1]) / step(wl_range))) + 1
+            l2_ind = Int(round((wl2 - wl_range[1]) / step(wl_range))) + 1
+            boundary_index = argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
+            if absorption[boundary_index] > blend_warn_threshold
+                @warn "Lines $(line_indices[i]) and $(line_indices[i+1]) ($(linelist[line_indices[i]].wl*1e8) Å and $(linelist[line_indices[i+1]].wl*1e8)) Å appear to be blended.  Between them, the absorption never drops below $(blend_warn_threshold) (minimum: $(ForwardDiff.value(absorption[boundary_index]))). You can adjust this threshold with the blend_warn_threshold keyword argument."
+            end
+            boundary_index
+        end
+        boundary_indices = [1; boundary_indices; length(subspec)]
+        for b in boundary_indices
+            push!(all_boundaries, wl_range[b])
+        end
+
+        for i in 1:length(line_indices)
+            r = boundary_indices[i]:boundary_indices[i+1]
+            EWs[line_indices[i]] = trapz(wl_range[r], absorption[r]) * 1e3 # convert to mÅ
+        end
+    end
+    EWs
+end
 
 """
     ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs... )
@@ -439,14 +493,10 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
 All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0, wl_step=0.01,
-                           blend_warn_threshold=0.01, synthesize_kwargs...)
+    blend_warn_threshold=0.01, synthesize_kwargs...)
     synthesize_kwargs = Dict(synthesize_kwargs)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
-    end
-    
-    if !issorted(linelist; by=l->l.wl) 
-        throw(ArgumentError("linelist must be sorted"))
     end
 
     if any(l -> Korg.ismolecule(l.species), linelist)
@@ -458,52 +508,12 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    merged_windows, lines_per_window = 
-        merge_bounds([(line.wl*1e8 - ew_window_size, line.wl*1e8 + ew_window_size) for line in linelist], 0.0)
-    wl_ranges = map(merged_windows) do (wl1, wl2)
-        wl1:wl_step:wl2
-    end
+    EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size, wl_step=wl_step,
+        blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
 
-    # hydrogen_lines should be disabled for most accurate equivalent widths.  This can be overridden
-    # by passing hydrogen_lines=true as a keyword argument (included in synthesize_kwargs)
-    # line_buffer=0.0 makes things a bit faster, and it causes no problems as long as ew_window_size
-    # is sufficient, which is necessary anyway.
-    sol = Korg.synthesize(atm, linelist, A_X, wl_ranges; line_buffer=0.0, hydrogen_lines=false, synthesize_kwargs...)
-    depth = 1 .- sol.flux ./ sol.cntm
+    A0 = [A_X[Korg.get_atoms(l.species)[1]] for l in linelist]
 
-    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
-    A0_minus_log10W0 = Array{element_type}(undef, length(linelist))
-    all_boundaries = Float64[]
-    for (wl_range, subspec, line_indices) in zip(wl_ranges, sol.subspectra, lines_per_window)
-        absorption = depth[subspec]
-
-        # get the wl-index of least absorption between each pair of lines
-        boundary_indices = map(1:length(line_indices) - 1) do i
-            wl1 = linelist[line_indices[i]].wl * 1e8
-            wl2 = linelist[line_indices[i+1]].wl * 1e8
-            l1_ind = Int(round((wl1 - wl_range[1]) / step(wl_range))) + 1
-            l2_ind = Int(round((wl2 - wl_range[1]) / step(wl_range))) + 1
-            boundary_index = argmin(absorption[l1_ind:l2_ind]) + l1_ind - 1
-            if absorption[boundary_index] > blend_warn_threshold
-                @warn "Lines $(line_indices[i]) and $(line_indices[i+1]) ($(linelist[line_indices[i]].wl*1e8) Å and $(linelist[line_indices[i+1]].wl*1e8)) Å appear to be blended.  Between them, the absorption never drops below $(blend_warn_threshold) (minimum: $(ForwardDiff.value(absorption[boundary_index]))). You can adjust this threshold with the blend_warn_threshold keyword argument."
-            end
-            boundary_index
-        end
-        boundary_indices = [1 ; boundary_indices ; length(subspec)]
-        for b in boundary_indices
-            push!(all_boundaries, wl_range[b])
-        end
-
-        for i in 1:length(line_indices)
-            r = boundary_indices[i]:boundary_indices[i+1]
-            logEW = log10(trapz(wl_range[r], absorption[r]) * 1e3) # convert to mÅ
-            Z = Korg.get_atoms(linelist[line_indices[i]].species)[1]
-            A0_minus_log10W0[line_indices[i]] = A_X[Z] - logEW
-        end
-    end
-
-    # TODO maybe return this stuff?
-    log10.(measured_EWs) .+ A0_minus_log10W0#, (sol.wavelengths, 1 .- depth), all_boundaries
+    log10.(measured_EWs) .+ A0 .- log10.(EWs)
 end
 
 """
@@ -562,15 +572,15 @@ A tuple containing:
 - `max_iterations` (default: 30) is the maximum number of iterations to allow before stopping the 
    optimization.
 """
-function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(length(measured_EWs)); 
-                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
-                                   tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
-                                   max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
-                                   parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2]) 
-                                                    ; (1e-3, 10.0) 
-                                                    ; (Korg._low_Z_marcs_atmospheres[1][3][1], Korg._sdss_marcs_atmospheres[1][3][end])],
-                                   fix_params=[false, false, false, false],
-                                   callback=Returns(nothing), max_iterations=30, passed_kwargs...)
+function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(length(measured_EWs));
+    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
+    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
+    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
+    parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2])
+        (1e-3, 10.0);
+        (Korg._low_Z_marcs_atmospheres[1][3][1], Korg._sdss_marcs_atmospheres[1][3][end])],
+    fix_params=[false, false, false, false],
+    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
     if :vmic in keys(passed_kwargs)
         throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
     end
@@ -585,7 +595,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
         throw(ArgumentError("Cannot do stellar parameter determination with molecular lines."))
     end
     neutrals = [l.species.charge == 0 for l in linelist]
-    if (sum(neutrals) < 3) || (sum(.! neutrals) < 1)
+    if (sum(neutrals) < 3) || (sum(.!neutrals) < 1)
         throw(ArgumentError("Must have at least 3 neutral lines and 1 ion line."))
     end
     if vmic0 == 0.0
@@ -615,20 +625,20 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     end
 
     # set up closure to compute residuals
-    get_residuals = (p) -> 
-        _stellar_param_equation_residuals(p, linelist, measured_EWs, measured_EW_err, 
-                                           fix_params, callback, passed_kwargs)
+    get_residuals = (p) ->
+        _stellar_param_equation_residuals(p, linelist, measured_EWs, measured_EW_err,
+            fix_params, callback, passed_kwargs)
     iterations = 0
     J_result = DiffResults.JacobianResult(params)
     while true
         J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
         J = DiffResults.jacobian(J_result)
         residuals = DiffResults.value(J_result)
-        if all((abs.(residuals) .< tolerances)[.! fix_params]) # stopping condition
+        if all((abs.(residuals).<tolerances)[.!fix_params]) # stopping condition
             break
         end
         step = zeros(length(params))
-        step[.! fix_params] = - J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
+        step[.!fix_params] = -J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
         params += clamp.(step, -max_step_sizes, max_step_sizes)
         params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
 
@@ -642,30 +652,30 @@ function ews_to_stellar_parameters(linelist, measured_EWs, measured_EW_err=ones(
     # compute uncertainties
     stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs, measured_EW_err, passed_kwargs)
 
-    J = DiffResults.jacobian(J_result)[.! fix_params, .! fix_params]
+    J = DiffResults.jacobian(J_result)[.!fix_params, .!fix_params]
     stat_σ = zeros(4)
-    stat_σ[.! fix_params] .= abs.(J \ stat_σ_r[.! fix_params])
+    stat_σ[.!fix_params] .= abs.(J \ stat_σ_r[.!fix_params])
     sys_σ = zeros(4)
-    sys_σ[.! fix_params] .= abs.(J \ sys_σ_r[.! fix_params])
+    sys_σ[.!fix_params] .= abs.(J \ sys_σ_r[.!fix_params])
 
     params, stat_σ, sys_σ
 end
 
 # called by ews_to_stellar_parameters
-function _stellar_param_equation_residuals(params, linelist, EW, EW_err, 
-                                           fix_params, callback, passed_kwargs)
-    A, A_inv_var, neutrals, REWs, Z = 
+function _stellar_param_equation_residuals(params, linelist, EW, EW_err,
+    fix_params, callback, passed_kwargs)
+    A, A_inv_var, neutrals, REWs, Z =
         _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
 
 
     teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
-                               A[neutrals], A_inv_var[neutrals])
+        A[neutrals], A_inv_var[neutrals])
     logg_residual = (_weighted_mean(A[neutrals], A_inv_var[neutrals]) -
-                     _weighted_mean(A[.! neutrals], A_inv_var[.! neutrals]))
+                     _weighted_mean(A[.!neutrals], A_inv_var[.!neutrals]))
     vmic_residual = _get_slope(REWs, A[neutrals], A_inv_var[neutrals])
     feh_residual = _weighted_mean(A, A_inv_var) - (params[4] + Korg.grevesse_2007_solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
-    residuals .*= .! fix_params # zero out residuals for fixed parameters
+    residuals .*= .!fix_params # zero out residuals for fixed parameters
 
     callback(ForwardDiff.value.(params), ForwardDiff.value.(residuals), ForwardDiff.value.(A))
     residuals
@@ -674,7 +684,7 @@ end
 # called by _stellar_param_equation_residuals
 # returns (statistical_uncertainty, systematic_uncertainty)
 function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, passed_kwargs)
-    A, A_inv_var, neutrals, REWs, _ = 
+    A, A_inv_var, neutrals, REWs, _ =
         _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
 
     # estimated total (including systematic) err in the abundances of each line
@@ -693,7 +703,7 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, pas
         # assuming errs = 1, but we want to ignore them here, and call all error "systematic"
         [0.0, 0.0, 0.0, 0.0], total_sigma
     else
-        stat_sigma, sqrt.(max.(total_sigma.^2 .- stat_sigma.^2, 0))
+        stat_sigma, sqrt.(max.(total_sigma .^ 2 .- stat_sigma .^ 2, 0))
     end
 end
 
@@ -701,8 +711,8 @@ function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, p
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true, clamp_abundances=true)
-    A = Korg.Fit.ews_to_abundances(atm, linelist, A_X, EW, vmic=vmic; 
-                                                 passed_kwargs...)
+    A = Korg.Fit.ews_to_abundances(atm, linelist, A_X, EW, vmic=vmic;
+        passed_kwargs...)
     # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
     A_inv_var = (EW .* A ./ EW_err) .^ 2
 
@@ -720,13 +730,13 @@ end
 
 # called by _stellar_param_equation_residuals
 function _get_slope(xs, ys, inv_var)
-    Δx = xs .- mean(xs)    
+    Δx = xs .- mean(xs)
     Δy = ys .- mean(ys)
-    sum(Δx .* Δy .* inv_var) ./ sum(Δx.^2 .* inv_var)
+    sum(Δx .* Δy .* inv_var) ./ sum(Δx .^ 2 .* inv_var)
 end
 
 function _get_slope_uncertainty(xs, ivar::AbstractVector) # guard against scalar ivar
-    sqrt(sum(ivar) / (sum(ones(length(xs)) .* ivar)*sum(ivar .* xs.^2) - sum(ivar .* xs)^2))
+    sqrt(sum(ivar) / (sum(ones(length(xs)) .* ivar) * sum(ivar .* xs .^ 2) - sum(ivar .* xs)^2))
 end
 
 end # module
