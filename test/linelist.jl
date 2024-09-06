@@ -1,36 +1,37 @@
-@testset "linelists" begin 
+@testset "linelists" begin
     @testset "built-in linelists" begin
 
         # iterate over fns, not lists, because they make the output of the test suite way too long
-        @testset for linelist_fn in [Korg.get_VALD_solar_linelist, 
-                                     Korg.get_APOGEE_DR17_linelist,
-                                     Korg.get_GALAH_DR3_linelist, 
-                                     #Korg.get_GES_linelist,
-                                     ]
+        @testset for linelist_fn in [Korg.get_VALD_solar_linelist,
+            Korg.get_APOGEE_DR17_linelist,
+            Korg.get_GALAH_DR3_linelist
+            #Korg.get_GES_linelist,
+        ]
             linelist = linelist_fn()
-            @test issorted(linelist, by=l->l.wl)
+            @test issorted(linelist, by=l -> l.wl)
 
             # truncate model atmosphere for speed
             atm = read_model_atmosphere("data/sun.mod")
             atm = Korg.PlanarAtmosphere(atm.layers[1:3])
 
             # make sure things run (types have caused problems in the past)
-            λ = linelist[1].wl*1e8
+            λ = linelist[1].wl * 1e8
             synthesize(atm, linelist, format_A_X(), λ, λ)
         end
     end
 
     @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
-                                                      format="abc")
+                                             format="abc")
 
     @testset "wls in either cm or Å" begin
-        @test Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0) == Korg.Line(5e-5, 0.0, Korg.species"Fe I", 1.0) 
+        @test Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0) ==
+              Korg.Line(5e-5, 0.0, Korg.species"Fe I", 1.0)
     end
 
     @testset "kurucz linelist parsing" begin
         for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
-            kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")
-            @test issorted(kurucz_ll, by=l->l.wl)
+            kurucz_ll = read_linelist("data/linelists/" * fname; format="kurucz")
+            @test issorted(kurucz_ll, by=l -> l.wl)
             @test length(kurucz_ll) == 987
             @test kurucz_ll[1].wl ≈ 0.0007234041763337705
             @test kurucz_ll[1].log_gf == -0.826
@@ -43,7 +44,8 @@
 
         @testset "kurucz molecular " begin
             fname = "kurucz_cn.txt"
-            @test_throws ArgumentError kurucz_ll = read_linelist("data/linelists/"*fname, format="kurucz")
+            @test_throws ArgumentError kurucz_ll=read_linelist("data/linelists/" * fname;
+                                                               format="kurucz")
             #@test issorted(kurucz_ll, by=l->l.wl)
             #@test length(kurucz_ll) == 10
             #@test kurucz_ll[1].wl ≈ 2.9262621445487408e-5
@@ -93,7 +95,7 @@
         short_stellar = read_linelist("data/linelists/short-extract-stellar.vald")
         long_stellar = read_linelist("data/linelists/long-extract-stellar.vald")
 
-        @test (length(short_all) == length(short_stellar) == length(long_all_cm_air) == 
+        @test (length(short_all) == length(short_stellar) == length(long_all_cm_air) ==
                length(long_all_cm_air_noquotes) == length(long_stellar) == 2)
 
         #these should be identical since there was no unit conversion
@@ -104,7 +106,7 @@
         @test short_all[1].wl ≈ long_all_cm_air[1].wl
         @test short_all[1].log_gf == long_all_cm_air[1].log_gf
         @test short_all[1].species == long_all_cm_air[1].species
-        @test short_all[1].E_lower ≈ long_all_cm_air[1].E_lower     atol=1e-3
+        @test short_all[1].E_lower≈long_all_cm_air[1].E_lower atol=1e-3
         @test short_all[1].gamma_rad == long_all_cm_air[1].gamma_rad
         @test short_all[1].gamma_stark == long_all_cm_air[1].gamma_stark
         @test short_all[1].vdW == long_all_cm_air[1].vdW
@@ -123,7 +125,7 @@
                 @test getfield.(scaled, field) == getfield.(list, field)
             end
             for (line1, line2) in zip(scaled, list)
-                @test line1.log_gf .≈ line2.log_gf rtol=1e-2
+                @test line1.log_gf.≈line2.log_gf rtol=1e-2
             end
         end
 
@@ -136,9 +138,10 @@
     moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
     moog_linelist_as_air = read_linelist("data/linelists/s5eqw_short.moog"; format="moog_air")
     @testset "moog linelist parsing" begin
-        @test all(Korg.air_to_vacuum(l1.wl) .≈ l2.wl for (l1, l2) in zip(moog_linelist, moog_linelist_as_air))
+        @test all(Korg.air_to_vacuum(l1.wl) .≈ l2.wl
+                  for (l1, l2) in zip(moog_linelist, moog_linelist_as_air))
 
-        @test issorted(moog_linelist, by=l->l.wl)
+        @test issorted(moog_linelist, by=l -> l.wl)
         @test moog_linelist[1].wl ≈ 3729.807 * 1e-8
         @test moog_linelist[1].log_gf ≈ -0.280
         @test moog_linelist[1].species == Korg.species"Ti_I"
@@ -148,13 +151,15 @@
         @test moog_linelist[4].species == Korg.species"MgH"
         @test moog_linelist[4].log_gf ≈ 0.52 + log10(Korg.isotopic_abundances[12][24])
         @test moog_linelist[5].species == Korg.species"C2"
-        @test moog_linelist[5].log_gf ≈ -0.082 + log10(Korg.isotopic_abundances[6][12]) + log10(Korg.isotopic_abundances[6][13])
+        @test moog_linelist[5].log_gf ≈
+              -0.082 + log10(Korg.isotopic_abundances[6][12]) +
+              log10(Korg.isotopic_abundances[6][13])
         @test moog_linelist[6].species == Korg.species"Mn I"
         @test moog_linelist[6].log_gf ≈ -3.363 + log10(Korg.isotopic_abundances[25][55])
     end
 
     @testset "turbospectrum linelists" begin
-        ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum") 
+        ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum")
         @test ll[1].species == ll[3].species
         @test ll[1].log_gf != ll[3].log_gf
         @test ll[1].E_lower == ll[3].E_lower
@@ -171,13 +176,14 @@
 
         @test ll[3].vdW ≈ 8.89802482263476e-7
 
-        vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac") 
+        vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
         for (l_air, l_vac) in zip(ll, vac_ll)
             # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg 
             # to read it in as vacuum
-            @test l_air.wl ≈ Korg.air_to_vacuum(l_vac.wl) rtol=1e-8
+            @test l_air.wl≈Korg.air_to_vacuum(l_vac.wl) rtol=1e-8
         end
 
-        @test_throws ErrorException read_linelist("data/linelists/Turbospectrum/badlines"; format="turbospectrum")
+        @test_throws ErrorException read_linelist("data/linelists/Turbospectrum/badlines";
+                                                  format="turbospectrum")
     end
 end

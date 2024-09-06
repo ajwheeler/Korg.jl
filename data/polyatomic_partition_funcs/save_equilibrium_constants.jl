@@ -7,7 +7,8 @@
 using HDF5, CSV, Korg
 
 # load polyatomic partition functions
-partition_funcs = h5open("polyatomic_partition_funcs.h5") do f map(f) do group
+partition_funcs = h5open("polyatomic_partition_funcs.h5") do f
+    map(f) do group
         spec = Korg.Species(HDF5.name(group)[2:end]) # cut off leading '/'
         Ts, Us = read(group["temp"]), read(group["partition_function"])
         spec, (Ts, Us)
@@ -24,14 +25,16 @@ h5open("log_polyatomic_equilibrium_constants.h5", "w") do f
 
         log_pKs = map(zip(Ts, Us)) do (T, U)
             Zs = Korg.get_atoms(spec)
-            Us_ratio = (prod([Korg.default_partition_funcs[Korg.Species(Korg.Formula(Z), 0)](log(T)) for Z in Zs]) / U)
+            Us_ratio = (prod([Korg.default_partition_funcs[Korg.Species(Korg.Formula(Z), 0)](log(T))
+                              for Z in Zs]) / U)
             masses_ratio = prod([Korg.atomic_masses[Z] for Z in Zs]) / Korg.get_mass(spec)
-            translational_U_factor = (2π*Korg.kboltz_cgs*T/Korg.hplanck_cgs^2)^1.5
-            K = translational_U_factor^(length(Zs)-1) * masses_ratio^1.5 * Us_ratio * exp(-D00/(Korg.kboltz_eV*T))
-            log10(K * (Korg.kboltz_cgs*T)^(length(Zs)-1))
+            translational_U_factor = (2π * Korg.kboltz_cgs * T / Korg.hplanck_cgs^2)^1.5
+            K = translational_U_factor^(length(Zs) - 1) * masses_ratio^1.5 * Us_ratio *
+                exp(-D00 / (Korg.kboltz_eV * T))
+            log10(K * (Korg.kboltz_cgs * T)^(length(Zs) - 1))
         end
 
-        write(f, string(spec)*"/T", Ts)
-        write(f, string(spec)*"/log_pK", log_pKs)
+        write(f, string(spec) * "/T", Ts)
+        write(f, string(spec) * "/log_pK", log_pKs)
     end
 end

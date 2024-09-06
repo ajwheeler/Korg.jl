@@ -5,7 +5,7 @@ using HDF5, Korg
 Korg_data_dir = "../../../../Korg_data"
 
 filepath = joinpath(Korg_data_dir, "linelists", "APOGEE_DR17", "turbospec.h2o_POKAZATEL-BC9.5.dat")
-water = read_linelist(filepath, format="turbospectrum")
+water = read_linelist(filepath; format="turbospectrum")
 
 h5open("pokazatel_water_lines.h5", "w") do f
     f["wl", compress=3] = [Float32(l.wl) for l in water]
