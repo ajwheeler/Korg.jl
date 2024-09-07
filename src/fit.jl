@@ -535,12 +535,17 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size, wl_step=wl_step,
-                        blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
-
     A0 = [A_X[Korg.get_atoms(l.species)[1]] for l in linelist]
 
-    log10.(measured_EWs) .+ A0 .- log10.(EWs)
+    EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size, wl_step=wl_step,
+                        blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
+    A_X[3:Korg.MAX_ATOMIC_NUMBER] .+= 0.01 #TODO factor into kwarg
+    perturbed_EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size,
+                                  wl_step=wl_step,
+                                  blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
+    ∂A_∂REW = @. 0.01 / (log10(perturbed_EWs) - log10(EWs))
+
+    @. A0 + ∂A_∂REW * (log10(measured_EWs) - log10.(EWs))
 end
 
 """
