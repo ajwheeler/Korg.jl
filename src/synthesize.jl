@@ -60,6 +60,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 # Optional arguments:
 
   - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
+
   - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
     be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
     wavelength range can internally be represented by an evenly-spaced range.  If the approximation
@@ -87,9 +88,12 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
     at which line profiles are truncated.  This has major performance impacts, since line absorption
     calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
     The default value should effect final spectra below the 10^-3 level.
-  - `electron_number_density_warn_threshold` (default: `1.0`): if the relative difference between the
+  - `electron_number_density_warn_threshold` (default: `0.1`): if the relative difference between the
     calculated electron number density and the input electron number density is greater than this value,
     a warning is printed.  Set to `Inf` to suppress this warning.
+    See also `electron_number_density_warn_min_value`, below.
+  - `electron_number_density_warn_min_value` (default: `1e-4`): The minimum value of the ratio of
+    the electron number density to the total number density at which a warning is printed.
   - `return_cntm` (default: `true`): whether or not to return the continuum at each wavelength.  If
     this is false, `solution.cntm` will be `nothing`.
   - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies,
@@ -121,7 +125,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
                     hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
-                    electron_number_density_warn_threshold=1.0, return_cntm=true,
+                    electron_number_density_warn_threshold=0.1,
+                    electron_number_density_warn_min_value=1e-4, return_cntm=true,
                     I_scheme="linear_flux_only", tau_scheme="anchored",
                     ionization_energies=ionization_energies,
                     partition_funcs=default_partition_funcs,
@@ -201,7 +206,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                  layer.electron_number_density,
                                  abs_abundances, ionization_energies,
                                  partition_funcs, log_equilibrium_constants;
-                                 electron_number_density_warn_threshold=electron_number_density_warn_threshold)
+                                 electron_number_density_warn_threshold=electron_number_density_warn_threshold,
+                                 electron_number_density_warn_min_value=electron_number_density_warn_min_value)
         else
             let sol = use_chemical_equilibrium_from
                 (sol.electron_number_density[i],
