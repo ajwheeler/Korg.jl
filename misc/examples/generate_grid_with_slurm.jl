@@ -43,8 +43,6 @@ mkdir(runName) # do this now so that it errors fast if the directory already exi
             println(e)
             return false
         end
-
-        GC.gc() # TODO
     end
 end
 
