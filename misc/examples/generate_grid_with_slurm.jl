@@ -11,7 +11,10 @@ addprocs(SlurmManager())
 @everywhere begin
     using Korg, Random, DelimitedFiles
     runName = "Korg-Slurm-Example"
-
+end
+println("Run name: $runName")
+mkdir(runName) # do this now so that it errors fast if the directory already exists
+@everywhere begin
     wl_lo, wl_hi = 5600, 5900 # wavelength range to synthesize
     linelist = Korg.get_GALAH_DR3_linelist()
 
@@ -49,7 +52,7 @@ end
 # Here, we will generate 100 spectra with random stellar parameters and abundances, but
 # you may want a uniform grid, or something else.
 
-nspec = 20 # Number of spectra to generate
+nspec = 5000 # Number of spectra to generate
 rng = MersenneTwister(368) # n.b. this is not guaranteed to be stable across Julia versions
 
 # Here, we will choose a random Teff, logg, and [m/H] foreach spectrum, leaving everything else fixed.
@@ -66,7 +69,6 @@ for i in 1:nspec
     A_X[:, i] .= format_A_X(m_H[i])
 end
 
-mkpath(runName)
 h5write("$(runName)/korg_grid_params.h5", "Teff", Teff)
 h5write("$(runName)/korg_grid_params.h5", "logg", logg)
 h5write("$(runName)/korg_grid_params.h5", "m_H", m_H)
@@ -78,4 +80,4 @@ success = @showprogress pmap(generate_spectrum, all_params);
 
 h5write("$(runName)/korg_grid_params.h5", "converged_flag", convert.(Int, success))
 
-rmprocs(workers()) #TODO
+rmprocs(workers()) # remove workers so slurm doesn't have to
