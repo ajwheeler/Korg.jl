@@ -11,6 +11,7 @@ using Interpolations: linear_interpolation
 using ForwardDiff, DiffResults
 using Trapz
 using Statistics: mean, std
+using ProgressMeter
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper)
@@ -521,7 +522,6 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0, wl_step=0.01,
                            blend_warn_threshold=0.01, synthesize_kwargs...)
-    synthesize_kwargs = Dict(synthesize_kwargs)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -546,6 +546,96 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
     ∂A_∂REW = @. 0.01 / (log10(perturbed_EWs) - log10(EWs))
 
     @. A0 + ∂A_∂REW * (log10(measured_EWs) - log10.(EWs))
+end
+
+function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_size=2.0, wl_step=0.01,
+                                 synthesis_kwargs...)
+    if length(linelist) != length(measured_EWs)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+    if any(l -> Korg.ismolecule(l.species), linelist)
+        throw(ArgumentError("linelist contains molecular species"))
+    end
+    # Check that the user is supplying EWs in mA
+    if 1 > maximum(measured_EWs)
+        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
+    end
+
+    @showprogress desc="solving for each line" map(linelist, measured_EWs) do line, EW
+        # use Optim.jl to find the abundance that gives the measured EW
+        A_Xp = copy(A_X)
+        function cost(A)
+            A_Xp[Korg.get_atoms(line.species)[1]] = A[1]
+            synthetic_EW = calculate_EWs(atm, [line], A_Xp; ew_window_size=ew_window_size,
+                                         wl_step=wl_step,
+                                         synthesis_kwargs...)[1]
+            return (synthetic_EW - EW)^2
+        end
+
+        res = optimize(cost, [A_X[Korg.get_atoms(line.species)[1]]], NelderMead())
+        res.minimizer
+    end
+end
+
+function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size=2.0, wl_step=0.01,
+                                synthesis_kwargs...)
+    if length(linelist) != length(measured_EWs)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+    if any(l -> Korg.ismolecule(l.species), linelist)
+        throw(ArgumentError("linelist contains molecular species"))
+    end
+    # Check that the user is supplying EWs in mA
+    if 1 > maximum(measured_EWs)
+        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
+    end
+
+    # calculate the curve of growth using a single fictitious line, then generalize it to all 
+    # transitions in the linelist and solve for the abundances measured from each.
+    # use the prescription described in Gray's Stellar Atmospheres
+
+    # could match vdW broadening better
+    fictitious_line = Korg.Line(5006.126 * 1e-8, -3.0f0, Korg.species"Fe I", 2.833f0)
+    fictitious_line_ind = findfirst(l.wl > fictitious_line.wl for l in linelist)
+    linelist = copy(linelist)
+    insert!(linelist, fictitious_line_ind, fictitious_line)
+
+    fictitious_abundances = 0:0.1:2.5 .+ A_X[Korg.get_atoms(fictitious_line.species)[1]]
+    fictitious_EWs = let A_Xp = copy(A_X)
+        @showprogress desc="fictitious EWs" map(fictitious_abundances) do abundance
+            A_Xp[Korg.get_atoms(fictitious_line.species)[1]] = abundance
+            calculate_EWs(atm, [fictitious_line], A_Xp;
+                          ew_window_size=ew_window_size, wl_step=wl_step, synthesis_kwargs...)[1]
+        end
+    end
+
+    wls = linelist[1].wl * 1e8 - 5, linelist[end].wl * 1e8 + 5
+    sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
+    approx_tau = cumsum(diff(Korg.get_zs(atm)) .* sol.alpha[1:end-1, :]; dims=1)
+    formation_temps = Vector{Float64}(undef, length(linelist))
+    center_opacs = Vector{Float64}(undef, length(linelist))
+    @showprogress desc="calculating formation depths" for line_ind in eachindex(linelist)
+        wl_ind = findfirst(linelist[line_ind].wl * 1e8 .> sol.wavelengths)
+        layer_ind = argmin(abs.(approx_tau[:, wl_ind] .- 1))
+        formation_temps[line_ind] = atm.layers[layer_ind].temp
+
+        # nuclear number density, which is proportional to the total mass-density
+        n = (atm.layers[layer_ind].number_density - atm.layers[layer_ind].electron_number_density)
+        center_opacs[line_ind] = sol.alpha[layer_ind, wl_ind] / n # prop to κ
+    end
+    per_line_correction = @showprogress desc="calculating corrections" map(linelist,
+                                                                           formation_temps,
+                                                                           center_opacs) do line, T,
+                                                                                            α
+        log(line.wl) + line.log_gf - 5040.0 / T - log(α)
+    end
+
+    fictitious_REWs = log10.(fictitious_EWs / fictitious_line.wl)
+    itp = linear_interpolation(fictitious_REWs .- per_line_correction[fictitious_line_ind],
+                               fictitious_abundances)
+
+    measured_REWs = log10.(measured_EWs ./ [l.wl for l in linelist if l != fictitious_line])
+    itp.(measured_REWs .- per_line_correction[[1:fictitious_line_ind-1; fictitious_line_ind+1:end]])
 end
 
 """
