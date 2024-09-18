@@ -568,12 +568,13 @@ function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_siz
             A_Xp[Korg.get_atoms(line.species)[1]] = A[1]
             synthetic_EW = calculate_EWs(atm, [line], A_Xp; ew_window_size=ew_window_size,
                                          wl_step=wl_step,
+                                         electron_number_density_warn_threshold=Inf,
                                          synthesis_kwargs...)[1]
             return (synthetic_EW - EW)^2
         end
 
         res = optimize(cost, [A_X[Korg.get_atoms(line.species)[1]]], NelderMead())
-        res.minimizer
+        res.minimizer[1]
     end
 end
 
