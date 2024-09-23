@@ -601,7 +601,7 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
     linelist = copy(linelist)
     insert!(linelist, fictitious_line_ind, fictitious_line)
 
-    fictitious_abundances = 0:0.1:2.5 .+ A_X[Korg.get_atoms(fictitious_line.species)[1]]
+    fictitious_abundances = 0:0.1:8.0 .+ A_X[Korg.get_atoms(fictitious_line.species)[1]]
     fictitious_EWs = let A_Xp = copy(A_X)
         @showprogress desc="fictitious EWs" map(fictitious_abundances) do abundance
             A_Xp[Korg.get_atoms(fictitious_line.species)[1]] = abundance
@@ -610,33 +610,48 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
         end
     end
 
+    # TODO replace T with with photosphere T and get contintuum opacs from direct call?
     wls = linelist[1].wl * 1e8 - 5, linelist[end].wl * 1e8 + 5
-    sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
-    approx_tau = cumsum(diff(Korg.get_zs(atm)) .* sol.alpha[1:end-1, :]; dims=1)
+    @time sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
+    approx_tau = -cumsum(diff(Korg.get_zs(atm)) .* sol.alpha[1:end-1, :]; dims=1)
+    @time cntmsol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
+    display(approx_tau)
     formation_temps = Vector{Float64}(undef, length(linelist))
     center_opacs = Vector{Float64}(undef, length(linelist))
     @showprogress desc="calculating formation depths" for line_ind in eachindex(linelist)
-        wl_ind = findfirst(linelist[line_ind].wl * 1e8 .> sol.wavelengths)
+        wl_ind = findfirst(linelist[line_ind].wl * 1e8 .< sol.wavelengths)
         layer_ind = argmin(abs.(approx_tau[:, wl_ind] .- 1))
         formation_temps[line_ind] = atm.layers[layer_ind].temp
 
         # nuclear number density, which is proportional to the total mass-density
-        n = (atm.layers[layer_ind].number_density - atm.layers[layer_ind].electron_number_density)
-        center_opacs[line_ind] = sol.alpha[layer_ind, wl_ind] / n # prop to κ
+        ρ = sum(cntmsol.number_densities[s][layer_ind] * Korg.get_mass(s)
+                for s in keys(cntmsol.number_densities))
+        center_opacs[line_ind] = cntmsol.alpha[layer_ind, wl_ind] #/ ρ
     end
-    per_line_correction = @showprogress desc="calculating corrections" map(linelist,
-                                                                           formation_temps,
-                                                                           center_opacs) do line, T,
-                                                                                            α
-        log(line.wl) + line.log_gf - 5040.0 / T - log(α)
+
+    @show extrema(center_opacs)
+    @show extrema(formation_temps)
+
+    per_line_correction = map(linelist, formation_temps, center_opacs) do line, T, α
+        χ = line.E_lower
+        # TODO what about ions? (Need to adjust for U as well at χ.)
+        #for charge in line.species.charge:-1:1
+        #    χ += Korg.ionization_energies[Korg.get_atom(line.species)][charge]
+        #end
+        line.log_gf + log(line.wl) - (5040.0 / T * χ) - log(α)
     end
 
     fictitious_REWs = log10.(fictitious_EWs / fictitious_line.wl)
-    itp = linear_interpolation(fictitious_REWs .- per_line_correction[fictitious_line_ind],
-                               fictitious_abundances)
+    corrected_ficticious_REWs = fictitious_REWs .- per_line_correction[fictitious_line_ind]
+    @show extrema(corrected_ficticious_REWs)
+    itp = linear_interpolation(corrected_ficticious_REWs, fictitious_abundances)
 
     measured_REWs = log10.(measured_EWs ./ [l.wl for l in linelist if l != fictitious_line])
-    itp.(measured_REWs .- per_line_correction[[1:fictitious_line_ind-1; fictitious_line_ind+1:end]])
+    corrected_measured_REWs = measured_REWs .- per_line_correction[[1:fictitious_line_ind-1;
+                                                   fictitious_line_ind+1:end]]
+
+    @show(extrema(corrected_measured_REWs))
+    itp.(corrected_measured_REWs)
 end
 
 """
