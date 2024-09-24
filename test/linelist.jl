@@ -1,13 +1,33 @@
 @testset "linelists" begin
-    @testset "built-in linelists" begin
+    @testset "copy constructor" begin
+        l1 = Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0)
+        @test l1 == Korg.Line(l1)
+        @test Korg.Line(l1; wl=5001.0) != l1
 
+        @test Korg.Line(l1; wl=5001.0).wl == 5001.0 * 1e-8
+        @test Korg.Line(l1; log_gf=-0.5).log_gf == -0.5
+        @test Korg.Line(l1; species=Korg.species"Fe II").species == Korg.species"Fe II"
+        @test Korg.Line(l1; E_lower=2.0).E_lower == 2.0
+        @test Korg.Line(l1; gamma_rad=1e-8).gamma_rad == 1e-8
+        @test Korg.Line(l1; gamma_stark=1e-8).gamma_stark == 1e-8
+        @test Korg.Line(l1; vdW=1e-8).vdW == 1e-8
+        @test Korg.Line(l1; vdW=-8.0).vdW == 1e-8
+    end
+
+    @testset "built-in linelists" begin
         # iterate over fns, not lists, because they make the output of the test suite way too long
+
+        sol = nothing # cache chemical equilib
         @testset for linelist_fn in [Korg.get_VALD_solar_linelist,
             Korg.get_APOGEE_DR17_linelist,
             Korg.get_GALAH_DR3_linelist
             #Korg.get_GES_linelist,
         ]
             linelist = linelist_fn()
+
+            # test copy constructor
+            @test linelist == Korg.Line.(linelist)
+
             @test issorted(linelist, by=l -> l.wl)
 
             # truncate model atmosphere for speed
@@ -16,7 +36,7 @@
 
             # make sure things run (types have caused problems in the past)
             λ = linelist[1].wl * 1e8
-            synthesize(atm, linelist, format_A_X(), λ, λ)
+            synthesize(atm, linelist, format_A_X(), λ, λ; use_chemical_equilibrium_from=sol)
         end
     end
 
