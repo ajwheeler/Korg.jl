@@ -561,7 +561,12 @@ function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_siz
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    @showprogress desc="solving for each line" map(linelist, measured_EWs) do line, EW
+    initial_guess = ews_to_abundances(atm, linelist, A_X, measured_EWs;
+                                      ew_window_size=ew_window_size,
+                                      wl_step=wl_step, synthesis_kwargs...)
+
+    @showprogress desc="solving for each line" map(linelist, measured_EWs,
+                                                   initial_guess) do line, EW, A0
         # use Optim.jl to find the abundance that gives the measured EW
         A_Xp = copy(A_X)
         function cost(A)
@@ -572,8 +577,7 @@ function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_siz
                                          synthesis_kwargs...)[1]
             return (synthetic_EW - EW)^2
         end
-
-        res = optimize(cost, [A_X[Korg.get_atoms(line.species)[1]]], NelderMead())
+        res = optimize(cost, [A0], NelderMead(; atol=1e-6))
         res.minimizer[1]
     end
 end
@@ -626,7 +630,7 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
         # nuclear number density, which is proportional to the total mass-density
         ρ = sum(cntmsol.number_densities[s][layer_ind] * Korg.get_mass(s)
                 for s in keys(cntmsol.number_densities))
-        center_opacs[line_ind] = cntmsol.alpha[layer_ind, wl_ind] #/ ρ
+        center_opacs[line_ind] = cntmsol.alpha[layer_ind, wl_ind] / ρ
     end
 
     @show extrema(center_opacs)
@@ -861,8 +865,7 @@ function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, p
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true,
                                  clamp_abundances=true)
-    A = Korg.Fit.ews_to_abundances(atm, linelist, A_X, EW; vmic=vmic,
-                                   passed_kwargs...)
+    A = ews_to_abundances(atm, linelist, A_X, EW; vmic=vmic, passed_kwargs...)
     # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
     A_inv_var = (EW .* A ./ EW_err) .^ 2
 
