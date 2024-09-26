@@ -600,7 +600,7 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
     # use the prescription described in Gray's Stellar Atmospheres
 
     # could match vdW broadening better
-    fictitious_line = Korg.Line(5006.126 * 1e-8, -3.0f0, Korg.species"Fe I", 2.833f0)
+    fictitious_line = Korg.Line(5006.126 * 1e-8, -2.0f0, Korg.species"Fe I", 2.833f0)
     fictitious_line_ind = findfirst(l.wl > fictitious_line.wl for l in linelist)
     linelist = copy(linelist)
     insert!(linelist, fictitious_line_ind, fictitious_line)
@@ -631,8 +631,10 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
         layer_ind = argmin(abs.(approx_tau[:, wl_ind] .- 1))
 
         formation_temps[line_ind] = atm.layers[layer_ind].temp
-        alpha_cntms[line_ind] = cntmsol.alpha[layer_ind, wl_ind]
         formation_ns[line_ind] = cntmsol.number_densities[linelist[line_ind].species][layer_ind]
+
+        wl_ind = findfirst(linelist[line_ind].wl * 1e8 .< cntmsol.wavelengths)
+        alpha_cntms[line_ind] = cntmsol.alpha[layer_ind, wl_ind]
     end
 
     @show extrema(alpha_cntms)
