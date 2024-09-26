@@ -614,35 +614,46 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
         end
     end
 
-    # TODO replace T with with photosphere T and get contintuum opacs from direct call?
     wls = linelist[1].wl * 1e8 - 5, linelist[end].wl * 1e8 + 5
+
+    # first synthesis to get the formation depths
     @time sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
     approx_tau = -cumsum(diff(Korg.get_zs(atm)) .* sol.alpha[1:end-1, :]; dims=1)
+
+    # second synthesis to get the continuum opacities
     @time cntmsol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
-    display(approx_tau)
+
     formation_temps = Vector{Float64}(undef, length(linelist))
-    center_opacs = Vector{Float64}(undef, length(linelist))
-    @showprogress desc="calculating formation depths" for line_ind in eachindex(linelist)
+    alpha_cntms = Vector{Float64}(undef, length(linelist))
+    formation_ns = Vector{Float64}(undef, length(linelist))
+    for line_ind in eachindex(linelist)
         wl_ind = findfirst(linelist[line_ind].wl * 1e8 .< sol.wavelengths)
         layer_ind = argmin(abs.(approx_tau[:, wl_ind] .- 1))
-        formation_temps[line_ind] = atm.layers[layer_ind].temp
 
-        # nuclear number density, which is proportional to the total mass-density
-        ρ = sum(cntmsol.number_densities[s][layer_ind] * Korg.get_mass(s)
-                for s in keys(cntmsol.number_densities))
-        center_opacs[line_ind] = cntmsol.alpha[layer_ind, wl_ind] / ρ
+        formation_temps[line_ind] = atm.layers[layer_ind].temp
+        alpha_cntms[line_ind] = cntmsol.alpha[layer_ind, wl_ind]
+        formation_ns[line_ind] = cntmsol.number_densities[linelist[line_ind].species][layer_ind]
     end
 
-    @show extrema(center_opacs)
+    @show extrema(alpha_cntms)
     @show extrema(formation_temps)
 
-    per_line_correction = map(linelist, formation_temps, center_opacs) do line, T, α
-        χ = line.E_lower
-        # TODO what about ions? (Need to adjust for U as well at χ.)
-        #for charge in line.species.charge:-1:1
-        #    χ += Korg.ionization_energies[Korg.get_atom(line.species)][charge]
-        #end
-        line.log_gf + log(line.wl) - (5040.0 / T * χ) - log(α)
+    per_line_correction = map(linelist, formation_temps, alpha_cntms, formation_ns) do line, T, α, n
+        #line.log_gf + log(line.wl) - (5040.0 / T * χ) - log(α)
+        E_up = line.E_lower + Korg.hplanck_eV * Korg.c_cgs / line.wl
+        β = 1 / (Korg.kboltz_eV * T)
+
+        # TODO pass in partition functions
+        U = Korg.default_partition_funcs[line.species](log(T))
+
+        (-log10(α)
+         + line.log_gf
+         + log10(n)
+         + log10(exp(-β * line.E_lower) - exp(-β * E_up))
+         -
+         log10(U)
+         +
+         log10(line.wl))
     end
 
     fictitious_REWs = log10.(fictitious_EWs / fictitious_line.wl)
