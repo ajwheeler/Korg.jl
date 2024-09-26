@@ -41,10 +41,10 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
     β = @. 1 / (kboltz_eV * temps)
 
     # precompute number density / partition function for each species in the linelist
-    n_div_Z = map(unique([l.species for l in linelist])) do spec
+    n_div_U = map(unique([l.species for l in linelist])) do spec
         spec => @. (n_densities[spec] / partition_fns[spec](log(temps)))
     end |> Dict
-    if species"H I" in keys(n_div_Z)
+    if species"H I" in keys(n_div_U)
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
 
@@ -82,7 +82,7 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
 
         #total wl-integrated absorption coefficient
         @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor *
-                       n_div_Z[line.species]
+                       n_div_U[line.species]
 
         ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
         inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
