@@ -436,6 +436,11 @@ end
 """
     ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs... )
 
+!!! danger
+
+    Functions using equivalent widths have been dissabled while we
+    [fix some bugs](https://github.com/ajwheeler/Korg.jl/pull/331).
+
 Compute per-line abundances on the linear part of the curve of growth given a model atmosphere and a
 list of lines with equivalent widths.
 
@@ -466,6 +471,7 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0, wl_step=0.01,
                            blend_warn_threshold=0.01, synthesize_kwargs...)
+    throw("This function is currently disabled while we fix some bugs. See https://github.com/ajwheeler/Korg.jl/pull/331 for details.")
     synthesize_kwargs = Dict(synthesize_kwargs)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
@@ -537,6 +543,11 @@ end
 """
     ews_to_stellar_parameters(linelist, measured_EWs, [measured_EW_err]; kwargs...)
 
+!!! danger
+
+    Functions using equivalent widths have been dissabled while we
+    [fix some bugs](https://github.com/ajwheeler/Korg.jl/pull/331).
+
 Find stellar parameters from equivalent widths the "old fashioned" way.  This function finds the
 values of ``T_\\mathrm{eff}``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy the following conditions
 (using a Newton-Raphson solver):
@@ -607,6 +618,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                                       Korg._sdss_marcs_atmospheres[1][3][end])],
                                    fix_params=[false, false, false, false],
                                    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
+    throw("This function is currently disabled while we fix some bugs. See https://github.com/ajwheeler/Korg.jl/pull/331 for details.")
     if :vmic in keys(passed_kwargs)
         throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
     end
