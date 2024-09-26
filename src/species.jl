@@ -109,7 +109,7 @@ Returns the atomic number of an atomic Korg.Species or Korg.Formula.
 """
 function get_atom(f::Formula)
     if ismolecule(f)
-        throw(ArgumentError("Can't get the atomic number of a molecule.  Use `get_atoms` instead."))
+        throw(ArgumentError("Can't get the atomic number of a molecule.  Use `Korg.get_atoms` instead."))
     end
     get_atoms(f)[1]
 end
