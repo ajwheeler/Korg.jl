@@ -12,6 +12,7 @@ using ForwardDiff, DiffResults
 using Trapz
 using Statistics: mean, std
 using ProgressMeter
+using SimpleNonlinearSolve
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper)
@@ -458,7 +459,8 @@ function calculate_EWs(atm, linelist, A_X; ew_window_size::Real=2.0, wl_step=0.0
                           synthesize_kwargs...)
     depth = 1 .- sol.flux ./ sol.cntm
 
-    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)))
+    element_type = promote_type(eltype(A_X), eltype(Korg.get_temps(atm)),
+                                typeof(linelist[1].log_gf)) #TODO hacky
     EWs = Array{element_type}(undef, length(linelist))
     all_boundaries = Float64[]
     for (wl_range, subspec, line_indices) in zip(wl_ranges, sol.subspectra, lines_per_window)
@@ -613,21 +615,21 @@ function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_siz
                                       ew_window_size=ew_window_size,
                                       wl_step=wl_step, synthesis_kwargs...)
 
-    @time sol = synthesize(atm, [], A_X, 5000, 5000)
+    sol = synthesize(atm, [], A_X, 5000, 5000)
     @showprogress desc="solving for each line" map(linelist, measured_EWs,
                                                    initial_guess) do line, EW, A0
+        A_fiducial = A_X[Korg.get_atom(line.species)]
         # use Optim.jl to find the abundance that gives the measured EW
-        function cost(ΔA)
-            perturbed_line = [Korg.Line(line; log_gf=line.log_gf + ΔA[1])] #TODO types
+        function residual(A, p)
+            perturbed_line = [Korg.Line(line; log_gf=line.log_gf + A[1] - A_fiducial)]
             synthetic_EW = calculate_EWs(atm, perturbed_line, A_X; ew_window_size=ew_window_size,
                                          wl_step=wl_step,
                                          electron_number_density_warn_threshold=Inf,
                                          use_chemical_equilibrium_from=sol, synthesis_kwargs...)[1]
-            return (synthetic_EW - EW)^2
+            synthetic_EW - EW
         end
-        A_fiducial = A_X[Korg.get_atom(line.species)]
-        res = optimize(cost, [A0 - A_fiducial], ConjugateGradient())
-        res.minimizer[1] + A_fiducial
+        prob = NonlinearProblem(residual, A0; abstol=1e-6)
+        solve(prob, SimpleNewtonRaphson(); store_trace=Val(true)).u[1]
     end
 end
 
