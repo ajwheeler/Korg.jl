@@ -548,6 +548,54 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
     @. A0 + ∂A_∂REW * (log10(measured_EWs) - log10.(EWs))
 end
 
+"""
+don't converge quickly because of curvature
+"""
+function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
+                                   wl_step=0.01, callback=Returns(nothing),
+                                   blend_warn_threshold=0.01, synthesize_kwargs...)
+    if length(linelist) != length(measured_EWs)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+
+    if any(l -> Korg.ismolecule(l.species), linelist)
+        throw(ArgumentError("linelist contains molecular species"))
+    end
+
+    # Check that the user is supplying EWs in mA
+    if 1 > maximum(measured_EWs)
+        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
+    end
+
+    A_X = copy(A_X)
+    A0 = [A_X[Korg.get_atom(l.species)] for l in linelist]
+    ΔA = zeros(length(linelist))
+    while true
+        #display(ΔA)
+        @show maximum(abs.(ΔA))
+        perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ Δ) for (l, Δ) in zip(linelist, ΔA)]
+        EWs = calculate_EWs(atm, perturbed_linelist, A_X; ew_window_size=ew_window_size,
+                            wl_step=wl_step, blend_warn_threshold=blend_warn_threshold,
+                            synthesize_kwargs...)
+
+        A_X[3:Korg.MAX_ATOMIC_NUMBER] .+= 0.01 #TODO factor into kwarg
+        perturbed_EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size,
+                                      wl_step=wl_step,
+                                      blend_warn_threshold=blend_warn_threshold,
+                                      synthesize_kwargs...)
+        A_X[3:Korg.MAX_ATOMIC_NUMBER] .-= 0.01 #TODO factor into kwarg
+        ∂A_∂REW = @. 0.01 / (log10(perturbed_EWs) - log10(EWs))
+        δA = @. ∂A_∂REW * (log10(measured_EWs) - log10(EWs))
+        ΔA .+= δA
+        callback(A0 .+ ΔA)
+
+        if all(abs.(δA) .< 1e-6)
+            break
+        end
+    end
+    A0 .+ ΔA
+end
+
 function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_size=2.0, wl_step=0.01,
                                  synthesis_kwargs...)
     if length(linelist) != length(measured_EWs)
@@ -565,20 +613,21 @@ function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_siz
                                       ew_window_size=ew_window_size,
                                       wl_step=wl_step, synthesis_kwargs...)
 
+    @time sol = synthesize(atm, [], A_X, 5000, 5000)
     @showprogress desc="solving for each line" map(linelist, measured_EWs,
                                                    initial_guess) do line, EW, A0
         # use Optim.jl to find the abundance that gives the measured EW
-        A_Xp = copy(A_X)
-        function cost(A)
-            A_Xp[Korg.get_atoms(line.species)[1]] = A[1]
-            synthetic_EW = calculate_EWs(atm, [line], A_Xp; ew_window_size=ew_window_size,
+        function cost(ΔA)
+            perturbed_line = [Korg.Line(line; log_gf=line.log_gf + ΔA[1])] #TODO types
+            synthetic_EW = calculate_EWs(atm, perturbed_line, A_X; ew_window_size=ew_window_size,
                                          wl_step=wl_step,
                                          electron_number_density_warn_threshold=Inf,
-                                         synthesis_kwargs...)[1]
+                                         use_chemical_equilibrium_from=sol, synthesis_kwargs...)[1]
             return (synthetic_EW - EW)^2
         end
-        res = optimize(cost, [A0], NelderMead(; atol=1e-6))
-        res.minimizer[1]
+        A_fiducial = A_X[Korg.get_atom(line.species)]
+        res = optimize(cost, [A0 - A_fiducial], ConjugateGradient())
+        res.minimizer[1] + A_fiducial
     end
 end
 
@@ -603,12 +652,14 @@ function _ew_correction(line, αcntm, ntot, A_X, number_densities, level_ind, T)
 
     (-log10(αcntm)
      + line.log_gf
-     # TODO hardcoded element
      # TODO including this factor causes a non-monotonicity because of molecules?
-     #+ log10(n_species / n_nuclei)
-     + log10(ntot * fractional_abundances[1])
-     + log10(exp(-β * line.E_lower) - exp(-β * E_up)) -
-     log10(U) + log10(line.wl))
+     + log10(n_species / n_nuclei) # splits out the ions??? order unity within a species
+     + log10(ntot * fractional_abundances[1]) # big effect
+     + log10(exp(-β * line.E_lower) - exp(-β * E_up)) # big effect, same as -θχ because stimulated emission is tiny
+     -
+     log10(U) # small effect
+     +
+     log10(line.wl))
 end
 
 function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size=2.0, wl_step=0.01,
@@ -684,8 +735,8 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
     println("corrected_fictitious_REWs: ", corrected_fictitious_REWs)
     #return falphas, fns, fnspecies, fts, frews, corrected_fictitious_REWs
     fictitious_abundances = abundance_perturbations .+ A_X[Korg.get_atom(fictitious_line.species)]
-    itp = linear_interpolation(corrected_fictitious_REWs, fictitious_abundances;
-                               extrapolation_bc=Line())
+    #itp = linear_interpolation(corrected_fictitious_REWs, fictitious_abundances;
+    #                           extrapolation_bc=Line())
 
     tau_formation = Korg.depth_of_formation(atm, sol)
     # get info needed for EW correction for the measured lines
@@ -716,8 +767,7 @@ function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size
 
     @show(extrema(corrected_measured_REWs))
 
-    (NaN,
-     itp.(corrected_measured_REWs),
+    (NaN,#itp.(corrected_measured_REWs),
      fictitious_abundances,
      corrected_fictitious_REWs,
      corrected_measured_REWs)
