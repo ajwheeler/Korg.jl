@@ -211,10 +211,10 @@ values are used.
 
 # Keyword arguments
 
-  - `windows` (optional) is a vector of wavelength pairs, each of which specifies a wavelength
+  - `windows` is a vector of wavelength pairs, each of which specifies a wavelength
     "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is
     used. Overlapping windows are automatically merged.
-  - `LSF_matrix` (optional) is a matrix which maps the synthesized spectrum to the observed spectrum.
+  - `LSF_matrix` is a matrix which maps the synthesized spectrum to the observed spectrum.
     If not specified, it is calculated using `Korg.compute_LSF_matrix`.  Computing the LSF matrix can
     be expensive, so you may want to precompute it if you are fitting many spectra with the same LSF.
   - `synthesis_wls`: a superset of the wavelengths to synthesize, as a range.  If not specified,
@@ -226,7 +226,10 @@ values are used.
     the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`,
     0.0002 in `logg`, 0.0001 in `m_H`, and 0.0004 in detailed abundances. In practice the precision
     achieved by the optimizer is about 10x bigger than this.
-    Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
+  - `postprocess` can be used to arbitrarilly transform the synthesized (and LSF-convolved) spectrum
+    before calculating the chi2.  It should take the form `postprocess(flux, data, err)` and write
+    it's changes in-place to the flux array.
+  - Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
     spectra for the fit.
 
 # Returns
@@ -244,8 +247,7 @@ A NamedTuple with the following fields:
   - `covariance`: a pair `(params, Σ)` where `params` is vector of parameter name (providing an
     order), and `Σ` is an estimate of the covariance matrix of the parameters.  It is the approximate
     inverse hessian of the log likelihood at the best-fit parameter calculated by the BGFS algorithm,
-    and should be interpreted with caution. For single-parameter fits (which are done with
-    Nelder-Mead), this is not provided.
+    and should be interpreted with caution.
 
 !!! tip
 
