@@ -255,6 +255,7 @@ A NamedTuple with the following fields:
 """
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                       windows=[(obs_wls[1], obs_wls[end])],
+                      # note that the synthesis_wls are pared down to the windows later
                       synthesis_wls=obs_wls[1]-10:0.01:obs_wls[end]+10,
                       R=nothing,
                       LSF_matrix=if isnothing(R)
