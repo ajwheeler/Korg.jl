@@ -263,7 +263,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                       else
                           Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
                       end,
-                      wl_buffer=1.0, precision=1e-4, synthesis_kwargs...)
+                      wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
+                      synthesis_kwargs...)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
     end
@@ -315,6 +316,14 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                     rethrow(e)
                 end
             end
+
+            try
+                postprocess(flux, data, obs_err)
+            catch e
+                println(stderr, "Error while calling postprocess")
+                rethrow(e)
+            end
+
             sum(((flux .- data) ./ obs_err) .^ 2) + negative_log_scaled_prior
         end
     end
@@ -328,10 +337,13 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     best_fit_flux = try
         full_solution = merge(best_fit_params, fixed_params)
-        synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask],
-                           full_solution, synthesis_kwargs)
+        flux = synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask],
+                                  full_solution, synthesis_kwargs)
+        postprocess(flux, obs_flux[obs_wl_mask], obs_err[obs_wl_mask])
+        flux
     catch e
-        println(e)
+        println(stderr, "Exception while synthesizing best-fit spectrum")
+        rethrow(e)
     end
 
     trace = map(res.trace) do t
