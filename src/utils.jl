@@ -6,6 +6,8 @@ using ProgressMeter
 normal_pdf(Δ, σ) = exp(-0.5 * Δ^2 / σ^2) / √(2π) / σ
 
 """
+TODO
+
     move_bounds(λs, lb0, ub0, λ₀, window_size)
 
 Using `lb0` and `ub0` as initial guesses, return the indices of `λs`, `(lb, ub)` corresponding to

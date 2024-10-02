@@ -1,5 +1,3 @@
-import Base.length
-
 struct Wavelengths{R}
     wl_ranges::Vector{R} # in cm, not Å
     # these are for efficient-ish iteration, but ideally they should be eliminated
@@ -56,9 +54,20 @@ function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
     end
     Wavelengths([range(first(v), last(v); length=length(v))]; kwargs...)
 end
+
+# handle integer args
+function Wavelengths(λ_start::Integer, λ_stop::Integer, λ_step=0.01; kwargs...)
+    Wavelengths(Float64(λ_start), Float64(λ_stop), λ_step; kwargs...)
+end
+function Wavelengths(λ_start::Integer, λ_stop, λ_step=0.01; kwargs...)
+    Wavelengths(Float64(λ_start), λ_stop, λ_step; kwargs...)
+end
+function Wavelengths(λ_start, λ_stop::Integer, λ_step=0.01; kwargs...)
+    Wavelengths(λ_start, Float64(λ_stop), λ_step; kwargs...)
+end
+# easy mode: pass in a single start and stop
 function Wavelengths(λ_start, λ_stop, λ_step=0.01; kwargs...)
-    Wavelengths([StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start) / λ_step)) + 1)];
-                kwargs...)
+    Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step)]; kwargs...)
 end
 
 """
@@ -73,7 +82,21 @@ eachwl(wl::Wavelengths) = wls.all_wls
 
 """
 TODO
+TODO consider reversing?
 """
 eachfreq(wl::Wavelengths) = wls.all_freqs
 
 Base.length(wl::Wavelengths) = length(wl.all_wls)
+Base.show(io::IO, wl::Wavelengths) = print(io, "Wavelengths($(wl.wl_ranges .* 1e8))")
+#Base.(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
+function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
+    isapprox(eachwl(wl1), eachwl(wl2); kwargs...)
+end
+
+function firstgreater(wl::Wavelengths, λ)
+    #TODO
+end
+
+function lastlesser(wl::Wavelengths, λ)
+    #TODO
+end
