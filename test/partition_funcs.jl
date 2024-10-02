@@ -6,4 +6,3 @@
     @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"O_III"].(lnTs))
     @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"CN_I"].(lnTs))
 end
-

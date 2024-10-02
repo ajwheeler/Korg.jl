@@ -1,2 +1,3 @@
 *.ipynb linguist-documentation
 *.dat binary
+*.mod linguist-vendor

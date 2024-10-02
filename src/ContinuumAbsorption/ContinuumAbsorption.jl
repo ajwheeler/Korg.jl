@@ -20,24 +20,26 @@ The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
 
 # Arguments
 
-- `νs` are frequencies in Hz
-- `T` is temperature in K
-- `nₑ` is the electron number density in cm^-3
-- `number_densities` is a `Dict` mapping each `Species` to its number density
-- `partition_funcs` is a `Dict` mapping each `Species` to its partition function (e.g.
-  `Korg.partition_funcs`)
-- `error_oobounds::Bool` specifies the behavior of most continnum absorption sources when passed
-   frequencies or temperature values that are out of bounds for their implementation. When `false`
-   (the default), those absorption sources are ignored at those values. Otherwise, an error is
-   thrown.
+  - `νs` are frequencies in Hz
+  - `T` is temperature in K
+  - `nₑ` is the electron number density in cm^-3
+  - `number_densities` is a `Dict` mapping each `Species` to its number density
+  - `partition_funcs` is a `Dict` mapping each `Species` to its partition function (e.g.
+    `Korg.partition_funcs`)
+  - `error_oobounds::Bool` specifies the behavior of most continnum absorption sources when passed
+    frequencies or temperature values that are out of bounds for their implementation. When `false`
+    (the default), those absorption sources are ignored at those values. Otherwise, an error is
+    thrown.
 
 !!! note
-    For efficiency reasons, `νs` must be sorted. While this function technically supports any 
+
+    For efficiency reasons, `νs` must be sorted. While this function technically supports any
     sorted `AbstractVector`, it is most effient when passed an  `AbstractRange`.
 """
 function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partition_funcs::Dict;
                                     error_oobounds=false)
-    α = zeros(promote_type(eltype(νs), typeof(T), typeof(nₑ), valtype(number_densities)), length(νs))
+    α = zeros(promote_type(eltype(νs), typeof(T), typeof(nₑ), valtype(number_densities)),
+              length(νs))
 
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
 
@@ -47,8 +49,8 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
 
     # Hydrogen continuum absorption
     # note: inclusion of He I ndens below is NOT a typo
-    α .+= H_I_bf(νs, T, nH_I, number_densities[species"He I"], nₑ, 
-                                    1/partition_funcs[species"H I"](log(T)))
+    α .+= H_I_bf(νs, T, nH_I, number_densities[species"He I"], nₑ,
+                 1 / partition_funcs[species"H I"](log(T)))
 
     Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
     Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
@@ -71,6 +73,5 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
 
     α
 end
-
 
 end

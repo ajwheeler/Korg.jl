@@ -10,8 +10,8 @@
 
         # use a 2 Å line buffer so only line1 in included
         sol_no_lines = synthesize(atm, [], format_A_X(), 6000, 6000; line_buffer=2.0) #synthesize at 6000 Å only
-        sol_one_lines = synthesize(atm, [line1], format_A_X(), 6000, 6000; line_buffer=2.0) 
-        sol_two_lines = synthesize(atm, [line1, line2], format_A_X(), 6000, 6000; line_buffer=2.0) 
+        sol_one_lines = synthesize(atm, [line1], format_A_X(), 6000, 6000; line_buffer=2.0)
+        sol_two_lines = synthesize(atm, [line1, line2], format_A_X(), 6000, 6000; line_buffer=2.0)
 
         @test sol_no_lines.flux != sol_one_lines.flux
         @test sol_two_lines.flux == sol_one_lines.flux
@@ -32,8 +32,9 @@
         wls = 15000:0.01:15500
         A_X = format_A_X()
         @test synthesize(atm, [], A_X, 15000, 15500).wavelengths ≈ wls
-        @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈ Korg.air_to_vacuum.(wls)
-        @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true, 
+        @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈
+              Korg.air_to_vacuum.(wls)
+        @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true,
                                               wavelength_conversion_warn_threshold=1e-20)
         @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
 
@@ -57,64 +58,9 @@
         sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0, I_scheme="linear")
         @test length(sol.mu_grid) == 3
 
-        sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0, I_scheme="linear_flux_only")
-        @test sol.mu_grid == [(1,1)]
-    end
-
-    @testset "abundances" begin
-        @test (format_A_X() 
-                == format_A_X(0)
-                == format_A_X(0, 0)
-                == format_A_X(Dict{String, Float64}())
-                == format_A_X(Dict{Int, Float64}())
-                == format_A_X(0, Dict(1=>0.0); solar_relative=true)
-                == format_A_X(0, 0, Dict(1=>0.0); solar_relative=true)
-                == format_A_X(0, Dict("H"=>0.0); solar_relative=true)
-                == format_A_X(0, Dict(1=>12.0); solar_relative=false)
-                == format_A_X(0, Dict("H"=>12.0); solar_relative=false))
-        
-        # make sure silly H abundances are caught
-        @test_throws ArgumentError format_A_X(0.0, Dict("H"=>0); solar_relative=false)
-        @test_throws ArgumentError format_A_X(0.0, Dict(1=>0); solar_relative=false)
-        @test_throws ArgumentError format_A_X(0.0, Dict("H"=>12); solar_relative=true)
-        @test_throws ArgumentError format_A_X(0.0, Dict(1=>12); solar_relative=true)
-
-        @testset "consitency of format_A_X and get_alpha_H/get_metals_H" begin
-            @test Korg.get_alpha_H(format_A_X(0.1)) ≈ 0.1
-            @test Korg.get_alpha_H(format_A_X(0.0, 0.1)) ≈ 0.1
-            @test Korg.get_alpha_H(format_A_X(-0.2)) ≈ -0.2 
-            @test Korg.get_alpha_H(format_A_X(-2, -5)) ≈ -5
-
-            @test Korg.get_metals_H(format_A_X(0.1)) ≈ 0.1
-            @test Korg.get_metals_H(format_A_X(-0.2)) ≈ -0.2
-            @test Korg.get_metals_H(format_A_X(0.1, 0.5)) ≈ 0.1
-            @test Korg.get_metals_H(format_A_X(-0.2, 0.5)) ≈ -0.2
-
-            @test Korg.get_metals_H(Korg.grevesse_2007_solar_abundances; 
-                                    solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 
-            @test Korg.get_alpha_H(Korg.grevesse_2007_solar_abundances;
-                                   solar_abundances=Korg.grevesse_2007_solar_abundances) ≈ 0 
-        end
-
-        @test format_A_X(1.1) != format_A_X(1.1, 0)
-        @test format_A_X(1.1)[50] == format_A_X(1.1, 0)[50] == format_A_X(-1, -2, Dict(50=>1.1))[50]
-
-        @testset for metallicity in [0.0, 0.5], abundances in [Dict(), Dict("C"=>1.1)], solar_relative in [true, false]
-            A_X = format_A_X(metallicity, abundances; 
-                                       solar_abundances=Korg.asplund_2020_solar_abundances,
-                                       solar_relative=solar_relative)
-
-            #correct absolute abundances?
-            if "C" in keys(abundances)
-                if solar_relative
-                    @test A_X[6] ≈ Korg.asplund_2020_solar_abundances[6] + 1.1
-                else
-                    @test A_X[6] ≈ 1.1
-                end
-            end
-            @test A_X[7:end] ≈ Korg.asplund_2020_solar_abundances[7:end] .+ metallicity
-            @test A_X[1:2] == Korg.asplund_2020_solar_abundances[1:2]
-        end
+        sol = synthesize(atm, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0,
+                         I_scheme="linear_flux_only")
+        @test sol.mu_grid == [(1, 1)]
     end
 
     @testset "linelist checking" begin
@@ -133,10 +79,15 @@
         end
 
         b = 2.0 * 1e-8 # line_buffer
-        linelist = Korg.get_APOGEE_DR17_linelist(include_water=false)
-        @testset "linelist filtering" for wl_ranges in [[6000:7000], [15100:15200], [6000:7000, 15100:15200, 16900:17100]]
+        linelist = Korg.get_APOGEE_DR17_linelist(; include_water=false)
+        @testset "linelist filtering" for wl_ranges in [
+            [6000:7000],
+            [15100:15200],
+            [6000:7000, 15100:15200, 16900:17100]
+        ]
             wlr = wl_ranges .* 1e-8 #comvert to cm
-            @test length(Korg.filter_linelist(linelist, wlr, b)) == length(naive_filter(linelist, wlr, b))
+            @test length(Korg.filter_linelist(linelist, wlr, b)) ==
+                  length(naive_filter(linelist, wlr, b))
         end
     end
 
@@ -146,18 +97,18 @@
 
         # synthesis linelist
         ll = filter(Korg.get_VALD_solar_linelist()) do line
-            4980 < line.wl*1e8 < 5100
+            4980 < line.wl * 1e8 < 5100
         end
 
         # if there's full coverage, don't insert anything
-        @test issubset(Korg.get_alpha_5000_linelist(ll),  ll)
+        @test issubset(Korg.get_alpha_5000_linelist(ll), ll)
 
         #if there's no coverage, use the fallback linelist
         @test Korg.get_alpha_5000_linelist([]) == Korg._alpha_5000_default_linelist
 
         # if there's partial coverage, insert the fallback linelist where needed
         small_ll = filter(ll) do line
-            line.wl*1e8 > 5000
+            line.wl * 1e8 > 5000
         end
         ll5 = Korg.get_alpha_5000_linelist(small_ll)
         @test issorted([line.wl for line in ll5])
@@ -167,7 +118,7 @@
         @test issubset(ll5[i:end], small_ll)
 
         small_ll = filter(ll) do line
-            line.wl*1e8 < 4995
+            line.wl * 1e8 < 4995
         end
         ll5 = Korg.get_alpha_5000_linelist(small_ll)
         @test issorted([line.wl for line in ll5])

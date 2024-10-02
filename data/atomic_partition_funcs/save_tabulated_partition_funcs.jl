@@ -7,7 +7,7 @@ include("download_energy_levels.jl")
 println("downloading energy levels from NIST...")
 @time dfs = download_levels_from_NIST()
 
-U(lnT, df) = sum(@. df.g * exp(-df.level/(Korg.kboltz_eV * exp(lnT))))
+U(lnT, df) = sum(@. df.g * exp(-df.level / (Korg.kboltz_eV * exp(lnT))))
 
 lnTs = (0:0.025:5) * log(10) # natural log of 1 to 10,000
 

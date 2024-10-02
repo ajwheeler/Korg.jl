@@ -17,28 +17,26 @@
 #     PANEL should be a, b, c, or d
 #     OUTPUT_NAME the location where the opacity will be saved
 
-
 using Plots, Korg
 include("../test/absorption_comparison_funcs.jl")
-           
+
 function gen_plot(plot_fname, temperature, Pₑ, panel_dict)
     l = @layout [a; c{0.3h}]
-    p = plot(layout = l)
+    p = plot(; layout=l)
     for (i, (key, (orig_λ_vals, orig_data))) in enumerate(panel_dict)
-
-        plot!(p[1], orig_λ_vals, orig_data, label = key,
-              color = i)
+        plot!(p[1], orig_λ_vals, orig_data; label=key,
+              color=i)
         if haskey(Gray_opac_compare.Gray05_opacity_form_funcs, key)
             func, bounds, label_suffix = Gray_opac_compare.Gray05_opacity_form_funcs[key]
             w = Korg.ContinuumAbsorption.contained.(orig_λ_vals, Ref(bounds))
             λ_vals = orig_λ_vals[w]
             calculated_vals = func.(λ_vals, temperature, Pₑ)
             label = nothing #string("calculated ", label_suffix)
-            plot!(p[1], λ_vals, calculated_vals*1e26,
-                  seriestype = :scatter, label = label, color = i)
+            plot!(p[1], λ_vals, calculated_vals * 1e26;
+                  seriestype=:scatter, label=label, color=i)
 
-            plot!(p[2], λ_vals, calculated_vals*1e26 - orig_data[w],
-                  color = i, label = nothing)
+            plot!(p[2], λ_vals, calculated_vals * 1e26 - orig_data[w];
+                  color=i, label=nothing)
         end
     end
     ylabel!(p[1], "κ_ν ρ / (n(H I) Pₑ)\n[cm⁴ dyne⁻¹ per H atom]")
@@ -77,7 +75,5 @@ contain:
 
     gen_plot(plot_fname, temperature, Pₑ, panel_dict)
 end
-
-
 
 main(ARGS)

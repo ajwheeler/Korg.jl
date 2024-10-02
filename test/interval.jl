@@ -15,19 +15,18 @@
             @test all(result[first_ind:last_ind])
             @test all(.!result[last_ind+1:length(vals)])
         else
-            @test first_ind == last_ind+1
+            @test first_ind == last_ind + 1
         end
-
     end
 
     # first make sure that the following cases are caught by the constructor:
-    @test_throws AssertionError Korg.Interval(5,5)
-    @test_throws AssertionError Korg.Interval(3,2)
-    @test_throws AssertionError Korg.Interval(Inf,Inf)
-    @test_throws AssertionError Korg.Interval(-Inf,-Inf)
+    @test_throws AssertionError Korg.Interval(5, 5)
+    @test_throws AssertionError Korg.Interval(3, 2)
+    @test_throws AssertionError Korg.Interval(Inf, Inf)
+    @test_throws AssertionError Korg.Interval(-Inf, -Inf)
 
     # check contained
-    sample = Korg.Interval(3,10)
+    sample = Korg.Interval(3, 10)
     @test !Korg.contained(3, sample)
     @test !Korg.contained(10, sample)
     @test Korg.contained(5.0, sample)

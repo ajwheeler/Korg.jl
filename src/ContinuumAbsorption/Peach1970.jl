@@ -3,7 +3,7 @@ module Peach1970
 using Interpolations: linear_interpolation
 using ...Korg: Species, @species_str
 
-coeffs = Dict{Species, Any}()
+coeffs = Dict{Species,Any}()
 
 coeffs[species"He II"] = let
     # this comes from table III of Peach 1970 for neutral Helium
@@ -14,9 +14,9 @@ coeffs[species"He II"] = let
 
     # The temperature (in K)
     T_vals = [10000.0, 11000.0, 12000.0, 13000.0, 14000.0, 15000.0, 16000.0, 17000.0, 18000.0,
-              19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0, 25000.0, 26000.0, 27000.0,
-              28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0, 38000.0, 40000.0, 42000.0,
-              44000.0, 46000.0, 48000.0]
+        19000.0, 20000.0, 21000.0, 22000.0, 23000.0, 24000.0, 25000.0, 26000.0, 27000.0,
+        28000.0, 29000.0, 30000.0, 32000.0, 34000.0, 36000.0, 38000.0, 40000.0, 42000.0,
+        44000.0, 46000.0, 48000.0]
 
     # the (unitless) departure term
     table_vals = [0.016 0.039 0.069 0.100 0.135 0.169;
@@ -50,7 +50,7 @@ coeffs[species"He II"] = let
                   0.082 0.111 0.143 0.177 0.212 0.247;
                   0.085 0.115 0.147 0.181 0.216 0.251]
 
-    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals; extrapolation_bc=0)
 end
 
 coeffs[species"C II"] = let
@@ -62,43 +62,43 @@ coeffs[species"C II"] = let
 
     # The temperature (in K)
     T_vals = [4000.0, 5000.0, 6000.0, 7000.0, 8000.0, 9000.0, 10000.0, 11000.0, 12000.0, 13000.0,
-              14000.0, 15000.0, 16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0,
-              23000.0, 24000.0, 25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0,
-              34000.0, 36000.0]
+        14000.0, 15000.0, 16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0,
+        23000.0, 24000.0, 25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0,
+        34000.0, 36000.0]
 
     # the (unitless) departure term
-    table_vals = [-0.145 -0.144 -0.068  0.054  0.200  0.394;
-                  -0.132 -0.124 -0.045  0.077  0.222  0.415;
-                  -0.121 -0.109 -0.027  0.097  0.244  0.438;
-                  -0.112 -0.095 -0.010  0.115  0.264  0.461;
-                  -0.104 -0.082  0.005  0.133  0.284  0.484;
-                  -0.095 -0.070  0.020  0.150  0.303  0.507;
-                  -0.087 -0.058  0.034  0.166  0.321  0.529;
-                  -0.079 -0.047  0.048  0.181  0.339  0.550;
-                  -0.071 -0.036  0.061  0.196  0.356  0.570;
-                  -0.063 -0.025  0.074  0.210  0.372  0.590;
-                  -0.055 -0.015  0.086  0.223  0.388  0.609;
-                  -0.047 -0.005  0.098  0.237  0.403  0.628;
-                  -0.040  0.005  0.109  0.249  0.418  0.646;
-                  -0.032  0.015  0.120  0.261  0.432  0.664;
-                  -0.025  0.024  0.131  0.273  0.446  0.680;
-                  -0.017  0.034  0.141  0.285  0.459  0.697;
-                  -0.010  0.043  0.152  0.296  0.472  0.713;
-                  -0.003  0.051  0.161  0.307  0.485  0.728;
-                   0.004  0.060  0.171  0.317  0.497  0.744;
-                   0.011  0.069  0.181  0.327  0.509  0.758;
-                   0.018  0.077  0.100  0.337  0.521  0.773;
-                   0.025  0.085  0.109  0.347  0.532  0.787;
-                   0.032  0.093  0.208  0.356  0.543  0.800;
-                   0.039  0.101  0.216  0.365  0.554  0.814;
-                   0.046  0.109  0.225  0.374  0.564  0.827;
-                   0.052  0.117  0.233  0.383  0.574  0.839;
-                   0.059  0.124  0.241  0.391  0.585  0.852;
-                   0.072  0.139  0.257  0.408  0.604  0.876;
-                   0.085  0.154  0.273  0.424  0.623  0.900;
-                   0.097  0.168  0.288  0.439  0.641  0.923]
+    table_vals = [-0.145 -0.144 -0.068 0.054 0.200 0.394;
+                  -0.132 -0.124 -0.045 0.077 0.222 0.415;
+                  -0.121 -0.109 -0.027 0.097 0.244 0.438;
+                  -0.112 -0.095 -0.010 0.115 0.264 0.461;
+                  -0.104 -0.082 0.005 0.133 0.284 0.484;
+                  -0.095 -0.070 0.020 0.150 0.303 0.507;
+                  -0.087 -0.058 0.034 0.166 0.321 0.529;
+                  -0.079 -0.047 0.048 0.181 0.339 0.550;
+                  -0.071 -0.036 0.061 0.196 0.356 0.570;
+                  -0.063 -0.025 0.074 0.210 0.372 0.590;
+                  -0.055 -0.015 0.086 0.223 0.388 0.609;
+                  -0.047 -0.005 0.098 0.237 0.403 0.628;
+                  -0.040 0.005 0.109 0.249 0.418 0.646;
+                  -0.032 0.015 0.120 0.261 0.432 0.664;
+                  -0.025 0.024 0.131 0.273 0.446 0.680;
+                  -0.017 0.034 0.141 0.285 0.459 0.697;
+                  -0.010 0.043 0.152 0.296 0.472 0.713;
+                  -0.003 0.051 0.161 0.307 0.485 0.728;
+                  0.004 0.060 0.171 0.317 0.497 0.744;
+                  0.011 0.069 0.181 0.327 0.509 0.758;
+                  0.018 0.077 0.100 0.337 0.521 0.773;
+                  0.025 0.085 0.109 0.347 0.532 0.787;
+                  0.032 0.093 0.208 0.356 0.543 0.800;
+                  0.039 0.101 0.216 0.365 0.554 0.814;
+                  0.046 0.109 0.225 0.374 0.564 0.827;
+                  0.052 0.117 0.233 0.383 0.574 0.839;
+                  0.059 0.124 0.241 0.391 0.585 0.852;
+                  0.072 0.139 0.257 0.408 0.604 0.876;
+                  0.085 0.154 0.273 0.424 0.623 0.900;
+                  0.097 0.168 0.288 0.439 0.641 0.923]
 
-    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals; extrapolation_bc=0)
 end
 
 #coeffs[species"C III"] = let 
@@ -181,7 +181,6 @@ end
 #    linear_interpolation((T_vals_S, σ_vals), table_vals_S, extrapolation_bc=0)
 #end
 
-
 coeffs[species"Si II"] = let
     # this comes from table III of Peach 1970 for neutral Silicon
 
@@ -191,10 +190,10 @@ coeffs[species"Si II"] = let
 
     # The temperature (in K)
     T_vals = [4000.0, 5000.0, 6000.0, 7000.0, 8000.0, 9000.0, 10000.0, 11000.0, 12000.0, 13000.0,
-              14000.0, 15000.0, 16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0,
-              23000.0, 24000.0, 25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0,
-              34000.0, 36000.0]
-    
+        14000.0, 15000.0, 16000.0, 17000.0, 18000.0, 19000.0, 20000.0, 21000.0, 22000.0,
+        23000.0, 24000.0, 25000.0, 26000.0, 27000.0, 28000.0, 29000.0, 30000.0, 32000.0,
+        34000.0, 36000.0]
+
     table_vals = [-0.079 0.033 0.214 0.434 0.650 0.973;
                   -0.066 0.042 0.216 0.429 0.642 0.062;
                   -0.056 0.050 0.220 0.430 0.643 0.965;
@@ -206,29 +205,28 @@ coeffs[species"Si II"] = let
                   -0.015 0.085 0.246 0.452 0.679 1.031;
                   -0.010 0.089 0.250 0.456 0.685 1.042;
                   -0.004 0.094 0.254 0.459 0.692 1.054;
-                   0.001 0.009 0.258 0.463 0.698 1.065;
-                   0.006 0.103 0.262 0.467 0.705 1.076;
-                   0.011 0.107 0.265 0.471 0.711 1.087;
-                   0.016 0.112 0.269 0.474 0.717 1.097;
-                   0.021 0.116 0.273 0.478 0.724 1.108;
-                   0.026 0.120 0.277 0.482 0.730 1.118;
-                   0.030 0.125 0.281 0.486 0.736 1.127;
-                   0.035 0.129 0.285 0.490 0.742 1.137;
-                   0.040 0.134 0.289 0.493 0.747 1.146;
-                   0.045 0.138 0.293 0.497 0.753 1.155;
-                   0.050 0.143 0.297 0.501 0.759 1.164;
-                   0.055 0.147 0.301 0.505 0.765 1.173;
-                   0.060 0.152 0.305 0.509 0.770 1.181;
-                   0.065 0.156 0.310 0.513 0.776 1.189;
-                   0.071 0.161 0.314 0.517 0.781 1.197;
-                   0.076 0.166 0.318 0.520 0.787 1.205;
-                   0.087 0.176 0.328 0.528 0.798 1.221;
-                   0.008 0.186 0.317 0.537 0.809 1.236;
-                   0.109 0.196 0.346 0.545 0.819 1.251]
+                  0.001 0.009 0.258 0.463 0.698 1.065;
+                  0.006 0.103 0.262 0.467 0.705 1.076;
+                  0.011 0.107 0.265 0.471 0.711 1.087;
+                  0.016 0.112 0.269 0.474 0.717 1.097;
+                  0.021 0.116 0.273 0.478 0.724 1.108;
+                  0.026 0.120 0.277 0.482 0.730 1.118;
+                  0.030 0.125 0.281 0.486 0.736 1.127;
+                  0.035 0.129 0.285 0.490 0.742 1.137;
+                  0.040 0.134 0.289 0.493 0.747 1.146;
+                  0.045 0.138 0.293 0.497 0.753 1.155;
+                  0.050 0.143 0.297 0.501 0.759 1.164;
+                  0.055 0.147 0.301 0.505 0.765 1.173;
+                  0.060 0.152 0.305 0.509 0.770 1.181;
+                  0.065 0.156 0.310 0.513 0.776 1.189;
+                  0.071 0.161 0.314 0.517 0.781 1.197;
+                  0.076 0.166 0.318 0.520 0.787 1.205;
+                  0.087 0.176 0.328 0.528 0.798 1.221;
+                  0.008 0.186 0.317 0.537 0.809 1.236;
+                  0.109 0.196 0.346 0.545 0.819 1.251]
 
-    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals; extrapolation_bc=0)
 end
-
 
 coeffs[species"Mg II"] = let
     # this comes from table III of Peach 1970 for neutral Magnesium
@@ -239,61 +237,61 @@ coeffs[species"Mg II"] = let
 
     # The temperature (in K)
     T_vals = [4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000, 16000,
-              17000, 18000, 19000, 20000, 21000, 22000, 23000, 24000, 25000, 26000, 27000, 28000,
-              29000, 30000, 32000, 34000]
+        17000, 18000, 19000, 20000, 21000, 22000, 23000, 24000, 25000, 26000, 27000, 28000,
+        29000, 30000, 32000, 34000]
 
-    table_vals = [-0.070  0.008  0.121  0.221  0.274  0.356;
-                  -0.067  0.003  0.104  0.105  0.244  0.325;
-                  -0.066 -0.002  0.091  0.175  0.221  0.302;
-                  -0.065 -0.007  0.080  0.157  0.201  0.282;
-                  -0.065 -0.012  0.069  0.141  0.183  0.264;
-                  -0.065 -0.016  0.059  0.126  0.166  0.248;
-                  -0.065 -0.020  0.049  0.113  0.151  0.232;
-                  -0.066 -0.024  0.040  0.100  0.137  0.218;
-                  -0.066 -0.028  0.032  0.088  0.124  0.205;
-                  -0.066 -0.032  0.025  0.077  0.112  0.194;
-                  -0.066 -0.035  0.018  0.067  0.101  0.183;
-                  -0.066 -0.037  0.012  0.058  0.091  0.173;
-                  -0.066 -0.040  0.006  0.049  0.082  0.164;
-                  -0.066 -0.042  0.001  0.042  0.074  0.157;
-                  -0.066 -0.044 -0.004  0.036  0.067  0.150;
-                  -0.065 -0.045 -0.007  0.030  0.061  0.144;
-                  -0.064 -0.046 -0.011  0.025  0.056  0.139;
-                  -0.063 -0.047 -0.014  0.020  0.051  0.135;
-                  -0.062 -0.048 -0.016  0.017  0.048  0.131;
-                  -0.061 -0.048 -0.018  0.014  0.045  0.128;
-                  -0.059 -0.047 -0.019  0.011  0.042  0.126;
-                  -0.057 -0.047 -0.020  0.009  0.040  0.124;
-                  -0.055 -0.046 -0.020  0.008  0.039  0.123;
-                  -0.053 -0.045 -0.021  0.007  0.038  0.123;
-                  -0.051 -0.044 -0.020  0.006  0.038  0.123;
-                  -0.048 -0.042 -0.020  0.006  0.038  0.123;
-                  -0.045 -0.040 -0.019  0.006  0.039  0.124;
-                  -0.039 -0.035 -0.016  0.008  0.042  0.128;
-                  -0.032 -0.030 -0.012  0.011  0.046  0.133]
+    table_vals = [-0.070 0.008 0.121 0.221 0.274 0.356;
+                  -0.067 0.003 0.104 0.105 0.244 0.325;
+                  -0.066 -0.002 0.091 0.175 0.221 0.302;
+                  -0.065 -0.007 0.080 0.157 0.201 0.282;
+                  -0.065 -0.012 0.069 0.141 0.183 0.264;
+                  -0.065 -0.016 0.059 0.126 0.166 0.248;
+                  -0.065 -0.020 0.049 0.113 0.151 0.232;
+                  -0.066 -0.024 0.040 0.100 0.137 0.218;
+                  -0.066 -0.028 0.032 0.088 0.124 0.205;
+                  -0.066 -0.032 0.025 0.077 0.112 0.194;
+                  -0.066 -0.035 0.018 0.067 0.101 0.183;
+                  -0.066 -0.037 0.012 0.058 0.091 0.173;
+                  -0.066 -0.040 0.006 0.049 0.082 0.164;
+                  -0.066 -0.042 0.001 0.042 0.074 0.157;
+                  -0.066 -0.044 -0.004 0.036 0.067 0.150;
+                  -0.065 -0.045 -0.007 0.030 0.061 0.144;
+                  -0.064 -0.046 -0.011 0.025 0.056 0.139;
+                  -0.063 -0.047 -0.014 0.020 0.051 0.135;
+                  -0.062 -0.048 -0.016 0.017 0.048 0.131;
+                  -0.061 -0.048 -0.018 0.014 0.045 0.128;
+                  -0.059 -0.047 -0.019 0.011 0.042 0.126;
+                  -0.057 -0.047 -0.020 0.009 0.040 0.124;
+                  -0.055 -0.046 -0.020 0.008 0.039 0.123;
+                  -0.053 -0.045 -0.021 0.007 0.038 0.123;
+                  -0.051 -0.044 -0.020 0.006 0.038 0.123;
+                  -0.048 -0.042 -0.020 0.006 0.038 0.123;
+                  -0.045 -0.040 -0.019 0.006 0.039 0.124;
+                  -0.039 -0.035 -0.016 0.008 0.042 0.128;
+                  -0.032 -0.030 -0.012 0.011 0.046 0.133]
 
-    linear_interpolation((T_vals, σ_vals), table_vals, extrapolation_bc=0)
+    linear_interpolation((T_vals, σ_vals), table_vals; extrapolation_bc=0)
 end
 
 """
     Peach1970.departure_coefficients()
 
-This module contains interpolators of the tabulated ff departure coeffients from 
-[Peach+ 1970](https://ui.adsabs.harvard.edu/abs/1970MmRAS..73....1P/abstract), which we use to 
-correct the hydrogenic ff absorption coefficient for H I ff, C I ff, Si I ff, and Mg I ff. 
-It contains a dictionary (returned by `departure_coefficients()`), which maps `Species` to 
-interpolator objects.  Crucially, the dictionary is indexed by the species which actually 
-participates in the interaction, not the one after which the interaction is named.  
+This module contains interpolators of the tabulated ff departure coeffients from
+[Peach+ 1970](https://ui.adsabs.harvard.edu/abs/1970MmRAS..73....1P/abstract), which we use to
+correct the hydrogenic ff absorption coefficient for H I ff, C I ff, Si I ff, and Mg I ff.
+It contains a dictionary (returned by `departure_coefficients()`), which maps `Species` to
+interpolator objects.  Crucially, the dictionary is indexed by the species which actually
+participates in the interaction, not the one after which the interaction is named.
 
-Outside the regime in which Peach 1970 provides data, the interpolators return 0, falling back to 
+Outside the regime in which Peach 1970 provides data, the interpolators return 0, falling back to
 the hydreogenic approximation.
 
-The species for which we use corrections are the same species which get corrected in 
-MARCS/Turbospectrum (see Table 1 of 
+The species for which we use corrections are the same species which get corrected in
+MARCS/Turbospectrum (see Table 1 of
 [Gustafsson+ 2008](https://ui.adsabs.harvard.edu/abs/2008A%26A...486..951G/abstract)).
 The choices seem are largely motivated by which species have departure terms at normal
-stellar atmosphere conditions and which species are most abundant in the sun. For C II ff, 
-we include only the contribution from the ¹S parent term, even though (in contrast to other 
+stellar atmosphere conditions and which species are most abundant in the sun. For C II ff,
+we include only the contribution from the ¹S parent term, even though (in contrast to other
 speices) information is available for the ³Pᵒ term as well.
 
 The free-free absorption coefficient (including stimulated emission) is given by:
@@ -301,31 +299,34 @@ The free-free absorption coefficient (including stimulated emission) is given by
 ``\\alpha_{\rm ff} = \\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z) (1 + D(T, \\sigma))``,
 
 where
-- ``\\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z)`` should include the correction for 
-  stimulated emission.
-- ``n_i`` is the number density fo the ion species that participates in the interation, not the 
-  species the interaction is named after.
-- ``n_e`` is the number density of free electrons.
-- ``D(T, \\sigma)`` is specified as the `departure` arg, and is expected to interpolate over
-the tabulated values specified in Table III of Peach (1970).
-- σ denotes the energy of the photon in units of RydbergH*Zeff²
+
+  - ``\\alpha_{\rm hydrogenic, ff}(\\nu, T, n_i, n_e; Z)`` should include the correction for
+    stimulated emission.
+  - ``n_i`` is the number density fo the ion species that participates in the interation, not the
+    species the interaction is named after.
+  - ``n_e`` is the number density of free electrons.
+  - ``D(T, \\sigma)`` is specified as the `departure` arg, and is expected to interpolate over
+    the tabulated values specified in Table III of Peach (1970).
+  - σ denotes the energy of the photon in units of RydbergH*Zeff²
 
 It might not be immediately obvious how the above equation relates to the equations presented in
-Peach (1970). Peach describes the calculation for ``k_\nu^F``, the free-free absorption 
-coefficient (uncorrected for stimulated emission) per particle of the species that the interaction 
+Peach (1970). Peach describes the calculation for ``k_\nu^F``, the free-free absorption
+coefficient (uncorrected for stimulated emission) per particle of the species that the interaction
 is named after. In other words, he computes:
- 
+
 ``k_\nu^F = \\alpha_{\rm ff}/n_{i-1} \\left(1 - e^\\frac{-h\\nu}{k T}\\right)^{-1}``,
 
 where ``n_{i-1}`` is the number density of the species that the interaction is named after.
 ``k_\nu^F`` can directly be computed, under LTE, from just ``\nu``, ``T``, and ``n_{i-1}`` (the
-Saha Equation relates ``\\alpha_{\rm ff}``'s dependence on ``n_e`` and ``n_i`` to ``n_{i-1}`` and 
+Saha Equation relates ``\\alpha_{\rm ff}``'s dependence on ``n_e`` and ``n_i`` to ``n_{i-1}`` and
 ``T``.  Gray (2005) follows a similar convention when describing free-free absorption.
 
-!!! warning 
-    The tabulated data in this module was taken from Peach 1970 using OCR software, and may 
-    contain mis-read values, although they produce reasonable behavior and there are no obvious 
-    problems.
+!!! warning
+
+
+The tabulated data in this module was taken from Peach 1970 using OCR software, and may
+contain mis-read values, although they produce reasonable behavior and there are no obvious
+problems.
 """
 departure_coefficients() = coeffs
 

@@ -9,7 +9,7 @@ import Dierckx
 
     #these are only approximately the same because Dierckx is a BSpline library.
     x = 0:0.01:5
-    @test Dierckx.evaluate(ditp, x) ≈ kitp.(x) rtol=1e-3
+    @test Dierckx.evaluate(ditp, x)≈kitp.(x) rtol=1e-3
 
     @test_throws ArgumentError kitp(-1)
     @test_throws ArgumentError kitp(6)
@@ -19,4 +19,3 @@ import Dierckx
     @test itp(-1) == 0
     @test itp(10) == sin(5)
 end
-
