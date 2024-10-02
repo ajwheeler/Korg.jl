@@ -2,7 +2,7 @@ using Interpolations: interpolate!, Gridded, Linear, extrapolate
 using HDF5
 
 struct MolecularCrossSection
-    wls
+    wls # Å
     itp
     species::Korg.Species
 end
@@ -37,16 +37,17 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     for other applications by comparing spectra synthesize with and without precomputing the
     molecular cross-section.
 """
-function MolecularCrossSection(linelist, wls; cutoff_alpha=1e-32,
+function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
                                vmic_vals=[(0.0:1/3:1.0)...; 1.5; (2:2/3:(5+1/3))...],
                                log_temp_vals=3:0.04:5, verbose=true)
+    wl_ranges = construct_wavelength_ranges(wl_params...)
     all_specs = [l.species for l in linelist]
     if !all(Ref(all_specs[1]) .== all_specs)
         throw(ArgumentError("All lines must be of the same species"))
     end
     species = all_specs[1]
 
-    α = zeros(length(vmic_vals), length(log_temp_vals), sum(length.(wls)))
+    α = zeros(length(vmic_vals), length(log_temp_vals), sum(length.(wl_ranges)))
 
     # set both the continuum absorption coef (cntm) and the cutoff absorption coef to 
     # unity.  Handle the cutoff value by scaling the number density of the molecule
@@ -59,16 +60,22 @@ function MolecularCrossSection(linelist, wls; cutoff_alpha=1e-32,
 
     for (i, vmic) in enumerate(vmic_vals)
         ξ = vmic * 1e5 #km/s to cm/s
-        Korg.line_absorption!(view(α, i, :, :), linelist, wls * 1e-8, Ts, nₑ, n_dict,
+        Korg.line_absorption!(view(α, i, :, :), linelist, wl_ranges * 1e-8, Ts, nₑ, n_dict,
                               Korg.default_partition_funcs, ξ, cntm;
                               verbose=verbose, cutoff_threshold=1.0)
     end
 
     species = all_specs[1]
-    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, vcat(wls...) * 1e-8),
+    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, vcat(wl_ranges...) * 1e-8),
                                    α .* cutoff_alpha,
                                    (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))), 0.0)
-    MolecularCrossSection(wls, itp, species)
+    MolecularCrossSection(wl_ranges, itp, species)
+end
+
+#TODO make sure this works
+function Base.show(io::IO, ::MIME"text/plain", sigma::MolecularCrossSection)
+    println(io, "Molecular cross-section for ", sigma.species,
+            " ($(sigma.wls[1]) Å ≤ λ ≤ $(sigma.wls[end]) Å)")
 end
 
 """
@@ -131,7 +138,7 @@ function read_molecular_cross_section(filename)
         alpha_vals = HDF5.readmmap(file["vals"])
         species = Species(HDF5.read(file, "species"))
 
-        itp = extrapolate(interpolate!((vmic_vals, logT_vals, vcat(wls...) * 1e8),
+        itp = extrapolate(interpolate!((vmic_vals, logT_vals, vcat(wls...) * 1e-8),
                                        alpha_vals,
                                        (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
                           0.0)
