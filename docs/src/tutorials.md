@@ -3,3 +3,6 @@ Here are a few tutorials in the form of Jupyter Notebooks to help you get starte
 - [The Basics](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks/basics) demonstrates how to read linelists, read or interpolate model atmospheres, and synthesize spectra. It also goes into some of the other data returned when you synthesize a spectrum.
 - [Fitting](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks/fitting) demonstrates the use of [`Korg.Fit.fit_spectrum`](@ref) to fit observational data.
 - [EW fitting](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks/EW%20fitting) demonstrates the use of [`Korg.Fit.ews_to_abundances`](@ref) to calculate abundances from equivalent widths.
+
+# [Slurm example]
+There is an example script [here](https://github.com/ajwheeler/Korg.jl/tree/main/misc/examples/generate_grid_with_slurm.jl) that shows how you might use Korg to generate many spectra within a Slurm job. Note that this example creates a file for each spectrum, which may not be desireable on your HPC environment.
