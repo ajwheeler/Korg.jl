@@ -228,7 +228,7 @@ values are used.
     achieved by the optimizer is about 10x bigger than this.
   - `postprocess` can be used to arbitrarilly transform the synthesized (and LSF-convolved) spectrum
     before calculating the chi2.  It should take the form `postprocess(flux, data, err)` and write
-    it's changes in-place to the flux array.
+    its changes in-place to the flux array.
   - Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
     spectra for the fit.
 
