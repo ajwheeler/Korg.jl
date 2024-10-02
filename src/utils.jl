@@ -207,16 +207,6 @@ function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractVector}, 
     LSF
 end
 
-# used by compute_LSF_matrix and apply_LSF
-_vector_to_range(v::AbstractRange, tolerance) = v
-function _vector_to_range(v::AbstractVector, tolerance)
-    min_step, max_step = extrema(diff(v))
-    if max_step - min_step > tolerance
-        throw(ArgumentError("Synthesis wavelengths are not linearly spaced to within $tolerance."))
-    end
-    range(first(v), last(v); length=length(v))
-end
-
 """
     apply_rotation(flux, wls, vsini, ε=0.6)
 

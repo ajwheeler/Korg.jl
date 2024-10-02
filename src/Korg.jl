@@ -6,6 +6,7 @@ include("lazy_multilinear_interpolation.jl") # linear interpolation with minimal
 include("constants.jl")                # physical constants
 include("atomic_data.jl")              # symbols and atomic weights
 include("isotopic_data.jl")            # abundances and nuclear spins
+include("wavelengths.jl")              # Wavelengths type
 include("species.jl")                  # types for chemical formulae and species
 include("read_statmech_quantities.jl") # approximate Us, Ks, chis
 include("linelist.jl")                 # parse linelists, define Line type

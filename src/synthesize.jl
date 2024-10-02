@@ -133,50 +133,21 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
                     verbose=false)
-    wl_ranges = construct_wavelength_ranges(wavelength_params...)
-
-    # Convert air to vacuum wavelenths if necessary.
-    if air_wavelengths
-        wl_ranges = map(wl_ranges) do wls
-            λ_start, λ_stop, λ_step = first(wls), last(wls), step(wls)
-            len = Int(round((λ_stop - λ_start) / λ_step)) + 1
-            vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
-            vac_step = (vac_stop - vac_start) / (len - 1)
-            wls = StepRangeLen(vac_start, vac_step, len)
-            max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
-            if max_diff > wavelength_conversion_warn_threshold
-                throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
-                                    *
-                                    "linear vacuum wavelength range. This solution differs by up to " *
-                                    "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you " *
-                                    "want to suppress this error."))
-            end
-            wls
-        end
-    end
+    wls = Wavelengths(wl_params...; air_wavelengths=air_wavelengths)
 
     # work in cm
-    wl_ranges = wl_ranges .* 1e-8 # broadbasting the = prevents wl_ranges from changing type
     cntm_step *= 1e-8
     line_buffer *= 1e-8
 
-    # make sure wl_ranges are OK
-    all_λs = vcat(wl_ranges...)
-    if !issorted(all_λs) #TODO test
-        throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
-    end
-
     # wavelenths at which to calculate the continuum
-    cntm_wl_ranges = map(wl_ranges) do λs
+    cntm_wl_ranges = map(eachrange(wls)) do λs
         collect((λs[1]-line_buffer-cntm_step):cntm_step:(λs[end]+line_buffer+cntm_step))
     end
     # eliminate portions where ranges overlap.  One fitting is merged, there wull be functions for this.
     for i in 1:length(cntm_wl_ranges)-1
         cntm_wl_ranges[i] = cntm_wl_ranges[i][cntm_wl_ranges[i].<first(cntm_wl_ranges[i+1])]
     end
-    cntmλs = vcat(cntm_wl_ranges...)
-    # frequencies at which to calculate the continuum, as a single vector
-    sorted_cntmνs = c_cgs ./ reverse(cntmλs)
+    cntm_wls = Wavelengths(cntm_wl_ranges)
 
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
@@ -184,7 +155,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         linelist5 = get_alpha_5000_linelist(linelist)
     end
     # now the ones for the synthesis
-    linelist = filter_linelist(linelist, wl_ranges, line_buffer)
+    linelist = filter_linelist(linelist, wls, line_buffer)
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
@@ -259,14 +230,14 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             nH_I = n_dict[species"H_I"]
             nHe_I = n_dict[species"He_I"]
             U_H_I = partition_funcs[species"H_I"](log(layer.temp))
-            hydrogen_line_absorption!(view(α, i, :), all_λs, wl_ranges, layer.temp, nₑ, nH_I, nHe_I,
+            hydrogen_line_absorption!(view(α, i, :), wls, layer.temp, nₑ, nH_I, nHe_I,
                                       U_H_I, vmic * 1e5,
                                       hydrogen_line_window_size * 1e-8;
                                       use_MHD=use_MHD_for_hydrogen_lines)
         end
     end
 
-    line_absorption!(α, linelist, wl_ranges, get_temps(atm), nₑs, number_densities, partition_funcs,
+    line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
                      vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, all_λs, get_temps(atm), vmic,
                                           number_densities)
@@ -276,6 +247,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
 
+    #TODO more into Wavelengths
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
     subspectra = []
@@ -289,18 +261,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
      number_densities=number_densities, electron_number_density=nₑs, wavelengths=all_λs .* 1e8,
      subspectra=subspectra)
 end
-
-"""
-    construct_wavelength_ranges(wls...)
-
-Handle the wavelength specification passed to `synthesize`, returning a vector of wavelength ranges.
-See [`synthesize`](@ref) documentation for details.
-"""
-function construct_wavelength_ranges(λ_start, λ_stop, λ_step=0.01)
-    [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start) / λ_step)) + 1)]
-end
-construct_wavelength_ranges(wls::AbstractVector{<:AbstractRange}) = wls
-construct_wavelength_ranges(wls::AbstractRange) = [wls]
 
 """
     filter_linelist(linelist, wl_ranges, line_buffer)
