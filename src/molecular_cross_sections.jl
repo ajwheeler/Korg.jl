@@ -72,7 +72,6 @@ function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
     MolecularCrossSection(wl_ranges, itp, species)
 end
 
-#TODO make sure this works
 function Base.show(io::IO, ::MIME"text/plain", sigma::MolecularCrossSection)
     println(io, "Molecular cross-section for ", sigma.species,
             " ($(sigma.wls[1]) Å ≤ λ ≤ $(sigma.wls[end]) Å)")
