@@ -1,8 +1,10 @@
-struct Wavelengths{F} where R<:AbstractRange
+import Base.length
+
+struct Wavelengths{R}
     wl_ranges::Vector{R} # in cm, not Å
     # these are for efficient-ish iteration, but ideally they should be eliminated
-    all_wls::Vector{F}
-    all_freqs::Vector{F}
+    all_wls
+    all_freqs
 
     """
     TODO
@@ -73,3 +75,5 @@ eachwl(wl::Wavelengths) = wls.all_wls
 TODO
 """
 eachfreq(wl::Wavelengths) = wls.all_freqs
+
+Base.length(wl::Wavelengths) = length(wl.all_wls)

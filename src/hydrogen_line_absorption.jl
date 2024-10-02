@@ -56,6 +56,8 @@ convolution is expensive.
 
 Arguments:
 
+  - `αs`: the absorption coefficient [cm^-1] vector into which to add the line absorption
+  - `λs`: the wavelengths at which to calculate the absorption [cm]
   - `T`: temperature [K]
   - `nₑ`: electron number density [cm^-3]
   - `nH_I`: neutral hydrogen number density [cm^-3]
@@ -73,11 +75,11 @@ Keyword arguments:
   - `use_MHD`: whether or not to use the Mihalas-Daeppen-Hummer formalism to adjust the occupation
     probabilities of each hydrogen orbital for plasma effects.  Default: `true`.
 """
-function hydrogen_line_absorption!(αs, λs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size;
+function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size;
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs .^ 2
-    Hmass = get_mass(Formula("H"))
+    Hmass = get_mass(Korg.species"H")
 
     n_max = maximum(_hline_stark_profiles) do line
         line.upper
