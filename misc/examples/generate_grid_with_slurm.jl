@@ -1,6 +1,5 @@
 # This script is an example of how to use Korg to generate a grid of synthetic spectra using Slurm.
 using Distributed, SlurmClusterManager, DataFrames, Distributions, HDF5, ProgressMeter
-#TODO switch to ClusterManagers
 
 # This will automatically add a worker for each task.
 addprocs(SlurmManager())
