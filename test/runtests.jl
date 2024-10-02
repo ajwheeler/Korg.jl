@@ -1,4 +1,4 @@
-using Korg, Test, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
+using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
 
 @testset "Korg tests" begin
 
