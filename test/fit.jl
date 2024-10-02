@@ -82,13 +82,15 @@ using Random
         atm = interpolate_marcs(Teff, logg, m_H)
         sol = synthesize(atm, linelist, format_A_X(m_H), [synth_wls]; vmic=vmic)
         spectrum = LSF * (sol.flux ./ (sol.cntm .* (1 - cntm_offset)))
+        spectrum ./= 2 # scale out a factor of 2 and account for it with the "postprocess" kwarg
         err = 0.01 * ones(length(spectrum)) # don't actually apply error to keep tests deterministic
 
         # now fit it
+        scale!(flux, data, err) = flux ./= 2
         p0 = (Teff=5350.0, m_H=0.0)
         fixed = (logg=logg, vmic=vmic, cntm_offset=cntm_offset)
         result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                       synthesis_wls=synth_wls, LSF_matrix=LSF)
+                                       postprocess=scale!, synthesis_wls=synth_wls, LSF_matrix=LSF)
 
         params, Σ = result.covariance
         Teff_index = findfirst(params .== "Teff")
