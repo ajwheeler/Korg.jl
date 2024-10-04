@@ -90,24 +90,7 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const hasTodos = '${{ steps.find_todos.outputs.has_todos }}' === 'true';
-            const conclusion = hasTodos ? 'failure' : 'success';
-            const title = hasTodos ? 'TODOs found' : 'No TODOs found';
-            const summary = hasTodos 
-              ? 'This PR contains TODOs. Please review and address them before merging.' 
-              : 'No TODOs found in this PR.';
-            
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'TODO Check',
-              head_sha: context.sha,
-              status: 'completed',
-              conclusion: conclusion,
-              output: {
-                title: title,
-                summary: summary
-              }
-            });
+
             if (hasTodos) {
               core.setFailed('TODOs found in this PR');
             }
