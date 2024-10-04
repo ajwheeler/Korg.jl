@@ -7,7 +7,8 @@ struct Wavelengths{R}
     """
     TODO
     """
-    function Wavelengths(wl_ranges::AbstractVector{R}; air_wavelengths=false) where R
+    function Wavelengths(wl_ranges::AbstractVector{R};
+                         air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4) where R
         # this could be more efficient
         all_λs = vcat(wl_ranges...)
         if !issorted(all_λs) #TODO test

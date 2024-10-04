@@ -5,8 +5,25 @@
     @test wls == Korg.Wavelengths(collect(15000:0.01:15500))
 
     # test automatic air to vacuum conversion
-    @test Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true).wl_range ==
-          Korg.air_to_vacuum.(15000:0.01:15500)
+    vac_wls = 15000:0.01:15500
+    air_wls = Korg.air_to_vacuum.(15000:0.01:15500)
+    for wls in [
+        Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true).wl_ranges[1] * 1e8,
+        Korg.Wavelengths([15000:0.01:15500]; air_wavelengths=true).wl_ranges[1] * 1e8,
+        Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] * 1e8,
+        Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] * 1e8
+    ]
+        @test assert_allclose_grid(wls, air_wls, [vac_wls]; atol=1e-4)
+    end
+    #@test Korg.Wavelengths([15000:0.01:15500]; air_wavelengths=true).wl_ranges[1] ==
+    #      Korg.air_to_vacuum.(15000:0.01:15500)
+    #@test Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] ==
+    #      Korg.air_to_vacuum.(15000:0.01:15500)
+    #@test Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] ==
+    #      Korg.air_to_vacuum.(15000:0.01:15500)
+
+    @test_throws ArgumentError Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true,
+                                                wavelength_conversion_warn_threshold=1e-20)
 
     #TODO do these make sense to do?
     #@testset "synthesize integration test" begin
@@ -23,8 +40,6 @@
     #    @test synthesize(atm, [], A_X, 15000, 15500).wavelengths ≈ wls
     #    @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈
     #          Korg.air_to_vacuum.(wls)
-    #    @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true,
-    #                                          wavelength_conversion_warn_threshold=1e-20)
     #    @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
 
     #    # test multiple line windows
