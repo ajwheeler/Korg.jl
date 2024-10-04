@@ -52,7 +52,7 @@ function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
     if max_step - min_step > tolerance
         throw(ArgumentError("wavelengths are not linearly spaced to within $tolerance."))
     end
-    Wavelengths([range(first(v), last(v); length=length(v))]; kwargs...)
+    Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
 end
 
 # handle integer args
@@ -88,7 +88,7 @@ eachfreq(wl::Wavelengths) = wls.all_freqs
 
 Base.length(wl::Wavelengths) = length(wl.all_wls)
 Base.show(io::IO, wl::Wavelengths) = print(io, "Wavelengths($(wl.wl_ranges .* 1e8))")
-#Base.(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
+Base.:(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
 function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
     isapprox(eachwl(wl1), eachwl(wl2); kwargs...)
 end
