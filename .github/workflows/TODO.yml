@@ -84,13 +84,11 @@ jobs:
             }
 
       - name: TODO Check
-        if: always()
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const hasTodos = '${{ steps.find_todos.outputs.has_todos }}' === 'true';
-
             if (hasTodos) {
               core.setFailed('TODOs found in this PR');
             }
