@@ -89,7 +89,7 @@ jobs:
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const hasTodos = process.env.HAS_TODOS === 'true';
+            const hasTodos = '${{ steps.find_todos.outputs.has_todos }}' === 'true';
             const conclusion = hasTodos ? 'failure' : 'success';
             const title = hasTodos ? 'TODOs found' : 'No TODOs found';
             const summary = hasTodos 
@@ -108,5 +108,6 @@ jobs:
                 summary: summary
               }
             });
-        env:
-          HAS_TODOS: ${{ steps.find_todos.outputs.has_todos }}
+            if (hasTodos) {
+              core.setFailed('TODOs found in this PR');
+            }
