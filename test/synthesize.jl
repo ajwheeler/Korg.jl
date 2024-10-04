@@ -54,11 +54,12 @@
 
         b = 2.0 * 1e-8 # line_buffer
         linelist = Korg.get_APOGEE_DR17_linelist(; include_water=false)
-        @testset "linelist filtering" for wl_ranges in [
-            [6000:7000],
-            [15100:15200],
+        @testset "linelist filtering" for wls in [
+            6000:7000,
+            15100:15200,
             [6000:7000, 15100:15200, 16900:17100]
         ]
+            wls = Korg.Wavelengths(wls)
             wlr = wl_ranges .* 1e-8 #comvert to cm
             @test length(Korg.filter_linelist(linelist, wlr, b)) ==
                   length(naive_filter(linelist, wlr, b))

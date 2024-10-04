@@ -128,7 +128,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
                     verbose=false)
     # TODO decide if we want to retain this kwarg to synthsize and document if so.
-    wls = Wavelengths(wl_params...; air_wavelengths=air_wavelengths)
+    wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
 
     # work in cm
     cntm_step *= 1e-8
@@ -160,10 +160,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
     #float-like type general to handle dual numbers
+    # TODO implement eltype(wls)
     α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
-                          eltype(all_λs), typeof(vmic), typeof.(abs_abundances)...)
+                          eltype(eachwl(wls)), typeof(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α = Matrix{α_type}(undef, length(atm.layers), length(all_λs))
+    α = Matrix{α_type}(undef, length(atm.layers), length(wls))
     # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
     α5 = Vector{α_type}(undef, length(atm.layers))
     triples = map(enumerate(atm.layers)) do (i, layer)
@@ -181,7 +182,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             end
         end
 
-        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict,
+        α_cntm_vals = reverse(total_continuum_absorption(eachfreq(wls), layer.temp, nₑ, n_dict,
                                                          partition_funcs))
         α_cntm_layer = linear_interpolation(cntmλs, α_cntm_vals)
         α[i, :] .= α_cntm_layer(all_λs)
@@ -258,11 +259,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 end
 
 """
-    filter_linelist(linelist, wl_ranges, line_buffer)
+    filter_linelist(linelist, wls, line_buffer)
 
 Return a new linelist containing only lines within the provided wavelength ranges.
 """
-function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
+function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
     # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
 
     #sort the lines if necessary
@@ -273,7 +274,7 @@ function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
     nlines_before = length(linelist)
 
     linelist = filter(linelist) do line
-        for wl_range in wl_ranges
+        for wl_range in eachrange(wls)
             if (wl_range[1] - line_buffer) <= line.wl <= (wl_range[end] + line_buffer)
                 return true
             end
@@ -301,7 +302,7 @@ use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
 function get_alpha_5000_linelist(linelist)
     # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
     # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
-    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], 21e-8; warn_empty=false)
+    linelist5 = filter_linelist(linelist, Korg.Wavelengths(5000, 5000), 21e-8; warn_empty=false)
     # if there aren't any, use the built-in one
     if length(linelist5) == 0
         _alpha_5000_default_linelist

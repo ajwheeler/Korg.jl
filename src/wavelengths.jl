@@ -14,8 +14,8 @@ struct Wavelengths{R}
         wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
     - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
     """
-    function Wavelengths(wl_ranges::AbstractVector{R};
-                         air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4) where R
+    function Wavelengths(wl_ranges::AbstractVector;
+                         air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
         # this could be more efficient
         all_λs = vcat(wl_ranges...)
         if !issorted(all_λs) #TODO test
@@ -43,14 +43,16 @@ struct Wavelengths{R}
             end
         end
 
-        # TODO auto handle units?
-        wl_ranges .*= 1e-8
+        # if the first wavelength is > 1, assume it's in Å and convert to cm
+        if first(first(wl_ranges)) > 1
+            wl_ranges = wl_ranges .* 1e-8
+        end
 
         # precompute all wavelengths and frequencies
         all_wls = vcat(wl_ranges...)
         all_freqs = reverse(Korg.c_cgs ./ all_wls)
 
-        new{R}(wl_ranges, all_wls, all_freqs)
+        new{eltype(wl_ranges)}(wl_ranges, all_wls, all_freqs)
     end
 end
 Wavelengths(wls::Wavelengths; kwargs...) = Wavelengths(wls.wl_ranges; kwargs...)
@@ -81,18 +83,18 @@ end
 """
 TODO
 """
-eachrange(wls::Wavelengths) = wls.wl_range
+eachrange(wls::Wavelengths) = (r for r in wls.wl_ranges)
 
 """
 TODO
 """
-eachwl(wl::Wavelengths) = wls.all_wls
+eachwl(wls::Wavelengths) = wls.all_wls
 
 """
 TODO
 TODO consider reversing?
 """
-eachfreq(wl::Wavelengths) = wls.all_freqs
+eachfreq(wls::Wavelengths) = wls.all_freqs
 
 Base.length(wl::Wavelengths) = length(wl.all_wls)
 Base.show(io::IO, wl::Wavelengths) = print(io, "Wavelengths($(wl.wl_ranges .* 1e8))")
