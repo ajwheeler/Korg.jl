@@ -13,14 +13,8 @@
         Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] * 1e8,
         Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] * 1e8
     ]
-        @test assert_allclose_grid(wls, air_wls, [vac_wls]; atol=1e-4)
+        @test assert_allclose_grid(wls, air_wls, [vac_wls]; atol=1e-4, print_rachet_info=false)
     end
-    #@test Korg.Wavelengths([15000:0.01:15500]; air_wavelengths=true).wl_ranges[1] ==
-    #      Korg.air_to_vacuum.(15000:0.01:15500)
-    #@test Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] ==
-    #      Korg.air_to_vacuum.(15000:0.01:15500)
-    #@test Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] ==
-    #      Korg.air_to_vacuum.(15000:0.01:15500)
 
     @test_throws ArgumentError Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true,
                                                 wavelength_conversion_warn_threshold=1e-20)

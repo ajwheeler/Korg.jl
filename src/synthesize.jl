@@ -210,11 +210,12 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                          number_densities,
                          partition_funcs, vmic * 1e5, α_cntm_5;
                          cutoff_threshold=line_cutoff_threshold)
-        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections, [5e-5],
+        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
+                                              Korg.Wavelengths(5000, 5000),
                                               get_temps(atm), vmic, number_densities)
     end
 
-    source_fn = blackbody.((l -> l.temp).(atm.layers), all_λs')
+    source_fn = blackbody.((l -> l.temp).(atm.layers), eachwl(wls)')
     cntm = nothing
     if return_cntm
         cntm, _, _, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, mu_values; α_ref=α5,
