@@ -60,9 +60,8 @@
             [6000:7000, 15100:15200, 16900:17100]
         ]
             wls = Korg.Wavelengths(wls)
-            wlr = wl_ranges .* 1e-8 #comvert to cm
-            @test length(Korg.filter_linelist(linelist, wlr, b)) ==
-                  length(naive_filter(linelist, wlr, b))
+            @test length(Korg.filter_linelist(linelist, wls, b)) ==
+                  length(naive_filter(linelist, wls.wl_ranges, b))
         end
     end
 

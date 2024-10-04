@@ -16,9 +16,14 @@ struct Wavelengths{R}
     """
     function Wavelengths(wl_ranges::AbstractVector;
                          air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+        # if the first wavelength is > 1, assume it's in Å and convert to cm
+        if first(first(wl_ranges)) > 1
+            wl_ranges = wl_ranges .* 1e-8
+        end
+
         # this could be more efficient
-        all_λs = vcat(wl_ranges...)
-        if !issorted(all_λs) #TODO test
+        all_wls = vcat(wl_ranges...)
+        if !issorted(all_wls) #TODO test
             throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
         end
 
@@ -26,12 +31,9 @@ struct Wavelengths{R}
         # Convert air to vacuum wavelenths if necessary.
         if air_wavelengths
             wl_ranges = map(wl_ranges) do wls
-                λ_start, λ_stop, λ_step = first(wls), last(wls), step(wls)
-                len = Int(round((λ_stop - λ_start) / λ_step)) + 1
-                vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
-                vac_step = (vac_stop - vac_start) / (len - 1)
-                wls = StepRangeLen(vac_start, vac_step, len)
-                max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
+                vac_start, vac_stop = air_to_vacuum.((first(wls), last(wls)))
+                vac_wls = range(; start=vac_start, stop=vac_stop, length=length(wls))
+                max_diff = maximum(abs.(vac_wls .- air_to_vacuum.(wls)))
                 if max_diff > wavelength_conversion_warn_threshold
                     throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
                                         *
@@ -39,17 +41,11 @@ struct Wavelengths{R}
                                         "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you " *
                                         "want to suppress this error."))
                 end
-                wls
+                vac_wls
             end
         end
 
-        # if the first wavelength is > 1, assume it's in Å and convert to cm
-        if first(first(wl_ranges)) > 1
-            wl_ranges = wl_ranges .* 1e-8
-        end
-
         # precompute all wavelengths and frequencies
-        all_wls = vcat(wl_ranges...)
         all_freqs = reverse(Korg.c_cgs ./ all_wls)
 
         new{eltype(wl_ranges)}(wl_ranges, all_wls, all_freqs)
