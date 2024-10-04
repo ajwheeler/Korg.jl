@@ -193,15 +193,15 @@ function _prepare_cool_dwarf_atm_archive(grid, nodes)
 
     # This currently add a lot of time to package precompile time if not done lazily.  
     # Ideally it would be faster.
-    @time itp = Interpolations.scale(Interpolations.interpolate(grid,
-                                                                (Interpolations.NoInterp(),
-                                                                 Interpolations.NoInterp(),
-                                                                 Interpolations.BSpline(Interpolations.Cubic()),
-                                                                 Interpolations.BSpline(Interpolations.Cubic()),
-                                                                 Interpolations.BSpline(Interpolations.Cubic()),
-                                                                 Interpolations.BSpline(Interpolations.Cubic()),
-                                                                 Interpolations.BSpline(Interpolations.Cubic()))),
-                                     knots)
+    itp = Interpolations.scale(Interpolations.interpolate(grid,
+                                                          (Interpolations.NoInterp(),
+                                                           Interpolations.NoInterp(),
+                                                           Interpolations.BSpline(Interpolations.Cubic()),
+                                                           Interpolations.BSpline(Interpolations.Cubic()),
+                                                           Interpolations.BSpline(Interpolations.Cubic()),
+                                                           Interpolations.BSpline(Interpolations.Cubic()),
+                                                           Interpolations.BSpline(Interpolations.Cubic()))),
+                               knots)
     itp, nlayers
 end
 _cool_dwarfs_atm_itp = nothing
@@ -214,7 +214,7 @@ function _get_cool_dwarfs_atm_itp()
         grid, nodes = h5open(path, "r") do f
             read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
         end
-        _prepare_cool_dwarf_atm_archive(grid, nodes)
+        global _cool_dwarfs_atm_itp = _prepare_cool_dwarf_atm_archive(grid, nodes)
     end
     _cool_dwarfs_atm_itp
 end
