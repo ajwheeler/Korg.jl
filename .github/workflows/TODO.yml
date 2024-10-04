@@ -14,7 +14,7 @@ jobs:
       - name: Find TODOs
         id: find_todos
         run: |
-          TODO_LIST=$(grep -r -n "TODO" --include="*.{jl,py,ipynb}" . || true)
+          TODO_LIST=$(grep -r "TODO" --include="*.jl" --include="*.ipynb" || true)
           TODO_LIST="${TODO_LIST//'%'/'%25'}"
           TODO_LIST="${TODO_LIST//$'\n'/'%0A'}"
           TODO_LIST="${TODO_LIST//$'\r'/'%0D'}"
