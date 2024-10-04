@@ -191,24 +191,32 @@ function _prepare_cool_dwarf_atm_archive(grid, nodes)
     nlayers = size(grid, 1)
     knots = tuple(1.0f0:nlayers, 1.0f0:5.0f0, nodes_ranges...)
 
-    itp = Interpolations.scale(Interpolations.interpolate(grid,
-                                                          (Interpolations.NoInterp(),
-                                                           Interpolations.NoInterp(),
-                                                           Interpolations.BSpline(Interpolations.Cubic()),
-                                                           Interpolations.BSpline(Interpolations.Cubic()),
-                                                           Interpolations.BSpline(Interpolations.Cubic()),
-                                                           Interpolations.BSpline(Interpolations.Cubic()),
-                                                           Interpolations.BSpline(Interpolations.Cubic()))),
-                               knots)
+    # This currently add a lot of time to package precompile time if not done lazily.  
+    # Ideally it would be faster.
+    @time itp = Interpolations.scale(Interpolations.interpolate(grid,
+                                                                (Interpolations.NoInterp(),
+                                                                 Interpolations.NoInterp(),
+                                                                 Interpolations.BSpline(Interpolations.Cubic()),
+                                                                 Interpolations.BSpline(Interpolations.Cubic()),
+                                                                 Interpolations.BSpline(Interpolations.Cubic()),
+                                                                 Interpolations.BSpline(Interpolations.Cubic()),
+                                                                 Interpolations.BSpline(Interpolations.Cubic()))),
+                                     knots)
     itp, nlayers
 end
-const _cool_dwarfs_atm_itp = let
-    path = joinpath(artifact"resampled_cool_dwarf_atmospheres", "resampled_cool_dwarf_atmospheres",
-                    "resampled_cool_dwarf_atmospheres.h5")
-    grid, nodes = h5open(path, "r") do f
-        read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
+_cool_dwarfs_atm_itp = nothing
+function _get_cool_dwarfs_atm_itp()
+    if isnothing(_cool_dwarfs_atm_itp)
+        println("Constructing cool dwarf atmosphere interpolator.  This will only happen once...")
+        path = joinpath(artifact"resampled_cool_dwarf_atmospheres",
+                        "resampled_cool_dwarf_atmospheres",
+                        "resampled_cool_dwarf_atmospheres.h5")
+        grid, nodes = h5open(path, "r") do f
+            read(f["grid"]), [read(f["grid_values/$i"]) for i in 1:5]
+        end
+        _prepare_cool_dwarf_atm_archive(grid, nodes)
     end
-    _prepare_cool_dwarf_atm_archive(grid, nodes)
+    _cool_dwarfs_atm_itp
 end
 
 """
@@ -253,7 +261,7 @@ cool dwarfs is referred to as not-yet-implemented in the paper but is now availa
 function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
                            solar_abundances=grevesse_2007_solar_abundances,
                            clamp_abundances=false,
-                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp,
+                           archives=(_sdss_marcs_atmospheres, _get_cool_dwarfs_atm_itp(),
                                      _low_Z_marcs_atmospheres),
                            kwargs...)
     m_H = get_metals_H(A_X; solar_abundances=solar_abundances,
@@ -281,7 +289,7 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
 end
 function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5,
                            perturb_at_grid_values=true, resampled_cubic_for_cool_dwarfs=true,
-                           archives=(_sdss_marcs_atmospheres, _cool_dwarfs_atm_itp,
+                           archives=(_sdss_marcs_atmospheres, _get_cool_dwarfs_atm_itp(),
                                      _low_Z_marcs_atmospheres))
     # cool dwarfs
     if Teff <= 4000 && logg >= 3.5 && m_H >= -2.5 && resampled_cubic_for_cool_dwarfs
