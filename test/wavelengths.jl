@@ -4,7 +4,9 @@
     @test wls == Korg.Wavelengths([15000:0.01:15500])
     @test wls == Korg.Wavelengths(collect(15000:0.01:15500))
 
-    #TODO test air conversion
+    # test automatic air to vacuum conversion
+    @test Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true).wl_range ==
+          Korg.air_to_vacuum.(15000:0.01:15500)
 
     #TODO do these make sense to do?
     #@testset "synthesize integration test" begin
