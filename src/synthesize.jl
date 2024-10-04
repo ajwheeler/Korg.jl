@@ -5,6 +5,7 @@ using .RadiativeTransfer
 """
     synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
     synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
+    # TODO
 
 Compute a synthetic spectrum.
 
@@ -19,6 +20,7 @@ Compute a synthetic spectrum.
   - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
   - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
+TODO
 If you provide a vector of wavelength ranges (or a single range) in place of `λ_start` and `λ_stop`,
 the spectrum will be synthesized over each range with minimal overhead.
 The ranges can be any Julia `AbstractRange`, for example: `[5000:0.01:5010, 6000:0.03:6005]`. they
@@ -60,13 +62,6 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 # Optional arguments:
 
   - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
-
-  - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
-    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
-    wavelength range can internally be represented by an evenly-spaced range.  If the approximation
-    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
-    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
-  - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
   - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
     before it is discarded.  If the edge of your window is near a strong line, you may have to turn
     this up.
@@ -103,6 +98,13 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
   - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to the base-10
     log of their molecular equilibrium constants in partial pressure form.  Defaults to data from
     Barklem and Collet 2016, `Korg.default_log_equilibrium_constants`.
+  - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by
+    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object,
+    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
+    and model atmosphere, `atm`, are unchanged.
+  - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See
+    [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
+    transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
   - `tau_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and
     "bezier" (testing only--not recommended).
   - `I_scheme` (default: "linear_flux_only"): how to compute the intensity.  Options are "linear",
@@ -110,20 +112,12 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
     intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
     calculation, but stores the intensity at every layer. "bezier" is for testing and not
     recommended.
-  - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See
-    [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
-    transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
-  - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by
-    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object,
-    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
-    and model atmosphere, `atm`, are unchanged.
   - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
-                    air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
-                    hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
+                    air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=0.1,
                     electron_number_density_warn_min_value=1e-4, return_cntm=true,
@@ -133,6 +127,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
                     verbose=false)
+    # TODO decide if we want to retain this kwarg to synthsize and document if so.
     wls = Wavelengths(wl_params...; air_wavelengths=air_wavelengths)
 
     # work in cm

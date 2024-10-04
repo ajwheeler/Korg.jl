@@ -6,6 +6,13 @@ struct Wavelengths{R}
 
     """
     TODO
+    # Keyword Arguments
+    - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
+        be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
+        wavelength range can internally be represented by an evenly-spaced range.  If the approximation
+        error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
+        wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
+    - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
     """
     function Wavelengths(wl_ranges::AbstractVector{R};
                          air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4) where R
