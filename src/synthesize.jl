@@ -162,7 +162,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # make sure wl_ranges are OK
     all_λs = vcat(wl_ranges...)
-    if !issorted(all_λs) #TODO test
+    if !issorted(all_λs)
         throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
     end
 

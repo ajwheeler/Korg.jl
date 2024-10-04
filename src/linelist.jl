@@ -400,7 +400,7 @@ function parse_vald_linelist(f, isotopic_abundances)
           idOrMissing.(body.gamma_vdW))
 end
 
-#todo support moog linelists with broadening parameters?
+#it would be good to support moog linelists with broadening parameters?
 function parse_moog_linelist(f, isotopic_abundances, vacuum_wavelengths)
     lines = collect(eachline(f))
     # The first line is ignored.  It's for human-readability only.
