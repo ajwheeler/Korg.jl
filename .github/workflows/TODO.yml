@@ -14,11 +14,10 @@ jobs:
       - name: Find TODOs
         id: find_todos
         run: |
-          TODO_LIST=$(grep -r "TODO" --include="*.jl" --include="*.ipynb" || true)
-          TODO_LIST="${TODO_LIST//'%'/'%25'}"
-          TODO_LIST="${TODO_LIST//$'\n'/'%0A'}"
-          TODO_LIST="${TODO_LIST//$'\r'/'%0D'}"
-          echo "todo_list=$TODO_LIST" >> $GITHUB_OUTPUT
+          TODO_LIST=$(grep -r -n -b 1 -a 4 "TODO" --include="*.jl" --include="*.ipynb" || true)
+          echo "todo_list<<EOF" >> $GITHUB_OUTPUT
+          echo "$TODO_LIST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           if [ -n "$TODO_LIST" ]; then
             echo "has_todos=true" >> $GITHUB_OUTPUT
           else
