@@ -1,0 +1,113 @@
+name: TODOs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  find-todos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Find TODOs
+        id: find_todos
+        run: |
+          TODO_LIST=$(grep -r -n "TODO" --include="*.{jl,py,ipynb}" . || true)
+          TODO_LIST="${TODO_LIST//'%'/'%25'}"
+          TODO_LIST="${TODO_LIST//$'\n'/'%0A'}"
+          TODO_LIST="${TODO_LIST//$'\r'/'%0D'}"
+          echo "todo_list=$TODO_LIST" >> $GITHUB_OUTPUT
+          if [ -n "$TODO_LIST" ]; then
+            echo "has_todos=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_todos=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update or Create Comment
+        if: steps.find_todos.outputs.has_todos == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const todoList = process.env.TODO_LIST;
+            const body = `## TODOs found in this PR:\n\n\`\`\`\n${todoList}\n\`\`\``;
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('TODOs found in this PR'));
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+        env:
+          TODO_LIST: ${{ steps.find_todos.outputs.todo_list }}
+
+      - name: Remove Comment if No TODOs
+        if: steps.find_todos.outputs.has_todos == 'false'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('TODOs found in this PR'));
+            
+            if (botComment) {
+              await github.rest.issues.deleteComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+            }
+
+      - name: TODO Check
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const hasTodos = process.env.HAS_TODOS === 'true';
+            const conclusion = hasTodos ? 'failure' : 'success';
+            const title = hasTodos ? 'TODOs found' : 'No TODOs found';
+            const summary = hasTodos 
+              ? 'This PR contains TODOs. Please review and address them before merging.' 
+              : 'No TODOs found in this PR.';
+            
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'TODO Check',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: title,
+                summary: summary
+              }
+            });
+        env:
+          HAS_TODOS: ${{ steps.find_todos.outputs.has_todos }}
