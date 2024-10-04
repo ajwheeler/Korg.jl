@@ -14,7 +14,7 @@ jobs:
       - name: Find TODOs
         id: find_todos
         run: |
-          TODO_LIST=$(grep -r -n -b 1 -a 4 "TODO" --include="*.jl" --include="*.ipynb" || true)
+          TODO_LIST=$(grep -r -n -A 3 "TODO" --include="*.jl" --include="*.ipynb" || true)
           echo "todo_list<<EOF" >> $GITHUB_OUTPUT
           echo "$TODO_LIST" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
