@@ -62,9 +62,8 @@ If the windows is outside the range of `λs`, the lb will be greater than ub.
     `λs` is a range.  Make sure to explicitly check that lb <= ub when appropriate.
 """
 function move_bounds(λs::R, lb, ub, λ₀, window_size) where R<:AbstractRange
-    len = length(λs)
-    lb = clamp(Int(cld(λ₀ - window_size - λs[1], step(λs)) + 1), 1, len + 1)
-    ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 0, len)
+    lb = searchsortedfirst(λs, λ₀ - window_size)
+    ub = searchsortedlast(λs, λ₀ + window_size)
     lb, ub
 end
 #TODO consider this carefully.
