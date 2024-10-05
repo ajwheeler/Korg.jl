@@ -134,14 +134,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     cntm_step *= 1e-8
     line_buffer *= 1e-8
 
+    # TODO rethink merge windows aspect of this and simplify/remove code in Fit
     # wavelenths at which to calculate the continuum
-    cntm_wl_ranges = map(eachrange(wls)) do λs
-        collect((λs[1]-line_buffer-cntm_step):cntm_step:(λs[end]+line_buffer+cntm_step))
+    cntm_wl_ranges = map(eachwindow(wls)) do (λstart, λstop)
+        collect((λstart-line_buffer-cntm_step):cntm_step:(λstop+line_buffer+cntm_step))
     end
     # eliminate portions where ranges overlap.  One fitting is merged, there wull be functions for this.
     for i in 1:length(cntm_wl_ranges)-1
         cntm_wl_ranges[i] = cntm_wl_ranges[i][cntm_wl_ranges[i].<first(cntm_wl_ranges[i+1])]
     end
+    @show typeof(cntm_wl_ranges)
     cntm_wls = Wavelengths(cntm_wl_ranges)
 
     # sort linelist and remove lines far from the synthesis region
@@ -248,7 +250,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
     subspectra = []
-    for λs in eachrange(wls)
+    for λs in wls.wl_ranges
         wl_inds = wl_lb_ind:wl_lb_ind+length(λs)-1
         push!(subspectra, wl_inds)
         wl_lb_ind += length(λs)
@@ -276,8 +278,8 @@ function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
     nlines_before = length(linelist)
 
     linelist = filter(linelist) do line
-        for wl_range in eachrange(wls)
-            if (wl_range[1] - line_buffer) <= line.wl <= (wl_range[end] + line_buffer)
+        for (λstart, λstop) in eachwindow(wls)
+            if (λstart - line_buffer) <= line.wl <= (λstop + line_buffer)
                 return true
             end
         end

@@ -112,7 +112,7 @@ function save_molecular_cross_section(filename, cross_section)
     species = cross_section.species
 
     HDF5.h5open(filename, "w") do file
-        HDF5.write(file, "wls", [(l[begin], step(l), l[end]) for l in eachrange(wls)])
+        HDF5.write(file, "wls", [(l[begin], step(l), l[end]) for l in wls.wl_ranges])
         HDF5.write(file, "vmic_vals", collect(itp.itp.knots[1]))
         HDF5.write(file, "T_vals", collect(itp.itp.knots[2]))
         HDF5.write(file, "vals", itp.itp.coefs)

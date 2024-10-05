@@ -24,7 +24,7 @@ using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
     #@timeit "autodiffable_conv" include("autodiffable_conv.jl")
     #@timeit "atmosphere" include("atmosphere.jl")                     # slow
     #@timeit "abundances" include("abundances.jl")
-    #@timeit "synthesize" include("synthesize.jl")
+    @timeit "synthesize" include("synthesize.jl")
     #@timeit "prune_linelist" include("prune_linelist.jl")
     #@timeit "utils" include("utils.jl")
     #@timeit "line_absorption" include("line_absorption.jl")

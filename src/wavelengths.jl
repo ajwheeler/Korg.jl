@@ -95,7 +95,12 @@ Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear()
 Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitely defines Base.length
 Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
 
-Base.show(io::IO, wl::Wavelengths) = print(io, "Wavelengths($(wl.wl_ranges .* 1e8))")
+# TODO make this not display like an array
+Base.show(io::IO, wl::Wavelengths) = print(io, "Korg.Wavelengths($(wl.wl_ranges .* 1e8))")
+# REPL/notebook show format
+function Base.show(io::IO, ::MIME"text/plain", wl::Wavelengths)
+    print(io, "Korg.Wavelengths($(wl.wl_ranges .* 1e8))")
+end
 Base.:(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
 function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
     isapprox(eachwl(wl1), eachwl(wl2); kwargs...)
@@ -104,7 +109,7 @@ end
 """
 TODO
 """
-eachrange(wls::Wavelengths) = (r for r in wls.wl_ranges)
+eachwindow(wls::Wavelengths) = ((first(r), last(r)) for r in wls.wl_ranges)
 
 """
 TODO
