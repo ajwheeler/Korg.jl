@@ -192,7 +192,7 @@ using Random
 
                 mean_diff_abundances = sum(diff_abundances) / length(diff_abundances)
                 @test abs(mean_diff_abundances) < 0.05
-                # TODO: test for stddev?        
+                # consider testing stddev?        
             end
         end
 

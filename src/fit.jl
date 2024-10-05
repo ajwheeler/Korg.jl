@@ -551,7 +551,6 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
         end
     end
 
-    # TODO maybe return this stuff?
     log10.(measured_EWs) .+ A0_minus_log10W0#, (sol.wavelengths, 1 .- depth), all_boundaries
 end
 

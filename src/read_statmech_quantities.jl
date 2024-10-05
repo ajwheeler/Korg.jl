@@ -99,7 +99,10 @@ function setup_partition_funcs_and_equilibrium_constants()
 end
 
 """
-TODO
+    read_Barklem_Collet_logKs(fname)
+
+Reads the equilibrium constants from the HDF5 file produced by the Barklem and Collet 2016 paper.
+Returns a Dict from Korg.Species to Korg.CubicSplines from ln(T) to log10(K).
 """
 function read_Barklem_Collet_logKs(fname)
     mols = Korg.Species.(h5read(fname, "mols"))
