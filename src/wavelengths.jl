@@ -1,6 +1,6 @@
 struct Wavelengths{F} <: AbstractArray{F,1}
     wl_ranges::Vector{StepRangeLen{F}} # in cm, not Å
-    # these are for efficient-ish iteration, but ideally they should be eliminated
+    # TODO eliminate?
     all_wls::Vector{F}
     all_freqs::Vector{F}
 
