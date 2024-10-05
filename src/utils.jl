@@ -33,6 +33,12 @@ function move_bounds(λs::R, lb, ub, λ₀, window_size) where R<:AbstractRange
     ub = clamp(Int(fld(λ₀ + window_size - λs[1], step(λs)) + 1), 0, len)
     lb, ub
 end
+#TODO consider this carefully.
+# maybe implement in terms of first greater and lastlesser.
+# does searchsortedfirst do exactly what I want?
+function move_bounds(wls::Wavelengths, lb, ub, λ₀, window_size)
+    move_bounds(wls.wl_ranges, lb, ub, λ₀, window_size)
+end
 function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R<:AbstractRange
     cumulative_lengths = cumsum(length.(wl_ranges))
     lb, ub = 1, 0

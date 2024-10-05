@@ -236,7 +236,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
                      vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
-    interpolate_molecular_cross_sections!(α, molecular_cross_sections, all_λs, get_temps(atm), vmic,
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 
     flux, intensity, μ_grid, μ_weights = RadiativeTransfer.radiative_transfer(atm, α, source_fn,
@@ -244,18 +244,19 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
 
-    #TODO more into Wavelengths
+    #TODO move into Wavelengths
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
     subspectra = []
-    for λs in wl_ranges
+    for λs in eachrange(wls)
         wl_inds = wl_lb_ind:wl_lb_ind+length(λs)-1
         push!(subspectra, wl_inds)
         wl_lb_ind += length(λs)
     end
 
+    # TODO really consider what to do here?  Do we want a breaking change?
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, mu_grid=collect(zip(μ_grid, μ_weights)),
-     number_densities=number_densities, electron_number_density=nₑs, wavelengths=all_λs .* 1e8,
+     number_densities=number_densities, electron_number_density=nₑs, wavelengths=eachwl(wls) .* 1e8,
      subspectra=subspectra)
 end
 

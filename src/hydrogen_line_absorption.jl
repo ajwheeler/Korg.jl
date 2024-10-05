@@ -77,8 +77,9 @@ Keyword arguments:
 """
 function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size;
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
-    νs = c_cgs ./ λs
-    dνdλ = c_cgs ./ λs .^ 2
+    # TODO further optimize use of wvelengths object in this funcion
+    νs = c_cgs ./ eachwl(λs)
+    dνdλ = c_cgs ./ eachwl(λs) .^ 2
     Hmass = get_mass(Korg.species"H")
 
     n_max = maximum(_hline_stark_profiles) do line
@@ -112,7 +113,7 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
         levels_factor = ws[line.upper] * (exp(-β * Elo) - exp(-β * Eup)) / UH_I
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, window_size)
+        lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)
         if lb >= ub
             continue
         end
@@ -134,7 +135,10 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
 
             σ = doppler_width(λ₀, T, Hmass, ξ)
 
-            @inbounds view(αs, lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude, view(λs, lb:ub))
+            # TODO consider implementing direct indexing of Wavelengths type, which would implement 
+            # a view-like thing?
+            @inbounds view(αs, lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude,
+                                                        view(eachwl(λs), lb:ub))
         end
 
         # Stehle+ 1999 Stark-broadened profiles
@@ -154,13 +158,13 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
         gf = 2 * n^2 * brackett_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
 
-        stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ,
-                                                                    wl_ranges[1][1],
-                                                                    wl_ranges[end][end])
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ0, stark_window)
+        # TODO consider
+        stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, eachwl(λs)[1],
+                                                                    eachwl(λs)[end])
+        lb, ub = move_bounds(λs, 0, 0, λ0, stark_window)
 
-        # renormalize profile?
-        view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
+        # TODO consider
+        view(αs, lb:ub) .+= stark_profile_itp.(view(eachwl(λs), lb:ub)) .* amplitude
     end
 end
 
