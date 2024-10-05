@@ -121,10 +121,8 @@ will get much better performance using [`compute_LSF_matrix`](@ref).
         It is intended to be run on a fine wavelength grid, then downsampled to the observational (or
         otherwise desired) grid.
 """
-function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4, renormalize_edge=true,
-                   step_tolerance=1e-6) where F<:Real
-    wls = _vector_to_range(wls, step_tolerance)
-    #ideas - require wls to be a range object? 
+function apply_LSF(flux::AbstractVector{F}, wls::Wavelengths, R;
+                   window_size=4, renormalize_edge=true, step_tolerance=1e-6) where F<:Real
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
     for i in eachindex(wls)

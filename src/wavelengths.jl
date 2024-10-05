@@ -1,8 +1,9 @@
-struct Wavelengths{R}
-    wl_ranges::Vector{R} # in cm, not Å
+# TODO sort out type parameters here
+struct Wavelengths{F} <: AbstractArray{F,1}
+    wl_ranges::Vector{StepRangeLen{F}} # in cm, not Å
     # these are for efficient-ish iteration, but ideally they should be eliminated
-    all_wls
-    all_freqs
+    all_wls::Vector{F}
+    all_freqs::Vector{F}
 
     """
     TODO
@@ -48,7 +49,7 @@ struct Wavelengths{R}
         # precompute all wavelengths and frequencies
         all_freqs = reverse(Korg.c_cgs ./ all_wls)
 
-        new{eltype(wl_ranges)}(wl_ranges, all_wls, all_freqs)
+        new{eltype(all_wls)}(wl_ranges, all_wls, all_freqs)
     end
 end
 function Wavelengths(wls::Wavelengths; air_wavelengths=false,)
@@ -72,7 +73,6 @@ function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
         Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
     end
 end
-
 # handle integer args
 function Wavelengths(λ_start::Integer, λ_stop::Integer, λ_step=0.01; kwargs...)
     Wavelengths(Float64(λ_start), Float64(λ_stop), λ_step; kwargs...)
@@ -86,6 +86,19 @@ end
 # easy mode: pass in a single start and stop
 function Wavelengths(λ_start, λ_stop, λ_step=0.01; kwargs...)
     Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step)]; kwargs...)
+end
+
+# implement the AbstractArray interface
+# https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array
+# TODO consider implementing strided array interface and broadcasting
+Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear()
+Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitely defines Base.length
+Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
+
+Base.show(io::IO, wl::Wavelengths) = print(io, "Wavelengths($(wl.wl_ranges .* 1e8))")
+Base.:(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
+function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
+    isapprox(eachwl(wl1), eachwl(wl2); kwargs...)
 end
 
 """
@@ -103,13 +116,6 @@ TODO
 TODO consider reversing?
 """
 eachfreq(wls::Wavelengths) = wls.all_freqs
-
-Base.length(wl::Wavelengths) = length(wl.all_wls)
-Base.show(io::IO, wl::Wavelengths) = print(io, "Wavelengths($(wl.wl_ranges .* 1e8))")
-Base.:(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
-function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
-    isapprox(eachwl(wl1), eachwl(wl2); kwargs...)
-end
 
 function firstgreater(wl::Wavelengths, λ)
     #TODO

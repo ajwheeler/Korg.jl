@@ -27,13 +27,13 @@
         T = HDF5.read_attribute(fid["profile"], "T")
         ne = HDF5.read_attribute(fid["profile"], "ne")
         nH_I = HDF5.read_attribute(fid["profile"], "nH_I")
-        wls = (HDF5.read_attribute(fid["profile"], "start_wl"):
-               HDF5.read_attribute(fid["profile"], "wl_step"):
-               HDF5.read_attribute(fid["profile"], "stop_wl"))
+        wls = Korg.Wavelength((HDF5.read_attribute(fid["profile"], "start_wl"):
+                               HDF5.read_attribute(fid["profile"], "wl_step"):
+                               HDF5.read_attribute(fid["profile"], "stop_wl")))
         close(fid)
 
         αs = zeros(length(wls))
-        Korg.hydrogen_line_absorption!(αs, wls, [wls], 9000.0, ne, nH_I, 0.0,
+        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, ne, nH_I, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)),
                                        0.0, 15e-7; use_MHD=false)
         @test assert_allclose_grid(αs_ref, αs, [("λ", wls * 1e8, "Å")]; atol=5e-9)
@@ -41,7 +41,7 @@
         #make sure that H line absorption doesn't return NaNs on inputs where it used to
         αs = zeros(length(wls))
         wls = 3800:0.01:4200
-        Korg.hydrogen_line_absorption!(αs, wls, [wls], 9000.0, 1.1e16, 1, 0.0,
+        Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1.1e16, 1, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)),
                                        0.0, 15e-7)
         @assert all(.!isnan.(αs))
