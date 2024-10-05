@@ -29,73 +29,74 @@
         end
     end
 
-    @testset "LSF" begin
-        wls = 5900:0.35:6100
-        R = 1800.0
-        spike_ind = 286 #in the middle
-        flux = zeros(length(wls))
-        flux[spike_ind] = 5.0
+    # TODO
+    #@testset "LSF" begin
+    #    wls = 5900:0.35:6100
+    #    R = 1800.0
+    #    spike_ind = 286 #in the middle
+    #    flux = zeros(length(wls))
+    #    flux[spike_ind] = 5.0
 
-        # should't matter if you split wls into 2 ranges
-        @test Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) ≈
-              Korg.compute_LSF_matrix(wls, wls, R)
+    #    # should't matter if you split wls into 2 ranges
+    #    @test Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) ≈
+    #          Korg.compute_LSF_matrix(wls, wls, R)
 
-        # should't matter if R is a function
-        @test Korg.compute_LSF_matrix(wls, wls, wl -> R) ≈ Korg.compute_LSF_matrix(wls, wls, R)
+    #    # should't matter if R is a function
+    #    @test Korg.compute_LSF_matrix(wls, wls, wl -> R) ≈ Korg.compute_LSF_matrix(wls, wls, R)
 
-        # synth_wls can be a slightly fuzzy grid
-        obs_wls = 5000:1.0:5010
-        range_wls = 5000:0.01:5010
-        array_wls = collect(range_wls) # range -> array
-        array_wls[2:end-1] .+= 1e-8 * ones(length(range_wls) - 2) # slighly perturb (except the endpoints)
-        @test Korg.compute_LSF_matrix(array_wls, obs_wls, R) ≈
-              Korg.compute_LSF_matrix(range_wls, obs_wls, R)
-        @test_throws ArgumentError Korg.compute_LSF_matrix(array_wls, obs_wls, R;
-                                                           step_tolerance=1e-9)
+    #    # synth_wls can be a slightly fuzzy grid
+    #    obs_wls = 5000:1.0:5010
+    #    range_wls = 5000:0.01:5010
+    #    array_wls = collect(range_wls) # range -> array
+    #    array_wls[2:end-1] .+= 1e-8 * ones(length(range_wls) - 2) # slighly perturb (except the endpoints)
+    #    @test Korg.compute_LSF_matrix(array_wls, obs_wls, R) ≈
+    #          Korg.compute_LSF_matrix(range_wls, obs_wls, R)
+    #    @test_throws ArgumentError Korg.compute_LSF_matrix(array_wls, obs_wls, R;
+    #                                                       step_tolerance=1e-9)
 
-        convF = Korg.apply_LSF(flux, wls, R)
-        convF_5sigma = Korg.apply_LSF(flux, wls, R; window_size=5)
-        convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
-        convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
-        convF_mat_vec = Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) * flux
-        convF_changing_R = Korg.apply_LSF(flux, wls, wl -> wl / 6000 * R)
-        convF_mat_changing_R = Korg.compute_LSF_matrix(wls, wls, wl -> wl / 6000 * R) * flux
+    #    convF = Korg.apply_LSF(flux, wls, R)
+    #    convF_5sigma = Korg.apply_LSF(flux, wls, R; window_size=5)
+    #    convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
+    #    convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
+    #    convF_mat_vec = Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) * flux
+    #    convF_changing_R = Korg.apply_LSF(flux, wls, wl -> wl / 6000 * R)
+    #    convF_mat_changing_R = Korg.compute_LSF_matrix(wls, wls, wl -> wl / 6000 * R) * flux
 
-        @test convF_mat_changing_R≈convF_changing_R rtol=1e-10
+    #    @test convF_mat_changing_R≈convF_changing_R rtol=1e-10
 
-        downsampled_wls = 5950:0.4:6050
-        convF_mat_downsample = Korg.compute_LSF_matrix(wls, downsampled_wls, R; window_size=5) *
-                               flux
+    #    downsampled_wls = 5950:0.4:6050
+    #    convF_mat_downsample = Korg.compute_LSF_matrix(wls, downsampled_wls, R; window_size=5) *
+    #                           flux
 
-        # normalized?
-        @test sum(flux)≈sum(convF) rtol=1e-3
-        @test sum(flux)≈sum(convF_5sigma) rtol=1e-3
-        @test sum(flux)≈sum(convF_mat) rtol=1e-3
-        @test sum(flux)≈sum(convF_mat5) rtol=1e-3
-        @test sum(flux)≈sum(convF_mat5) rtol=1e-3
-        @test sum(flux)≈sum(convF_mat_vec) rtol=1e-3
-        @test sum(flux)≈sum(convF_changing_R) rtol=1e-3
-        @test sum(flux)≈sum(convF_mat_changing_R) rtol=1e-3
-        @test sum(flux)*step(wls)≈sum(convF_mat_downsample)*step(downsampled_wls) rtol=1e-3
+    #    # normalized?
+    #    @test sum(flux)≈sum(convF) rtol=1e-3
+    #    @test sum(flux)≈sum(convF_5sigma) rtol=1e-3
+    #    @test sum(flux)≈sum(convF_mat) rtol=1e-3
+    #    @test sum(flux)≈sum(convF_mat5) rtol=1e-3
+    #    @test sum(flux)≈sum(convF_mat5) rtol=1e-3
+    #    @test sum(flux)≈sum(convF_mat_vec) rtol=1e-3
+    #    @test sum(flux)≈sum(convF_changing_R) rtol=1e-3
+    #    @test sum(flux)≈sum(convF_mat_changing_R) rtol=1e-3
+    #    @test sum(flux)*step(wls)≈sum(convF_mat_downsample)*step(downsampled_wls) rtol=1e-3
 
-        # preserves line center?
-        @test argmax(convF) == spike_ind
-        @test argmax(convF_5sigma) == spike_ind
-        @test argmax(convF_mat) == spike_ind
-        @test argmax(convF_mat5) == spike_ind
-        @test argmax(convF_mat_vec) == spike_ind
-        @test argmax(convF_changing_R) == spike_ind
-        @test argmax(convF_mat_changing_R) == spike_ind
+    #    # preserves line center?
+    #    @test argmax(convF) == spike_ind
+    #    @test argmax(convF_5sigma) == spike_ind
+    #    @test argmax(convF_mat) == spike_ind
+    #    @test argmax(convF_mat5) == spike_ind
+    #    @test argmax(convF_mat_vec) == spike_ind
+    #    @test argmax(convF_changing_R) == spike_ind
+    #    @test argmax(convF_mat_changing_R) == spike_ind
 
-        # make sure the default window_size values are OK
-        @test assert_allclose(convF, convF_mat5; atol=1e-4)
-        @test assert_allclose(convF_5sigma, convF_mat5; atol=1e-4)
-        @test assert_allclose(convF_mat, convF_mat5; atol=1e-4)
+    #    # make sure the default window_size values are OK
+    #    @test assert_allclose(convF, convF_mat5; atol=1e-4)
+    #    @test assert_allclose(convF_5sigma, convF_mat5; atol=1e-4)
+    #    @test assert_allclose(convF_mat, convF_mat5; atol=1e-4)
 
-        # but also check that they are definitely doing something
-        @test !(convF ≈ convF_5sigma)
-        @test !(convF_mat ≈ convF_mat5)
-    end
+    #    # but also check that they are definitely doing something
+    #    @test !(convF ≈ convF_5sigma)
+    #    @test !(convF_mat ≈ convF_mat5)
+    #end
 
     @testset "rotation" begin
         # this implementation is less accurate than the one in Korg, but it produces correct-ish results

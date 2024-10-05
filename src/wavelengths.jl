@@ -1,4 +1,3 @@
-# TODO sort out type parameters here
 struct Wavelengths{F} <: AbstractArray{F,1}
     wl_ranges::Vector{StepRangeLen{F}} # in cm, not Å
     # these are for efficient-ish iteration, but ideally they should be eliminated
@@ -24,11 +23,10 @@ struct Wavelengths{F} <: AbstractArray{F,1}
 
         # this could be more efficient
         all_wls = vcat(wl_ranges...)
-        if !issorted(all_wls) #TODO test
+        if !issorted(all_wls)
             throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
         end
 
-        #TODO handle air_wavelengths
         # Convert air to vacuum wavelenths if necessary.
         if air_wavelengths
             wl_ranges = map(wl_ranges) do wls
@@ -90,17 +88,20 @@ end
 
 # implement the AbstractArray interface
 # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array
-# TODO consider implementing strided array interface and broadcasting
 Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear()
 Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitely defines Base.length
 Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
 
-# TODO make this not display like an array
-Base.show(io::IO, wl::Wavelengths) = print(io, "Korg.Wavelengths($(wl.wl_ranges .* 1e8))")
-# REPL/notebook show format
-function Base.show(io::IO, ::MIME"text/plain", wl::Wavelengths)
-    print(io, "Korg.Wavelengths($(wl.wl_ranges .* 1e8))")
+function Base.show(io::IO, wl::Wavelengths)
+    print(io, "Korg.Wavelengths(")
+    for r in wl.wl_ranges[1:end-1]
+        print(io, Int(round(first(r * 1e8))), "—", Int(round(last(r * 1e8))), ", ")
+    end
+    println(io, Int(round(first(wl.wl_ranges[end] * 1e8))), "—",
+            Int(round(last(wl.wl_ranges[end]) * 1e8)), ")")
 end
+Base.show(io::IO, ::MIME"text/plain", wl::Wavelengths) = show(io, wl) # REPL/notebook
+
 Base.:(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
 function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
     isapprox(eachwl(wl1), eachwl(wl2); kwargs...)
