@@ -4,9 +4,6 @@
     @testset "move_bounds" begin
         a = 0.5 .+ (1:9)
         for lb in [1, 3, 9], ub in [1, 5, 9]
-            @test Korg.move_bounds(a, lb, ub, 5.0, 2.0) == (3, 6)
-            @test Korg.move_bounds(a, lb, ub, 0.0, 3.0) == (1, 2)
-            @test Korg.move_bounds(a, lb, ub, 6.0, 4.0) == (2, 9)
             @test Korg.move_bounds(collect(a), lb, ub, 5.0, 2.0) == (3, 6)
             @test Korg.move_bounds(collect(a), lb, ub, 0.0, 3.0) == (1, 2)
             @test Korg.move_bounds(collect(a), lb, ub, 6.0, 4.0) == (2, 9)
@@ -14,19 +11,6 @@
 
         a = 1:10
         @test Korg.move_bounds(a, 0, 0, 5.5, 0.1) == (6, 5)
-
-        a = [3:5, 11:0.5:12.5, 16:20]
-        @test Korg.move_bounds(a, 0, 0, -1, 1) == (1, 0)
-        @test Korg.move_bounds(a, 0, 0, 3, 1) == (1, 2)
-        @test Korg.move_bounds(a, 0, 0, 5, 6) == (1, 4)
-        @test Korg.move_bounds(a, 0, 0, 12.5, 0.6) == (6, 7)
-        @test Korg.move_bounds(a, 0, 0, 50, 5) == (13, 12)
-
-        # check that indices are appropriately out of order when the range is outside a
-        for a in [1:10, collect(1:10), [1:5, 6:10]]
-            @test Korg.move_bounds(a, 1, 1, 13.5, 0.2) == (11, 10)
-            @test Korg.move_bounds(a, 1, 1, -5, 0.2) == (1, 0)
-        end
     end
 
     # TODO

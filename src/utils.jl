@@ -40,56 +40,11 @@ function merge_bounds(bounds, merge_distance=0.0)
 end
 
 """
-TODO
-
     move_bounds(λs, lb0, ub0, λ₀, window_size)
 
-Using `lb0` and `ub0` as initial guesses, return the indices of `λs`, `(lb, ub)` corresponding to
-`λ₀`` ± `window_size`.  `λs` can either be a
-
-  - Vector, in which case `lb` and `ub` are used as first guesses
-  - Range, in which case `lb` and `ub` are ignored and the bounds are computed directly
-  - Vector of Ranges, in which case `lb` and `ub` are also ignored.  In this case, the bounds returned
-    are indices into the concatenation of the ranges.
-
-If the windows is outside the range of `λs`, the lb will be greater than ub.
-
-!!! warning
-
-    TODO follow up
-    Be careful with the values returned by this function. Indices into arrays and ranges work
-    differently. For example, if `lb = 1` and `ub = 0` (as happens if the window is entirely below
-    `λs`) then `λs[lb:ub]` will return an empty array if `λs` is an array and a non-empty array if
-    `λs` is a range.  Make sure to explicitly check that lb <= ub when appropriate.
+Using `lb0` and `ub0` as initial guesses, return the indices of `λs` (a vector, not a
+[`Korg.Wavelengths`](@ref)), `(lb, ub)` corresponding to `λ₀`` ± `window_size`. This is faster than `searchsortedfirst` `last` when the starting guesses are sufficiently close.  If the window is outside of`λs`, the lb will be greater than ub.
 """
-function move_bounds(λs::R, lb, ub, λ₀, window_size) where R<:AbstractRange
-    lb = searchsortedfirst(λs, λ₀ - window_size)
-    ub = searchsortedlast(λs, λ₀ + window_size)
-    lb, ub
-end
-#TODO consider this carefully.
-function move_bounds(wls::Wavelengths, lb, ub, λ₀, window_size)
-    move_bounds(wls.wl_ranges, lb, ub, λ₀, window_size)
-end
-function move_bounds(wl_ranges::Vector{R}, lb, ub, λ₀, window_size) where R<:AbstractRange
-    cumulative_lengths = cumsum(length.(wl_ranges))
-    lb, ub = 1, 0
-    # index of the first range for which the last element is greater than λ₀ - window_size
-    range_ind = searchsortedfirst(last.(wl_ranges), λ₀ - window_size)
-    if range_ind == length(wl_ranges) + 1
-        return cumulative_lengths[end] + 1, cumulative_lengths[end]
-    end
-    lb, ub = move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size)
-    if range_ind > 1
-        lb += cumulative_lengths[range_ind-1]
-        ub += cumulative_lengths[range_ind-1]
-    end
-    while ub == cumulative_lengths[range_ind] && range_ind < length(wl_ranges)
-        range_ind += 1
-        ub += move_bounds(wl_ranges[range_ind], lb, ub, λ₀, window_size)[2]
-    end
-    lb, ub
-end
 function move_bounds(λs::V, lb, ub, λ₀, window_size) where V<:AbstractVector
     #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
     while lb <= length(λs) && λs[lb] < λ₀ - window_size

@@ -87,7 +87,9 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
         lorentz_line_window = maximum(inverse_densities)
         window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
         # at present, this line is allocating. Would be good to fix that.
-        lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
+        lb = searchsortedfirst(λs, line.wl - window_size)
+        ub = searchsortedlast(λs, line.wl + window_size)
+        # TODO. no longer necessary, but is it faster.  Analagous line in hydrogen_line_absorption.
         if lb > ub
             continue
         end

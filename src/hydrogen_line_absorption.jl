@@ -113,7 +113,8 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
         levels_factor = ws[line.upper] * (exp(-β * Elo) - exp(-β * Eup)) / UH_I
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        lb, ub = move_bounds(λs, 0, 0, λ₀, window_size)
+        lb = searchsortedfirst(λs, λ₀ - window_size)
+        ub = searchsortedlast(λs, λ₀ + window_size)
         if lb >= ub
             continue
         end
@@ -161,7 +162,8 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
         # TODO consider
         stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, eachwl(λs)[1],
                                                                     eachwl(λs)[end])
-        lb, ub = move_bounds(λs, 0, 0, λ0, stark_window)
+        lb = searchsortedfirst(λs, λ0 - stark_window)
+        ub = searchsortedlast(λs, λ0 + stark_window)
 
         # TODO consider
         view(αs, lb:ub) .+= stark_profile_itp.(view(eachwl(λs), lb:ub)) .* amplitude
