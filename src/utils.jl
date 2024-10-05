@@ -56,6 +56,7 @@ If the windows is outside the range of `λs`, the lb will be greater than ub.
 
 !!! warning
 
+    TODO follow up
     Be careful with the values returned by this function. Indices into arrays and ranges work
     differently. For example, if `lb = 1` and `ub = 0` (as happens if the window is entirely below
     `λs`) then `λs[lb:ub]` will return an empty array if `λs` is an array and a non-empty array if
@@ -67,8 +68,6 @@ function move_bounds(λs::R, lb, ub, λ₀, window_size) where R<:AbstractRange
     lb, ub
 end
 #TODO consider this carefully.
-# maybe implement in terms of first greater and lastlesser.
-# does searchsortedfirst do exactly what I want?
 function move_bounds(wls::Wavelengths, lb, ub, λ₀, window_size)
     move_bounds(wls.wl_ranges, lb, ub, λ₀, window_size)
 end

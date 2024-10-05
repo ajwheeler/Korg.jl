@@ -17,7 +17,7 @@ struct Wavelengths{F} <: AbstractArray{F,1}
     function Wavelengths(wl_ranges::AbstractVector;
                          air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
         # if the first wavelength is > 1, assume it's in Å and convert to cm
-        if first(first(wl_ranges)) > 1
+        if first(first(wl_ranges)) >= 1
             wl_ranges = wl_ranges .* 1e-8
         end
 
@@ -123,10 +123,33 @@ TODO consider reversing?
 """
 eachfreq(wls::Wavelengths) = wls.all_freqs
 
-function firstgreater(wl::Wavelengths, λ)
-    #TODO
+# index of the first element greater than or equal to λ
+function Base.Sort.searchsortedfirst(wls::Wavelengths, λ)
+    if λ >= 1 # convert Å to cm
+        λ *= 1e-8
+    end
+    range_ind = searchsortedfirst(last.(wls.wl_ranges), λ)
+    if range_ind == length(wls.wl_ranges) + 1
+        return length(wls) + 1
+    end
+    ind = searchsortedfirst(wls.wl_ranges[range_ind], λ)
+    for ri in 1:range_ind-1
+        ind += length(wls.wl_ranges[ri])
+    end
+    ind
 end
-
-function lastlesser(wl::Wavelengths, λ)
-    #TODO
+# index of the last element less than or equal to λ
+function Base.Sort.searchsortedlast(wls::Wavelengths, λ)
+    if λ >= 1 # convert Å to cm
+        λ *= 1e-8
+    end
+    range_ind = searchsortedlast(first.(wls.wl_ranges), λ)
+    if range_ind == 0
+        return 0
+    end
+    ind = searchsortedlast(wls.wl_ranges[range_ind], λ)
+    for ri in 1:range_ind-1
+        ind += length(wls.wl_ranges[ri])
+    end
+    ind
 end
