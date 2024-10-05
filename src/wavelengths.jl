@@ -54,11 +54,17 @@ end
 Wavelengths(wls::Wavelengths; kwargs...) = Wavelengths(wls.wl_ranges; kwargs...)
 Wavelengths(wls::R; kwargs...) where R<:AbstractRange = Wavelengths([wls]; kwargs...)
 function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
-    min_step, max_step = extrema(diff(wls))
-    if max_step - min_step > tolerance
-        throw(ArgumentError("wavelengths are not linearly spaced to within $tolerance."))
+    if length(wls) == 0
+        throw(ArgumentError("wavelengths must be non-empty"))
+    elseif length(wls) == 1
+        Wavelengths(wls[1]:1.0:wls[1]; kwargs...)
+    else
+        min_step, max_step = extrema(diff(wls))
+        if max_step - min_step > tolerance
+            throw(ArgumentError("wavelengths are not linearly spaced to within $tolerance."))
+        end
+        Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
     end
-    Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
 end
 
 # handle integer args
