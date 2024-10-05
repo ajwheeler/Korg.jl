@@ -6,6 +6,40 @@ using ProgressMeter
 normal_pdf(Δ, σ) = exp(-0.5 * Δ^2 / σ^2) / √(2π) / σ
 
 """
+    merge_bounds(bounds, merge_distance=0.0)
+
+Sort a vector of lower-bound, upper-bound pairs and merge overlapping ranges.
+
+Returns a pair containing:
+
+  - a vector of merged bounds
+  - a vector of vectors of indices of the original bounds which were merged into each merged bound
+"""
+function merge_bounds(bounds, merge_distance=0.0)
+    bound_indices = 1:length(bounds)
+
+    # short by lower bound
+    s = sortperm(bounds; by=first)
+    bounds = bounds[s]
+    bound_indices = bound_indices[s]
+
+    new_bounds = [bounds[1]]
+    indices = [[bound_indices[1]]]
+    for i in 2:length(bounds)
+        # if these bounds are within merge_distance of the previous, extend the previous, 
+        # otherwise add them to the list
+        if bounds[i][1] <= new_bounds[end][2] + merge_distance
+            new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
+            push!(indices[end], bound_indices[i])
+        else
+            push!(new_bounds, bounds[i])
+            push!(indices, [bound_indices[i]])
+        end
+    end
+    new_bounds, indices
+end
+
+"""
 TODO
 
     move_bounds(λs, lb0, ub0, λ₀, window_size)

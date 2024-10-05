@@ -134,17 +134,14 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     cntm_step *= 1e-8
     line_buffer *= 1e-8
 
-    # TODO rethink merge windows aspect of this and simplify/remove code in Fit
+    # TODO make sure none of this should move into the Wavelengths constructor. Something similar 
+    # is done in fit_spectrum and ews_to_abundances.
     # wavelenths at which to calculate the continuum
-    cntm_wl_ranges = map(eachwindow(wls)) do (λstart, λstop)
-        collect((λstart-line_buffer-cntm_step):cntm_step:(λstop+line_buffer+cntm_step))
+    cntm_windows = map(eachwindow(wls)) do (λstart, λstop)
+        (λstart - line_buffer - cntm_step, λstop + line_buffer + cntm_step)
     end
-    # eliminate portions where ranges overlap.  One fitting is merged, there wull be functions for this.
-    for i in 1:length(cntm_wl_ranges)-1
-        cntm_wl_ranges[i] = cntm_wl_ranges[i][cntm_wl_ranges[i].<first(cntm_wl_ranges[i+1])]
-    end
-    @show typeof(cntm_wl_ranges)
-    cntm_wls = Wavelengths(cntm_wl_ranges)
+    cntm_windows, _ = merge_bounds(cntm_windows)
+    cntm_wls = Wavelengths([w[1]:cntm_step:w[2] for w in cntm_windows])
 
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
