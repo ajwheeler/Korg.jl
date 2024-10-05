@@ -136,10 +136,8 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
 
             σ = doppler_width(λ₀, T, Hmass, ξ)
 
-            # TODO consider implementing direct indexing of Wavelengths type, which would implement 
-            # a view-like thing?
             @inbounds view(αs, lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude,
-                                                        view(eachwl(λs), lb:ub))
+                                                        view(λs, lb:ub))
         end
 
         # Stehle+ 1999 Stark-broadened profiles
@@ -159,14 +157,11 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
         gf = 2 * n^2 * brackett_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
 
-        # TODO consider
-        stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, eachwl(λs)[1],
-                                                                    eachwl(λs)[end])
+        stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, λs[1], λs[end])
         lb = searchsortedfirst(λs, λ0 - stark_window)
         ub = searchsortedlast(λs, λ0 + stark_window)
 
-        # TODO consider
-        view(αs, lb:ub) .+= stark_profile_itp.(view(eachwl(λs), lb:ub)) .* amplitude
+        view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
     end
 end
 
