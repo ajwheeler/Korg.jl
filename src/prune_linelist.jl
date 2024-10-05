@@ -10,7 +10,7 @@ equivalent width.
   - `linelist`: the linelist (a vector of `Line` objects)
   - `A_X`: the abundance of each element (see [`format_A_X`](@ref))
   - `wls...`: the wavelength ranges to synthesize over.  These are specified the same way as the
-    `wls` for [`synthesize`](@ref).
+    `wls` for [`synthesize`](@ref). TODO
 
 # Keyword Arguments
 
@@ -36,13 +36,13 @@ equivalent width.
 
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
-function prune_linelist(atm, linelist, A_X, wls...;
+function prune_linelist(atm, linelist, A_X, wl_params...;
                         threshold=0.1, sort_by_EW=true, verbose=true, max_distance=0.0,
                         synthesis_kwargs...)
+    wls = Wavelengths(wl_params)
     # linelist will be sorted after call to synthesize
-    sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
-    cntm_sol = synthesize(atm, [], A_X, wls...; synthesis_kwargs...)
-    wl_ranges = construct_wavelength_ranges(wls...)
+    sol = synthesize(atm, linelist, A_X, wls; synthesis_kwargs...)
+    cntm_sol = synthesize(atm, [], A_X, wls; synthesis_kwargs...)
 
     # get the atmosphere layer where τ ≈ 1 for each wavelength
     approximate_τ = cumsum(sol.alpha[1:end-1, :] .* -diff(get_zs(atm)); dims=1)

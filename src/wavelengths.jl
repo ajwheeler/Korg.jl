@@ -51,7 +51,13 @@ struct Wavelengths{R}
         new{eltype(wl_ranges)}(wl_ranges, all_wls, all_freqs)
     end
 end
-Wavelengths(wls::Wavelengths; kwargs...) = Wavelengths(wls.wl_ranges; kwargs...)
+function Wavelengths(wls::Wavelengths; air_wavelengths=false,)
+    if air_wavelengths
+        Wavelengths(wls.wl_ranges; air_wavelengths=true, kwargs...)
+    else
+        wls
+    end
+end
 Wavelengths(wls::R; kwargs...) where R<:AbstractRange = Wavelengths([wls]; kwargs...)
 function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
     if length(wls) == 0
