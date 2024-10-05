@@ -104,18 +104,13 @@ Base.show(io::IO, ::MIME"text/plain", wl::Wavelengths) = show(io, wl) # REPL/not
 
 Base.:(==)(wl1::Wavelengths, wl2::Wavelengths) = wl1.wl_ranges == wl2.wl_ranges
 function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
-    isapprox(eachwl(wl1), eachwl(wl2); kwargs...)
+    isapprox(wl1.all_wls, wl2.all_wls; kwargs...)
 end
 
 """
 TODO
 """
 eachwindow(wls::Wavelengths) = ((first(r), last(r)) for r in wls.wl_ranges)
-
-"""
-TODO
-"""
-eachwl(wls::Wavelengths) = wls.all_wls
 
 """
 TODO

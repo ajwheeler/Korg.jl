@@ -78,8 +78,8 @@ Keyword arguments:
 function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size;
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
     # TODO further optimize use of wvelengths object in this funcion
-    νs = c_cgs ./ eachwl(λs)
-    dνdλ = c_cgs ./ eachwl(λs) .^ 2
+    νs = c_cgs ./ λs
+    dνdλ = c_cgs ./ λs .^ 2
     Hmass = get_mass(Korg.species"H")
 
     n_max = maximum(_hline_stark_profiles) do line

@@ -67,7 +67,8 @@ function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
     end
 
     species = all_specs[1]
-    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, eachwl(wls)), α .* cutoff_alpha,
+    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, vcat(wls.wl_ranges...)),
+                                   α .* cutoff_alpha,
                                    (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))), 0.0)
     MolecularCrossSection(wls, itp, species)
 end

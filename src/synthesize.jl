@@ -182,8 +182,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
         α_cntm_vals = reverse(total_continuum_absorption(eachfreq(cntm_wls), layer.temp, nₑ, n_dict,
                                                          partition_funcs))
-        α_cntm_layer = linear_interpolation(eachwl(cntm_wls), α_cntm_vals)
-        α[i, :] .= α_cntm_layer(eachwl(wls))
+        α_cntm_layer = linear_interpolation(cntm_wls, α_cntm_vals)
+        α[i, :] .= α_cntm_layer(wls)
 
         if tau_scheme == "anchored"
             α5[i] = total_continuum_absorption([c_cgs / 5e-5], layer.temp, nₑ, n_dict,
@@ -213,7 +213,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                               get_temps(atm), vmic, number_densities)
     end
 
-    source_fn = blackbody.((l -> l.temp).(atm.layers), eachwl(wls)')
+    source_fn = blackbody.((l -> l.temp).(atm.layers), wls')
     cntm = nothing
     if return_cntm
         cntm, _, _, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, mu_values; α_ref=α5,
@@ -254,8 +254,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # TODO really consider what to do here?  Do we want a breaking change?
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, mu_grid=collect(zip(μ_grid, μ_weights)),
-     number_densities=number_densities, electron_number_density=nₑs, wavelengths=eachwl(wls) .* 1e8,
-     subspectra=subspectra)
+     number_densities=number_densities, electron_number_density=nₑs,
+     wavelengths=collect(wls) .* 1e8, subspectra=subspectra)
 end
 
 """
