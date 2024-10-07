@@ -39,8 +39,8 @@
         @test assert_allclose_grid(αs_ref, αs, [("λ", wls * 1e8, "Å")]; atol=5e-9)
 
         #make sure that H line absorption doesn't return NaNs on inputs where it used to
-        αs = zeros(length(wls))
         wls = Korg.Wavelengths(3800:0.01:4200)
+        αs = zeros(length(wls))
         Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1.1e16, 1, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)),
                                        0.0, 15e-7)

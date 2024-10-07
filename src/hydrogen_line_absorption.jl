@@ -136,8 +136,7 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
 
             σ = doppler_width(λ₀, T, Hmass, ξ)
 
-            @inbounds view(αs, lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude,
-                                                        view(λs, lb:ub))
+            @inbounds view(αs, lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude, view(λs, lb:ub))
         end
 
         # Stehle+ 1999 Stark-broadened profiles
