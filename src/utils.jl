@@ -209,6 +209,7 @@ coefficient `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  Se
 Gray equation 18.14.
 """
 function apply_rotation(flux, wls::R, vsini, ε=0.6) where R<:AbstractRange
+    # TODO wavelengths
     if vsini == 0
         return copy(flux)
     end
