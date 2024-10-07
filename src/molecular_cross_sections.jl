@@ -21,7 +21,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
   - `linelist`: A vector of `Line` objects representing the molecular linelist.  These must be of the
     same species.
   - `wl_params...`: Parameters specifying the wavelengths in the same format that [`synthesize`](@ref)
-    expects.
+    expects. TODO make it a `Wavelengths` object?
 
 # Keyword Arguments
 
@@ -67,8 +67,7 @@ function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
     end
 
     species = all_specs[1]
-    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, vcat(wls.wl_ranges...)),
-                                   α .* cutoff_alpha,
+    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, wls), α .* cutoff_alpha,
                                    (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))), 0.0)
     MolecularCrossSection(wls, itp, species)
 end
@@ -139,7 +138,7 @@ function read_molecular_cross_section(filename)
         alpha_vals = HDF5.readmmap(file["vals"])
         species = Species(HDF5.read(file, "species"))
 
-        itp = extrapolate(interpolate!((vmic_vals, logT_vals, eachwl(wls)), alpha_vals,
+        itp = extrapolate(interpolate!((vmic_vals, logT_vals, wls), alpha_vals,
                                        (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
                           0.0)
 

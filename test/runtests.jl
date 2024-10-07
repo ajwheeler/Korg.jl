@@ -10,7 +10,7 @@ using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
 
     reset_timer!()
     @timeit "wavelengths" include("wavelengths.jl")
-    # TODO #@timeit "molecular_cross_sections" include("molecular_cross_sections.jl")
+    @timeit "molecular_cross_sections" include("molecular_cross_sections.jl")
     #@timeit "cubic_splines" include("cubic_splines.jl")
     #@timeit "transfer" include("transfer.jl")
     #@timeit "species" include("species.jl")
