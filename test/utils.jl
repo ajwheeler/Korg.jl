@@ -10,6 +10,20 @@
         end
     end
 
+    @testset "merge_bounds" begin
+        mbounds = Korg.merge_bounds([(1, 3), (2, 4), (5, 6)], 0)
+        @test mbounds[1] == [(1, 4), (5, 6)]
+        @test mbounds[2] == [[1, 2], [3]]
+
+        mbounds = Korg.merge_bounds([(1, 3), (2, 6), (5, 7)], 0)
+        @test mbounds[1] == [(1, 7)]
+        @test mbounds[2] == [[1, 2, 3]]
+
+        mbounds = Korg.merge_bounds([(2, 6), (5, 7), (1, 3)], 0)
+        @test mbounds[1] == [(1, 7)]
+        @test mbounds[2] == [[3, 1, 2]]
+    end
+
     # TODO
     #@testset "LSF" begin
     #    wls = 5900:0.35:6100

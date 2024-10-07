@@ -109,7 +109,7 @@ will get much better performance using [`compute_LSF_matrix`](@ref).
         otherwise desired) grid.
 """
 function apply_LSF(flux::AbstractVector{F}, wls::Wavelengths, R;
-                   window_size=4, renormalize_edge=true, step_tolerance=1e-6) where F<:Real
+                   window_size=4, renormalize_edge=true) where F<:Real
     convF = zeros(F, length(flux))
     normalization_factor = Vector{F}(undef, length(flux))
     for i in eachindex(wls)
@@ -130,7 +130,7 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 
 # Arguments
 
-  - `synth_wls`: the synthesis wavelengths. This should be a range, a vector of ranges, or a vector
+  - `synth_wls`: the synthesis wavelengths. TODO This should be a range, a vector of ranges, or a vector
     of wavelength values which is linearly spaced to within a tollerance of the `step_tolerance`
     kwarg.
   - `obs_wls`: the wavelengths of the observed spectrum
@@ -153,10 +153,9 @@ the region you are going to compare.
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational
 resolution via matrix multiplication is fast.
 """
-function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R; window_size=4,
-                            verbose=true,
-                            renormalize_edge=true, step_tolerance=1e-6) #step_tolerance used by other method
-    synth_wls = _vector_to_range(synth_wls, step_tolerance)
+function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R;
+                            window_size=4, verbose=true, renormalize_edge=true)
+    synth_wls = Wavelengths(synth_wls)
     if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
     end

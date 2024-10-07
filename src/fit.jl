@@ -286,7 +286,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
     # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
-    windows, _ = merge_bounds(windows, 2wl_buffer)
+    windows, _ = Korg.merge_bounds(windows, 2wl_buffer)
     obs_wl_mask, synth_wl_mask, multi_synth_wls = calculate_multilocal_masks_and_ranges(windows,
                                                                                         obs_wls,
                                                                                         synthesis_wls,
@@ -472,9 +472,9 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    merged_windows, lines_per_window = merge_bounds([(line.wl * 1e8 - ew_window_size,
-                                                      line.wl * 1e8 + ew_window_size)
-                                                     for line in linelist], 0.0)
+    merged_windows, lines_per_window = Korg.merge_bounds([(line.wl * 1e8 - ew_window_size,
+                                                           line.wl * 1e8 + ew_window_size)
+                                                          for line in linelist], 0.0)
     wl_ranges = map(merged_windows) do (wl1, wl2)
         wl1:wl_step:wl2
     end
