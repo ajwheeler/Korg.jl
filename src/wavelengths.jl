@@ -108,7 +108,9 @@ function Base.isapprox(wl1::Wavelengths, wl2::Wavelengths; kwargs...)
 end
 
 """
-TODO
+    eachwindows(wls::Wavelengths)
+
+Returns an iterator over the wavelength ranges `(λ_low, λ_hi)` in `wls` (in cm, not Å).
 """
 eachwindow(wls::Wavelengths) = ((first(r), last(r)) for r in wls.wl_ranges)
 

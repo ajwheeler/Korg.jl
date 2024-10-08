@@ -39,7 +39,7 @@ See also [`merge_close_lines`](@ref) if you are using this for plotting.
 function prune_linelist(atm, linelist, A_X, wl_params...;
                         threshold=0.1, sort_by_EW=true, verbose=true, max_distance=0.0,
                         synthesis_kwargs...)
-    wls = Wavelengths(wl_params)
+    wls = Wavelengths(wl_params...)
     # linelist will be sorted after call to synthesize
     sol = synthesize(atm, linelist, A_X, wls; synthesis_kwargs...)
     cntm_sol = synthesize(atm, [], A_X, wls; synthesis_kwargs...)
@@ -65,8 +65,8 @@ function prune_linelist(atm, linelist, A_X, wl_params...;
     strong_lines = eltype(linelist)[]
     for line in linelist
         line_center = line.wl * 1e8
-        if !any((λs[begin] - max_distance) < line_center < (λs[end] + max_distance)
-                for λs in wl_ranges)
+        if !any((λstart - max_distance) < line_center < (λstop + max_distance)
+                for (λstart, λstop) in eachwindow(wls))
             continue
         end
 
