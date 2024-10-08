@@ -32,24 +32,12 @@ using Random
         end
     end
 
-    @testset "merge bounds, masks etc" begin
-        mbounds = Korg.Fit.merge_bounds([(1, 3), (2, 4), (5, 6)], 0)
-        @test mbounds[1] == [(1, 4), (5, 6)]
-        @test mbounds[2] == [[1, 2], [3]]
-
-        mbounds = Korg.Fit.merge_bounds([(1, 3), (2, 6), (5, 7)], 0)
-        @test mbounds[1] == [(1, 7)]
-        @test mbounds[2] == [[1, 2, 3]]
-
-        mbounds = Korg.Fit.merge_bounds([(2, 6), (5, 7), (1, 3)], 0)
-        @test mbounds[1] == [(1, 7)]
-        @test mbounds[2] == [[3, 1, 2]]
-
+    @testset "masks etc" begin
         obs_wls = 5000:1.0:5010
         synth_wls = 5000:0.01:5012
         windows = [(5001.0, 5002.0), (5003.0, 5004.0), (5007.0, 5008.0)]
 
-        windows, _ = Korg.Fit.merge_bounds(windows, 1.0)
+        windows, _ = Korg.merge_bounds(windows, 1.0)
         obs_wl_mask, synth_wl_mask, multi_synth_wls = Korg.Fit.calculate_multilocal_masks_and_ranges(windows,
                                                                                                      obs_wls,
                                                                                                      synth_wls,

@@ -19,14 +19,14 @@ using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
     #@timeit "partition_funcs" include("partition_funcs.jl")
     #@timeit "statmech" include("statmech.jl")
     #@timeit "linelist" include("linelist.jl")
-    #TODO @timeit "fit" include("fit.jl")                                  # slow
+    @timeit "fit" include("fit.jl")                                  # slow
     #@timeit "autodiff" include("autodiff.jl")                         # slow
     #@timeit "autodiffable_conv" include("autodiffable_conv.jl")
     #@timeit "atmosphere" include("atmosphere.jl")                     # slow
     #@timeit "abundances" include("abundances.jl")
     #@timeit "synthesize" include("synthesize.jl")
     #@timeit "prune_linelist" include("prune_linelist.jl")
-    @timeit "utils" include("utils.jl")
+    #@timeit "utils" include("utils.jl")
     #@timeit "line_absorption" include("line_absorption.jl")
     #@timeit "qfactors" include("qfactors.jl")
     print_timer()
