@@ -6,6 +6,9 @@ Functions for fitting to data.
     This submodule is in beta. It's API may change.
 """
 module Fit
+using Compat: @compat
+@compat public fit_spectrum# , ews_to_abundances, ews_to_stellar_parameters
+
 using ..Korg, LineSearches, Optim
 using Interpolations: linear_interpolation
 using ForwardDiff, DiffResults
