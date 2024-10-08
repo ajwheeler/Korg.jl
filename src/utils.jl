@@ -64,23 +64,22 @@ end
 
 # used by apply_LSF and compute_LSF_matrix
 # handle case where R is wavelength independent
-function line_spread_function_core(synth_wls, λ0, R::Real, window_size, renormalize_edge)
+function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R::Real, window_size)
     σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
-    lb, ub = move_bounds(synth_wls, 0, 0, λ0, window_size * σ)
-    ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ) * step(synth_wls)
-    norm_factor = if renormalize_edge
-        1 ./ sum(ϕ)
-    else
-        1.0
-    end
-    lb:ub, ϕ, norm_factor
+    lb = searchsortedfirst(synth_wls, λ0 - window_size * σ)
+    ub = searchsortedlast(synth_wls, λ0 + window_size * σ)
+    @views ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ)
+    out[lb:ub] .+= factor * ϕ ./ sum(ϕ)
 end
 # handle case where R is a function of wavelength
-function line_spread_function_core(synth_wls, λ0, R, window_size, renormalize_edge)
-    line_spread_function_core(synth_wls, λ0, R(λ0), window_size, renormalize_edge)
+function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R, window_size)
+    # λ0 should have been converted to cm by the caller, but R is a functino of λ in Å
+    line_spread_function_core!(out, factor, synth_wls, λ0, R(λ0 * 1e8), window_size)
 end
 
 """
+TODO whole docstring
+
     apply_LSF(flux, wls, R; window_size=4)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
@@ -108,17 +107,14 @@ will get much better performance using [`compute_LSF_matrix`](@ref).
         It is intended to be run on a fine wavelength grid, then downsampled to the observational (or
         otherwise desired) grid.
 """
-function apply_LSF(flux::AbstractVector{F}, wls::Wavelengths, R;
-                   window_size=4, renormalize_edge=true) where F<:Real
+function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4) where F<:Real
+    wls = Wavelengths(wls)
     convF = zeros(F, length(flux))
-    normalization_factor = Vector{F}(undef, length(flux))
     for i in eachindex(wls)
         λ0 = wls[i]
-        r, ϕ, normalization_factor[i] = line_spread_function_core(wls, λ0, R, window_size,
-                                                                  renormalize_edge)
-        @. convF[r] += flux[i] * ϕ
+        line_spread_function_core!(convF, flux[i], wls, λ0, R, window_size)
     end
-    convF .* normalization_factor
+    convF
 end
 @deprecate constant_R_LSF(args...; kwargs...) apply_LSF(args...; kwargs...)
 
@@ -140,8 +136,6 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 
   - `window_size` (default: 4): how far out to extend the convolution kernel in units of the LSF width (σ, not HWHM)
   - `verbose` (default: `true`): whether or not to emit warnings and information to stdout/stderr.
-  - `renormalize_edge` (default: `true`): whether or not to renormalize the LSF at the edge of the wl
-    range.  This doen't matter as long as `synth_wls` extends to large and small enough wavelengths.
   - `step_tolerance`: the maximum difference between adjacent wavelengths in `synth_wls` for them to be
     considered linearly spaced.  This is only used if `synth_wls` is a vector of wavelengths rather
     than a range or vector or ranges.
@@ -153,48 +147,19 @@ the region you are going to compare.
 relatively slow, but one the LSF matrix is constructed, convolving spectra to observational
 resolution via matrix multiplication is fast.
 """
-function compute_LSF_matrix(synth_wls::AbstractVector{<:Real}, obs_wls, R;
-                            window_size=4, verbose=true, renormalize_edge=true)
+function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
+    if first(obs_wls) >= 1
+        # don't change obs_wls in place, make a copy
+        obs_wls = obs_wls / 1e8 # Å to cm
+    end
     synth_wls = Wavelengths(synth_wls)
     if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
     end
     LSF = spzeros((length(obs_wls), length(synth_wls)))
-    normalization_factor = if renormalize_edge
-        zeros(length(obs_wls))
-    else
-        ones(length(obs_wls))
-    end
     @showprogress desc="Constructing LSF matrix" enabled=verbose for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
-        r, ϕ, normalization_factor[i] = line_spread_function_core(synth_wls, λ0, R, window_size,
-                                                                  renormalize_edge)
-        @. LSF[i, r] += ϕ
-    end
-    if renormalize_edge
-        # doing it this way is much more efficient than the obvious broadcasting because of how
-        # sparse matrices are implemented
-        for i in axes(LSF, 2)
-            LSF[:, i] .*= normalization_factor
-        end
-    end
-    LSF
-end
-function compute_LSF_matrix(synth_wl_windows::AbstractVector{<:AbstractVector}, obs_wls, R;
-                            renormalize_edge=true, verbose=false, kwargs...)
-    LSFmats = map(synth_wl_windows) do wls
-        # don't renormalize here, do it to the total LSF matrix
-        Korg.compute_LSF_matrix(wls, obs_wls, R; verbose=verbose, renormalize_edge=false, kwargs...)
-    end
-    LSF = hcat(LSFmats...)
-    s = 0.0
-    if renormalize_edge
-        @showprogress for i in axes(LSF, 1)
-            s = sum(LSF[i, :])
-            if s != 0
-                LSF[i, :] ./= sum(LSF[i, :])
-            end
-        end
+        line_spread_function_core!(view(LSF, i, :), 1.0, synth_wls, λ0, R, window_size)
     end
     LSF
 end
@@ -207,8 +172,8 @@ that would emerge given projected rotational velocity `vsini` (in km/s) and line
 coefficient `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example,
 Gray equation 18.14.
 """
-function apply_rotation(flux, wls::R, vsini, ε=0.6) where R<:AbstractRange
-    # TODO wavelengths
+function apply_rotation(flux, wls, vsini, ε=0.6)
+    wls = Wavelengths(wls)
     if vsini == 0
         return copy(flux)
     end
