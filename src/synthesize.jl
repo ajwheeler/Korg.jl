@@ -127,15 +127,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
                     verbose=false)
-    # TODO decide if we want to retain this kwarg to synthsize and document if so.
+    # TODO add deprecation warning for air_wavelengths 
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
 
     # work in cm
     cntm_step *= 1e-8
     line_buffer *= 1e-8
 
-    # TODO make sure none of this should move into the Wavelengths constructor. Something similar 
-    # is done in fit_spectrum and ews_to_abundances.
     # wavelenths at which to calculate the continuum
     cntm_windows = map(eachwindow(wls)) do (λstart, λstop)
         (λstart - line_buffer - cntm_step, λstop + line_buffer + cntm_step)
@@ -242,7 +240,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
 
-    #TODO move into Wavelengths
+    #TODO move into Wavelengths and pull similar functionality out of apply_rotation
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
     subspectra = []

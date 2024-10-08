@@ -163,7 +163,7 @@ Find the parameters and abundances that best match a rectified observed spectrum
 
 # Arguments:
 
-  - `obs_wls`: the wavelengths of the observed spectrum in Å
+  - `obs_wls`: the wavelengths of the observed spectrum in Å.  These must be vacuum wavelengths.
   - `obs_flux`: the rectified flux of the observed spectrum
   - `obs_err`: uncertainty in `flux`
   - `linelist`: a linelist to use for the synthesis
@@ -211,15 +211,11 @@ values are used.
 
 # Keyword arguments
 
+  - `R`, the resolution of the observed spectrum. This is required.  It can be specified as a
+    function of wavelength, in which case it will be evaluated at the observed wavelengths.
   - `windows` is a vector of wavelength pairs, each of which specifies a wavelength
     "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is
     used. Overlapping windows are automatically merged.
-  - `LSF_matrix` is a matrix which maps the synthesized spectrum to the observed spectrum.
-    If not specified, it is calculated using `Korg.compute_LSF_matrix`.  Computing the LSF matrix can
-    be expensive, so you may want to precompute it if you are fitting many spectra with the same LSF.
-  - `synthesis_wls`: a superset of the wavelengths to synthesize, as a range.  If not specified,
-    wavelengths spanning the first and last windows are used. If you pass in a precomputed
-    LSF matrix, you must make sure that the synthesis wavelengths match it.
   - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
   - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
     transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
@@ -256,27 +252,16 @@ A NamedTuple with the following fields:
     version of Julia, you may want to upgrade.
 """
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
-                      windows=[(obs_wls[1], obs_wls[end])],
-                      # note that the synthesis_wls are pared down to the windows later
-                      synthesis_wls=obs_wls[1]-10:0.01:obs_wls[end]+10,
-                      R=nothing,
-                      LSF_matrix=if isnothing(R)
-                          throw(ArgumentError("Either R or LSF_matrix must be specified."))
-                      else
-                          Korg.compute_LSF_matrix(synthesis_wls, obs_wls, R)
-                      end,
+                      windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
                       synthesis_kwargs...)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
     end
-    if length(obs_wls) != size(LSF_matrix, 1)
-        throw(ArgumentError("the first dimension of LSF_matrix must be the length of obs_wls."))
-    end
-    if (length(synthesis_wls) != size(LSF_matrix, 2))
-        throw(ArgumentError("the second dimension of LSF_matrix must be the length of synthesis_wls " *
-                            "If you provided one as a keyword argument, you must also provide the other."))
-    end
+    # wavelengths, windows and LSF
+    synthesis_wls, obs_wl_mask, LSF_matrix = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls,
+                                                                        LSF_matrix, R, windows,
+                                                                        wl_buffer)
 
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
     ps = collect(pairs(scale(initial_guesses)))
@@ -285,16 +270,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
-    # calculate some synth ranges which span all windows, and the LSF submatrix that maps to them only
-    windows, _ = Korg.merge_bounds(windows, 2wl_buffer)
-    obs_wl_mask, synth_wl_mask, multi_synth_wls = calculate_multilocal_masks_and_ranges(windows,
-                                                                                        obs_wls,
-                                                                                        synthesis_wls,
-                                                                                        wl_buffer)
-
     chi2 = let data = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
-        synthesis_wls = multi_synth_wls,
-        LSF_matrix = LSF_matrix[obs_wl_mask, synth_wl_mask], linelist = linelist,
+        synth_wls = synthesis_wls, LSF_matrix = LSF_matrix, linelist = linelist,
         params_to_fit = params_to_fit, fixed_params = fixed_params
 
         function chi2(scaled_p)
@@ -303,7 +280,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
             flux = try
-                synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthesis_kwargs)
+                synthetic_spectrum(synth_wls, linelist, LSF_matrix, params, synthesis_kwargs)
             catch e
                 if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError)
                     # chemical equilibrium errors happen for a few unphysical model atmospheres
@@ -339,8 +316,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     best_fit_flux = try
         full_solution = merge(best_fit_params, fixed_params)
-        flux = synthetic_spectrum(multi_synth_wls, linelist, LSF_matrix[obs_wl_mask, synth_wl_mask],
-                                  full_solution, synthesis_kwargs)
+        flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
+                                  synthesis_kwargs)
         postprocess(flux, obs_flux[obs_wl_mask], obs_err[obs_wl_mask])
         flux
     catch e
@@ -373,46 +350,44 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
      solver_result=res, trace=trace, covariance=(params_to_fit, invH))
 end
 
-"""
-    calculate_multilocal_masks_and_ranges(obs_bounds_inds, obs_wls, synthesis_wls)
-
-Given a vector of target synthesis ranges in the observed spectrum, return the masks, etc required.
-
-Arguments:
-
-  - `windows`: a vector of pairs of wavelength lower and upper bounds.
-  - `obs_wls`: the wavelengths of the observed spectrum
-  - `synthesis_wls`: the wavelengths of the synthesis spectrum
-  - `wl_buffer`: the number of Å to add to each side of the synthesis range
-
-Returns:
-
-  - `obs_wl_mask`: a bitmask for `obs_wls` which selects the observed wavelengths
-  - `synthesis_wl_mask`: a bitmask for `synthesis_wls` which selects the synthesis wavelengths
-    needed to generated the masked observed spectrum.
-  - `multi_synth_wls`: The vector of ranges to pass to `Korg.synthesize`.
-"""
-function calculate_multilocal_masks_and_ranges(windows, obs_wls, synthesis_wls, wl_buffer)
-    # bitmasks for obs_wls synthesis_wls to isolate the subspectra
-    obs_wl_mask = zeros(Bool, length(obs_wls))
-    synth_wl_mask = zeros(Bool, length(synthesis_wls))
-
-    # multi_synth_wls is the vector of wavelength ranges that gets passed to synthesize
-    multi_synth_wls = map(windows) do (ll, ul)
-        lb, ub = (findfirst(obs_wls .>= ll), findlast(obs_wls .<= ul))
-        if isnothing(lb) || isnothing(ub) || lb > ub
-            error("The range $ll to $ul is not in the observed spectrum")
+# called by fit_spectrum
+function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows, wl_buffer)
+    if (!isnothing(LSF_matrix) || !isnothing(synthesis_wls))
+        if !isnothing(windows)
+            Throw(ArgumentError("LSF_matrix and synthesis_wls can't be specified if windows is also specified. Passing an LSF_matrix directly is no longer needed for performance."))
+        end
+        if isnothing(LSF_matrix) || isnothing(synthesis_wls)
+            throw(ArgumentError("LSF_matrix and synthesis_wls must both be defined if the other is."))
+        end
+        if length(obs_wls) != size(LSF_matrix, 1)
+            throw(ArgumentError("the first dimension of LSF_matrix must be the length of obs_wls."))
+        end
+        if (length(synthesis_wls) != size(LSF_matrix, 2))
+            throw(ArgumentError("the second dimension of LSF_matrix must be the length of synthesis_wls " *
+                                "If you provided one as a keyword argument, you must also provide the other."))
         end
 
-        obs_wl_mask[lb:ub] .= true
+        Korg.Wavelengths(synthesis_wls), ones(Bool, length(obs_wls)), LSF_matrix
+    else
+        if isnothing(R)
+            throw(ArgumentError("The resolution, R, must be specified unless LSF_matrix and synthesis_wls are provided."))
+        end
 
-        synth_wl_lb = findfirst(synthesis_wls .>= obs_wls[lb] - wl_buffer)
-        synth_wl_ub = findlast(synthesis_wls .<= obs_wls[ub] + wl_buffer)
-        synth_wl_mask[synth_wl_lb:synth_wl_ub] .= true
+        # wavelenths and windows setup
+        isnothing(windows) && (windows = [(first(obs_wls), last(obs_wls))])
 
-        synthesis_wls[synth_wl_lb:synth_wl_ub]
+        windows, _ = Korg.merge_bounds(windows, 2wl_buffer)
+        synthesis_wls = Korg.Wavelengths([w[1]:0.01:w[2] for w in windows])
+        obs_wl_mask = zeros(Bool, length(obs_wls))
+        for (λstart, λstop) in windows
+            lb = searchsortedfirst(obs_wls, λstart)
+            ub = searchsortedlast(obs_wls, λstop)
+            obs_wl_mask[lb:ub] .= true
+        end
+        LSF_matrix = Korg.compute_LSF_matrix(synthesis_wls, obs_wls[obs_wl_mask], R)
+
+        synthesis_wls, obs_wl_mask, LSF_matrix
     end
-    obs_wl_mask, synth_wl_mask, multi_synth_wls
 end
 
 """

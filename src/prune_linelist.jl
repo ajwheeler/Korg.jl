@@ -10,7 +10,7 @@ equivalent width.
   - `linelist`: the linelist (a vector of `Line` objects)
   - `A_X`: the abundance of each element (see [`format_A_X`](@ref))
   - `wls...`: the wavelength ranges to synthesize over.  These are specified the same way as the
-    `wls` for [`synthesize`](@ref). TODO
+    `wls` for [`synthesize`](@ref).
 
 # Keyword Arguments
 
