@@ -1,7 +1,6 @@
 using Statistics: quantile
 using Interpolations: linear_interpolation, Flat
 using SparseArrays: spzeros
-using ProgressMeter
 
 normal_pdf(Δ, σ) = exp(-0.5 * Δ^2 / σ^2) / √(2π) / σ
 
@@ -156,12 +155,12 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
     if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls))
         @warn raw"Synthesis wavelenths are not superset of observation wavelenths in LSF matrix."
     end
-    LSF = spzeros((length(obs_wls), length(synth_wls)))
-    @showprogress desc="Constructing LSF matrix" enabled=verbose for i in eachindex(obs_wls)
+    LSF = spzeros((length(synth_wls), length(obs_wls)))
+    for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
-        line_spread_function_core!(view(LSF, i, :), 1.0, synth_wls, λ0, R, window_size)
+        line_spread_function_core!(view(LSF, :, i), 1.0, synth_wls, λ0, R, window_size)
     end
-    LSF
+    LSF'
 end
 
 """
