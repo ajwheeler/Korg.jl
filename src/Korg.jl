@@ -1,4 +1,5 @@
 module Korg
+using Compat: @compat
 _data_dir = joinpath(@__DIR__, "../data")
 
 include("CubicSplines.jl")             # 1D cubic Splines with arbitrarily spaced knots
@@ -24,5 +25,9 @@ include("prune_linelist.jl")           # select strong lines from a linelist
 include("fit.jl")                      # routines to infer stellar params from data
 include("qfactors.jl")                 # formalism to compute theoretical RV precision
 
-export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs, format_A_X
+@compat public get_APOGEE_DR17_linelist, get_GALAH_DR3_linelist, get_GES_linelist, Fit, apply_LSF,
+               compute_LSF_matrix, air_to_vacuum, vacuum_to_air, line_profile, blackbody,
+               prune_linelist, merge_close_lines, Line
+export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs,
+       format_A_X
 end # module
