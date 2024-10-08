@@ -1,15 +1,6 @@
 # tests of things in src/utils.jl, not utilities for testing.  That's test/utilities.jl
 
 @testset "utils" begin
-    @testset "move_bounds" begin
-        a = 0.5 .+ (1:9)
-        @testset for lb in [1, 3, 9], ub in [1, 5, 9]
-            @test Korg.move_bounds(collect(a), lb, ub, 5.0, 2.0) == (3, 6)
-            @test Korg.move_bounds(collect(a), lb, ub, 0.0, 3.0) == (1, 2)
-            @test Korg.move_bounds(collect(a), lb, ub, 6.0, 4.0) == (2, 9)
-        end
-    end
-
     @testset "merge_bounds" begin
         mbounds = Korg.merge_bounds([(1, 3), (2, 4), (5, 6)], 0)
         @test mbounds[1] == [(1, 4), (5, 6)]
@@ -24,7 +15,6 @@
         @test mbounds[2] == [[3, 1, 2]]
     end
 
-    # TODO
     @testset "LSF" begin
         wls = 5900:0.35:6100
         R = 1800.0
@@ -91,58 +81,59 @@
         @test !(convF_mat ≈ convF_mat5)
     end
 
-    #@testset "rotation" begin
-    #    # this implementation is less accurate than the one in Korg, but it produces correct-ish results
-    #    function naive_apply_rotation(flux, wls::R, vsini, ε=0.6) where R<:AbstractRange
-    #        vsini *= 1e5 # km/s to cm/s
-    #        newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
-    #        newF = zeros(newFtype, length(flux))
+    @testset "rotation" begin
+        # this implementation is less accurate than the one in Korg, but it produces correct-ish results
+        function naive_apply_rotation(flux, wls::R, vsini, ε=0.6) where R<:AbstractRange
+            vsini *= 1e5 # km/s to cm/s
+            newFtype = promote_type(eltype(flux), eltype(wls), typeof(vsini), typeof(ε))
+            newF = zeros(newFtype, length(flux))
 
-    #        c1 = 2(1 - ε)
-    #        c2 = π * ε / 2
+            c1 = 2(1 - ε)
+            c2 = π * ε / 2
 
-    #        # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot 
-    #        # (because we are working in wavelenths) and moves inside the loop
-    #        denominator = π * (1 - ε / 3) / step(wls)
+            # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot 
+            # (because we are working in wavelenths) and moves inside the loop
+            denominator = π * (1 - ε / 3) / step(wls)
 
-    #        for i in 1:length(flux)
-    #            Δλrot = wls[i] * vsini / Korg.c_cgs
-    #            nwls = Int(floor(Δλrot / step(wls)))
-    #            window = max(1, i - nwls):min(length(flux), i + nwls)
+            for i in 1:length(flux)
+                Δλrot = wls[i] * vsini / Korg.c_cgs
+                nwls = Int(floor(Δλrot / step(wls)))
+                window = max(1, i - nwls):min(length(flux), i + nwls)
 
-    #            x = (wls[i] .- wls[window]) ./ Δλrot
-    #            one_less_x2 = @. 1 - x^2
+                x = (wls[i] .- wls[window]) ./ Δλrot
+                one_less_x2 = @. 1 - x^2
 
-    #            @. newF[window] .+= flux[i] * (c1 * sqrt(one_less_x2) + c2 * one_less_x2) /
-    #                                (denominator * Δλrot)
-    #        end
-    #        newF
-    #    end
+                @. newF[window] .+= flux[i] * (c1 * sqrt(one_less_x2) + c2 * one_less_x2) /
+                                    (denominator * Δλrot)
+            end
+            newF
+        end
 
-    #    wls = 4090:0.01:5010
-    #    flux = zeros(length(wls))
-    #    flux[990:1010] .= 1
+        wls = Korg.Wavelengths(4090, 5010)
+        flux = zeros(length(wls))
+        flux[990:1010] .= 1
 
-    #    @testset for vsini in [0.0, 1e-10, 1.0, 5.0, 10.0, 20.0], ε in [0.1, 0.6, 0.9]
-    #        # also test handling of multiple wl ranges
-    #        @testset for wls in [wls, [4090:0.01:507, 5007.01:0.01:5010]]
-    #            rflux = Korg.apply_rotation(flux, wls, vsini, ε)
-    #            rflux2 = Korg.apply_rotation(flux, wls * 1e-8, vsini, ε)
+        @testset for vsini in [0.0, 1e-10, 1.0, 5.0, 10.0, 20.0]
+            @testset for ε in [0.1, 0.6, 0.9]
+                # also test handling of multiple wl ranges
+                @testset for wls in [wls, Korg.Wavelengths([4090:0.01:5007, 5007.01:0.01:5010])]
+                    rflux = Korg.apply_rotation(flux, wls, vsini, ε)
 
-    #            # rotational kernel is normalized
-    #            @test sum(flux)≈sum(rflux) rtol=1e-2
-    #            @test sum(flux)≈sum(rflux2) rtol=1e-2
+                    # rotational kernel is normalized
+                    @test sum(flux)≈sum(rflux) rtol=1e-2
 
-    #            @test rflux == rflux2 # wl units shouldn't matter
-
-    #            if vsini > 1.0 && wls isa AbstractRange
-    #                @test assert_allclose_grid(rflux, naive_apply_rotation(flux, wls, vsini, ε),
-    #                                           [("λ", wls * 1e8, "Å")]; atol=1e-2,
-    #                                           print_rachet_info=false)
-    #            end
-    #        end
-    #    end
-    #end
+                    if vsini > 1.0 && (length(wls.wl_ranges) == 1)
+                        @test assert_allclose_grid(rflux,
+                                                   naive_apply_rotation(flux, wls.wl_ranges[1],
+                                                                        vsini,
+                                                                        ε),
+                                                   [("λ", wls * 1e8, "Å")]; atol=1e-2,
+                                                   print_rachet_info=false)
+                    end
+                end
+            end
+        end
+    end
 
     @testset "air <--> vacuum" begin
         wls = collect(2000.0:π:10000.0)

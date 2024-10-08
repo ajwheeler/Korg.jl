@@ -38,29 +38,6 @@ function merge_bounds(bounds, merge_distance=0.0)
     new_bounds, indices
 end
 
-"""
-    move_bounds(λs, lb0, ub0, λ₀, window_size)
-
-Using `lb0` and `ub0` as initial guesses, return the indices of `λs` (a vector, not a
-[`Korg.Wavelengths`](@ref)), `(lb, ub)` corresponding to `λ₀`` ± `window_size`. This is faster than `searchsortedfirst` `last` when the starting guesses are sufficiently close.  If the window is outside of`λs`, the lb will be greater than ub.
-"""
-function move_bounds(λs::V, lb, ub, λ₀, window_size) where V<:AbstractVector
-    #walk lb and ub to be window_size away from λ₀. assumes λs is sorted
-    while lb <= length(λs) && λs[lb] < λ₀ - window_size
-        lb += 1
-    end
-    while lb > 1 && λs[lb-1] > λ₀ - window_size
-        lb -= 1
-    end
-    while ub < length(λs) && λs[ub+1] < λ₀ + window_size
-        ub += 1
-    end
-    while ub >= 1 && λs[ub] > λ₀ + window_size
-        ub -= 1
-    end
-    lb, ub
-end
-
 # used by apply_LSF and compute_LSF_matrix
 # handle case where R is wavelength independent
 function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R::Real, window_size)
@@ -170,9 +147,25 @@ Given a spectrum `flux` sampled at wavelengths `wls` for a non-rotating star, co
 that would emerge given projected rotational velocity `vsini` (in km/s) and linear limb-darkening
 coefficient `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example,
 Gray equation 18.14.
+
+TODO consider args
 """
-function apply_rotation(flux, wls, vsini, ε=0.6)
-    wls = Wavelengths(wls)
+function apply_rotation(flux, wls::Wavelengths, vsini, ε=0.6)
+    newflux = similar(flux)
+    lower_index = 1
+    upper_index = length(wls.wl_ranges[1])
+    newflux[lower_index:upper_index] .= _apply_rotation_core(view(flux, lower_index:upper_index),
+                                                             wls.wl_ranges[1], vsini, ε)
+    for i in 2:length(wls.wl_ranges)
+        lower_index = upper_index + 1
+        upper_index = lower_index + length(wls.wl_ranges[i]) - 1
+        newflux[lower_index:upper_index] .= _apply_rotation_core(view(flux,
+                                                                      lower_index:upper_index),
+                                                                 wls.wl_ranges[i], vsini, ε)
+    end
+    newflux
+end
+function _apply_rotation_core(flux, wls::StepRangeLen, vsini, ε=0.6)
     if vsini == 0
         return copy(flux)
     end
@@ -195,7 +188,8 @@ function apply_rotation(flux, wls, vsini, ε=0.6)
     for i in 1:length(flux)
         Δλrot = wls[i] * vsini / Korg.c_cgs # Å
 
-        lb, ub = move_bounds(wls, 0, 0, wls[i], Δλrot)
+        lb = searchsortedfirst(wls, wls[i] - Δλrot)
+        ub = searchsortedlast(wls, wls[i] + Δλrot)
         Fwindow = flux[lb:ub]
 
         detunings = [-Δλrot; (lb-i+1/2:ub-i-1/2) * step(wls); Δλrot]
@@ -204,21 +198,6 @@ function apply_rotation(flux, wls, vsini, ε=0.6)
         newF[i] = sum(ks[2:end] .* Fwindow) - sum(ks[1:end-1] .* Fwindow)
     end
     newF
-end
-#handle case where wavelengths are provided as a vector of ranges.
-function apply_rotation(flux, wl_ranges::Vector{R}, vsini, ε=0.6) where R<:AbstractRange
-    newflux = similar(flux)
-    lower_index = 1
-    upper_index = length(wl_ranges[1])
-    newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index),
-                                                       wl_ranges[1], vsini, ε)
-    for i in 2:length(wl_ranges)
-        lower_index = upper_index + 1
-        upper_index = lower_index + length(wl_ranges[i]) - 1
-        newflux[lower_index:upper_index] .= apply_rotation(view(flux, lower_index:upper_index),
-                                                           wl_ranges[i], vsini, ε)
-    end
-    newflux
 end
 
 # the indefinite integral of the rotation kernel 
@@ -229,50 +208,6 @@ function _rotation_kernel_integral_kernel(c1, c2, c3, detuning, Δλrot)
     (0.5 * c1 * detuning * sqrt(1 - detuning^2 / Δλrot^2)
      + 0.5 * c1 * Δλrot * asin(detuning / Δλrot)
      + c2 * (detuning - detuning^3 / (3 * Δλrot^2))) / c3
-end
-
-"""
-    rectify(flux, wls; bandwidth=50, q=0.95, wl_step=1.0)
-
-Rectify the spectrum with flux vector `flux` and wavelengths `wls` by dividing out a moving
-`q`-quantile with window size `bandwidth`.  `wl_step` controls the size of the grid that the moving
-quantile is calculated on and interpolated from.  Setting `wl_step` to 0 results in the exact
-calculation with no interpolation, but note that this is very slow when the `wls` is sampled for
-synthesis (~0.01 Å).
-
-Experiments on real spectra show an agreement between the interpolated rectified spectrum and the
-"exact" one (with default values) at the 3 × 10^-4 level.
-
-!!! warning
-
-    This function should not be applied to data with observational error, as taking a quantile will
-    bias the rectification relative to the noiseless case.  It is intended as a fast way to compute
-    nice-looking rectified theoretical spectra.
-"""
-function rectify(flux::AbstractVector{F}, wls; bandwidth=50, q=0.95, wl_step=1.0) where F<:Real
-    @warn """Korg.rectify is deprecated and will be removed in a future release.  You can obtain a 
-          rectified spectrum by dividing the continuum from the flux:
-              sol = synthesize( ...your params... )
-              rectified_flux = sol.flux ./ sol.cntm
-          """
-    #construct a range of integer indices into wls corresponding to roughly wl_step-sized steps
-    if wl_step == 0
-        inds = eachindex(wls)
-    else
-        inds = 1:max(1, Int(floor(wl_step / step(wls)))):length(wls)
-    end
-    lb = 1
-    ub = 1
-    moving_quantile = map(wls[inds]) do λ
-        lb, ub = move_bounds(wls, lb, ub, λ, bandwidth)
-        quantile(flux[lb:ub], q)
-    end
-    if wl_step == 0
-        flux ./ moving_quantile
-    else
-        itp = linear_interpolation(wls[inds], moving_quantile; extrapolation_bc=Flat())
-        flux ./ itp.(wls)
-    end
 end
 
 """
