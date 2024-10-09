@@ -43,55 +43,6 @@ Korg.air_to_vacuum
 Korg.vacuum_to_air
 ```
 
-## Line absorption 
-These functions can be used to directly compute line opacities. 
-
-```@docs
-Korg.line_absorption!
-Korg.line_profile
-Korg.hydrogen_line_absorption!
-Korg.voigt_hjerting
-```
-
-## Continuum absorption
-These function can be used to directly compute continuum absorption coefficients.
-
-##### Continuum Absorption Kwargs
-
-All bound-free and free-free absorption functions (other than `absorption_coef_bf_TOPBase`) support
-the following keyword arguments:
-
-- `error_oobounds::Bool`: specifies the function's behavior when it encounters invalid `ν` or `T`
-  values. When `false` (the default), the function assumes that the absorption coefficient for
-  these invalid `ν` or `T` values is `0.0`. Otherwise, a `DomainError` is thrown when invalid `ν`
-  or `T` values are encountered.
-- `out_α::Union{Nothing,AbstractVector}`: When this is `nothing` (the default case), the function
-  will simply allocate a new vector to store the output continuum absorption coefficients.
-  Alternatively, this can be a vector (with the same length as the function's `ν` argument). In
-  this case, the function will directly add the computed continuum absorption to the elements of
-  this vector, in-place (the vector is also returned by the function).
-
-```@docs
-Korg.total_continuum_absorption
-Korg.ContinuumAbsorption.H_I_bf
-Korg.ContinuumAbsorption.Hminus_bf
-Korg.ContinuumAbsorption.Hminus_ff
-Korg.ContinuumAbsorption.H2plus_bf_and_ff
-Korg.ContinuumAbsorption.Heminus_ff
-Korg.ContinuumAbsorption.electron_scattering
-Korg.ContinuumAbsorption.rayleigh
-Korg.ContinuumAbsorption.positive_ion_ff_absorption!
-```
-
-## Statistical mechanics
-These functions can be used to calculate the number densities of all species in a given atmospheric 
-layer, or other statmech calculations. 
-
-```@docs
-Korg.saha_ion_weights
-Korg.chemical_equilibrium
-```
-
 ## Misc
 
 ```@docs
