@@ -29,8 +29,8 @@ struct Line{F1,F2,F3,F4,F5,F6}
          - `log10(γ_vdW)`, assumed if negative
          - 0, corresponding to no vdW broadening
          - A fudge factor for the Unsoeld approximation, assumed if between 0 and 20
-         - The [ABO parameters](https://www.astro.uu.se/~barklem/howto.html) as packed float 
-           (assumed if >= 20) or a `Tuple`, `(σ, α)`.
+         - The [ABO parameters](https://github.com/barklem/public-data/tree/master/broadening-howto)
+           as packed float (assumed if >= 20) or a `Tuple`, `(σ, α)`.
 
         This behavior is intended to mirror that of Turbospectrum as closely as possible.
 
