@@ -15,7 +15,8 @@ makedocs(;
                 "Developer Documentation" => "devdocs.md"],
          linkcheck=true, # check if any external links are broken 
          linkcheck_timeout=30, # default (10s) is too short for slow academic sites
-         linkcheck_ignore=[], # maybe don't check ADS links because they like to time out
+         # dodgy academic links sometimes timeout
+         linkcheck_ignore=["https://marcs.astro.uu.se/"],
          authors="Adam Wheeler, Matthew Abruzzo, Andrew Casey, and collaborators",
          format=Documenter.HTML(; assets=["assets/favicon.ico"], size_threshold=500000),)
 checkdocs = :all, # make sure all docstrings are in the documentation
