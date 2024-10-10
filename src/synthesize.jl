@@ -5,6 +5,7 @@ using .RadiativeTransfer
 """
     synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
     synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
+    # TODO
 
 Compute a synthetic spectrum.
 
@@ -19,6 +20,7 @@ Compute a synthetic spectrum.
   - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
   - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
+TODO
 If you provide a vector of wavelength ranges (or a single range) in place of `λ_start` and `λ_stop`,
 the spectrum will be synthesized over each range with minimal overhead.
 The ranges can be any Julia `AbstractRange`, for example: `[5000:0.01:5010, 6000:0.03:6005]`. they
@@ -60,13 +62,6 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 # Optional arguments:
 
   - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
-
-  - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
-    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
-    wavelength range can internally be represented by an evenly-spaced range.  If the approximation
-    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
-    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
-  - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
   - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
     before it is discarded.  If the edge of your window is near a strong line, you may have to turn
     this up.
@@ -103,6 +98,13 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
   - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to the base-10
     log of their molecular equilibrium constants in partial pressure form.  Defaults to data from
     Barklem and Collet 2016, `Korg.default_log_equilibrium_constants`.
+  - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by
+    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object,
+    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
+    and model atmosphere, `atm`, are unchanged.
+  - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See
+    [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
+    transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
   - `tau_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and
     "bezier" (testing only--not recommended).
   - `I_scheme` (default: "linear_flux_only"): how to compute the intensity.  Options are "linear",
@@ -110,20 +112,12 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
     intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
     calculation, but stores the intensity at every layer. "bezier" is for testing and not
     recommended.
-  - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See
-    [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
-    transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
-  - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by
-    `synthesize`. When provided, the chemical equilibrium solution will be taken from this object,
-    rather than being recomputed. This is physically self-consistent only when the abundances, `A_X`,
-    and model atmosphere, `atm`, are unchanged.
   - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
-                    air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4,
-                    hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
+                    air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=0.1,
                     electron_number_density_warn_min_value=1e-4, return_cntm=true,
@@ -133,50 +127,19 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
                     verbose=false)
-    wl_ranges = construct_wavelength_ranges(wavelength_params...)
-
-    # Convert air to vacuum wavelenths if necessary.
-    if air_wavelengths
-        wl_ranges = map(wl_ranges) do wls
-            λ_start, λ_stop, λ_step = first(wls), last(wls), step(wls)
-            len = Int(round((λ_stop - λ_start) / λ_step)) + 1
-            vac_start, vac_stop = air_to_vacuum.((λ_start, λ_stop))
-            vac_step = (vac_stop - vac_start) / (len - 1)
-            wls = StepRangeLen(vac_start, vac_step, len)
-            max_diff = maximum(abs.(wls .- air_to_vacuum.(λ_start:λ_step:λ_stop)))
-            if max_diff > wavelength_conversion_warn_threshold
-                throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
-                                    *
-                                    "linear vacuum wavelength range. This solution differs by up to " *
-                                    "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you " *
-                                    "want to suppress this error."))
-            end
-            wls
-        end
-    end
+    # TODO add deprecation warning for air_wavelengths 
+    wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
 
     # work in cm
-    wl_ranges = wl_ranges .* 1e-8 # broadbasting the = prevents wl_ranges from changing type
     cntm_step *= 1e-8
     line_buffer *= 1e-8
 
-    # make sure wl_ranges are OK
-    all_λs = vcat(wl_ranges...)
-    if !issorted(all_λs)
-        throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
-    end
-
     # wavelenths at which to calculate the continuum
-    cntm_wl_ranges = map(wl_ranges) do λs
-        collect((λs[1]-line_buffer-cntm_step):cntm_step:(λs[end]+line_buffer+cntm_step))
+    cntm_windows = map(eachwindow(wls)) do (λstart, λstop)
+        (λstart - line_buffer - cntm_step, λstop + line_buffer + cntm_step)
     end
-    # eliminate portions where ranges overlap.  One fitting is merged, there wull be functions for this.
-    for i in 1:length(cntm_wl_ranges)-1
-        cntm_wl_ranges[i] = cntm_wl_ranges[i][cntm_wl_ranges[i].<first(cntm_wl_ranges[i+1])]
-    end
-    cntmλs = vcat(cntm_wl_ranges...)
-    # frequencies at which to calculate the continuum, as a single vector
-    sorted_cntmνs = c_cgs ./ reverse(cntmλs)
+    cntm_windows, _ = merge_bounds(cntm_windows)
+    cntm_wls = Wavelengths([w[1]:cntm_step:w[2] for w in cntm_windows])
 
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
@@ -184,7 +147,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         linelist5 = get_alpha_5000_linelist(linelist)
     end
     # now the ones for the synthesis
-    linelist = filter_linelist(linelist, wl_ranges, line_buffer)
+    linelist = filter_linelist(linelist, wls, line_buffer)
 
     if length(A_X) != MAX_ATOMIC_NUMBER || (A_X[1] != 12)
         throw(ArgumentError("A(H) must be a 92-element vector with A[1] == 12."))
@@ -195,9 +158,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     #float-like type general to handle dual numbers
     α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
-                          eltype(all_λs), typeof(vmic), typeof.(abs_abundances)...)
+                          eltype(wls), typeof(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α = Matrix{α_type}(undef, length(atm.layers), length(all_λs))
+    α = Matrix{α_type}(undef, length(atm.layers), length(wls))
     # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
     α5 = Vector{α_type}(undef, length(atm.layers))
     triples = map(enumerate(atm.layers)) do (i, layer)
@@ -215,10 +178,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             end
         end
 
-        α_cntm_vals = reverse(total_continuum_absorption(sorted_cntmνs, layer.temp, nₑ, n_dict,
+        α_cntm_vals = reverse(total_continuum_absorption(eachfreq(cntm_wls), layer.temp, nₑ, n_dict,
                                                          partition_funcs))
-        α_cntm_layer = linear_interpolation(cntmλs, α_cntm_vals)
-        α[i, :] .= α_cntm_layer(all_λs)
+        α_cntm_layer = linear_interpolation(cntm_wls, α_cntm_vals)
+        α[i, :] .= α_cntm_layer(wls)
 
         if tau_scheme == "anchored"
             α5[i] = total_continuum_absorption([c_cgs / 5e-5], layer.temp, nₑ, n_dict,
@@ -239,15 +202,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # line contributions to α5
     if tau_scheme == "anchored"
         α_cntm_5 = [_ -> a for a in copy(α5)] # lambda per layer
-        line_absorption!(view(α5, :, 1), linelist5, [5e-5:1:5e-5], get_temps(atm), nₑs,
+        line_absorption!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm), nₑs,
                          number_densities,
                          partition_funcs, vmic * 1e5, α_cntm_5;
                          cutoff_threshold=line_cutoff_threshold)
-        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections, [5e-5],
+        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
+                                              Korg.Wavelengths([5000]),
                                               get_temps(atm), vmic, number_densities)
     end
 
-    source_fn = blackbody.((l -> l.temp).(atm.layers), all_λs')
+    source_fn = blackbody.((l -> l.temp).(atm.layers), wls')
     cntm = nothing
     if return_cntm
         cntm, _, _, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, mu_values; α_ref=α5,
@@ -259,16 +223,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             nH_I = n_dict[species"H_I"]
             nHe_I = n_dict[species"He_I"]
             U_H_I = partition_funcs[species"H_I"](log(layer.temp))
-            hydrogen_line_absorption!(view(α, i, :), all_λs, wl_ranges, layer.temp, nₑ, nH_I, nHe_I,
+            hydrogen_line_absorption!(view(α, i, :), wls, layer.temp, nₑ, nH_I, nHe_I,
                                       U_H_I, vmic * 1e5,
                                       hydrogen_line_window_size * 1e-8;
                                       use_MHD=use_MHD_for_hydrogen_lines)
         end
     end
 
-    line_absorption!(α, linelist, wl_ranges, get_temps(atm), nₑs, number_densities, partition_funcs,
+    line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
                      vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
-    interpolate_molecular_cross_sections!(α, molecular_cross_sections, all_λs, get_temps(atm), vmic,
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 
     flux, intensity, μ_grid, μ_weights = RadiativeTransfer.radiative_transfer(atm, α, source_fn,
@@ -276,38 +240,28 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
 
+    #TODO move into Wavelengths and pull similar functionality out of apply_rotation
     # collect the indices corresponding to each wavelength range
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
     subspectra = []
-    for λs in wl_ranges
+    for λs in wls.wl_ranges
         wl_inds = wl_lb_ind:wl_lb_ind+length(λs)-1
         push!(subspectra, wl_inds)
         wl_lb_ind += length(λs)
     end
 
+    # TODO really consider what to do here?  Do we want a breaking change?
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, mu_grid=collect(zip(μ_grid, μ_weights)),
-     number_densities=number_densities, electron_number_density=nₑs, wavelengths=all_λs .* 1e8,
-     subspectra=subspectra)
+     number_densities=number_densities, electron_number_density=nₑs,
+     wavelengths=collect(wls) .* 1e8, subspectra=subspectra)
 end
 
 """
-    construct_wavelength_ranges(wls...)
-
-Handle the wavelength specification passed to `synthesize`, returning a vector of wavelength ranges.
-See [`synthesize`](@ref) documentation for details.
-"""
-function construct_wavelength_ranges(λ_start, λ_stop, λ_step=0.01)
-    [StepRangeLen(λ_start, λ_step, Int(round((λ_stop - λ_start) / λ_step)) + 1)]
-end
-construct_wavelength_ranges(wls::AbstractVector{<:AbstractRange}) = wls
-construct_wavelength_ranges(wls::AbstractRange) = [wls]
-
-"""
-    filter_linelist(linelist, wl_ranges, line_buffer)
+    filter_linelist(linelist, wls, line_buffer)
 
 Return a new linelist containing only lines within the provided wavelength ranges.
 """
-function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
+function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
     # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
 
     #sort the lines if necessary
@@ -318,8 +272,8 @@ function filter_linelist(linelist, wl_ranges, line_buffer; warn_empty=true)
     nlines_before = length(linelist)
 
     linelist = filter(linelist) do line
-        for wl_range in wl_ranges
-            if (wl_range[1] - line_buffer) <= line.wl <= (wl_range[end] + line_buffer)
+        for (λstart, λstop) in eachwindow(wls)
+            if (λstart - line_buffer) <= line.wl <= (λstop + line_buffer)
                 return true
             end
         end
@@ -346,7 +300,7 @@ use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
 function get_alpha_5000_linelist(linelist)
     # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
     # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
-    linelist5 = filter_linelist(linelist, [5e-5:1:5e-5], 21e-8; warn_empty=false)
+    linelist5 = filter_linelist(linelist, Korg.Wavelengths(5000, 5000), 21e-8; warn_empty=false)
     # if there aren't any, use the built-in one
     if length(linelist5) == 0
         _alpha_5000_default_linelist

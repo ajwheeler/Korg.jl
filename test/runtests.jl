@@ -9,6 +9,7 @@ using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
     # Inner testsets of particular interest can also be timed by wrapping them in a @timeit macro.
 
     reset_timer!()
+    @timeit "wavelengths" include("wavelengths.jl")
     @timeit "molecular_cross_sections" include("molecular_cross_sections.jl")
     @timeit "cubic_splines" include("cubic_splines.jl")
     @timeit "transfer" include("transfer.jl")

@@ -20,7 +20,7 @@
     Korg.save_molecular_cross_section(filename, table)
     deserialized_table = Korg.read_molecular_cross_section(filename)
     @test table.itp.itp.coefs == deserialized_table.itp.itp.coefs
-    @test all(table.wls .== deserialized_table.wls)
+    @test all(table.wls .≈ deserialized_table.wls)
     @test table.species == deserialized_table.species
 
     @testset for vmic in [0.5, 2.5]
