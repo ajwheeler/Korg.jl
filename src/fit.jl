@@ -360,11 +360,10 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
             throw(ArgumentError("LSF_matrix and synthesis_wls must both be defined if the other is."))
         end
         if length(obs_wls) != size(LSF_matrix, 1)
-            throw(ArgumentError("the first dimension of LSF_matrix must be the length of obs_wls."))
+            throw(ArgumentError("the first dimension of LSF_matrix ($(size(LSF_matrix, 1))) must be the length of obs_wls ($(length(obs_wls)))."))
         end
         if (length(synthesis_wls) != size(LSF_matrix, 2))
-            throw(ArgumentError("the second dimension of LSF_matrix must be the length of synthesis_wls " *
-                                "If you provided one as a keyword argument, you must also provide the other."))
+            throw(ArgumentError("the second dimension of LSF_matrix $(size(LSF_matrix, 2)) must be the length of synthesis_wls ($(length(synthesis_wls)))"))
         end
 
         Korg.Wavelengths(synthesis_wls), ones(Bool, length(obs_wls)), LSF_matrix
