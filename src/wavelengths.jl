@@ -90,6 +90,7 @@ end
 function Wavelengths(λ_start, λ_stop, λ_step=0.01; kwargs...)
     Wavelengths([(λ_start, λ_stop)], λ_step; kwargs...)
 end
+Wavelengths(wls::Tuple{<:Real,<:Real}; kwargs...) = Wavelengths([wls]; kwargs...)
 
 # implement the AbstractArray interface
 # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array

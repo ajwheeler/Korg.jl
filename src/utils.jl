@@ -150,7 +150,8 @@ Gray equation 18.14.
 
 TODO consider args
 """
-function apply_rotation(flux, wls::Wavelengths, vsini, ε=0.6)
+function apply_rotation(flux, wls, vsini, ε=0.6)
+    wls = Wavelengths(wls)
     newflux = similar(flux)
     lower_index = 1
     upper_index = length(wls.wl_ranges[1])

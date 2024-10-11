@@ -1,6 +1,7 @@
 @testset "Wavelengths" begin
     @testset "constructor" begin
         wls = Korg.Wavelengths(15000, 15500)
+        @test wls == Korg.Wavelengths((15000, 15500))
         @test wls == Korg.Wavelengths([(15000, 15500)])
         @test wls == Korg.Wavelengths(15000:0.01:15500)
         @test wls == Korg.Wavelengths([15000:0.01:15500])
@@ -16,7 +17,8 @@
             Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true).wl_ranges[1] * 1e8,
             Korg.Wavelengths([15000:0.01:15500]; air_wavelengths=true).wl_ranges[1] * 1e8,
             Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] * 1e8,
-            Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] * 1e8
+            Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] * 1e8,
+            Korg.Wavelengths((15000, 15500); air_wavelengths=true).wl_ranges[1] * 1e8
         ]
             @test assert_allclose_grid(wls, air_wls, [vac_wls]; atol=1e-4, print_rachet_info=false)
         end
