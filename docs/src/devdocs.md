@@ -18,7 +18,22 @@ If you've never developed a package in Julia, here are some tips.
 - Unless they will never be called elsewhere, provide docstrings describing the inputs, assumptions and outputs of any functions you write.
 
 ## Continuum absorption
-Steps for implementing new continuum sources of absorption:
+
+### Continuum Absorption Kwargs
+All bound-free and free-free absorption functions (other than `absorption_coef_bf_TOPBase`) support
+the following keyword arguments:
+
+- `error_oobounds::Bool`: specifies the function's behavior when it encounters invalid `ν` or `T`
+  values. When `false` (the default), the function assumes that the absorption coefficient for
+  these invalid `ν` or `T` values is `0.0`. Otherwise, a `DomainError` is thrown when invalid `ν`
+  or `T` values are encountered.
+- `out_α::Union{Nothing,AbstractVector}`: When this is `nothing` (the default case), the function
+  will simply allocate a new vector to store the output continuum absorption coefficients.
+  Alternatively, this can be a vector (with the same length as the function's `ν` argument). In
+  this case, the function will directly add the computed continuum absorption to the elements of
+  this vector, in-place (the vector is also returned by the function).
+
+### Steps for implementing new continuum sources of absorption:
 - Define a helper function that computes a single absorption coefficient (in units of cm⁻²). The function should accept `ν` (in Hz) and `T` (in K) as the first and second arguments, respectively. The convention is for it should share a name with the corresponding public function, but have an underscore pre-appended (e.g. we define `_H_I_bf` to help implement `H_I_bf`).
 - The public function is the function constructed and returned by `Korg.ContinuumAbsorption.bounds_checked_absorption` that wraps the above helper function. This wrapper function implements bounds-checking for `ν` and `T` and supports the keyword arguments described in [Continuum Absorption Kwargs](@ref).
 - Add a docstring describing the new function. At the very least, please describe any non-standard arguments and include a reference in the docstring to the source where the function was taken from.
@@ -42,9 +57,6 @@ If you are adding data to Korg, `data/README` provides an overview of the option
 between them.
 
 ## Complete API
-Here are all the documented methods in Korg.
-
 ```@autodocs
-Modules = [Korg, Korg.Fit, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994,
-Korg.ContinuumAbsorption.Peach1970, Korg.RadiativeTransfer]
+Modules = [Korg, Korg.Fit, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994, Korg.ContinuumAbsorption.Peach1970, Korg.RadiativeTransfer]
 ```

@@ -168,8 +168,9 @@ scaled_stark(γstark, T; T₀=10_000) = γstark * (T / T₀)^(1 / 6)
     scaled_vdW(vdW, m, T)
 
 The vdW broadening gamma scaled acording to its temperature dependence, using either simple scaling
-or ABO. See Anstee & O'Mara (1995) or https://www.astro.uu.se/~barklem/howto.html for the definition
-of the ABO γ.
+or ABO. See Anstee & O'Mara (1995) or
+[Paul Barklem's notes](https://github.com/barklem/public-data/tree/master/broadening-howto) for the
+definition of the ABO γ.
 
 `vdW` should be either `γ_vdW` evaluated at 10,000 K, or tuple containing the ABO params `(σ, α)`.
 The species mass, `m`, is ignored in the former case.
