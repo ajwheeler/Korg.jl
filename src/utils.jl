@@ -54,14 +54,12 @@ function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R,
 end
 
 """
-TODO whole docstring. This is hard because wls isn't the last element.
-
     apply_LSF(flux, wls, R; window_size=4)
 
-Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelength
-vector `wls` with constant spectral resolution, ``R = \\lambda/\\Delta\\lambda``, where
-``\\Delta\\lambda`` is the LSF FWHM.  The `window_size` argument specifies how far out to extend
-the convolution kernel in standard deviations.
+Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelengths
+`wls` in any format accepted by synthesize, e.g. as a pair `(λstart, λstop)`) with constant spectral
+resolution (, ``R = \\lambda/\\Delta\\lambda``, where ``\\Delta\\lambda`` is the LSF FWHM.  The
+`window_size` argument specifies how far out to extend the convolution kernel in standard deviations.
 
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside
 the region you are going to compare.
@@ -102,9 +100,8 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 
 # Arguments
 
-  - `synth_wls`: the synthesis wavelengths. TODO This should be a range, a vector of ranges, or a vector
-    of wavelength values which is linearly spaced to within a tollerance of the `step_tolerance`
-    kwarg.
+  - `synth_wls`: the synthesis wavelengths in any form recognized by `synthesize`, e.g. a pair
+    containing a lower and upper bound in Å, a vector of pairs, or a vector of Julia range objects.
   - `obs_wls`: the wavelengths of the observed spectrum
   - `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
 
@@ -147,8 +144,6 @@ Given a spectrum `flux` sampled at wavelengths `wls` for a non-rotating star, co
 that would emerge given projected rotational velocity `vsini` (in km/s) and linear limb-darkening
 coefficient `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example,
 Gray equation 18.14.
-
-TODO consider args
 """
 function apply_rotation(flux, wls, vsini, ε=0.6)
     wls = Wavelengths(wls)

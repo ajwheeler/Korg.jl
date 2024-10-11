@@ -3,9 +3,8 @@ import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
 
 """
-    synthesize(atm, linelist, A_X, λ_start, λ_stop, [λ_step=0.01]; kwargs... )
+    synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
     synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
-    # TODO
 
 Compute a synthetic spectrum.
 
@@ -16,15 +15,11 @@ Compute a synthetic spectrum.
     [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
   - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
     uranium.  (see [`format_A_X`](@ref))
+  - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
+    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`.
   - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
   - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
   - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
-
-TODO
-If you provide a vector of wavelength ranges (or a single range) in place of `λ_start` and `λ_stop`,
-the spectrum will be synthesized over each range with minimal overhead.
-The ranges can be any Julia `AbstractRange`, for example: `[5000:0.01:5010, 6000:0.03:6005]`. they
-must be sorted and non-overlapping.
 
 # Returns
 
@@ -41,8 +36,8 @@ A named tuple with keys:
   - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each
     atmospheric layer
   - `electron_number_density`: the electron number density at each atmospheric layer
-  - `wavelengths`: The vacuum wavelengths (in Å) over which the synthesis was performed.  If
-    `air_wavelengths=true` this will not be the same as the input wavelengths.
+  - `wavelengths`: The vector of vacuum wavelengths (in Å) over which the synthesis was performed.
+    If `air_wavelengths=true` this will not be the same as the input wavelengths.
   - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum
     for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`,
     `λ_step` arguments, this will be a vector containing only one range.
