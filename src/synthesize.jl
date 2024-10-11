@@ -130,7 +130,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
     if air_wavelengths
         # TODO test
-        @warn "The `air_wavelengths` keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
+        @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
     end
     # work in cm
     cntm_step *= 1e-8

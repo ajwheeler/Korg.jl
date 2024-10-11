@@ -17,6 +17,23 @@
         @test sol_two_lines.flux == sol_one_lines.flux
     end
 
+    @testset "wavelength handling" begin
+        wls = Korg.Wavelengths(5000, 5001)
+
+        msg = "The air_wavelengths keyword argument is deprecated"
+        @test_warn msg synthesize(atm, [], format_A_X(), 5000, 5001; air_wavelengths=true)
+
+        sol = synthesize(atm, [], format_A_X(), wls)
+        @testset for wl_params in [
+            [5000:0.01:5001],
+            [[5000:0.01:5001]],
+            [collect(5000:0.01:5001)]
+        ]
+            sol2 = synthesize(atm, [], format_A_X(), wl_params...)
+            @test sol.flux ≈ sol2.flux
+        end
+    end
+
     @testset "precomputed chemical equilibrium" begin
         # test that the precomputed chemical equilibrium works
         A_X = format_A_X()

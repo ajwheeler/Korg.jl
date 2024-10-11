@@ -1,6 +1,6 @@
 struct Wavelengths{F} <: AbstractArray{F,1}
     wl_ranges::Vector{StepRangeLen{F}} # in cm, not Å
-    # TODO eliminate?
+    # precomputed arrays.  It may(?) be faster to lazily compute these.
     all_wls::Vector{F}
     all_freqs::Vector{F}
 
@@ -115,8 +115,10 @@ Returns an iterator over the wavelength ranges `(λ_low, λ_hi)` in `wls` (in cm
 eachwindow(wls::Wavelengths) = ((first(r), last(r)) for r in wls.wl_ranges)
 
 """
-TODO
-TODO consider reversing?
+    eachfreq(wls::Wavelengths)
+
+Returns an array of the frequencies corresponding to the wavelengths in `wls` (in Hz). They are
+sorted, i.e. in reverse order of the wavelengths.
 """
 eachfreq(wls::Wavelengths) = wls.all_freqs
 
