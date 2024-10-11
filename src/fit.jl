@@ -228,6 +228,10 @@ values are used.
   - `postprocess` can be used to arbitrarilly transform the synthesized (and LSF-convolved) spectrum
     before calculating the chi2.  It should take the form `postprocess(flux, data, err)` and write
     its changes in-place to the flux array.
+  - `LSF_matrix`: this can be provedided along with `synthesis_wls` in place of specifying `R` if
+    you have a precomputed custom LSF matrix.
+  - `synthesis_wls`: see `LSF_matrix` above. This can be a Korg.Wavelengths object or any arguments
+    that can be passed to its constructor, e.g. a range or vector of ranges. Wavelengths are in Å.
   - Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
     spectra for the fit.
 
