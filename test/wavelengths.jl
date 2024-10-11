@@ -1,9 +1,13 @@
 @testset "Wavelengths" begin
     @testset "constructor" begin
         wls = Korg.Wavelengths(15000, 15500)
+        @test wls == Korg.Wavelengths([(15000, 15500)])
         @test wls == Korg.Wavelengths(15000:0.01:15500)
         @test wls == Korg.Wavelengths([15000:0.01:15500])
         @test wls == Korg.Wavelengths(collect(15000:0.01:15500))
+
+        @test Korg.Wavelengths(15000, 15500, 1.0) == Korg.Wavelengths(15000, 15500, 1)
+        @test Korg.Wavelengths(15000, 15500, 1) == Korg.Wavelengths(15000:1.0:15500)
 
         # test automatic air to vacuum conversion
         vac_wls = 15000:0.01:15500

@@ -5,7 +5,15 @@ struct Wavelengths{F} <: AbstractArray{F,1}
     all_freqs::Vector{F}
 
     """
-    TODO
+        Korg.Wavelengths(wl_params...; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+
+    Construct a `Wavelengths` object which represents the (possibly non-contiguous) wavelengths for
+    which to compute a spectrum.  The wavelengths can be specified with an upper and lower bound, or
+    a vector of upper and lower bounds. For example,
+
+        Korg.Wavelengths(5000, 5500)
+        Korg.Wavelengths([(5000, 5500), (6000, 6500)])
+
     # Keyword Arguments
     - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
         be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
@@ -14,8 +22,9 @@ struct Wavelengths{F} <: AbstractArray{F,1}
         wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
     - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
     """
-    function Wavelengths(wl_ranges::AbstractVector;
-                         air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+    function Wavelengths(wl_ranges::AbstractVector{R};
+                         air_wavelengths=false,
+                         wavelength_conversion_warn_threshold=1e-4) where R<:AbstractRange
         # if the first wavelength is > 1, assume it's in Å and convert to cm
         if first(first(wl_ranges)) >= 1
             wl_ranges = wl_ranges .* 1e-8
@@ -71,19 +80,15 @@ function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
         Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
     end
 end
-# handle integer args
-function Wavelengths(λ_start::Integer, λ_stop::Integer, λ_step=0.01; kwargs...)
-    Wavelengths(Float64(λ_start), Float64(λ_stop), λ_step; kwargs...)
+function Wavelengths(wls::AbstractVector, λ_step=0.01; kwargs...)
+    if λ_step isa Integer
+        λ_step = convert(Float64, λ_step)
+    end
+    Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step) for (λ_start, λ_stop) in wls];
+                kwargs...)
 end
-function Wavelengths(λ_start::Integer, λ_stop, λ_step=0.01; kwargs...)
-    Wavelengths(Float64(λ_start), λ_stop, λ_step; kwargs...)
-end
-function Wavelengths(λ_start, λ_stop::Integer, λ_step=0.01; kwargs...)
-    Wavelengths(λ_start, Float64(λ_stop), λ_step; kwargs...)
-end
-# easy mode: pass in a single start and stop
 function Wavelengths(λ_start, λ_stop, λ_step=0.01; kwargs...)
-    Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step)]; kwargs...)
+    Wavelengths([(λ_start, λ_stop)], λ_step; kwargs...)
 end
 
 # implement the AbstractArray interface
