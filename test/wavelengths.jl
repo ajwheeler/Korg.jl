@@ -1,23 +1,30 @@
 @testset "Wavelengths" begin
-    wls = Korg.Wavelengths(15000, 15500)
-    @test wls == Korg.Wavelengths(15000:0.01:15500)
-    @test wls == Korg.Wavelengths([15000:0.01:15500])
-    @test wls == Korg.Wavelengths(collect(15000:0.01:15500))
+    @testset "constructor" begin
+        wls = Korg.Wavelengths(15000, 15500)
+        @test wls == Korg.Wavelengths(15000:0.01:15500)
+        @test wls == Korg.Wavelengths([15000:0.01:15500])
+        @test wls == Korg.Wavelengths(collect(15000:0.01:15500))
 
-    # test automatic air to vacuum conversion
-    vac_wls = 15000:0.01:15500
-    air_wls = Korg.air_to_vacuum.(15000:0.01:15500)
-    for wls in [
-        Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true).wl_ranges[1] * 1e8,
-        Korg.Wavelengths([15000:0.01:15500]; air_wavelengths=true).wl_ranges[1] * 1e8,
-        Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] * 1e8,
-        Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] * 1e8
-    ]
-        @test assert_allclose_grid(wls, air_wls, [vac_wls]; atol=1e-4, print_rachet_info=false)
+        # test automatic air to vacuum conversion
+        vac_wls = 15000:0.01:15500
+        air_wls = Korg.air_to_vacuum.(15000:0.01:15500)
+        for wls in [
+            Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true).wl_ranges[1] * 1e8,
+            Korg.Wavelengths([15000:0.01:15500]; air_wavelengths=true).wl_ranges[1] * 1e8,
+            Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] * 1e8,
+            Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] * 1e8
+        ]
+            @test assert_allclose_grid(wls, air_wls, [vac_wls]; atol=1e-4, print_rachet_info=false)
+        end
+
+        @test_throws ArgumentError Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true,
+                                                    wavelength_conversion_warn_threshold=1e-20)
     end
 
-    @test_throws ArgumentError Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true,
-                                                wavelength_conversion_warn_threshold=1e-20)
+    @testset "subspectrum_indices" begin
+        ranges = [5000:1.0:5010, 5020:1.0:5031, 5040:1.0:5060]
+        @assert Korg.subspectrum_indices(Korg.Wavelengths(ranges)) == [1:11, 12:23, 24:44]
+    end
 
     @testset "searchsortedfirst/last" begin
 

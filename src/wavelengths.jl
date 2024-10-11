@@ -122,6 +122,24 @@ sorted, i.e. in reverse order of the wavelengths.
 """
 eachfreq(wls::Wavelengths) = wls.all_freqs
 
+"""
+    subspectrum_indices(wls::Wavelengths)
+
+Returns a vector of Julia ranges, which can be used to index into the full spectrum to get the
+sub-spectrum corresponding to each wavelength range in `wls`.
+"""
+function subspectrum_indices(wls::Wavelengths)
+    # collect the indices corresponding to each wavelength range
+    wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
+    indices = []
+    for λs in wls.wl_ranges
+        wl_inds = wl_lb_ind:wl_lb_ind+length(λs)-1
+        push!(indices, wl_inds)
+        wl_lb_ind += length(λs)
+    end
+    indices
+end
+
 # index of the first element greater than or equal to λ
 function Base.Sort.searchsortedfirst(wls::Wavelengths, λ)
     if λ >= 1 # convert Å to cm

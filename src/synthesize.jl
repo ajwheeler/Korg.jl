@@ -129,7 +129,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     verbose=false)
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
     if air_wavelengths
-        # TODO test
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
     end
     # work in cm
@@ -242,20 +241,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
 
-    #TODO move into Wavelengths and pull similar functionality out of apply_rotation
-    # collect the indices corresponding to each wavelength range
-    wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
-    subspectra = []
-    for λs in wls.wl_ranges
-        wl_inds = wl_lb_ind:wl_lb_ind+length(λs)-1
-        push!(subspectra, wl_inds)
-        wl_lb_ind += length(λs)
-    end
-
-    # TODO really consider what to do here?  Do we want a breaking change?
     (flux=flux, cntm=cntm, intensity=intensity, alpha=α, mu_grid=collect(zip(μ_grid, μ_weights)),
      number_densities=number_densities, electron_number_density=nₑs,
-     wavelengths=collect(wls) .* 1e8, subspectra=subspectra)
+     wavelengths=wls .* 1e8, subspectra=subspectrum_indices(wls))
 end
 
 """

@@ -54,7 +54,7 @@ function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R,
 end
 
 """
-TODO whole docstring
+TODO whole docstring. This is hard because wls isn't the last element.
 
     apply_LSF(flux, wls, R; window_size=4)
 
