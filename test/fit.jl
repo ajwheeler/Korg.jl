@@ -69,7 +69,7 @@ using Random
         fixed = (logg=logg, vmic=vmic, cntm_offset=cntm_offset)
         for wlkw in wl_kwargs
             result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                           postprocess=scale!, wlkw...)
+                                           precision=1e-3, postprocess=scale!, wlkw...)
 
             params, Σ = result.covariance
             Teff_index = findfirst(params .== "Teff")
