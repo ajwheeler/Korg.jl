@@ -9,8 +9,7 @@ handles `ForwardDiff.Dual` types via the chain rule.
 """
 autodiffable_conv(f, g) = conv(f, g)
 
-function autodiffable_conv(f::Vector{ForwardDiff.Dual{T,V,P}},
-                           g::Vector{ForwardDiff.Dual{T,V,P}}) where {T,V,P}
+function autodiffable_conv(f::Vector{<:ForwardDiff.Dual}, g::Vector{<:ForwardDiff.Dual})
     vf = ForwardDiff.value.(f)
     vg = ForwardDiff.value.(g)
     vconv = conv(vf, vg) # do convolution on the values
