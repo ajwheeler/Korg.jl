@@ -261,7 +261,7 @@ A NamedTuple with the following fields:
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                       windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
-                      synthesis_kwargs...)
+                      time_limit=10_000, synthesis_kwargs...)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
     end
@@ -316,7 +316,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     # call optimization library
     res = optimize(chi2, p0, BFGS(; linesearch=LineSearches.BackTracking(; maxstep=1.0)),
-                   Optim.Options(; x_tol=precision, time_limit=10_000, store_trace=true,
+                   Optim.Options(; x_tol=precision, time_limit=time_limit, store_trace=true,
                                  extended_trace=true); autodiff=:forward)
 
     best_fit_params = unscale(Dict(params_to_fit .=> res.minimizer))
