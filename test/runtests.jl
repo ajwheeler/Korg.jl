@@ -1,32 +1,36 @@
-using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, TimerOutputs
+using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, Aqua
 
-@testset "Korg tests" begin
+@testset "Korg tests" verbose=true showtiming=true begin
 
     # tools for testing: assert_allclose and assert_allclose_grid
     include("utilities.jl")
 
-    # We use the TimerOutputs package to print the time and allocations for each top-level testset.
-    # Inner testsets of particular interest can also be timed by wrapping them in a @timeit macro.
-
-    reset_timer!()
-    @timeit "molecular_cross_sections" include("molecular_cross_sections.jl")
-    @timeit "cubic_splines" include("cubic_splines.jl")
-    @timeit "transfer" include("transfer.jl")
-    @timeit "species" include("species.jl")
-    @timeit "interval" include("interval.jl")
-    @timeit "continuum_absorption" include("continuum_absorption.jl") # test this after the "Interval" testset
-    @timeit "partition_funcs" include("partition_funcs.jl")
-    @timeit "statmech" include("statmech.jl")
-    @timeit "linelist" include("linelist.jl")
-    @timeit "fit" include("fit.jl")                                   # slow
-    @timeit "autodiff" include("autodiff.jl")                         # slow
-    @timeit "autodiffable_conv" include("autodiffable_conv.jl")
-    @timeit "atmosphere" include("atmosphere.jl")                     # slow
-    @timeit "abundances" include("abundances.jl")
-    @timeit "synthesize" include("synthesize.jl")
-    @timeit "prune_linelist" include("prune_linelist.jl")
-    @timeit "utils" include("utils.jl")
-    @timeit "line_absorption" include("line_absorption.jl")
-    @timeit "qfactors" include("qfactors.jl")
-    print_timer()
+    include("molecular_cross_sections.jl")
+    include("cubic_splines.jl")
+    include("transfer.jl")
+    include("species.jl")
+    include("interval.jl")
+    include("continuum_absorption.jl") # test this after the "Interval" testset
+    include("partition_funcs.jl")
+    include("statmech.jl")
+    include("linelist.jl")
+    include("fit.jl")                            # slow
+    include("autodiff.jl")                       # slow
+    include("autodiffable_conv.jl")
+    include("atmosphere.jl")                     # slow
+    include("abundances.jl")
+    include("synthesize.jl")
+    include("prune_linelist.jl")
+    include("utils.jl")
+    include("line_absorption.jl")
+    include("qfactors.jl")
+    @testset "Aqua automated checks" begin
+        # see https://github.com/JuliaTesting/Aqua.jl/issues/77 for why I'm doing it this way,
+        # (basically the default bahavior is different and this is what we want to avoid errors in
+        # deps that we can't fix.)
+        # unbound args has a false positive for Korg.Line because it's using a heuristic.  That 
+        # constructor should probably be less convoluted anyway, but for now skip those checks.
+        Aqua.test_all(Korg; ambiguities=false, unbound_args=false)
+        Aqua.test_ambiguities(Korg)
+    end
 end #top-level testset
