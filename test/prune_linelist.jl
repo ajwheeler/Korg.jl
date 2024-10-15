@@ -1,6 +1,6 @@
 @testset "linelist pruning" begin
     linelist = Korg.read_linelist("data/linelists/gfallvac08oct17.stub.dat"; format="kurucz")
-    wls = (linelist[1].wl*1e8):0.01:(linelist[end].wl*1e8)
+    wls = (linelist[1].wl, linelist[end].wl)
     atm = interpolate_marcs(5000, 4.44)
     A_X = format_A_X()
 
