@@ -376,7 +376,8 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
         Korg.Wavelengths(synthesis_wls), ones(Bool, length(obs_wls)), LSF_matrix
     else
         if isnothing(R)
-            throw(ArgumentError("The resolution, R, must be specified unless LSF_matrix and synthesis_wls are provided."))
+            throw(ArgumentError("The resolution, R, must be specified with a keyword argument to " *
+                                "Korg.Fit.fit_spectrum (unless LSF_matrix and synthesis_wls are provided.)"))
         end
 
         # wavelenths and windows setup
