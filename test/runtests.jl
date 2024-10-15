@@ -28,7 +28,9 @@ using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, Aqua
         # see https://github.com/JuliaTesting/Aqua.jl/issues/77 for why I'm doing it this way,
         # (basically the default bahavior is different and this is what we want to avoid errors in
         # deps that we can't fix.)
-        Aqua.test_all(Korg; ambiguities=false)
+        # unbound args has a false positive for Korg.Line because it's using a heuristic.  That 
+        # constructor should probably be less convoluted anyway, but for now skip those checks.
+        Aqua.test_all(Korg; ambiguities=false, unbound_args=false)
         Aqua.test_ambiguities(Korg)
     end
 end #top-level testset
