@@ -126,9 +126,8 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
         obs_wls = obs_wls / 1e8 # Å to cm
     end
     synth_wls = Wavelengths(synth_wls)
-    if verbose && !(first(synth_wls) <= first(obs_wls) <= last(obs_wls) <= last(synth_wls)) &&
-       (!(first(synth_wls) ≈ first(obs_wls)) && !(last(synth_wls) ≈ last(obs_wls)))
-        @show (first(synth_wls), first(obs_wls), last(obs_wls), last(synth_wls))
+    if verbose &&
+       !((first(synth_wls) - 0.01) <= first(obs_wls) <= last(obs_wls) <= (last(synth_wls) + 0.01))
         @warn "Synthesis wavelenths $(synth_wls) are not superset of observation wavelenths" *
               " ($(first(obs_wls)*1e8) Å—$(last(obs_wls)*1e8) Å) in LSF matrix."
     end

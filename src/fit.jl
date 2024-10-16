@@ -384,7 +384,7 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
         isnothing(windows) && (windows = [(first(obs_wls), last(obs_wls))])
 
         windows, _ = Korg.merge_bounds(windows, 2wl_buffer)
-        synthesis_wls = Korg.Wavelengths([w[1]:0.01:w[2] for w in windows])
+        synthesis_wls = Korg.Wavelengths([(w[1], w[2]) for w in windows])
         obs_wl_mask = zeros(Bool, length(obs_wls))
         for (λstart, λstop) in windows
             lb = searchsortedfirst(obs_wls, λstart)
