@@ -56,6 +56,8 @@ convolution is expensive.
 
 Arguments:
 
+  - `αs`: the absorption coefficient [cm^-1] vector into which to add the line absorption
+  - `λs`: the wavelengths at which to calculate the absorption [cm]
   - `T`: temperature [K]
   - `nₑ`: electron number density [cm^-3]
   - `nH_I`: neutral hydrogen number density [cm^-3]
@@ -73,11 +75,12 @@ Keyword arguments:
   - `use_MHD`: whether or not to use the Mihalas-Daeppen-Hummer formalism to adjust the occupation
     probabilities of each hydrogen orbital for plasma effects.  Default: `true`.
 """
-function hydrogen_line_absorption!(αs, λs, wl_ranges, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size;
+function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size;
                                    stark_profiles=_hline_stark_profiles, use_MHD=true)
+    # it may make sense for this functionality to move into the Wavelengths type to some extent
     νs = c_cgs ./ λs
     dνdλ = c_cgs ./ λs .^ 2
-    Hmass = get_mass(Formula("H"))
+    Hmass = get_mass(Korg.species"H")
 
     n_max = maximum(_hline_stark_profiles) do line
         line.upper
@@ -110,7 +113,8 @@ function hydrogen_line_absorption!(αs, λs, wl_ranges, T, nₑ, nH_I, nHe_I, UH
         levels_factor = ws[line.upper] * (exp(-β * Elo) - exp(-β * Eup)) / UH_I
         amplitude = 10.0^line.log_gf * nH_I * sigma_line(λ₀) * levels_factor
 
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ₀, window_size)
+        lb = searchsortedfirst(λs, λ₀ - window_size)
+        ub = searchsortedlast(λs, λ₀ + window_size)
         if lb >= ub
             continue
         end
@@ -152,12 +156,10 @@ function hydrogen_line_absorption!(αs, λs, wl_ranges, T, nₑ, nH_I, nHe_I, UH
         gf = 2 * n^2 * brackett_oscillator_strength(n, m)
         amplitude = gf * nH_I * sigma_line(λ0) * levels_factor
 
-        stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ,
-                                                                    wl_ranges[1][1],
-                                                                    wl_ranges[end][end])
-        lb, ub = move_bounds(wl_ranges, 0, 0, λ0, stark_window)
+        stark_profile_itp, stark_window = bracket_line_interpolator(m, λ0, T, nₑ, ξ, λs[1], λs[end])
+        lb = searchsortedfirst(λs, λ0 - stark_window)
+        ub = searchsortedlast(λs, λ0 + stark_window)
 
-        # renormalize profile?
         view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
     end
 end

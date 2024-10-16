@@ -5,6 +5,7 @@ using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, Aqua
     # tools for testing: assert_allclose and assert_allclose_grid
     include("utilities.jl")
 
+    include("wavelengths.jl")
     include("molecular_cross_sections.jl")
     include("cubic_splines.jl")
     include("transfer.jl")

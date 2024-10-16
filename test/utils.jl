@@ -1,32 +1,18 @@
 # tests of things in src/utils.jl, not utilities for testing.  That's test/utilities.jl
 
 @testset "utils" begin
-    @testset "move_bounds" begin
-        a = 0.5 .+ (1:9)
-        for lb in [1, 3, 9], ub in [1, 5, 9]
-            @test Korg.move_bounds(a, lb, ub, 5.0, 2.0) == (3, 6)
-            @test Korg.move_bounds(a, lb, ub, 0.0, 3.0) == (1, 2)
-            @test Korg.move_bounds(a, lb, ub, 6.0, 4.0) == (2, 9)
-            @test Korg.move_bounds(collect(a), lb, ub, 5.0, 2.0) == (3, 6)
-            @test Korg.move_bounds(collect(a), lb, ub, 0.0, 3.0) == (1, 2)
-            @test Korg.move_bounds(collect(a), lb, ub, 6.0, 4.0) == (2, 9)
-        end
+    @testset "merge_bounds" begin
+        mbounds = Korg.merge_bounds([(1, 3), (2, 4), (5, 6)], 0)
+        @test mbounds[1] == [(1, 4), (5, 6)]
+        @test mbounds[2] == [[1, 2], [3]]
 
-        a = 1:10
-        @test Korg.move_bounds(a, 0, 0, 5.5, 0.1) == (6, 5)
+        mbounds = Korg.merge_bounds([(1, 3), (2, 6), (5, 7)], 0)
+        @test mbounds[1] == [(1, 7)]
+        @test mbounds[2] == [[1, 2, 3]]
 
-        a = [3:5, 11:0.5:12.5, 16:20]
-        @test Korg.move_bounds(a, 0, 0, -1, 1) == (1, 0)
-        @test Korg.move_bounds(a, 0, 0, 3, 1) == (1, 2)
-        @test Korg.move_bounds(a, 0, 0, 5, 6) == (1, 4)
-        @test Korg.move_bounds(a, 0, 0, 12.5, 0.6) == (6, 7)
-        @test Korg.move_bounds(a, 0, 0, 50, 5) == (13, 12)
-
-        # check that indices are appropriately out of order when the range is outside a
-        for a in [1:10, collect(1:10), [1:5, 6:10]]
-            @test Korg.move_bounds(a, 1, 1, 13.5, 0.2) == (11, 10)
-            @test Korg.move_bounds(a, 1, 1, -5, 0.2) == (1, 0)
-        end
+        mbounds = Korg.merge_bounds([(2, 6), (5, 7), (1, 3)], 0)
+        @test mbounds[1] == [(1, 7)]
+        @test mbounds[2] == [[3, 1, 2]]
     end
 
     @testset "LSF" begin
@@ -50,8 +36,6 @@
         array_wls[2:end-1] .+= 1e-8 * ones(length(range_wls) - 2) # slighly perturb (except the endpoints)
         @test Korg.compute_LSF_matrix(array_wls, obs_wls, R) ≈
               Korg.compute_LSF_matrix(range_wls, obs_wls, R)
-        @test_throws ArgumentError Korg.compute_LSF_matrix(array_wls, obs_wls, R;
-                                                           step_tolerance=1e-9)
 
         convF = Korg.apply_LSF(flux, wls, R)
         convF_5sigma = Korg.apply_LSF(flux, wls, R; window_size=5)
@@ -125,26 +109,27 @@
             newF
         end
 
-        wls = 4090:0.01:5010
+        wls = Korg.Wavelengths(4090, 5010)
         flux = zeros(length(wls))
         flux[990:1010] .= 1
 
-        @testset for vsini in [0.0, 1e-10, 1.0, 5.0, 10.0, 20.0], ε in [0.1, 0.6, 0.9]
-            # also test handling of multiple wl ranges
-            @testset for wls in [wls, [4090:0.01:5007, 5007.01:0.01:5010]]
-                rflux = Korg.apply_rotation(flux, wls, vsini, ε)
-                rflux2 = Korg.apply_rotation(flux, wls * 1e-8, vsini, ε)
+        @testset for vsini in [0.0, 1e-10, 1.0, 5.0, 10.0, 20.0]
+            @testset for ε in [0.1, 0.6, 0.9]
+                # also test handling of multiple wl ranges
+                @testset for wls in [wls, Korg.Wavelengths([4090:0.01:5007, 5007.01:0.01:5010])]
+                    rflux = Korg.apply_rotation(flux, wls, vsini, ε)
 
-                # rotational kernel is normalized
-                @test sum(flux)≈sum(rflux) rtol=1e-2
-                @test sum(flux)≈sum(rflux2) rtol=1e-2
+                    # rotational kernel is normalized
+                    @test sum(flux)≈sum(rflux) rtol=1e-2
 
-                @test rflux == rflux2 # wl units shouldn't matter
-
-                if vsini > 1.0 && wls isa AbstractRange
-                    @test assert_allclose_grid(rflux, naive_apply_rotation(flux, wls, vsini, ε),
-                                               [("λ", wls * 1e8, "Å")]; atol=1e-2,
-                                               print_rachet_info=false)
+                    if vsini > 1.0 && (length(wls.wl_ranges) == 1)
+                        @test assert_allclose_grid(rflux,
+                                                   naive_apply_rotation(flux, wls.wl_ranges[1],
+                                                                        vsini,
+                                                                        ε),
+                                                   [("λ", wls * 1e8, "Å")]; atol=1e-2,
+                                                   print_rachet_info=false)
+                    end
                 end
             end
         end

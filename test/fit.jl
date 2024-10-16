@@ -32,35 +32,6 @@ using Random
         end
     end
 
-    @testset "merge bounds, masks etc" begin
-        mbounds = Korg.Fit.merge_bounds([(1, 3), (2, 4), (5, 6)], 0)
-        @test mbounds[1] == [(1, 4), (5, 6)]
-        @test mbounds[2] == [[1, 2], [3]]
-
-        mbounds = Korg.Fit.merge_bounds([(1, 3), (2, 6), (5, 7)], 0)
-        @test mbounds[1] == [(1, 7)]
-        @test mbounds[2] == [[1, 2, 3]]
-
-        mbounds = Korg.Fit.merge_bounds([(2, 6), (5, 7), (1, 3)], 0)
-        @test mbounds[1] == [(1, 7)]
-        @test mbounds[2] == [[3, 1, 2]]
-
-        obs_wls = 5000:1.0:5010
-        synth_wls = 5000:0.01:5012
-        windows = [(5001.0, 5002.0), (5003.0, 5004.0), (5007.0, 5008.0)]
-
-        windows, _ = Korg.Fit.merge_bounds(windows, 1.0)
-        obs_wl_mask, synth_wl_mask, multi_synth_wls = Korg.Fit.calculate_multilocal_masks_and_ranges(windows,
-                                                                                                     obs_wls,
-                                                                                                     synth_wls,
-                                                                                                     1.0)
-
-        @test issorted(multi_synth_wls, by=first)
-        @test multi_synth_wls == [5000.0:0.01:5005.0, 5006.0:0.01:5009.0]
-        @test obs_wl_mask == Bool[0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0]
-        @test synth_wls[synth_wl_mask] == [(5000.0:0.01:5005.0)...; (5006.0:0.01:5009.0)...]
-    end
-
     @testset "fit_spectrum" begin
         # fit params
         Teff = 6402.0
@@ -71,58 +42,67 @@ using Random
         vmic = 0.83
         cntm_offset = 0.04
 
-        synth_wls = 5000:0.01:5010
+        R = 50_000
         obs_wls = 5003:0.03:5008
+        synth_wls = 5000:0.01:5010
+        LSF_matrix = Korg.compute_LSF_matrix(synth_wls, obs_wls, R)
 
         linelist = Korg.get_VALD_solar_linelist()
 
-        LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, 50_000; verbose=false)
-
-        # generate a spectrum and 
+        # generate a spectrum
         atm = interpolate_marcs(Teff, logg, m_H)
         sol = synthesize(atm, linelist, format_A_X(m_H), [synth_wls]; vmic=vmic)
-        spectrum = LSF * (sol.flux ./ (sol.cntm .* (1 - cntm_offset)))
+        spectrum = LSF_matrix * (sol.flux ./ (sol.cntm .* (1 - cntm_offset)))
         spectrum ./= 2 # scale out a factor of 2 and account for it with the "postprocess" kwarg
         err = 0.01 * ones(length(spectrum)) # don't actually apply error to keep tests deterministic
 
-        # now fit it
         scale!(flux, data, err) = flux ./= 2
+
+        # specify the LSF matrix and synthesis wavelengths OR the R value
+        wl_kwargs = [
+            Dict([:synthesis_wls => synth_wls, :LSF_matrix => LSF_matrix]),
+            Dict([:R => R])
+        ]
+
+        # now fit it
         p0 = (Teff=5350.0, m_H=0.0)
         fixed = (logg=logg, vmic=vmic, cntm_offset=cntm_offset)
-        result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                       postprocess=scale!, synthesis_wls=synth_wls, LSF_matrix=LSF)
+        for wlkw in wl_kwargs
+            result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
+                                           precision=1e-3, postprocess=scale!, wlkw...)
 
-        params, Σ = result.covariance
-        Teff_index = findfirst(params .== "Teff")
-        Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
-        m_H_index = findfirst(params .== "m_H")
-        m_H_sigma = sqrt(Σ[m_H_index, m_H_index])
+            params, Σ = result.covariance
+            Teff_index = findfirst(params .== "Teff")
+            Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
+            m_H_index = findfirst(params .== "m_H")
+            m_H_sigma = sqrt(Σ[m_H_index, m_H_index])
 
-        # check that inferred parameters are within 2 sigma of the true values
-        @test result.best_fit_params["Teff"]≈Teff atol=1Teff_sigma
-        @test result.best_fit_params["m_H"]≈m_H atol=1m_H_sigma
+            # check that inferred parameters are within 2 sigma of the true values
+            @test result.best_fit_params["Teff"]≈Teff atol=1Teff_sigma
+            @test result.best_fit_params["m_H"]≈m_H atol=1m_H_sigma
 
-        # check that best-fit flux is within 1% of the true flux at all pixels
-        @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.01)
+            # check that best-fit flux is within 1% of the true flux at all pixels
+            @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.01)
+        end
 
         # test argument checks
         @test_throws "must all have the same length" Korg.Fit.fit_spectrum(obs_wls[1:end-1],
                                                                            spectrum, err, linelist,
                                                                            p0, fixed;
                                                                            synthesis_wls=synth_wls,
-                                                                           LSF_matrix=LSF)
+                                                                           LSF_matrix=LSF_matrix)
         @test_throws "the first dimension of LSF_matrix" Korg.Fit.fit_spectrum(obs_wls, spectrum,
                                                                                err, linelist, p0,
                                                                                fixed;
                                                                                synthesis_wls=synth_wls,
-                                                                               LSF_matrix=LSF[1:end-1,
-                                                                                              :])
+                                                                               LSF_matrix=LSF_matrix[1:end-1,
+                                                                                                     :])
         @test_throws "the second dimension of LSF_matrix" Korg.Fit.fit_spectrum(obs_wls, spectrum,
                                                                                 err, linelist, p0,
                                                                                 fixed;
                                                                                 synthesis_wls=synth_wls,
-                                                                                LSF_matrix=LSF[:,
-                                                                                               1:end-1])
+                                                                                LSF_matrix=LSF_matrix[:,
+                                                                                                      1:end-1])
     end
 
     if false # SKIP EWs tests until we fix them

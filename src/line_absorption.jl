@@ -24,15 +24,11 @@ other arguments:
   - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
   - `verbose` (default: false): if true, show a progress bar.
 """
-function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition_fns, ξ,
+function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
                           α_cntm; cutoff_threshold=3e-4, verbose=false)
     if length(linelist) == 0
         return zeros(length(λs))
     end
-
-    # if λs is an vector of ranges, we need this concatenated version for easy indexing
-    # the vector of ranges is used for fast index calculations (the move_bounds function).
-    concatenated_λs = vcat(λs...)
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
@@ -91,12 +87,14 @@ function line_absorption!(α, linelist, λs, temps, nₑ, n_densities, partition
         lorentz_line_window = maximum(inverse_densities)
         window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
         # at present, this line is allocating. Would be good to fix that.
-        lb, ub = move_bounds(λs, lb, ub, line.wl, window_size)
+        lb = searchsortedfirst(λs, line.wl - window_size)
+        ub = searchsortedlast(λs, line.wl + window_size)
+        # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
         if lb > ub
             continue
         end
 
-        view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(concatenated_λs, lb:ub)')
+        view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
     end
 end
 

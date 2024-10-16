@@ -17,38 +17,29 @@
         @test sol_two_lines.flux == sol_one_lines.flux
     end
 
+    @testset "wavelength handling" begin
+        wls = Korg.Wavelengths(5000, 5001)
+
+        msg = "The air_wavelengths keyword argument is deprecated"
+        @test_warn msg synthesize(atm, [], format_A_X(), 5000, 5001; air_wavelengths=true)
+
+        sol = synthesize(atm, [], format_A_X(), wls)
+        @testset for wl_params in [
+            [5000:0.01:5001],
+            [[5000:0.01:5001]],
+            [collect(5000:0.01:5001)]
+        ]
+            sol2 = synthesize(atm, [], format_A_X(), wl_params...)
+            @test sol.flux ≈ sol2.flux
+        end
+    end
+
     @testset "precomputed chemical equilibrium" begin
         # test that the precomputed chemical equilibrium works
         A_X = format_A_X()
         sol = synthesize(atm, [], A_X, 5000, 5000)
         sol_eq = synthesize(atm, [], A_X, 5000, 5000; use_chemical_equilibrium_from=sol)
         @test sol.flux == sol_eq.flux
-    end
-
-    @testset "synthesize wavelength handling" begin
-        # these are essentially tests of Korg.construct_wavelength_ranges, but we test "through"
-        # synthesize because it's crucial that synthesize works
-
-        wls = 15000:0.01:15500
-        A_X = format_A_X()
-        @test synthesize(atm, [], A_X, 15000, 15500).wavelengths ≈ wls
-        @test synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true).wavelengths ≈
-              Korg.air_to_vacuum.(wls)
-        @test_throws ArgumentError synthesize(atm, [], A_X, 15000, 15500; air_wavelengths=true,
-                                              wavelength_conversion_warn_threshold=1e-20)
-        @test_throws ArgumentError synthesize(atm, [], A_X, 2000, 8000, air_wavelengths=true)
-
-        # test multiple line windows
-        r1 = 5000:0.01:5001
-        r2 = 6000:0.01:6001
-        sol1 = synthesize(atm, [], A_X, r1; hydrogen_lines=true)
-        sol2 = synthesize(atm, [], A_X, [r2]; hydrogen_lines=true)
-        sol3 = synthesize(atm, [], A_X, [r1, r2]; hydrogen_lines=true)
-
-        @test sol1.wavelengths == sol3.wavelengths[sol3.subspectra[1]]
-        @test sol2.wavelengths == sol3.wavelengths[sol3.subspectra[2]]
-        @test sol1.flux == sol3.flux[sol3.subspectra[1]]
-        @test sol2.flux == sol3.flux[sol3.subspectra[2]]
     end
 
     @testset "mu specification" begin
@@ -80,14 +71,14 @@
 
         b = 2.0 * 1e-8 # line_buffer
         linelist = Korg.get_APOGEE_DR17_linelist(; include_water=false)
-        @testset "linelist filtering" for wl_ranges in [
-            [6000:7000],
-            [15100:15200],
+        @testset "linelist filtering" for wls in [
+            6000:7000,
+            15100:15200,
             [6000:7000, 15100:15200, 16900:17100]
         ]
-            wlr = wl_ranges .* 1e-8 #comvert to cm
-            @test length(Korg.filter_linelist(linelist, wlr, b)) ==
-                  length(naive_filter(linelist, wlr, b))
+            wls = Korg.Wavelengths(wls)
+            @test length(Korg.filter_linelist(linelist, wls, b)) ==
+                  length(naive_filter(linelist, wls.wl_ranges, b))
         end
     end
 
