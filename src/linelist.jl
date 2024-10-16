@@ -86,7 +86,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
     show(io, line.species)
     print(io, " ", round(line.wl * 1e8; digits=6), " Å (log gf = ", round(line.log_gf; digits=2),
-          ")")
+          ", χ = ", round(line.E_lower; digits=2), " eV)")
 end
 
 # make it broadcast like a scalar
