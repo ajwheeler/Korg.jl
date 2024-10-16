@@ -1,3 +1,4 @@
 *.ipynb linguist-documentation
 *.dat binary
 *.mod linguist-generated=true
+*.ipynb -diff
