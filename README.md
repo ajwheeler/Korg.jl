@@ -1,8 +1,7 @@
+[![Documentation](https://img.shields.io/badge/Documentation-blue.svg)](https://ajwheeler.github.io/Korg.jl/stable/)
 [![Tests](https://github.com/ajwheeler/Korg.jl/actions/workflows/Test.yml/badge.svg)](https://github.com/ajwheeler/Korg.jl/actions/workflows/Test.yml)
 [![codecov](https://codecov.io/gh/ajwheeler/Korg.jl/branch/main/graph/badge.svg?token=XXK2G8T8CJ)](https://codecov.io/gh/ajwheeler/Korg.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
-
-[Documentation](https://ajwheeler.github.io/Korg.jl/stable/)
 
 Code papers (please cite these if you use Korg): 
 - [Korg: A Modern 1D LTE Spectral Synthesis Package](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract)
