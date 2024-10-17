@@ -22,6 +22,7 @@ include("ContinuumAbsorption/ContinuumAbsorption.jl") # Define continuum absorpt
 include("molecular_cross_sections.jl") # precompute molecular cross-sections.
 include("abundances.jl")               # A(X), etc
 include("synthesize.jl")               # top-level API
+include("synth.jl")
 include("prune_linelist.jl")           # select strong lines from a linelist
 include("fit.jl")                      # routines to infer stellar params from data
 include("qfactors.jl")                 # formalism to compute theoretical RV precision
@@ -29,6 +30,6 @@ include("qfactors.jl")                 # formalism to compute theoretical RV pre
 @compat public get_APOGEE_DR17_linelist, get_GALAH_DR3_linelist, get_GES_linelist, Fit, apply_LSF,
                compute_LSF_matrix, air_to_vacuum, vacuum_to_air, line_profile, blackbody,
                prune_linelist, merge_close_lines, Line
-export synthesize, read_linelist, read_model_atmosphere, interpolate_marcs,
+export synthesize, synth, read_linelist, read_model_atmosphere, interpolate_marcs,
        format_A_X
 end # module
