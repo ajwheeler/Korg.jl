@@ -80,15 +80,15 @@ function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
         Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
     end
 end
-function Wavelengths(wls::AbstractVector, λ_step=0.01; kwargs...)
+function Wavelengths(wls::AbstractVector, λ_step=(wls[1][1] < 1 ? 0.01e-8 : 0.01); kwargs...)
     if λ_step isa Integer
         λ_step = convert(Float64, λ_step)
     end
     Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step) for (λ_start, λ_stop) in wls];
                 kwargs...)
 end
-function Wavelengths(λ_start, λ_stop, λ_step=0.01; kwargs...)
-    Wavelengths([(λ_start, λ_stop)], λ_step; kwargs...)
+function Wavelengths(λ_start, λ_stop, args...; kwargs...)
+    Wavelengths([(λ_start, λ_stop)], args...; kwargs...)
 end
 Wavelengths(wls::Tuple{<:Real,<:Real}; kwargs...) = Wavelengths([wls]; kwargs...)
 
