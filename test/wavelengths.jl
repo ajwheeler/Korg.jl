@@ -7,6 +7,14 @@
         @test wls == Korg.Wavelengths([15000:0.01:15500])
         @test wls == Korg.Wavelengths(collect(15000:0.01:15500))
 
+        # should also work if you pass cm instead of Å
+        # ideally these should be the same to the bit
+        @test wls ≈ Korg.Wavelengths((15000e-8, 15500e-8))
+        @test wls ≈ Korg.Wavelengths([(15000e-8, 15500e-8)])
+        @test wls == Korg.Wavelengths((15000:0.01:15500) * 1e-8)
+        @test wls == Korg.Wavelengths([(15000:0.01:15500) * 1e-8])
+        @test wls == Korg.Wavelengths(collect(15000:0.01:15500) * 1e-8)
+
         @test Korg.Wavelengths(15000, 15500, 1.0) == Korg.Wavelengths(15000, 15500, 1)
         @test Korg.Wavelengths(15000, 15500, 1) == Korg.Wavelengths(15000:1.0:15500)
 

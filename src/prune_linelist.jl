@@ -23,8 +23,8 @@ equivalent width.
     order is much faster, but sorting by strength is useful for visualizing the strongest lines.
   - `verbose=true`: If `true`, a progress bar will be displayed while measuring the EWs.
     All other kwargs are passed to internal calls to [`synthesize`](@ref).
-  - `max_distance=0.0`, how far from `wls` lines can be before they are excluded from the returned
-    list.
+  - `max_distance=0.0`, how far from `wls` lines can be (in Å) before they are excluded from the
+    returned list.
 
 !!! caution
 
@@ -64,11 +64,12 @@ function prune_linelist(atm, linelist, A_X, wl_params...;
     λ_ind = 1
     strong_lines = eltype(linelist)[]
     for line in linelist
-        line_center = line.wl * 1e8
-        if !any((λstart - max_distance) < line_center < (λstop + max_distance)
+        if !any((λstart - max_distance * 1e-8) <= line.wl <= (λstop + max_distance * 1e-8)
                 for (λstart, λstop) in eachwindow(wls))
             continue
         end
+
+        line_center = line.wl * 1e8
 
         # move λ_ind to the wavelength in the synthesis grid closest to the line center
         while (λ_ind < length(sol.wavelengths)) &&
