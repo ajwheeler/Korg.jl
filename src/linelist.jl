@@ -623,21 +623,33 @@ end
     get_GES_linelist()
 
 The Gaia-ESO survey linelist from
-[Heiter et al. 2021](https://ui.adsabs.harvard.edu/abs/2021A&A...645A.106H/abstract).
+[Heiter et al. 2021](https://ui.adsabs.harvard.edu/abs/2021A&A...645A.106H/abstract).  This linelist
+contains > 15 million lines, which means that it can take a while to synthesize spectra.  If you
+don't need molecular lines, you can set `include_molecules=false` to speed things up.
+
+# Keyword Arguments
+
+  - `include_molecules` (default: `true`): whether to include molecular lines.
 """
-function get_GES_linelist()
+function get_GES_linelist(; include_molecules=true)
     @warn "This function is may fail on some systems. See https://github.com/ajwheeler/Korg.jl/issues/309 for details."
     path = joinpath(artifact"Heiter_2021_GES_linelist",
                     "Heiter_et_al_2021_2022_06_17",
                     "Heiter_et_al_2021.h5")
     h5open(path, "r") do f
-        Line.(Float64.(air_to_vacuum.(read(f["wl"]))),
-              Float64.(read(f["log_gf"])),
-              [Species(s) for s in read(f["species"])],
-              Float64.(read(f["E_lower"])),
-              tentotheOrMissing.(Float64.(read(f["gamma_rad"]))),
-              tentotheOrMissing.(Float64.(read(f["gamma_stark"]))),
-              read(f["vdW"]))
+        each_species = [Species(s) for s in read(f["species"])]
+        filter = ones(Bool, length(each_species))
+        if !include_molecules
+            filter .= [!ismolecule(s) for s in each_species]
+        end
+
+        Line.(Float64.(air_to_vacuum.(read(f["wl"])[filter])),
+              Float64.(read(f["log_gf"])[filter]),
+              each_species[filter],
+              Float64.(read(f["E_lower"])[filter]),
+              tentotheOrMissing.(Float64.(read(f["gamma_rad"])[filter])),
+              tentotheOrMissing.(Float64.(read(f["gamma_stark"])[filter])),
+              read(f["vdW"])[filter])
     end
 end
 
