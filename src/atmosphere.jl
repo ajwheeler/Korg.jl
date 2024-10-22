@@ -207,7 +207,7 @@ end
 _cool_dwarfs_atm_itp = nothing
 function _get_cool_dwarfs_atm_itp()
     if isnothing(_cool_dwarfs_atm_itp)
-        println("Constructing cool dwarf atmosphere interpolator.  This will only happen once...")
+        println("Constructing cool dwarf atmosphere interpolator.  This will only happen once per process...")
         path = joinpath(artifact"resampled_cool_dwarf_atmospheres",
                         "resampled_cool_dwarf_atmospheres",
                         "resampled_cool_dwarf_atmospheres.h5")
