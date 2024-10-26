@@ -3,9 +3,7 @@ While Korg is written in Julia, it's possible to use it from either Julia or Pyt
 # Using Korg from Julia
 
 ## [1. Install Julia](@id install)
-Install Julia by downloading a binary from [the website](https://julialang.org/downloads/).  
-See also [the platform specific instructions](https://julialang.org/downloads/platform/), especially
-if you would like to use Julia from the command line.  
+Install Julia, by following the ([instructions on the website](https://julialang.org/downloads/).
 
 !!! warning
     The latest versions of Korg support Julia 1.7 and greater, so make sure you are not using an 
@@ -28,12 +26,7 @@ julia> Pkg.add("Korg")
 !!! tip
     If you are coming from Python, we also recommend installing 
     [IJulia](https://github.com/JuliaLang/IJulia.jl) (for using Julia from Jupyter/IPython 
-    notebooks), and [PyPlot](https://github.com/JuliaPy/PyPlot.jl) (for calling `matplotlib` from 
-    Julia). 
-
-    If you want PyPlot to use you existing python/matplotlib installation, just do 
-    `ENV["PYTHON"] = "/path/to/python"` before you install.  See [here](https://github.com/JuliaPy/PyCall.jl#specifying-the-python-version)
-    for details.
+    notebooks), and [PythonPlot](https://github.com/JuliaPy/PythonPlot.jl) (for calling `matplotlib` from Julia).
 
 # Using Korg from Python
 The recommended way to call Korg from Python is to use [juliacall](https://pypi.org/project/juliacall/).
