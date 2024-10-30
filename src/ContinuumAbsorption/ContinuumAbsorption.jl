@@ -14,13 +14,13 @@ include("absorption_metals_bf.jl")
 include("scattering.jl")
 
 """
-    total_continuum_absorption(νs, T, nₑ, number_densities, partition_funcs; error_oobounds)
+    total_continuum_absorption(wls::Wavelengths, T, nₑ, number_densities, partition_funcs; error_oobounds)
 
-The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
+The total continuum linear absoprtion coefficient, α, at many wavelengths.
 
 # Arguments
 
-  - `νs` are frequencies in Hz
+  - `wls` is a Wavelengths object containing the wavelengths at which to compute absorption
   - `T` is temperature in K
   - `nₑ` is the electron number density in cm^-3
   - `number_densities` is a `Dict` mapping each `Species` to its number density
@@ -36,8 +36,10 @@ The total continuum linear absoprtion coefficient, α, at many frequencies, ν.
     For efficiency reasons, `νs` must be sorted. While this function technically supports any
     sorted `AbstractVector`, it is most effient when passed an  `AbstractRange`.
 """
-function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partition_funcs::Dict;
+function total_continuum_absorption(wls::Wavelengths, T, nₑ, number_densities::Dict,
+                                    partition_funcs::Dict;
                                     error_oobounds=false)
+    νs = eachfreq(wls)
     α = zeros(promote_type(eltype(νs), typeof(T), typeof(nₑ), valtype(number_densities)),
               length(νs))
 

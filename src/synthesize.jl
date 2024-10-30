@@ -174,7 +174,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             end
         end
 
-        α_cntm_vals = reverse(total_continuum_absorption(eachfreq(cntm_wls), layer.temp, nₑ, n_dict,
+        α_cntm_vals = reverse(total_continuum_absorption(cntm_wls, layer.temp, nₑ, n_dict,
                                                          partition_funcs))
         α_cntm_layer = linear_interpolation(cntm_wls, α_cntm_vals)
         α[i, :] .= α_cntm_layer(wls)
