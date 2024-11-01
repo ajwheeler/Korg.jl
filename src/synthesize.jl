@@ -102,10 +102,10 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
     transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
   - `tau_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and
     "bezier" (testing only--not recommended).
-  - `I_scheme` (default: "linear_flux_only"): how to compute the intensity.  Options are "linear",
-    "linear_flux_only", and "bezier".  "linear_flux_only" is the fastest, but does not return the
+  - `I_scheme` (default: `"linear_flux_only"`): how to compute the intensity.  Options are `"linear"`,
+    `"linear_flux_only"`, and `"bezier"`.  `"linear_flux_only"` is the fastest, but does not return the
     intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
-    calculation, but stores the intensity at every layer. "bezier" is for testing and not
+    calculation, but stores the intensity at every layer. `"bezier"` is for testing and not
     recommended.
   - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
