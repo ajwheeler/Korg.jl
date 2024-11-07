@@ -632,7 +632,6 @@ don't need molecular lines, you can set `include_molecules=false` to speed thing
   - `include_molecules` (default: `true`): whether to include molecular lines.
 """
 function get_GES_linelist(; include_molecules=true)
-    @warn "This function is may fail on some systems. See https://github.com/ajwheeler/Korg.jl/issues/309 for details."
     path = joinpath(artifact"Heiter_2021_GES_linelist",
                     "Heiter_et_al_2021_2022_06_17",
                     "Heiter_et_al_2021.h5")
