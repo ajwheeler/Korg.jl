@@ -8,15 +8,12 @@ function synth(;
                rectify=true,
                R=Inf,
                vsini=0,
-               kwargs...,)
-    # if a keyword argument is an atomic symbol, it is assumed to be an abundance
-    # otherwise, it is passed to synthesize
-    abunds_set = [k for k in keys(kwargs) if k in atomic_symbols]
-
-    A_X = format_A_X(metals_H, alpha_H, Dict(k => kwargs[k] for k in abunds_set))
+               synthesize_kwargs=Dict(),
+               abundances...,)
+    A_X = format_A_X(metals_H, alpha_H, abundances)
     atm = interpolate_marcs(Teff, logg, A_X)
 
-    synthesize_kwargs = [k => kwargs[k] for k in keys(kwargs) if !(k in abunds_set)]
+    # synthesize kwargs currently must be symbols, which is annoying
     spectrum = synthesize(atm, linelist, A_X, wavelengths; synthesize_kwargs...)
     flux = if rectify
         spectrum.flux ./ spectrum.cntm
@@ -24,6 +21,7 @@ function synth(;
         spectrum.flux
     end
     if isfinite(R)
+        # TODO this induces edge effects
         flux = apply_LSF(flux, spectrum.wavelengths, R)
     end
     if vsini > 0
