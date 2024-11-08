@@ -88,8 +88,12 @@ using Random
         # test argument checks
         @test_throws "LSF_matrix and synthesis_wls cannot be specified if R is provided" begin
             Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                  windows=[(first(obs_wls), last(obs_wls))],
-                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix, time_limit=1)
+                                  R=R, synthesis_wls=synth_wls, LSF_matrix=LSF_matrix, time_limit=1)
+        end
+        @test_throws "LSF_matrix and synthesis_wls can't be specified if windows is also specified" begin
+            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
+                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix,
+                                  windows=[(5003, 5008)], time_limit=1)
         end
         @test_throws "must all have the same length" begin
             Korg.Fit.fit_spectrum(obs_wls[1:end-1], spectrum, err, linelist, p0, fixed;
