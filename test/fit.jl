@@ -57,6 +57,8 @@ using Random
         err = 0.01 * ones(length(spectrum)) # don't actually apply error to keep tests deterministic
 
         scale!(flux, data, err) = flux ./= 2
+        p0 = (Teff=5350.0, m_H=0.0)
+        fixed = (logg=logg, vmic=vmic, cntm_offset=cntm_offset)
 
         # specify the LSF matrix and synthesis wavelengths OR the R value
         wl_kwargs = [
@@ -65,8 +67,6 @@ using Random
         ]
 
         # now fit it
-        p0 = (Teff=5350.0, m_H=0.0)
-        fixed = (logg=logg, vmic=vmic, cntm_offset=cntm_offset)
         for wlkw in wl_kwargs
             result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
                                            precision=1e-3, postprocess=scale!, wlkw...)
@@ -86,23 +86,25 @@ using Random
         end
 
         # test argument checks
-        @test_throws "must all have the same length" Korg.Fit.fit_spectrum(obs_wls[1:end-1],
-                                                                           spectrum, err, linelist,
-                                                                           p0, fixed;
-                                                                           synthesis_wls=synth_wls,
-                                                                           LSF_matrix=LSF_matrix)
-        @test_throws "the first dimension of LSF_matrix" Korg.Fit.fit_spectrum(obs_wls, spectrum,
-                                                                               err, linelist, p0,
-                                                                               fixed;
-                                                                               synthesis_wls=synth_wls,
-                                                                               LSF_matrix=LSF_matrix[1:end-1,
-                                                                                                     :])
-        @test_throws "the second dimension of LSF_matrix" Korg.Fit.fit_spectrum(obs_wls, spectrum,
-                                                                                err, linelist, p0,
-                                                                                fixed;
-                                                                                synthesis_wls=synth_wls,
-                                                                                LSF_matrix=LSF_matrix[:,
-                                                                                                      1:end-1])
+        @test_throws "LSF_matrix and synthesis_wls cannot be specified if R is provided" begin
+            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
+                                  windows=[(first(obs_wls), last(obs_wls))],
+                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix, time_limit=1)
+        end
+        @test_throws "must all have the same length" begin
+            Korg.Fit.fit_spectrum(obs_wls[1:end-1], spectrum, err, linelist, p0, fixed;
+                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix, time_limit=1)
+        end
+        @test_throws "the first dimension of LSF_matrix" begin
+            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
+                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix[1:end-1, :],
+                                  time_limit=1)
+        end
+        @test_throws "the second dimension of LSF_matrix" begin
+            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
+                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix[:, 1:end-1],
+                                  time_limit=1)
+        end
     end
 
     if false # SKIP EWs tests until we fix them
