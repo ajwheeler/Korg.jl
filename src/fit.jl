@@ -360,8 +360,11 @@ end
 # called by fit_spectrum
 function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows, wl_buffer)
     if (!isnothing(LSF_matrix) || !isnothing(synthesis_wls))
+        if !isnothing(R)
+            throw(ArgumentError("LSF_matrix and synthesis_wls cannot be specified if R is provided."))
+        end
         if !isnothing(windows)
-            Throw(ArgumentError("LSF_matrix and synthesis_wls can't be specified if windows is also specified. Passing an LSF_matrix directly is no longer needed for performance."))
+            throw(ArgumentError("LSF_matrix and synthesis_wls can't be specified if windows is also specified. Passing an LSF_matrix directly is no longer needed for performance."))
         end
         if isnothing(LSF_matrix) || isnothing(synthesis_wls)
             throw(ArgumentError("LSF_matrix and synthesis_wls must both be defined if the other is."))
