@@ -78,9 +78,10 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
     at which line profiles are truncated.  This has major performance impacts, since line absorption
     calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
     The default value should effect final spectra below the 10^-3 level.
-  - `electron_number_density_warn_threshold` (default: `0.1`): if the relative difference between the
+  - `electron_number_density_warn_threshold` (default: `Inf`): if the relative difference between the
     calculated electron number density and the input electron number density is greater than this value,
-    a warning is printed.  Set to `Inf` to suppress this warning.
+    a warning is printed.  By default, this warning is suppress (threshold is `Inf`) because it is
+    very easily raised in cases where it is of no observable consequence.
     See also `electron_number_density_warn_min_value`, below.
   - `electron_number_density_warn_min_value` (default: `1e-4`): The minimum value of the ratio of
     the electron number density to the total number density at which a warning is printed.
@@ -114,7 +115,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
                     air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
-                    electron_number_density_warn_threshold=0.1,
+                    electron_number_density_warn_threshold=Inf,
                     electron_number_density_warn_min_value=1e-4, return_cntm=true,
                     I_scheme="linear_flux_only", tau_scheme="anchored",
                     ionization_energies=ionization_energies,
