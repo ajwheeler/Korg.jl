@@ -72,9 +72,12 @@ function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
     MolecularCrossSection(wls, itp, species)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sigma::MolecularCrossSection)
+function Base.show(io::IO, sigma::MolecularCrossSection)
+    Tmin, Tmax = round.(Int, 10 .^ sigma.itp.itp.knots[2][[1, end]])
+    vmicmin, vmicmax = round.(Int, sigma.itp.itp.knots[1][[1, end]])
+    wlmin, wlmax = round.(Int, sigma.wls[[1, end]] .* 1e8)
     println(io, "Molecular cross-section for ", sigma.species,
-            " ($(sigma.wls[1]) Å ≤ λ ≤ $(sigma.wls[end]) Å)")
+            " ($(wlmin) Å ≤ λ ≤ $(wlmax) Å, $(Tmin) K ≤ T ≤ $(Tmax) K, $(vmicmin) km/s ≤ vmic ≤ $(vmicmax) km/s)")
 end
 
 """
