@@ -57,10 +57,11 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     species_indices = let index_dict = Dict(spec => i for (i, spec) in enumerate(each_species))
         [index_dict[l.species] for l in linelist]
     end
-    n_div_Z = CuArray{eltype(α)}(undef, (length(temps), length(each_species)))
+    n_div_Z_cpu = zeros(eltype(α), (length(temps), length(each_species)))
     for (i, spec) in enumerate(each_species)
-        n_div_Z[:, i] .= CuArray(n_densities[spec] ./ partition_fns[spec].(log.(temps)))
+        n_div_Z_cpu[:, i] .= n_densities[spec] ./ partition_fns[spec].(log.(temps))
     end
+    n_div_Z = CuArray(n_div_Z_cpu)
     mass_per_line_d = CuArray([get_mass(species) for species in each_species])
 
     # preallocate some arrays for the core loop. 
@@ -99,7 +100,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
 
         #total wl-integrated absorption coefficient
         # define not-in-line to not broadcast these functions/constructors
-        levels_factor_d = CuVector(levels_factor)
+        levels_factor_d = CuVector(levels_factor) # TODO no _d
         n_div_Z_view = view(n_div_Z, :, spec_index)
         @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor_d * n_div_Z_view
 
@@ -119,10 +120,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         end
 
         λs_d = CuArray(view(λs, lb:ub))
-        σ_d = CuArray(σ)
-        γ_d = CuArray(γ)
-        amplitude_d = CuArray(amplitude)
-        view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ_d, γ_d, amplitude_d, λs_d')
+        view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_d')
     end
 end
 
