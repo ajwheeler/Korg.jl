@@ -26,9 +26,7 @@ other arguments:
   - `verbose` (default: false): NOT ALLOWED TODO
 """
 function line_absorption_cuda!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities,
-                               partition_fns,
-                               ξ,
-                               α_cntm; cutoff_threshold=3e-4, verbose=false)
+                               partition_fns, ξ, α_cntm; cutoff_threshold=3e-4, verbose=false)
     @assert verbose == false
     # allocate abs coef result array on the device
     α_d = CUDA.fill(0.0, size(α))
@@ -44,6 +42,8 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     end
 
     temps_d = CuArray(temps)
+    nₑ_d = CuArray(nₑ)
+    n_H_I_d = CuArray(n_densities[species"H_I"])
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
@@ -66,7 +66,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     # preallocate some arrays for the core loop. 
     # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
     # the values in "number_densities"
-    Γ = Vector{eltype(α)}(undef, size(temps))
+    Γ = CuVector{eltype(α)}(undef, size(temps))
     γ = CuVector{eltype(α)}(undef, size(temps))
     σ = CuVector{eltype(α)}(undef, size(temps))
     amplitude = CuVector{eltype(α)}(undef, size(temps))
@@ -74,7 +74,6 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     ρ_crit = CuVector{eltype(α)}(undef, size(temps))
     inverse_densities = CuVector{eltype(α)}(undef, size(temps))
     β = CuVector(@. 1 / (kboltz_eV * temps))
-    counter = 0
     for (line, spec_index) in zip(linelist, species_indices)
         m = mass_per_line_d[spec_index]
 
@@ -85,8 +84,8 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         # angular, not cyclical frequency (ω, not ν).
         Γ .= line.gamma_rad
         if !ismolecule(line.species)
-            @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
-            Γ .+= n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temps)
+            @. Γ += nₑ_d * scaled_stark_cuda.(line.gamma_stark, temps_d)
+            Γ .+= n_H_I_d .* scaled_vdW_cuda.(Ref(line.vdW), m, temps_d)
         end
         # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.
@@ -123,10 +122,8 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         σ_d = CuArray(σ)
         γ_d = CuArray(γ)
         amplitude_d = CuArray(amplitude)
-        CUDA.@sync view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ_d, γ_d, amplitude_d, λs_d')
-        counter += 1
+        view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ_d, γ_d, amplitude_d, λs_d')
     end
-    @info "Calculated $counter lines"
 end
 
 """
