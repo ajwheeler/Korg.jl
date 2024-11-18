@@ -5,6 +5,7 @@ version = "0.40.2"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
 DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
@@ -27,6 +28,7 @@ Trapz = "592b5752-818d-11e9-1e9a-2b8ca4a44cd1"
 
 [compat]
 CSV = "0.8, 0.9, 0.10"
+CUDA = "5.5.2"
 Compat = "4.10 - 4"
 DSP = "0.7"
 DiffResults = "1"

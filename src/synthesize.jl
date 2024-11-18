@@ -199,10 +199,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # line contributions to α5
     if tau_scheme == "anchored"
         α_cntm_5 = [_ -> a for a in copy(α5)] # lambda per layer
-        line_absorption!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm), nₑs,
-                         number_densities,
-                         partition_funcs, vmic * 1e5, α_cntm_5;
-                         cutoff_threshold=line_cutoff_threshold)
+        line_absorption_cuda!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm),
+                              nₑs,
+                              number_densities,
+                              partition_funcs, vmic * 1e5, α_cntm_5;
+                              cutoff_threshold=line_cutoff_threshold)
         interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
                                               Korg.Wavelengths([5000]),
                                               get_temps(atm), vmic, number_densities)
@@ -227,8 +228,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
-                     vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
+    line_absorption_cuda!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
+                          vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold,
+                          verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 
