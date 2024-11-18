@@ -49,7 +49,6 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     #and longest wavelengths which feel the effect of each line 
     lb = 1
     ub = 1
-    β = @. 1 / (kboltz_eV * temps)
 
     each_species = unique([l.species for l in linelist])
     if species"H I" in each_species
@@ -71,9 +70,10 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     γ = CuVector{eltype(α)}(undef, size(temps))
     σ = CuVector{eltype(α)}(undef, size(temps))
     amplitude = CuVector{eltype(α)}(undef, size(temps))
-    levels_factor = Vector{eltype(α)}(undef, size(temps))
+    levels_factor = CuVector{eltype(α)}(undef, size(temps))
     ρ_crit = CuVector{eltype(α)}(undef, size(temps))
     inverse_densities = CuVector{eltype(α)}(undef, size(temps))
+    β = CuVector(@. 1 / (kboltz_eV * temps))
     counter = 0
     for (line, spec_index) in zip(linelist, species_indices)
         m = mass_per_line_d[spec_index]
