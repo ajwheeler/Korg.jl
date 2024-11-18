@@ -23,16 +23,25 @@ other arguments:
 # Keyword Arguments
 
   - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
-  - `verbose` (default: false): if true, show a progress bar.
+  - `verbose` (default: false): NOT ALLOWED TODO
 """
-function line_absorption_cuda!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns,
+function line_absorption_cuda!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities,
+                               partition_fns,
                                ξ,
                                α_cntm; cutoff_threshold=3e-4, verbose=false)
+    @assert verbose == false
+    # allocate abs coef result array on the device
+    α_d = CUDA.fill(0.0, size(α))
+    line_absorption_cuda_helper!(α_d, linelist, λs, temps, nₑ, n_densities, partition_fns, ξ,
+                                 α_cntm, cutoff_threshold)
+    α .+= Array(α_d)
+end
+
+function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities,
+                                      partition_fns, ξ, α_cntm, cutoff_threshold=3e-4)
     if length(linelist) == 0
         return zeros(length(λs))
     end
-
-    α_d = CUDA.fill(0.0, size(α))
 
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
@@ -58,7 +67,7 @@ function line_absorption_cuda!(α, linelist, λs::Wavelengths, temps, nₑ, n_de
     levels_factor = Vector{eltype(α)}(undef, size(temps))
     ρ_crit = Vector{eltype(α)}(undef, size(temps))
     inverse_densities = Vector{eltype(α)}(undef, size(temps))
-    @showprogress desc="calculating line opacities" enabled=verbose for line in linelist
+    for line in linelist
         m = get_mass(line.species)
 
         # doppler-broadening width, σ (NOT √[2]σ)
@@ -98,7 +107,11 @@ function line_absorption_cuda!(α, linelist, λs::Wavelengths, temps, nₑ, n_de
             continue
         end
 
-        view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+        λs_d = CuArray(view(λs, lb:ub))
+        σ_d = CuArray(σ)
+        γ_d = CuArray(γ)
+        amplitude_d = CuArray(amplitude)
+        view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ_d, γ_d, amplitude_d, λs_d')
     end
 end
 
