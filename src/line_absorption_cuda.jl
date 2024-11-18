@@ -51,13 +51,18 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     ub = 1
     β = @. 1 / (kboltz_eV * temps)
 
-    # precompute number density / partition function for each species in the linelist
-    n_div_Z = map(unique([l.species for l in linelist])) do spec
-        spec => @. (n_densities[spec] / partition_fns[spec](log(temps)))
-    end |> Dict
-    if species"H I" in keys(n_div_Z)
+    each_species = unique([l.species for l in linelist])
+    if species"H I" in each_species
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
+    species_indices = let index_dict = Dict(spec => i for (i, spec) in enumerate(each_species))
+        [index_dict[l.species] for l in linelist]
+    end
+    n_div_Z = CuArray{eltype(α)}(undef, (length(temps), length(each_species)))
+    for (i, spec) in enumerate(each_species)
+        n_div_Z[:, i] .= CuArray(n_densities[spec] ./ partition_fns[spec].(log.(temps)))
+    end
+    mass_per_line_d = CuArray([get_mass(species) for species in each_species])
 
     # preallocate some arrays for the core loop. 
     # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
@@ -65,13 +70,13 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     Γ = Vector{eltype(α)}(undef, size(temps))
     γ = CuVector{eltype(α)}(undef, size(temps))
     σ = CuVector{eltype(α)}(undef, size(temps))
-    amplitude = Vector{eltype(α)}(undef, size(temps))
+    amplitude = CuVector{eltype(α)}(undef, size(temps))
     levels_factor = Vector{eltype(α)}(undef, size(temps))
-    ρ_crit = Vector{eltype(α)}(undef, size(temps))
+    ρ_crit = CuVector{eltype(α)}(undef, size(temps))
     inverse_densities = CuVector{eltype(α)}(undef, size(temps))
     counter = 0
-    for line in linelist
-        m = get_mass(line.species)
+    for (line, spec_index) in zip(linelist, species_indices)
+        m = mass_per_line_d[spec_index]
 
         # doppler-broadening width, σ (NOT √[2]σ)
         σ .= doppler_width_cuda.(line.wl, temps_d, m, ξ)
@@ -94,15 +99,16 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
 
         #total wl-integrated absorption coefficient
-        @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor *
-                       n_div_Z[line.species]
+        # define not-in-line to not broadcast these functions/constructors
+        levels_factor_d = CuVector(levels_factor)
+        n_div_Z_view = view(n_div_Z, :, spec_index)
+        @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor_d * n_div_Z_view
 
-        ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
-        ρ_crit_d = CuArray(ρ_crit)
+        ρ_crit .= CuVector((line.wl .|> α_cntm) .* cutoff_threshold) ./ amplitude
 
-        inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit_d, σ)
+        inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit, σ)
         doppler_line_window = maximum(inverse_densities)
-        inverse_densities .= inverse_lorentz_density_cuda.(ρ_crit_d, γ)
+        inverse_densities .= inverse_lorentz_density_cuda.(ρ_crit, γ)
         lorentz_line_window = maximum(inverse_densities)
         window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
         # at present, this line is allocating. Would be good to fix that.
