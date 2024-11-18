@@ -111,7 +111,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         σ_d = CuArray(σ)
         γ_d = CuArray(γ)
         amplitude_d = CuArray(amplitude)
-        view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ_d, γ_d, amplitude_d, λs_d')
+        CUDA.@sync view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ_d, γ_d, amplitude_d, λs_d')
     end
 end
 
