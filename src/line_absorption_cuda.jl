@@ -43,6 +43,8 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         return zeros(length(λs))
     end
 
+    temps_d = CuArray(temps)
+
     #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
     #and longest wavelengths which feel the effect of each line 
     lb = 1
@@ -61,17 +63,18 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
     # the values in "number_densities"
     Γ = Vector{eltype(α)}(undef, size(temps))
-    γ = Vector{eltype(α)}(undef, size(temps))
-    σ = Vector{eltype(α)}(undef, size(temps))
+    γ = CuVector{eltype(α)}(undef, size(temps))
+    σ = CuVector{eltype(α)}(undef, size(temps))
     amplitude = Vector{eltype(α)}(undef, size(temps))
     levels_factor = Vector{eltype(α)}(undef, size(temps))
     ρ_crit = Vector{eltype(α)}(undef, size(temps))
-    inverse_densities = Vector{eltype(α)}(undef, size(temps))
+    inverse_densities = CuVector{eltype(α)}(undef, size(temps))
+    counter = 0
     for line in linelist
         m = get_mass(line.species)
 
         # doppler-broadening width, σ (NOT √[2]σ)
-        σ .= doppler_width.(line.wl, temps, m, ξ)
+        σ .= doppler_width_cuda.(line.wl, temps_d, m, ξ)
 
         # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
         # angular, not cyclical frequency (ω, not ν).
@@ -84,7 +87,8 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         # implicit aproximation that λ(ν) is linear over the line window.
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
-        @. γ = Γ * line.wl^2 / (c_cgs * 4π)
+        γ_cpu = @. Γ * line.wl^2 / (c_cgs * 4π)
+        γ .= CuArray(γ_cpu)
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
         @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
@@ -94,9 +98,11 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
                        n_div_Z[line.species]
 
         ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
-        inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
+        ρ_crit_d = CuArray(ρ_crit)
+
+        inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit_d, σ)
         doppler_line_window = maximum(inverse_densities)
-        inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
+        inverse_densities .= inverse_lorentz_density_cuda.(ρ_crit_d, γ)
         lorentz_line_window = maximum(inverse_densities)
         window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
         # at present, this line is allocating. Would be good to fix that.
@@ -112,7 +118,9 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         γ_d = CuArray(γ)
         amplitude_d = CuArray(amplitude)
         CUDA.@sync view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ_d, γ_d, amplitude_d, λs_d')
+        counter += 1
     end
+    @info "Calculated $counter lines"
 end
 
 """
@@ -168,12 +176,6 @@ function exponential_integral_1_cuda(x)
     end
 end
 
-"""
-    doppler_width(λ₀ T, m, ξ)
-
-The standard deviation of of the doppler-broadening profile.  In standard spectroscopy texts, the
-Doppler width often refers to σ√2, but this is σ
-"""
 doppler_width_cuda(λ₀, T, m, ξ) = λ₀ * sqrt(kboltz_cgs * T / m + (ξ^2) / 2) / c_cgs
 
 """
