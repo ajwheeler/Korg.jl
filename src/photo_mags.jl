@@ -4,6 +4,7 @@ using Trapz, DelimitedFiles
 
 # add atmospheric transmission separately later
 # maybe I should pass a default resolution on which to compute the integral?
+# adapted from Eddie Schlafly
 function compute_magnitude(spec_flux, spec_wave, filter_trans, filter_wave)
     # check spec_wave extends beyond filter_wave
     if minimum(filter_wave) < minimum(spec_wave) || maximum(filter_wave) > maximum(spec_wave)
