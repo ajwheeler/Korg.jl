@@ -53,6 +53,6 @@ function parse_DECam_filter(filter_name)
     base = "/uufs/chpc.utah.edu/common/home/u6039752/scratch1/working/2024_11_18/Korg.jl/data/filter_curves/DECam/DECam_"
     data = readdlm(base*filter_name*".txt",comments=true)
     # msk rows where data[:,2] is zero (no transmission)
-    msk = data[:,2] .!= 0
-    return data[msk,1], data[msk,2]
+    msk = data[:, 2] .!= 0
+    return data[msk, 1], data[msk, 2]
 end
