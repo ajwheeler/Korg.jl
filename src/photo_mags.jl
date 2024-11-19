@@ -41,7 +41,6 @@ function get_radius(logg)
     
     # Surface gravity in cgs from log(g)
     g = 10^logg # cm/s^2
-    
     # Using g = GM/R², solve for R
     # R = sqrt(GM/g)
     radius = sqrt((G * M_sun) / g)  # in cm
