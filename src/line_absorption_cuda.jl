@@ -69,7 +69,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     temps_d = CuArray(temps)
     nₑ_d = CuArray(nₑ)
     n_H_I_d = CuArray(n_densities[species"H_I"])
-    λs_d = CuArray(λs)
+    λs_d = CuArray(λs) # TODO this means we don't have constant time searchsortedfirst/last
 
     each_species = unique([l.species for l in linelist])
     if species"H I" in each_species
@@ -130,8 +130,9 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
                        levels_factor, ρ_crit, inverse_gaussian_densities, inverse_lorentz_densities)
     m = mass_per_line_d[spec_index]
 
-    warp_size = warpsize(device())
-    @cuda threads=warp_size process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d,
+    warp_size = warpsize(device()) # need the device() call because this is called on CPU
+    @cuda threads=warp_size process_line_kernel!(σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d,
+                                                 n_H_I_d,
                                                  levels_factor, n_div_Z, amplitude, spec_index,
                                                  α_cntm_d, coarse_λs_d, ρ_crit, cutoff_threshold,
                                                  inverse_gaussian_densities,
@@ -140,22 +141,27 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
     doppler_line_window = maximum(inverse_gaussian_densities)
     lorentz_line_window = maximum(inverse_lorentz_densities)
     window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
+    #println("on CPU, doppler_line_window = $doppler_line_window, lorentz_line_window = $lorentz_line_window")
     # at present, this line is allocating. Would be good to fix that.
     lb = searchsortedfirst(λs_d, line.wl - window_size)
     ub = searchsortedlast(λs_d, line.wl + window_size)
-    if lb > ub
-        return
+    if length(λs_d) > 1
+        println("on CPU, line.wl + window_size = $(line.wl + window_size), lb = $lb, ub=$ub")
+        @show λs_d[1:3]
     end
+    #if lb > uh
+    #    return
+    #end
 
-    λs_view = view(λs_d, lb:ub) # TODO consolidate?
-    view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_view')
+    #λs_view = view(λs_d, lb:ub) # TODO consolidate?
+    #view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_view')
     return
 end
 
 """
 This must be launched with threads equal to the warp size.
 """
-function process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d, levels_factor,
+function process_line_kernel!(σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d, levels_factor,
                               n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
                               cutoff_threshold, inverse_gaussian_densities,
                               inverse_lorentz_densities)
@@ -190,7 +196,45 @@ function process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_
         inverse_gaussian_densities[index] = inverse_gaussian_density_cuda(ρ_crit[index], σ[index])
         inverse_lorentz_densities[index] = inverse_lorentz_density_cuda(ρ_crit[index], γ[index])
     end
+
+    # TODO fuse loop with the previous one
+    doppler_line_window = 0.0
+    lorentz_line_window = 0.0
+    for index in threadIdx().x:blockDim().x:length(σ)
+        doppler_line_window = max(doppler_line_window, inverse_gaussian_densities[index])
+        lorentz_line_window = max(lorentz_line_window, inverse_lorentz_densities[index])
+    end
+
+    doppler_line_window = warp_reduce_max(doppler_line_window)
+    lorentz_line_window = warp_reduce_max(lorentz_line_window)
+    window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
+
+    lb = searchsortedfirst(λs_d, line.wl - window_size)
+    ub = searchsortedlast(λs_d, line.wl + window_size)
+    if threadIdx().x == 1
+        #if lb == 2 && ub == 0
+        if length(λs_d) != 1
+            CUDA.@cuprintln("length(λs_d) = ", length(λs_d))
+            CUDA.@cuprintf("on thread %d, line.wl + window_size = %.17e, lb = %d, ub = %d\n",
+                           threadIdx().x, line.wl+window_size, lb, ub)
+        end
+    end
+    if lb > ub # TODO test performance
+        return
+    end
     return
+end
+
+"""
+This must be launched with threads equal to the warp size.
+"""
+function warp_reduce_max(value)
+    offset = warpsize() ÷ 2 # it's not warpsize(device()) because this in part of a CUDA kernel
+    while offset > 0
+        value = max(value, CUDA.shfl_xor_sync(CUDA.FULL_MASK, value, offset))
+        offset ÷= 2
+    end
+    return value
 end
 
 """
