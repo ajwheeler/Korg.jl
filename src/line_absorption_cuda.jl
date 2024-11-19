@@ -129,20 +129,7 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
                        levels_factor, ρ_crit, inverse_densities)
     m = mass_per_line_d[spec_index]
 
-    @cuda threads=256 process_line_kernel!(σ, line, temps_d, m, ξ)
-
-    # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
-    # angular, not cyclical frequency (ω, not ν).
-    Γ .= line.gamma_rad
-    if !line.ismolecular
-        @. Γ += nₑ_d * scaled_stark_cuda.(line.gamma_stark, temps_d)
-        Γ .+= n_H_I_d .* scaled_vdW_cuda.(Ref(line.vdW), m, temps_d)
-    end
-    # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
-    # implicit aproximation that λ(ν) is linear over the line window.
-    # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
-    # and the last factor of 1/2 is for FWHM vs HWHM
-    @. γ = Γ * line.wl^2 / (c_cgs * 4π)
+    @cuda threads=256 process_line_kernel!(σ, line, temps_d, m, ξ, Γ, γ, nₑ_d, n_H_I_d)
 
     E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
     @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
@@ -173,13 +160,24 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
     return
 end
 
-function process_line_kernel!(σ, line, temps_d, m, ξ)
-
-    #for i in 1:length(σ)
+function process_line_kernel!(σ, line, temps_d, m, ξ, Γ, γ, nₑ_d, n_H_I_d)
     index = threadIdx().x
     if index <= length(σ)
-        wl = line.wl
         σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
+
+        # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
+        # angular, not cyclical frequency (ω, not ν).
+        @inbounds Γ[index] = line.gamma_rad
+        if !line.ismolecular
+            @inbounds Γ[index] += nₑ_d[index] * scaled_stark_cuda(line.gamma_stark, temps_d[index])
+            @inbounds Γ[index] += n_H_I_d[index] * scaled_vdW_cuda(line.vdW, m, temps_d[index])
+        end
+
+        # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
+        # implicit aproximation that λ(ν) is linear over the line window.
+        # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
+        # and the last factor of 1/2 is for FWHM vs HWHM
+        @inbounds γ[index] = Γ[index] * line.wl^2 / (c_cgs * 4π)
     end
     return
 end
