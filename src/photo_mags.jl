@@ -1,5 +1,5 @@
 
-import Interpolations: linear_interpolation 
+import Interpolations: linear_interpolation
 using Trapz, DelimitedFiles
 
 # add atmospheric transmission separately later
