@@ -25,11 +25,11 @@ function compute_magnitude(spec_flux, spec_wave, filter_trans, filter_wave)
     c = 2.99792458e10  # cm/s
     flux_to_number = h*c ./(spec_wave*1e-8);  # erg
 
-    spec_ref = 3631e-23*c ./(spec_wave*1e-8)./spec_wave # working Mgy
-    Iref = trapz(spec_wave,spec_ref.*filter_trans_interp.*flux_to_number)
-    Ispec = trapz(spec_wave,spec_flux.*filter_trans_interp.*flux_to_number)
-    
-    return -2.5 * log10(Ispec/Iref) # AB magnitudes
+    spec_ref = 3631e-23 * c ./ (spec_wave * 1e-8) ./ spec_wave # working Mgy
+    Iref = trapz(spec_wave, spec_ref .* filter_trans_interp .* flux_to_number)
+    Ispec = trapz(spec_wave, spec_flux .* filter_trans_interp .* flux_to_number)
+
+    return -2.5 * log10(Ispec / Iref) # AB magnitudes
 end
 
 # returns radius in cm given logg base 10 of cm/s^2
