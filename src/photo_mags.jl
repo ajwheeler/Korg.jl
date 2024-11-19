@@ -38,7 +38,6 @@ function get_radius(logg)
     # Constants
     G = 6.67430e-8  # gravitational constant in cgs
     M_sun = 1.989e33  # solar mass in g
-    
     # Surface gravity in cgs from log(g)
     g = 10^logg # cm/s^2
     # Using g = GM/R², solve for R
