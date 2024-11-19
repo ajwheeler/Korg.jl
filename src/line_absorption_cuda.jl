@@ -92,17 +92,15 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         # implicit aproximation that λ(ν) is linear over the line window.
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
-        γ_cpu = @. Γ * line.wl^2 / (c_cgs * 4π)
-        γ .= CuArray(γ_cpu)
+        @. γ = Γ * line.wl^2 / (c_cgs * 4π)
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
         @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
 
         #total wl-integrated absorption coefficient
         # define not-in-line to not broadcast these functions/constructors
-        levels_factor_d = CuVector(levels_factor) # TODO no _d
         n_div_Z_view = view(n_div_Z, :, spec_index)
-        @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor_d * n_div_Z_view
+        @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor * n_div_Z_view
 
         ρ_crit .= CuVector((line.wl .|> α_cntm) .* cutoff_threshold) ./ amplitude
 
