@@ -131,39 +131,27 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
     m = mass_per_line_d[spec_index]
 
     warp_size = warpsize(device()) # need the device() call because this is called on CPU
-    @cuda threads=warp_size process_line_kernel!(σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d,
-                                                 n_H_I_d,
-                                                 levels_factor, n_div_Z, amplitude, spec_index,
-                                                 α_cntm_d, coarse_λs_d, ρ_crit, cutoff_threshold,
-                                                 inverse_gaussian_densities,
+    @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d,
+                                                 n_H_I_d, levels_factor, n_div_Z, amplitude,
+                                                 spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
+                                                 cutoff_threshold, inverse_gaussian_densities,
                                                  inverse_lorentz_densities)
 
-    doppler_line_window = maximum(inverse_gaussian_densities)
-    lorentz_line_window = maximum(inverse_lorentz_densities)
-    window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
-    #println("on CPU, doppler_line_window = $doppler_line_window, lorentz_line_window = $lorentz_line_window")
-    # at present, this line is allocating. Would be good to fix that.
-    lb = searchsortedfirst(λs_d, line.wl - window_size)
-    ub = searchsortedlast(λs_d, line.wl + window_size)
-    if length(λs_d) > 1
-        println("on CPU, line.wl + window_size = $(line.wl + window_size), lb = $lb, ub=$ub")
-        @show λs_d[1:3]
-    end
-    #if lb > uh
-    #    return
-    #end
-
-    #λs_view = view(λs_d, lb:ub) # TODO consolidate?
-    #view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_view')
+    #doppler_line_window = maximum(inverse_gaussian_densities)
+    #lorentz_line_window = maximum(inverse_lorentz_densities)
+    #window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
+    ## why don't these match
+    #lb = searchsortedfirst(λs_d, line.wl - window_size)
+    #ub = searchsortedlast(λs_d, line.wl + window_size)
     return
 end
 
 """
 This must be launched with threads equal to the warp size.
 """
-function process_line_kernel!(σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d, levels_factor,
-                              n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
-                              cutoff_threshold, inverse_gaussian_densities,
+function process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d,
+                              levels_factor, n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d,
+                              ρ_crit, cutoff_threshold, inverse_gaussian_densities,
                               inverse_lorentz_densities)
     for index in threadIdx().x:blockDim().x:length(σ)
         σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
@@ -211,16 +199,16 @@ function process_line_kernel!(σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_
 
     lb = searchsortedfirst(λs_d, line.wl - window_size)
     ub = searchsortedlast(λs_d, line.wl + window_size)
-    if threadIdx().x == 1
-        #if lb == 2 && ub == 0
-        if length(λs_d) != 1
-            CUDA.@cuprintln("length(λs_d) = ", length(λs_d))
-            CUDA.@cuprintf("on thread %d, line.wl + window_size = %.17e, lb = %d, ub = %d\n",
-                           threadIdx().x, line.wl+window_size, lb, ub)
-        end
-    end
+
     if lb > ub # TODO test performance
         return
+    end
+
+    for wl_index in lb:ub, thread_index in threadIdx().x:blockDim().x:length(σ)
+        @inbounds α[thread_index, wl_index] += line_profile_cuda.(line.wl, σ[thread_index],
+                                                                  γ[thread_index],
+                                                                  amplitude[thread_index],
+                                                                  λs_d[wl_index])
     end
     return
 end
