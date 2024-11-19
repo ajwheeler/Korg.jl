@@ -130,10 +130,8 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
     m = mass_per_line_d[spec_index]
 
     @cuda threads=256 process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d,
-                                           levels_factor, n_div_Z, amplitude, spec_index)
-
-    local_α_cntm = α_cntm_d[:, searchsortedfirst(coarse_λs_d, line.wl)]
-    ρ_crit .= local_α_cntm .* cutoff_threshold ./ amplitude
+                                           levels_factor, n_div_Z, amplitude, spec_index, α_cntm_d,
+                                           coarse_λs_d, ρ_crit, cutoff_threshold)
 
     inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit, σ)
     doppler_line_window = maximum(inverse_densities)
@@ -154,7 +152,8 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
 end
 
 function process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d, levels_factor,
-                              n_div_Z, amplitude, spec_index)
+                              n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
+                              cutoff_threshold)
     index = threadIdx().x
     if index <= length(σ)
         σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
@@ -177,8 +176,12 @@ function process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_
         @inbounds levels_factor[index] = exp(-β[index] * line.E_lower) - exp(-β[index] * E_upper)
 
         #total wl-integrated absorption coefficient
-        amplitude[index] = 10.0^line.log_gf * sigma_line_cuda(line.wl) * levels_factor[index] *
-                           n_div_Z[index, spec_index]
+        @inbounds amplitude[index] = 10.0^line.log_gf * sigma_line_cuda(line.wl) *
+                                     levels_factor[index] * n_div_Z[index, spec_index]
+
+        #TODO don't do this at every layer?
+        @inbounds local_α_cntm = α_cntm_d[index, searchsortedfirst(coarse_λs_d, line.wl)]
+        @inbounds ρ_crit[index] = local_α_cntm * cutoff_threshold / amplitude[index]
     end
     return
 end
