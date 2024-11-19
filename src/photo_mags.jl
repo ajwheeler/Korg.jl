@@ -16,7 +16,7 @@ function compute_magnitude(spec_flux, spec_wave, filter_trans, filter_wave)
     end
 
     # interpolate filter_wave to spec_wave
-    interp_linear_extrap = linear_interpolation(filter_wave, filter_trans, extrapolation_bc=0) 
+    interp_linear_extrap = linear_interpolation(filter_wave, filter_trans; extrapolation_bc=0)
     filter_trans_interp = interp_linear_extrap(spec_wave)
 
     # it is not clear to me that the units work out correctly here even if
