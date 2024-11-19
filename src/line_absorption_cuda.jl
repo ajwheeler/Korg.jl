@@ -1,6 +1,31 @@
 using SpecialFunctions: gamma
 using ProgressMeter: @showprogress
-using CUDA
+using CUDA, Adapt #TODO only import what you need
+
+# TODO make it work with ForwardDiff.Dual
+struct LineVals
+    wl::Float64
+    E_lower::Float64
+    log_gf::Float64
+    gamma_rad::Float64
+    gamma_stark::Float64
+    vdW::Tuple{Float64,Float64}
+    ismolecular::Bool
+
+    function LineVals(line::Line)
+        new(line.wl,
+            line.E_lower,
+            line.log_gf,
+            line.gamma_rad,
+            line.gamma_stark,
+            if line.vdW isa Tuple
+                line.vdW
+            else
+                (line.vdW, -1.0)
+            end,
+            ismolecule(line.species))
+    end
+end
 
 """
     line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
@@ -92,9 +117,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     coarse_λs_d = CuArray(coarse_λs_cpu)
 
     for (line, spec_index) in zip(linelist, species_indices)
-        line_vals = (wl=line.wl, E_lower=line.E_lower, log_gf=line.log_gf, gamma_rad=line.gamma_rad,
-                     gamma_stark=line.gamma_stark, vdW=line.vdW,
-                     ismolecular=ismolecule(line.species)) #drop the species
+        line_vals = LineVals(line)
         process_line!(α, ξ, cutoff_threshold, line_vals, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
                       n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude,
                       levels_factor, ρ_crit, inverse_densities)
@@ -106,8 +129,7 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
                        levels_factor, ρ_crit, inverse_densities)
     m = mass_per_line_d[spec_index]
 
-    # doppler-broadening width, σ (NOT √[2]σ)
-    σ .= doppler_width_cuda.(line.wl, temps_d, m, ξ)
+    @cuda threads=256 process_line_kernel!(σ, line, temps_d, m, ξ)
 
     # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
     # angular, not cyclical frequency (ω, not ν).
@@ -148,6 +170,17 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
 
     λs_view = view(λs_d, lb:ub) # TODO consolidate?
     view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_view')
+    return
+end
+
+function process_line_kernel!(σ, line, temps_d, m, ξ)
+
+    #for i in 1:length(σ)
+    index = threadIdx().x
+    if index <= length(σ)
+        wl = line.wl
+        σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
+    end
     return
 end
 
@@ -224,6 +257,9 @@ The species mass, `m`, is ignored in the former case.
 """
 scaled_vdW_cuda(vdW::Real, m, T, T₀=10_000) = vdW * (T / T₀)^0.3
 function scaled_vdW_cuda(vdW::Tuple{F,F}, m, T) where F<:Real
+    if vdW[2] == -1.0
+        return scaled_vdW_cuda(vdW[1], m, T)
+    end
     v₀ = 1e6 #σ is given at 10_000 m/s = 10^6 cm/s
     σ = vdW[1]
     α = vdW[2]
