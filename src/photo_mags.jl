@@ -23,7 +23,7 @@ function compute_magnitude(spec_flux, spec_wave, filter_trans, filter_wave)
     # one uses erg/s/cm^2/Å (which requires using get_radius)
     h = 6.62606957e-27  # erg * s
     c = 2.99792458e10  # cm/s
-    flux_to_number = h*c ./(spec_wave*1e-8);  # erg
+    flux_to_number = h * c ./ (spec_wave * 1e-8)  # erg
 
     spec_ref = 3631e-23 * c ./ (spec_wave * 1e-8) ./ spec_wave # working Mgy
     Iref = trapz(spec_wave, spec_ref .* filter_trans_interp .* flux_to_number)
