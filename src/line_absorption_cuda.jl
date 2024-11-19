@@ -44,11 +44,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     temps_d = CuArray(temps)
     nₑ_d = CuArray(nₑ)
     n_H_I_d = CuArray(n_densities[species"H_I"])
-
-    #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
-    #and longest wavelengths which feel the effect of each line 
-    lb = 1
-    ub = 1
+    λs_d = CuArray(λs)
 
     each_species = unique([l.species for l in linelist])
     if species"H I" in each_species
@@ -96,13 +92,16 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     coarse_λs_d = CuArray(coarse_λs_cpu)
 
     for (line, spec_index) in zip(linelist, species_indices)
-        process_line!(α, ξ, cutoff_threshold, line, spec_index, λs, temps_d, nₑ_d, n_H_I_d, n_div_Z,
-                      mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude, levels_factor,
-                      ρ_crit, inverse_densities)
+        line_vals = (wl=line.wl, E_lower=line.E_lower, log_gf=line.log_gf, gamma_rad=line.gamma_rad,
+                     gamma_stark=line.gamma_stark, vdW=line.vdW,
+                     ismolecular=ismolecule(line.species)) #drop the species
+        process_line!(α, ξ, cutoff_threshold, line_vals, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
+                      n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude,
+                      levels_factor, ρ_crit, inverse_densities)
     end
 end
 
-function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs, temps_d, nₑ_d, n_H_I_d,
+function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
                        n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude,
                        levels_factor, ρ_crit, inverse_densities)
     m = mass_per_line_d[spec_index]
@@ -113,7 +112,7 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs, temps_d,
     # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
     # angular, not cyclical frequency (ω, not ν).
     Γ .= line.gamma_rad
-    if !ismolecule(line.species)
+    if !line.ismolecular
         @. Γ += nₑ_d * scaled_stark_cuda.(line.gamma_stark, temps_d)
         Γ .+= n_H_I_d .* scaled_vdW_cuda.(Ref(line.vdW), m, temps_d)
     end
@@ -140,15 +139,15 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs, temps_d,
     lorentz_line_window = maximum(inverse_densities)
     window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
     # at present, this line is allocating. Would be good to fix that.
-    lb = searchsortedfirst(λs, line.wl - window_size)
-    ub = searchsortedlast(λs, line.wl + window_size)
+    lb = searchsortedfirst(λs_d, line.wl - window_size)
+    ub = searchsortedlast(λs_d, line.wl + window_size)
     # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
     if lb > ub
         return
     end
 
-    λs_d = CuArray(view(λs, lb:ub))
-    view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_d')
+    λs_view = view(λs_d, lb:ub) # TODO consolidate?
+    view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_view')
     return
 end
 
