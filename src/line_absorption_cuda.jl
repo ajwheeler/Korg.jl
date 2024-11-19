@@ -75,6 +75,26 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     ρ_crit = CuVector{eltype(α)}(undef, size(temps))
     inverse_densities = CuVector{eltype(α)}(undef, size(temps))
     β = CuVector(@. 1 / (kboltz_eV * temps))
+
+    # convert the α_cntm interpolators to a matrix of coefficients on the coarse wavelength grid 
+    # (i.e., don't interpolate)
+    α_cntm_cpu = if eltype(α_cntm) <: Interpolations.AbstractInterpolation
+        alphas = map(α_cntm) do itp
+            itp.itp.coefs
+        end
+        vcat((a' for a in alphas)...)
+    else
+        # this is the 5000 Å only case
+        reshape([a(0) for a in α_cntm], :, 1)
+    end
+    α_cntm_d = CuArray(α_cntm_cpu)
+    coarse_λs_cpu = if eltype(α_cntm) <: Interpolations.AbstractInterpolation
+        α_cntm[1].itp.knots[1].all_wls # TODO don't rely on the internals of Wavelengths?
+    else
+        [5000.0]
+    end
+    coarse_λs_d = CuArray(coarse_λs_cpu)
+
     for (line, spec_index) in zip(linelist, species_indices)
         m = mass_per_line_d[spec_index]
 
@@ -102,7 +122,8 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         n_div_Z_view = view(n_div_Z, :, spec_index)
         @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor * n_div_Z_view
 
-        ρ_crit .= CuVector((line.wl .|> α_cntm) .* cutoff_threshold) ./ amplitude
+        local_α_cntm = α_cntm_d[:, searchsortedfirst(coarse_λs_d, line.wl)]
+        ρ_crit .= local_α_cntm .* cutoff_threshold ./ amplitude
 
         inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit, σ)
         doppler_line_window = maximum(inverse_densities)
