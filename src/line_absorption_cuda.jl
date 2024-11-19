@@ -129,15 +129,8 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
                        levels_factor, ρ_crit, inverse_densities)
     m = mass_per_line_d[spec_index]
 
-    @cuda threads=256 process_line_kernel!(σ, line, temps_d, m, ξ, Γ, γ, nₑ_d, n_H_I_d)
-
-    E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
-    @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
-
-    #total wl-integrated absorption coefficient
-    # define not-in-line to not broadcast these functions/constructors
-    n_div_Z_view = view(n_div_Z, :, spec_index)
-    @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor * n_div_Z_view
+    @cuda threads=256 process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d,
+                                           levels_factor, n_div_Z, amplitude, spec_index)
 
     local_α_cntm = α_cntm_d[:, searchsortedfirst(coarse_λs_d, line.wl)]
     ρ_crit .= local_α_cntm .* cutoff_threshold ./ amplitude
@@ -160,7 +153,8 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
     return
 end
 
-function process_line_kernel!(σ, line, temps_d, m, ξ, Γ, γ, nₑ_d, n_H_I_d)
+function process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d, levels_factor,
+                              n_div_Z, amplitude, spec_index)
     index = threadIdx().x
     if index <= length(σ)
         σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
@@ -178,6 +172,13 @@ function process_line_kernel!(σ, line, temps_d, m, ξ, Γ, γ, nₑ_d, n_H_I_d)
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
         @inbounds γ[index] = Γ[index] * line.wl^2 / (c_cgs * 4π)
+
+        E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
+        @inbounds levels_factor[index] = exp(-β[index] * line.E_lower) - exp(-β[index] * E_upper)
+
+        #total wl-integrated absorption coefficient
+        amplitude[index] = 10.0^line.log_gf * sigma_line_cuda(line.wl) * levels_factor[index] *
+                           n_div_Z[index, spec_index]
     end
     return
 end
