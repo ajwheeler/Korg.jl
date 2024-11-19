@@ -96,51 +96,60 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     coarse_λs_d = CuArray(coarse_λs_cpu)
 
     for (line, spec_index) in zip(linelist, species_indices)
-        m = mass_per_line_d[spec_index]
-
-        # doppler-broadening width, σ (NOT √[2]σ)
-        σ .= doppler_width_cuda.(line.wl, temps_d, m, ξ)
-
-        # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
-        # angular, not cyclical frequency (ω, not ν).
-        Γ .= line.gamma_rad
-        if !ismolecule(line.species)
-            @. Γ += nₑ_d * scaled_stark_cuda.(line.gamma_stark, temps_d)
-            Γ .+= n_H_I_d .* scaled_vdW_cuda.(Ref(line.vdW), m, temps_d)
-        end
-        # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
-        # implicit aproximation that λ(ν) is linear over the line window.
-        # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
-        # and the last factor of 1/2 is for FWHM vs HWHM
-        @. γ = Γ * line.wl^2 / (c_cgs * 4π)
-
-        E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
-        @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
-
-        #total wl-integrated absorption coefficient
-        # define not-in-line to not broadcast these functions/constructors
-        n_div_Z_view = view(n_div_Z, :, spec_index)
-        @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor * n_div_Z_view
-
-        local_α_cntm = α_cntm_d[:, searchsortedfirst(coarse_λs_d, line.wl)]
-        ρ_crit .= local_α_cntm .* cutoff_threshold ./ amplitude
-
-        inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit, σ)
-        doppler_line_window = maximum(inverse_densities)
-        inverse_densities .= inverse_lorentz_density_cuda.(ρ_crit, γ)
-        lorentz_line_window = maximum(inverse_densities)
-        window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
-        # at present, this line is allocating. Would be good to fix that.
-        lb = searchsortedfirst(λs, line.wl - window_size)
-        ub = searchsortedlast(λs, line.wl + window_size)
-        # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
-        if lb > ub
-            continue
-        end
-
-        λs_d = CuArray(view(λs, lb:ub))
-        view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_d')
+        process_line!(α, ξ, cutoff_threshold, line, spec_index, λs, temps_d, nₑ_d, n_H_I_d, n_div_Z,
+                      mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude, levels_factor,
+                      ρ_crit, inverse_densities)
     end
+end
+
+function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs, temps_d, nₑ_d, n_H_I_d,
+                       n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude,
+                       levels_factor, ρ_crit, inverse_densities)
+    m = mass_per_line_d[spec_index]
+
+    # doppler-broadening width, σ (NOT √[2]σ)
+    σ .= doppler_width_cuda.(line.wl, temps_d, m, ξ)
+
+    # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
+    # angular, not cyclical frequency (ω, not ν).
+    Γ .= line.gamma_rad
+    if !ismolecule(line.species)
+        @. Γ += nₑ_d * scaled_stark_cuda.(line.gamma_stark, temps_d)
+        Γ .+= n_H_I_d .* scaled_vdW_cuda.(Ref(line.vdW), m, temps_d)
+    end
+    # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
+    # implicit aproximation that λ(ν) is linear over the line window.
+    # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
+    # and the last factor of 1/2 is for FWHM vs HWHM
+    @. γ = Γ * line.wl^2 / (c_cgs * 4π)
+
+    E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
+    @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
+
+    #total wl-integrated absorption coefficient
+    # define not-in-line to not broadcast these functions/constructors
+    n_div_Z_view = view(n_div_Z, :, spec_index)
+    @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor * n_div_Z_view
+
+    local_α_cntm = α_cntm_d[:, searchsortedfirst(coarse_λs_d, line.wl)]
+    ρ_crit .= local_α_cntm .* cutoff_threshold ./ amplitude
+
+    inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit, σ)
+    doppler_line_window = maximum(inverse_densities)
+    inverse_densities .= inverse_lorentz_density_cuda.(ρ_crit, γ)
+    lorentz_line_window = maximum(inverse_densities)
+    window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
+    # at present, this line is allocating. Would be good to fix that.
+    lb = searchsortedfirst(λs, line.wl - window_size)
+    ub = searchsortedlast(λs, line.wl + window_size)
+    # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
+    if lb > ub
+        return
+    end
+
+    λs_d = CuArray(view(λs, lb:ub))
+    view(α, :, lb:ub) .+= line_profile_cuda.(line.wl, σ, γ, amplitude, λs_d')
+    return
 end
 
 """
