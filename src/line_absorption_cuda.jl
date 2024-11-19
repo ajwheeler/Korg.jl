@@ -129,9 +129,10 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
                        levels_factor, ρ_crit, inverse_densities)
     m = mass_per_line_d[spec_index]
 
-    @cuda threads=256 process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d,
-                                           levels_factor, n_div_Z, amplitude, spec_index, α_cntm_d,
-                                           coarse_λs_d, ρ_crit, cutoff_threshold)
+    warp_size = warpsize(device())
+    @cuda threads=warp_size process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d,
+                                                 levels_factor, n_div_Z, amplitude, spec_index,
+                                                 α_cntm_d, coarse_λs_d, ρ_crit, cutoff_threshold)
 
     inverse_densities .= inverse_gaussian_density_cuda.(ρ_crit, σ)
     doppler_line_window = maximum(inverse_densities)
@@ -151,11 +152,13 @@ function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_
     return
 end
 
+"""
+This must be launched with threads equal to the warp size.
+"""
 function process_line_kernel!(σ, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d, levels_factor,
                               n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
                               cutoff_threshold)
-    index = threadIdx().x
-    if index <= length(σ)
+    for index in threadIdx().x:blockDim().x:length(σ)
         σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
 
         # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
