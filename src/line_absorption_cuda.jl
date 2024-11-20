@@ -61,15 +61,11 @@ function line_absorption_cuda!(α, linelist, λs::Wavelengths, temps, nₑ, n_de
 end
 
 function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities,
-                                      partition_fns, ξ, α_cntm, cutoff_threshold=3e-4)
+                                      partition_fns, ξ, α_cntm, cutoff_threshold=3e-4,
+                                      n_gpu_blocks=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end
-
-    temps_d = CuArray(temps)
-    nₑ_d = CuArray(nₑ)
-    n_H_I_d = CuArray(n_densities[species"H_I"])
-    λs_d = CuArray(λs) # TODO this means we don't have constant time searchsortedfirst/last
 
     each_species = unique([l.species for l in linelist])
     if species"H I" in each_species
@@ -85,16 +81,22 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     n_div_Z = CuArray(n_div_Z_cpu)
     mass_per_line_d = CuArray([get_mass(species) for species in each_species])
 
-    # preallocate some arrays for the core loop. 
     # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
     # the values in "number_densities"
+
+    # these are line-independent
+    temps_d = CuArray(temps)
+    nₑ_d = CuArray(nₑ)
+    n_H_I_d = CuArray(n_densities[species"H_I"])
+    λs_d = CuArray(λs) # TODO this means we don't have constant time searchsortedfirst/last
+    β = CuVector(@. 1 / (kboltz_eV * temps))
+
+    # these are line-dependent
     γ = CuVector{eltype(α)}(undef, size(temps))
     σ = CuVector{eltype(α)}(undef, size(temps))
     amplitude = CuVector{eltype(α)}(undef, size(temps))
-    ρ_crit = CuVector{eltype(α)}(undef, size(temps))
     inverse_gaussian_densities = CuVector{eltype(α)}(undef, size(temps))
     inverse_lorentz_densities = CuVector{eltype(α)}(undef, size(temps))
-    β = CuVector(@. 1 / (kboltz_eV * temps))
 
     # convert the α_cntm interpolators to a matrix of coefficients on the coarse wavelength grid 
     # (i.e., don't interpolate)
@@ -117,29 +119,20 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
 
     for (line, spec_index) in zip(linelist, species_indices)
         line_vals = LineVals(line)
-        process_line!(α, ξ, cutoff_threshold, line_vals, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
-                      n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, γ, σ, amplitude,
-                      ρ_crit, inverse_gaussian_densities, inverse_lorentz_densities)
+        warp_size = warpsize(device()) # need the device() call because this is called on CPU
+        @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line_vals, temps_d, β, ξ, γ, nₑ_d,
+                                                     n_H_I_d, n_div_Z, mass_per_line_d, amplitude,
+                                                     spec_index, α_cntm_d, coarse_λs_d,
+                                                     cutoff_threshold, inverse_gaussian_densities,
+                                                     inverse_lorentz_densities)
+
+        #doppler_line_window = maximum(inverse_gaussian_densities)
+        #lorentz_line_window = maximum(inverse_lorentz_densities)
+        #window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
+        ## why don't these match
+        #lb = searchsortedfirst(λs_d, line.wl - window_size)
+        #ub = searchsortedlast(λs_d, line.wl + window_size)
     end
-end
-
-function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
-                       n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, γ, σ, amplitude,
-                       ρ_crit, inverse_gaussian_densities, inverse_lorentz_densities)
-    warp_size = warpsize(device()) # need the device() call because this is called on CPU
-    @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d,
-                                                 n_H_I_d, n_div_Z, mass_per_line_d, amplitude,
-                                                 spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
-                                                 cutoff_threshold, inverse_gaussian_densities,
-                                                 inverse_lorentz_densities)
-
-    #doppler_line_window = maximum(inverse_gaussian_densities)
-    #lorentz_line_window = maximum(inverse_lorentz_densities)
-    #window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
-    ## why don't these match
-    #lb = searchsortedfirst(λs_d, line.wl - window_size)
-    #ub = searchsortedlast(λs_d, line.wl + window_size)
-    return
 end
 
 """
@@ -147,8 +140,7 @@ This must be launched with threads equal to the warp size.
 """
 function process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d, n_H_I_d,
                               n_div_Z, mass_per_line_d, amplitude, spec_index, α_cntm_d,
-                              coarse_λs_d,
-                              ρ_crit, cutoff_threshold, inverse_gaussian_densities,
+                              coarse_λs_d, cutoff_threshold, inverse_gaussian_densities,
                               inverse_lorentz_densities)
     m = mass_per_line_d[spec_index]
     doppler_line_window = 0.0
@@ -177,15 +169,17 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d, 
         @inbounds amplitude[index] = 10.0^line.log_gf * sigma_line_cuda(line.wl) *
                                      levels_factor[index] * n_div_Z[index, spec_index]
 
-        #TODO don't do this at every layer?
+        #TODO don't do the searchsortedfirst at every layer?
         @inbounds local_α_cntm = α_cntm_d[index, searchsortedfirst(coarse_λs_d, line.wl)]
-        @inbounds ρ_crit[index] = local_α_cntm * cutoff_threshold / amplitude[index]
+        @inbounds ρ_crit = local_α_cntm * cutoff_threshold / amplitude[index]
 
-        inverse_gaussian_densities[index] = inverse_gaussian_density_cuda(ρ_crit[index], σ[index])
-        inverse_lorentz_densities[index] = inverse_lorentz_density_cuda(ρ_crit[index], γ[index])
+        @inbounds inverse_gaussian_densities[index] = inverse_gaussian_density_cuda(ρ_crit[index],
+                                                                                    σ[index])
+        @inbounds inverse_lorentz_densities[index] = inverse_lorentz_density_cuda(ρ_crit[index],
+                                                                                  γ[index])
 
-        doppler_line_window = max(doppler_line_window, inverse_gaussian_densities[index])
-        lorentz_line_window = max(lorentz_line_window, inverse_lorentz_densities[index])
+        @inbounds doppler_line_window = max(doppler_line_window, inverse_gaussian_densities[index])
+        @inbounds lorentz_line_window = max(lorentz_line_window, inverse_lorentz_densities[index])
     end
 
     doppler_line_window = warp_reduce_max(doppler_line_window)
