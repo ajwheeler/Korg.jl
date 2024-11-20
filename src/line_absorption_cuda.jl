@@ -1,6 +1,6 @@
 using SpecialFunctions: gamma
 using ProgressMeter: @showprogress
-using CUDA, Adapt #TODO only import what you need
+using CUDA #TODO only import what you need
 
 # TODO make it work with ForwardDiff.Dual
 struct LineVals
@@ -88,8 +88,14 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     temps_d = CuArray(temps)
     nₑ_d = CuArray(nₑ)
     n_H_I_d = CuArray(n_densities[species"H_I"])
-    λs_d = CuArray(λs) # TODO this means we don't have constant time searchsortedfirst/last
     β = CuVector(@. 1 / (kboltz_eV * temps))
+    #λs_d = CuArray(λs) # TODO this means we don't have constant time searchsortedfirst/last
+    λs_d = Wavelengths{eltype(λs.all_wls),
+                       CuVector{eltype(λs.all_wls)},
+                       eltype(λs.wl_ranges),
+                       CuVector{eltype(λs.wl_ranges)}}(CuVector(λs.wl_ranges),
+                                                       CuVector(λs.all_freqs),
+                                                       CuVector(λs.all_wls))
 
     # these are line-dependent
     γ = CuArray{eltype(α)}(undef, n_gpu_blocks, length(temps))
@@ -212,12 +218,19 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d, 
 
     lb = searchsortedfirst(λs_d, line.wl - window_size)
     ub = searchsortedlast(λs_d, line.wl + window_size)
+    if threadIdx().x == 1
+        CUDA.@cuprintln("on GPU, lb, ub: ", lb, ", ", ub)
+    end
 
     if lb > ub # TODO test performance
         return
     end
 
     for wl_index in lb:ub, thread_index in threadIdx().x:blockDim().x:size(σ, 2)
+        if threadIdx().x == 1
+            CUDA.@cuprintln("on GPU, wl_index, λs_d[wl_index]: ", wl_index, ", ", λs_d[wl_index])
+            CUDA.@cuprintln(λs_d[1], " ", λs_d.wl_ranges[1][1])
+        end
         Δα = line_profile_cuda.(line.wl, σ[blk_idx, thread_index], γ[blk_idx, thread_index],
                                 amplitude[blk_idx, thread_index], λs_d[wl_index])
         ptr = pointer(α, thread_index + (wl_index - 1) * size(α, 1))

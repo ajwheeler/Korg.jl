@@ -1,3 +1,5 @@
+import Adapt
+
 struct Wavelengths{F,V<:AbstractVector{F},R<:AbstractRange{F},VR<:AbstractVector{R}} <:
        AbstractArray{F,1}
     wl_ranges::VR # in cm, not Å
@@ -58,8 +60,10 @@ function Wavelengths(wl_ranges::AbstractVector{R};
     # precompute all wavelengths and frequencies
     all_freqs = reverse(Korg.c_cgs ./ all_wls)
 
-    new{eltype(all_wls),typeof(all_wls),eltype(wl_ranges),typeof(wl_ranges)}(wl_ranges, all_wls,
-                                                                             all_freqs)
+    Wavelengths{eltype(all_wls),
+                typeof(all_wls),
+                eltype(wl_ranges),
+                typeof(wl_ranges)}(wl_ranges, all_wls, all_freqs)
 end
 function Wavelengths(wls::Wavelengths; air_wavelengths=false,)
     if air_wavelengths
@@ -99,6 +103,16 @@ Wavelengths(wls::Tuple{<:Real,<:Real}; kwargs...) = Wavelengths([wls]; kwargs...
 Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear() #1-dimensional indexing is "native" 
 Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitely defines Base.length
 Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
+
+function Adapt.adapt_structure(to, wls::Wavelengths)
+    wl_ranges = Adapt.adapt_structure(to, wls.wl_ranges)
+    all_wls = Adapt.adapt_structure(to, wls.all_wls)
+    all_freqs = Adapt.adapt_structure(to, wls.all_freqs)
+    Wavelengths{eltype(all_wls),
+                typeof(all_wls),
+                eltype(wl_ranges),
+                typeof(wl_ranges)}(wl_ranges, all_wls, all_freqs)
+end
 
 function Base.show(io::IO, wl::Wavelengths)
     print(io, "Korg.Wavelengths(")
@@ -153,7 +167,7 @@ function Base.Sort.searchsortedfirst(wls::Wavelengths, λ)
     if λ >= 1 # convert Å to cm
         λ *= 1e-8
     end
-    range_ind = searchsortedfirst(last.(wls.wl_ranges), λ)
+    range_ind = searchsortedfirst(wls.wl_ranges, λ; by=last)
     if range_ind == length(wls.wl_ranges) + 1
         return length(wls) + 1
     end
@@ -168,7 +182,7 @@ function Base.Sort.searchsortedlast(wls::Wavelengths, λ)
     if λ >= 1 # convert Å to cm
         λ *= 1e-8
     end
-    range_ind = searchsortedlast(first.(wls.wl_ranges), λ)
+    range_ind = searchsortedlast(wls.wl_ranges, λ; by=first)
     if range_ind == 0
         return 0
     end
