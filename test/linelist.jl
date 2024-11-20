@@ -39,7 +39,7 @@
             @test kurucz_ll[1].E_lower ≈ 17.360339371573698
             @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
             @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
-            @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
+            @test kurucz_ll[1].vdW[1] ≈ 1.2302687708123812e-7
         end
 
         @testset "kurucz molecular " begin
@@ -64,7 +64,7 @@
         @test linelist[1].E_lower ≈ 3.3014
         @test linelist[1].gamma_rad ≈ 1.905460717963248e7
         @test linelist[1].gamma_stark ≈ 0.0001230268770812381
-        @test linelist[1].vdW ≈ 4.6773514128719815e-8
+        @test linelist[1].vdW[1] ≈ 4.6773514128719815e-8
 
         #test imputation of missing broadening parameters
         @test linelist[2].gamma_rad ≈ 818252.5391161365
@@ -77,7 +77,7 @@
 
         @test linelist[4].gamma_rad == linelist[1].gamma_rad
         @test linelist[4].gamma_stark == linelist[3].gamma_stark
-        @test linelist[4].vdW == 9.953360714197118e-8
+        @test linelist[4].vdW[1] == 9.953360714197118e-8
 
         @test linelist[5].gamma_rad == linelist[1].gamma_rad
         @test linelist[5].gamma_stark == linelist[1].gamma_stark
@@ -166,7 +166,8 @@
         @test ll[1].gamma_rad == ll[3].gamma_rad
         @test ll[1].gamma_stark == ll[3].gamma_stark
 
-        @test ll[1].vdW ≈ ll[2].vdW
+        @test ll[1].vdW[1] ≈ ll[2].vdW[1]
+        @test ll[1].vdW[2] ≈ ll[2].vdW[2]
 
         @test ll[2].species == ll[3].species
         @test ll[2].log_gf ≈ ll[3].log_gf
@@ -174,7 +175,7 @@
         @test ll[2].gamma_rad == ll[3].gamma_rad
         @test ll[2].gamma_stark == ll[3].gamma_stark
 
-        @test ll[3].vdW ≈ 8.89802482263476e-7
+        @test ll[3].vdW[1] ≈ 8.89802482263476e-7
 
         vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
         for (l_air, l_vac) in zip(ll, vac_ll)
