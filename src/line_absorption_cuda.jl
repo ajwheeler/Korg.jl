@@ -11,8 +11,9 @@ struct LineVals
     gamma_stark::Float64
     vdW::Tuple{Float64,Float64}
     ismolecular::Bool
+    species_index::Int32
 
-    function LineVals(line::Line)
+    function LineVals(line::Line, species_index::Int32)
         new(line.wl,
             line.E_lower,
             line.log_gf,
@@ -23,7 +24,8 @@ struct LineVals
             else
                 (line.vdW, -1.0)
             end,
-            ismolecule(line.species))
+            ismolecule(line.species),
+            species_index)
     end
 end
 
@@ -71,9 +73,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     if species"H I" in each_species
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
-    species_indices = let index_dict = Dict(spec => i for (i, spec) in enumerate(each_species))
-        [index_dict[l.species] for l in linelist]
-    end
+    species_index_dict = Dict(spec => Int32(i) for (i, spec) in enumerate(each_species))
     n_div_Z_cpu = zeros(eltype(α), (length(temps), length(each_species)))
     for (i, spec) in enumerate(each_species)
         n_div_Z_cpu[:, i] .= n_densities[spec] ./ partition_fns[spec].(log.(temps))
@@ -116,19 +116,32 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         [5000.0]
     end
     coarse_λs_d = CuArray(coarse_λs_cpu)
+    all_line_vals_d = CuVector([LineVals(line, species_index_dict[line.species])
+                                for (i, line) in enumerate(linelist)])
+    warp_size = warpsize(device()) # need the device() call because this is called on CPU
 
-    for (line, spec_index) in zip(linelist, species_indices)
-        line_vals = LineVals(line)
-        warp_size = warpsize(device()) # need the device() call because this is called on CPU
-        @cuda threads=warp_size blocks=n_gpu_blocks process_line_kernel!(α, σ, λs_d, line_vals,
-                                                                         temps_d, β, ξ, γ, nₑ_d,
-                                                                         n_H_I_d, n_div_Z,
-                                                                         mass_per_line_d, amplitude,
-                                                                         spec_index, α_cntm_d,
-                                                                         coarse_λs_d,
-                                                                         cutoff_threshold,
-                                                                         inverse_gaussian_densities,
-                                                                         inverse_lorentz_densities)
+    @cuda threads=warp_size blocks=n_gpu_blocks line_absorption_cuda_kernel!(α, all_line_vals_d, σ,
+                                                                             λs_d, temps_d, β, ξ, γ,
+                                                                             nₑ_d, n_H_I_d, n_div_Z,
+                                                                             mass_per_line_d,
+                                                                             amplitude, α_cntm_d,
+                                                                             coarse_λs_d,
+                                                                             cutoff_threshold,
+                                                                             inverse_gaussian_densities,
+                                                                             inverse_lorentz_densities)
+end
+
+function line_absorption_cuda_kernel!(α, all_line_vals, σ, λs_d, temps_d, β, ξ, γ, nₑ_d, n_H_I_d,
+                                      n_div_Z, mass_per_line_d, amplitude, α_cntm_d, coarse_λs_d,
+                                      cutoff_threshold, inverse_gaussian_densities,
+                                      inverse_lorentz_densities)
+    for line_index in eachindex(all_line_vals)
+        line_vals = all_line_vals[line_index]
+        spec_index = line_vals.species_index
+        process_line_kernel!(α, σ, λs_d, line_vals, temps_d, β, ξ, γ, nₑ_d, n_H_I_d, n_div_Z,
+                             mass_per_line_d, amplitude, spec_index, α_cntm_d, coarse_λs_d,
+                             cutoff_threshold, inverse_gaussian_densities,
+                             inverse_lorentz_densities)
 
         #doppler_line_window = maximum(inverse_gaussian_densities)
         #lorentz_line_window = maximum(inverse_lorentz_densities)
