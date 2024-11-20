@@ -127,6 +127,16 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     if air_wavelengths
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
     end
+
+    # Add wavelength bounds check (Rayleigh scattering limitation)
+    # we should really have an upper bound as well
+    min_allowed_wavelength = 1300.0 * 1e-8  # cm
+    if first(wls) < min_allowed_wavelength
+        # this restruction comes from the Rayleigh scattering calculations
+        throw(ArgumentError("Requested wavelength range ($(wls)) " *
+                            " extends blue-ward of 1300 Å, the lowerest allowed wavelength."))
+    end
+
     # work in cm
     cntm_step *= 1e-8
     line_buffer *= 1e-8

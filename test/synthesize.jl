@@ -118,4 +118,9 @@
         @test issubset(ll5[1:i], small_ll)
         @test issubset(ll5[i+1:end], Korg._alpha_5000_default_linelist)
     end
+
+    @testset "wavelength bounds" begin
+        # Test wavelength below minimum
+        @test_throws ArgumentError synthesize(atm, [], format_A_X(), 1200, 1400)
+    end
 end
