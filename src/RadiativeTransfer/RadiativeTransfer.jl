@@ -307,7 +307,11 @@ function compute_I_linear_flux_only(τ, S)
     I = 0.0
     next_exp_negτ = exp(-τ[1])
     for i in 1:length(τ)-1
-        @inbounds m = (S[i+1] - S[i]) / (τ[i+1] - τ[i])
+        @inbounds Δτ = τ[i+1] - τ[i]
+        # fix the case where large τ causes numerically 0 Δτ
+        Δτ += (Δτ == 0) # if it's 0, make it 1
+        @inbounds m = (S[i+1] - S[i]) / Δτ
+
         cur_exp_negτ = next_exp_negτ
         @inbounds next_exp_negτ = exp(-τ[i+1])
         @inbounds I += (-next_exp_negτ * (S[i+1] + m) + cur_exp_negτ * (S[i] + m))
