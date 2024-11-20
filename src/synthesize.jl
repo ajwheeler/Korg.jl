@@ -138,6 +138,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     cntm_windows, _ = merge_bounds(cntm_windows)
     cntm_wls = Wavelengths([w[1]:cntm_step:w[2] for w in cntm_windows])
 
+    #sort the lines if necessary
+    if !issorted(linelist; by=l -> l.wl)
+        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
+        linelist = sort(linelist; by=l -> l.wl)
+    end
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
     if tau_scheme == "anchored"
@@ -248,23 +253,12 @@ end
 Return a new linelist containing only lines within the provided wavelength ranges.
 """
 function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
-    # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
-
-    #sort the lines if necessary
-    if !issorted(linelist; by=l -> l.wl)
-        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
-        linelist = sort(linelist; by=l -> l.wl)
-    end
     nlines_before = length(linelist)
 
-    linelist = filter(linelist) do line
-        for (λstart, λstop) in eachwindow(wls)
-            if (λstart - line_buffer) <= line.wl <= (λstop + line_buffer)
-                return true
-            end
-        end
-        return false
-    end
+    # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
+    first_line_index = searchsortedfirst(linelist, (; wl=wls[1]); by=l -> l.wl)
+    last_line_index = searchsortedlast(linelist, (; wl=wls[end]); by=l -> l.wl)
+    linelist = linelist[first_line_index:last_line_index]
 
     if nlines_before != 0 && length(linelist) == 0 && warn_empty
         @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
