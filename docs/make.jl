@@ -13,7 +13,8 @@ makedocs(;
                 "FAQ" => "FAQ.md"
                 "Changelog" => "changelog.md"
                 "Developer Documentation" => "devdocs.md"],
-         linkcheck=true, # check if any external links are broken 
+         # ideally we would do link checking, but adam doesn't like it turning his badge red
+         linkcheck=false, # check if any external links are broken
          linkcheck_timeout=30, # default (10s) is too short for slow academic sites
          # dodgy academic links sometimes timeout
          linkcheck_ignore=["https://marcs.astro.uu.se/"],
