@@ -120,15 +120,21 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
                                 for (i, line) in enumerate(linelist)])
     warp_size = warpsize(device()) # need the device() call because this is called on CPU
 
-    @cuda threads=warp_size blocks=n_gpu_blocks line_absorption_cuda_kernel!(α, all_line_vals_d, σ,
-                                                                             λs_d, temps_d, β, ξ, γ,
-                                                                             nₑ_d, n_H_I_d, n_div_Z,
-                                                                             mass_per_line_d,
-                                                                             amplitude, α_cntm_d,
-                                                                             coarse_λs_d,
-                                                                             cutoff_threshold,
-                                                                             inverse_gaussian_densities,
-                                                                             inverse_lorentz_densities)
+    CUDA.@sync begin
+        @cuda threads=warp_size blocks=n_gpu_blocks line_absorption_cuda_kernel!(α, all_line_vals_d,
+                                                                                 σ,
+                                                                                 λs_d, temps_d, β,
+                                                                                 ξ, γ,
+                                                                                 nₑ_d, n_H_I_d,
+                                                                                 n_div_Z,
+                                                                                 mass_per_line_d,
+                                                                                 amplitude,
+                                                                                 α_cntm_d,
+                                                                                 coarse_λs_d,
+                                                                                 cutoff_threshold,
+                                                                                 inverse_gaussian_densities,
+                                                                                 inverse_lorentz_densities)
+    end
 end
 
 function line_absorption_cuda_kernel!(α, all_line_vals, σ, λs_d, temps_d, β, ξ, γ, nₑ_d, n_H_I_d,
