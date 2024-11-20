@@ -1,8 +1,9 @@
-struct Wavelengths{F} <: AbstractArray{F,1}
-    wl_ranges::Vector{StepRangeLen{F}} # in cm, not Å
-    # precomputed arrays.  It may(?) be faster to lazily compute these.
-    all_wls::Vector{F}
-    all_freqs::Vector{F}
+struct Wavelengths{F,V<:AbstractVector{F},R<:AbstractRange{F},VR<:AbstractVector{R}} <:
+       AbstractArray{F,1}
+    wl_ranges::VR # in cm, not Å
+    # precomputed arrays.  This is faster for indexing into Wavelengths, especially with a UnitRange
+    all_wls::V
+    all_freqs::V # this one should probably be dropped.
 
     """
         Korg.Wavelengths(wl_params...; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
@@ -56,7 +57,8 @@ struct Wavelengths{F} <: AbstractArray{F,1}
         # precompute all wavelengths and frequencies
         all_freqs = reverse(Korg.c_cgs ./ all_wls)
 
-        new{eltype(all_wls)}(wl_ranges, all_wls, all_freqs)
+        new{eltype(all_wls),typeof(all_wls),eltype(wl_ranges),typeof(wl_ranges)}(wl_ranges, all_wls,
+                                                                                 all_freqs)
     end
 end
 function Wavelengths(wls::Wavelengths; air_wavelengths=false,)
@@ -94,7 +96,7 @@ Wavelengths(wls::Tuple{<:Real,<:Real}; kwargs...) = Wavelengths([wls]; kwargs...
 
 # implement the AbstractArray interface
 # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array
-Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear()
+Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear() #1-dimensional indexing is "native" 
 Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitely defines Base.length
 Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
 
