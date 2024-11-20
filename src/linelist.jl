@@ -638,6 +638,11 @@ function get_GES_linelist(; include_molecules=true)
     h5open(path, "r") do f
         each_species = [Species(s) for s in read(f["species"])]
         filter = ones(Bool, length(each_species))
+
+        # see https://github.com/ajwheeler/Korg.jl/issues/356
+        # there seem to be errors in the CH lines.  Many have very large log(gf) values.
+        filter .= [s != Korg.species"CH" for s in each_species]
+
         if !include_molecules
             filter .= [!ismolecule(s) for s in each_species]
         end
