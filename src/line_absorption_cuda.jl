@@ -152,6 +152,8 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, γ, nₑ_
                               levels_factor, n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d,
                               ρ_crit, cutoff_threshold, inverse_gaussian_densities,
                               inverse_lorentz_densities)
+    doppler_line_window = 0.0
+    lorentz_line_window = 0.0
     for index in threadIdx().x:blockDim().x:length(σ)
         σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
 
@@ -182,12 +184,7 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, γ, nₑ_
 
         inverse_gaussian_densities[index] = inverse_gaussian_density_cuda(ρ_crit[index], σ[index])
         inverse_lorentz_densities[index] = inverse_lorentz_density_cuda(ρ_crit[index], γ[index])
-    end
 
-    # TODO fuse loop with the previous one
-    doppler_line_window = 0.0
-    lorentz_line_window = 0.0
-    for index in threadIdx().x:blockDim().x:length(σ)
         doppler_line_window = max(doppler_line_window, inverse_gaussian_densities[index])
         lorentz_line_window = max(lorentz_line_window, inverse_lorentz_densities[index])
     end
