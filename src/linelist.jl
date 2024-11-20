@@ -57,7 +57,8 @@ struct Line{F1,F2,F3,F4,F5,F6}
                 gamma_stark = gamma_stark_approx
             end
             if ismissing(vdW) || isnan(vdW)
-                vdW = (vdW_approx, -1.0)
+                # this is log10(γ_vdW), not γ_vdW. It is converted to (γ_vdW, -1) below
+                vdW = vdW_approx
             end
         end
         # if gamma_rad is missing, approximate it
