@@ -222,12 +222,10 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d, 
     end
 
     for wl_index in lb:ub, thread_index in threadIdx().x:blockDim().x:length(σ)
-        @inbounds α[thread_index, wl_index] += line_profile_cuda.(line.wl,
-                                                                  σ[blk_idx, thread_index],
-                                                                  γ[blk_idx, thread_index],
-                                                                  amplitude[blk_idx,
-                                                                            thread_index],
-                                                                  λs_d[wl_index])
+        Δα = line_profile_cuda.(line.wl, σ[blk_idx, thread_index], γ[blk_idx, thread_index],
+                                amplitude[blk_idx, thread_index], λs_d[wl_index])
+        ptr = pointer(α, thread_index + (wl_index - 1) * size(α, 1))
+        CUDA.atomic_add!(ptr, Δα)
     end
     return
 end
