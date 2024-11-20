@@ -92,11 +92,11 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     β = CuVector(@. 1 / (kboltz_eV * temps))
 
     # these are line-dependent
-    γ = CuVector{eltype(α)}(undef, size(temps))
-    σ = CuVector{eltype(α)}(undef, size(temps))
-    amplitude = CuVector{eltype(α)}(undef, size(temps))
-    inverse_gaussian_densities = CuVector{eltype(α)}(undef, size(temps))
-    inverse_lorentz_densities = CuVector{eltype(α)}(undef, size(temps))
+    γ = CuArray{eltype(α)}(undef, n_gpu_blocks, length(temps))
+    σ = CuArray{eltype(α)}(undef, n_gpu_blocks, length(temps))
+    amplitude = CuArray{eltype(α)}(undef, n_gpu_blocks, length(temps))
+    inverse_gaussian_densities = CuArray{eltype(α)}(undef, n_gpu_blocks, length(temps))
+    inverse_lorentz_densities = CuArray{eltype(α)}(undef, n_gpu_blocks, length(temps))
 
     # convert the α_cntm interpolators to a matrix of coefficients on the coarse wavelength grid 
     # (i.e., don't interpolate)
@@ -120,11 +120,15 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     for (line, spec_index) in zip(linelist, species_indices)
         line_vals = LineVals(line)
         warp_size = warpsize(device()) # need the device() call because this is called on CPU
-        @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line_vals, temps_d, β, ξ, γ, nₑ_d,
-                                                     n_H_I_d, n_div_Z, mass_per_line_d, amplitude,
-                                                     spec_index, α_cntm_d, coarse_λs_d,
-                                                     cutoff_threshold, inverse_gaussian_densities,
-                                                     inverse_lorentz_densities)
+        @cuda threads=warp_size blocks=n_gpu_blocks process_line_kernel!(α, σ, λs_d, line_vals,
+                                                                         temps_d, β, ξ, γ, nₑ_d,
+                                                                         n_H_I_d, n_div_Z,
+                                                                         mass_per_line_d, amplitude,
+                                                                         spec_index, α_cntm_d,
+                                                                         coarse_λs_d,
+                                                                         cutoff_threshold,
+                                                                         inverse_gaussian_densities,
+                                                                         inverse_lorentz_densities)
 
         #doppler_line_window = maximum(inverse_gaussian_densities)
         #lorentz_line_window = maximum(inverse_lorentz_densities)
@@ -145,41 +149,46 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d, 
     m = mass_per_line_d[spec_index]
     doppler_line_window = 0.0
     lorentz_line_window = 0.0
-    for index in threadIdx().x:blockDim().x:length(σ)
-        @inbounds σ[index] = doppler_width_cuda(line.wl, temps_d[index], m, ξ)
+    blk_idx = blockIdx().x
+    for idx in threadIdx().x:blockDim().x:length(σ)
+        @inbounds σ[blk_idx, idx] = doppler_width_cuda(line.wl, temps_d[idx], m, ξ)
 
         # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
         # angular, not cyclical frequency (ω, not ν).
         Γ = line.gamma_rad
         if !line.ismolecular
-            @inbounds Γ += nₑ_d[index] * scaled_stark_cuda(line.gamma_stark, temps_d[index])
-            @inbounds Γ += n_H_I_d[index] * scaled_vdW_cuda(line.vdW, m, temps_d[index])
+            @inbounds Γ += nₑ_d[idx] * scaled_stark_cuda(line.gamma_stark, temps_d[idx])
+            @inbounds Γ += n_H_I_d[idx] * scaled_vdW_cuda(line.vdW, m, temps_d[idx])
         end
 
         # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
-        @inbounds γ[index] = Γ * line.wl^2 / (c_cgs * 4π)
+        @inbounds γ[blk_idx, idx] = Γ * line.wl^2 / (c_cgs * 4π)
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
-        @inbounds levels_factor = exp(-β[index] * line.E_lower) - exp(-β[index] * E_upper)
+        @inbounds levels_factor = exp(-β[idx] * line.E_lower) - exp(-β[idx] * E_upper)
 
         #total wl-integrated absorption coefficient
-        @inbounds amplitude[index] = 10.0^line.log_gf * sigma_line_cuda(line.wl) *
-                                     levels_factor[index] * n_div_Z[index, spec_index]
+        @inbounds amplitude[blk_idx, idx] = 10.0^line.log_gf * sigma_line_cuda(line.wl) *
+                                            levels_factor[idx] * n_div_Z[idx, spec_index]
 
         #TODO don't do the searchsortedfirst at every layer?
-        @inbounds local_α_cntm = α_cntm_d[index, searchsortedfirst(coarse_λs_d, line.wl)]
-        @inbounds ρ_crit = local_α_cntm * cutoff_threshold / amplitude[index]
+        @inbounds local_α_cntm = α_cntm_d[idx, searchsortedfirst(coarse_λs_d, line.wl)]
+        @inbounds ρ_crit = local_α_cntm * cutoff_threshold / amplitude[blk_idx, idx]
 
-        @inbounds inverse_gaussian_densities[index] = inverse_gaussian_density_cuda(ρ_crit[index],
-                                                                                    σ[index])
-        @inbounds inverse_lorentz_densities[index] = inverse_lorentz_density_cuda(ρ_crit[index],
-                                                                                  γ[index])
+        @inbounds inverse_gaussian_densities[idx] = inverse_gaussian_density_cuda(ρ_crit,
+                                                                                  σ[blk_idx,
+                                                                                    idx])
+        @inbounds inverse_lorentz_densities[idx] = inverse_lorentz_density_cuda(ρ_crit,
+                                                                                γ[blk_idx,
+                                                                                  idx])
 
-        @inbounds doppler_line_window = max(doppler_line_window, inverse_gaussian_densities[index])
-        @inbounds lorentz_line_window = max(lorentz_line_window, inverse_lorentz_densities[index])
+        @inbounds doppler_line_window = max(doppler_line_window,
+                                            inverse_gaussian_densities[blk_idx, idx])
+        @inbounds lorentz_line_window = max(lorentz_line_window,
+                                            inverse_lorentz_densities[blk_idx, idx])
     end
 
     doppler_line_window = warp_reduce_max(doppler_line_window)
@@ -194,9 +203,11 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d, 
     end
 
     for wl_index in lb:ub, thread_index in threadIdx().x:blockDim().x:length(σ)
-        @inbounds α[thread_index, wl_index] += line_profile_cuda.(line.wl, σ[thread_index],
-                                                                  γ[thread_index],
-                                                                  amplitude[thread_index],
+        @inbounds α[thread_index, wl_index] += line_profile_cuda.(line.wl,
+                                                                  σ[blk_idx, thread_index],
+                                                                  γ[blk_idx, thread_index],
+                                                                  amplitude[blk_idx,
+                                                                            thread_index],
                                                                   λs_d[wl_index])
     end
     return
