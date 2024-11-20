@@ -126,11 +126,9 @@ end
 function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
                        n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, γ, σ, amplitude,
                        ρ_crit, inverse_gaussian_densities, inverse_lorentz_densities)
-    m = mass_per_line_d[spec_index]
-
     warp_size = warpsize(device()) # need the device() call because this is called on CPU
-    @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, γ, nₑ_d,
-                                                 n_H_I_d, n_div_Z, amplitude,
+    @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d,
+                                                 n_H_I_d, n_div_Z, mass_per_line_d, amplitude,
                                                  spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
                                                  cutoff_threshold, inverse_gaussian_densities,
                                                  inverse_lorentz_densities)
@@ -147,10 +145,12 @@ end
 """
 This must be launched with threads equal to the warp size.
 """
-function process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, γ, nₑ_d, n_H_I_d,
-                              n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d,
+function process_line_kernel!(α, σ, λs_d, line, temps_d, β, ξ, γ, nₑ_d, n_H_I_d,
+                              n_div_Z, mass_per_line_d, amplitude, spec_index, α_cntm_d,
+                              coarse_λs_d,
                               ρ_crit, cutoff_threshold, inverse_gaussian_densities,
                               inverse_lorentz_densities)
+    m = mass_per_line_d[spec_index]
     doppler_line_window = 0.0
     lorentz_line_window = 0.0
     for index in threadIdx().x:blockDim().x:length(σ)
