@@ -69,7 +69,7 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
         return zeros(length(λs))
     end
 
-    each_species = unique([l.species for l in linelist])
+    each_species = unique((l.species for l in linelist))
     if species"H I" in each_species
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
@@ -89,7 +89,6 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     nₑ_d = CuArray(nₑ)
     n_H_I_d = CuArray(n_densities[species"H_I"])
     β = CuVector(@. 1 / (kboltz_eV * temps))
-    #λs_d = CuArray(λs) # TODO this means we don't have constant time searchsortedfirst/last
     λs_d = Wavelengths{eltype(λs.all_wls),
                        CuVector{eltype(λs.all_wls)},
                        eltype(λs.wl_ranges),
