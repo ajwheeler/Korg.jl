@@ -175,16 +175,19 @@ definition of the ABO γ.
 `vdW` should be either `γ_vdW` evaluated at 10,000 K, or tuple containing the ABO params `(σ, α)`.
 The species mass, `m`, is ignored in the former case.
 """
-scaled_vdW(vdW::Real, m, T, T₀=10_000) = vdW * (T / T₀)^0.3
 function scaled_vdW(vdW::Tuple{F,F}, m, T) where F<:Real
-    v₀ = 1e6 #σ is given at 10_000 m/s = 10^6 cm/s
-    σ = vdW[1]
-    α = vdW[2]
+    if vdW[2] == -1
+        return vdW[1] * (T / 10_000)^0.3
+    else
+        v₀ = 1e6 #σ is given at 10_000 m/s = 10^6 cm/s
+        σ = vdW[1]
+        α = vdW[2]
 
-    invμ = 1 / (1.008 * amu_cgs) + 1 / m #inverse reduced mass
-    vbar = sqrt(8 * kboltz_cgs * T / π * invμ) #relative velocity
-    #n.b. "gamma" is the gamma function, not a broadening parameter
-    2 * (4 / π)^(α / 2) * gamma((4 - α) / 2) * v₀ * σ * (vbar / v₀)^(1 - α)
+        invμ = 1 / (1.008 * amu_cgs) + 1 / m #inverse reduced mass
+        vbar = sqrt(8 * kboltz_cgs * T / π * invμ) #relative velocity
+        #n.b. "gamma" is the gamma function, not a broadening parameter
+        2 * (4 / π)^(α / 2) * gamma((4 - α) / 2) * v₀ * σ * (vbar / v₀)^(1 - α)
+    end
 end
 
 """

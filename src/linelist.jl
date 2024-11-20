@@ -9,7 +9,9 @@ struct Line{F1,F2,F3,F4,F5,F6}
     E_lower::F3                  #eV (also called the excitation potential)
     gamma_rad::F4                #s^-1
     gamma_stark::F5              #s^-1
-    vdW::Union{F6,Tuple{F6,F6}} #either γ_vdW [s^-1] per electron or (σ, α) from ABO theory
+    # either γ_vdW [s^-1] per electron (as the first element, with -1 as the second) or (σ, α) from 
+    # ABO theory 
+    vdW::Tuple{F6,F6}
 
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F, 
@@ -47,6 +49,7 @@ struct Line{F1,F2,F3,F4,F5,F6}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
+        # if one or both of stark or vdW are missing, approximate them
         if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) ||
            (!(vdW isa Tuple) && isnan(vdW))
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
@@ -54,24 +57,26 @@ struct Line{F1,F2,F3,F4,F5,F6}
                 gamma_stark = gamma_stark_approx
             end
             if ismissing(vdW) || isnan(vdW)
-                vdW = vdW_approx
+                vdW = (vdW_approx, -1.0)
             end
         end
+        # if gamma_rad is missing, approximate it
         if ismissing(gamma_rad) || isnan(gamma_rad)
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
 
         # if vdW is a tuple, assume it's (σ, α) from ABO theory
-        # if it's a float, there are four possibilities
-        if !ismissing(vdW) && !(vdW isa Tuple)
-            !isnan(vdW) #F6 will not be defined if vdW is missing
+        # if it's a float, there are four possibilities (one of which is a packed tuple)
+        # this assert is for my sanity.
+        @assert !ismissing(vdW) && !(!(vdW isa Tuple) && isnan(vdW))
+        if !(vdW isa Tuple)
             if vdW < 0
-                vdW = 10^vdW  # if vdW is negative, assume it's log(γ_vdW) 
+                vdW = (10^vdW, -1.0)  # if vdW is negative, assume it's log(γ_vdW) 
             elseif vdW == 0
-                vdW = 0.0  # if it's exactly 0, leave it as 0 (no vdW broadening)
+                vdW = (0.0, -1.0)  # if it's exactly 0, leave it as 0 (no vdW broadening)
             elseif 0 < vdW < 20
                 # if it's between 0 and 20, assume it's a fudge factor for the Unsoeld approximation
-                vdW *= 10^(approximate_gammas(wl, species, E_lower)[2])
+                vdW = (vdW * 10^(approximate_gammas(wl, species, E_lower)[2]), -1.0)
             else #if it's >= 20 assume it's packed ABO params
                 vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
             end
