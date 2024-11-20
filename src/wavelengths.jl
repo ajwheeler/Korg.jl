@@ -4,62 +4,62 @@ struct Wavelengths{F,V<:AbstractVector{F},R<:AbstractRange{F},VR<:AbstractVector
     # precomputed arrays.  This is faster for indexing into Wavelengths, especially with a UnitRange
     all_wls::V
     all_freqs::V # this one should probably be dropped.
+end
+"""
+Korg.Wavelengths(wl_params...; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
 
-    """
-        Korg.Wavelengths(wl_params...; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+Construct a `Wavelengths` object which represents the (possibly non-contiguous) wavelengths for
+which to compute a spectrum.  The wavelengths can be specified with an upper and lower bound, or
+a vector of upper and lower bounds. For example,
 
-    Construct a `Wavelengths` object which represents the (possibly non-contiguous) wavelengths for
-    which to compute a spectrum.  The wavelengths can be specified with an upper and lower bound, or
-    a vector of upper and lower bounds. For example,
+Korg.Wavelengths(5000, 5500)
+Korg.Wavelengths([(5000, 5500), (6000, 6500)])
 
-        Korg.Wavelengths(5000, 5500)
-        Korg.Wavelengths([(5000, 5500), (6000, 6500)])
+# Keyword Arguments
 
-    # Keyword Arguments
-    - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
-        be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
-        wavelength range can internally be represented by an evenly-spaced range.  If the approximation
-        error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
-        wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
-    - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
-    """
-    function Wavelengths(wl_ranges::AbstractVector{R};
-                         air_wavelengths=false,
-                         wavelength_conversion_warn_threshold=1e-4) where R<:AbstractRange
-        # if the first wavelength is > 1, assume it's in Å and convert to cm
-        if first(first(wl_ranges)) >= 1
-            wl_ranges = wl_ranges .* 1e-8
-        end
-
-        # this could be more efficient
-        all_wls = vcat(wl_ranges...)
-        if !issorted(all_wls)
-            throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
-        end
-
-        # Convert air to vacuum wavelenths if necessary.
-        if air_wavelengths
-            wl_ranges = map(wl_ranges) do wls
-                vac_start, vac_stop = air_to_vacuum.((first(wls), last(wls)))
-                vac_wls = range(; start=vac_start, stop=vac_stop, length=length(wls))
-                max_diff = maximum(abs.(vac_wls .- air_to_vacuum.(wls)))
-                if max_diff > wavelength_conversion_warn_threshold
-                    throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
-                                        *
-                                        "linear vacuum wavelength range. This solution differs by up to " *
-                                        "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you " *
-                                        "want to suppress this error."))
-                end
-                vac_wls
-            end
-        end
-
-        # precompute all wavelengths and frequencies
-        all_freqs = reverse(Korg.c_cgs ./ all_wls)
-
-        new{eltype(all_wls),typeof(all_wls),eltype(wl_ranges),typeof(wl_ranges)}(wl_ranges, all_wls,
-                                                                                 all_freqs)
+  - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
+    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
+    wavelength range can internally be represented by an evenly-spaced range.  If the approximation
+    error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
+    wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
+  - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
+"""
+function Wavelengths(wl_ranges::AbstractVector{R};
+                     air_wavelengths=false,
+                     wavelength_conversion_warn_threshold=1e-4) where R<:AbstractRange
+    # if the first wavelength is > 1, assume it's in Å and convert to cm
+    if first(first(wl_ranges)) >= 1
+        wl_ranges = wl_ranges .* 1e-8
     end
+
+    # this could be more efficient
+    all_wls = vcat(wl_ranges...)
+    if !issorted(all_wls)
+        throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
+    end
+
+    # Convert air to vacuum wavelenths if necessary.
+    if air_wavelengths
+        wl_ranges = map(wl_ranges) do wls
+            vac_start, vac_stop = air_to_vacuum.((first(wls), last(wls)))
+            vac_wls = range(; start=vac_start, stop=vac_stop, length=length(wls))
+            max_diff = maximum(abs.(vac_wls .- air_to_vacuum.(wls)))
+            if max_diff > wavelength_conversion_warn_threshold
+                throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
+                                    *
+                                    "linear vacuum wavelength range. This solution differs by up to " *
+                                    "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you " *
+                                    "want to suppress this error."))
+            end
+            vac_wls
+        end
+    end
+
+    # precompute all wavelengths and frequencies
+    all_freqs = reverse(Korg.c_cgs ./ all_wls)
+
+    new{eltype(all_wls),typeof(all_wls),eltype(wl_ranges),typeof(wl_ranges)}(wl_ranges, all_wls,
+                                                                             all_freqs)
 end
 function Wavelengths(wls::Wavelengths; air_wavelengths=false,)
     if air_wavelengths
