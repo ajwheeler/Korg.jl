@@ -88,7 +88,6 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     # preallocate some arrays for the core loop. 
     # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
     # the values in "number_densities"
-    Γ = CuVector{eltype(α)}(undef, size(temps))
     γ = CuVector{eltype(α)}(undef, size(temps))
     σ = CuVector{eltype(α)}(undef, size(temps))
     amplitude = CuVector{eltype(α)}(undef, size(temps))
@@ -120,18 +119,18 @@ function line_absorption_cuda_helper!(α, linelist, λs::Wavelengths, temps, n�
     for (line, spec_index) in zip(linelist, species_indices)
         line_vals = LineVals(line)
         process_line!(α, ξ, cutoff_threshold, line_vals, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
-                      n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude,
+                      n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, γ, σ, amplitude,
                       levels_factor, ρ_crit, inverse_gaussian_densities, inverse_lorentz_densities)
     end
 end
 
 function process_line!(α, ξ, cutoff_threshold, line, spec_index, λs_d, temps_d, nₑ_d, n_H_I_d,
-                       n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, Γ, γ, σ, amplitude,
+                       n_div_Z, mass_per_line_d, α_cntm_d, coarse_λs_d, β, γ, σ, amplitude,
                        levels_factor, ρ_crit, inverse_gaussian_densities, inverse_lorentz_densities)
     m = mass_per_line_d[spec_index]
 
     warp_size = warpsize(device()) # need the device() call because this is called on CPU
-    @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d,
+    @cuda threads=warp_size process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, γ, nₑ_d,
                                                  n_H_I_d, levels_factor, n_div_Z, amplitude,
                                                  spec_index, α_cntm_d, coarse_λs_d, ρ_crit,
                                                  cutoff_threshold, inverse_gaussian_densities,
@@ -149,7 +148,7 @@ end
 """
 This must be launched with threads equal to the warp size.
 """
-function process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, nₑ_d, n_H_I_d,
+function process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, γ, nₑ_d, n_H_I_d,
                               levels_factor, n_div_Z, amplitude, spec_index, α_cntm_d, coarse_λs_d,
                               ρ_crit, cutoff_threshold, inverse_gaussian_densities,
                               inverse_lorentz_densities)
@@ -158,17 +157,17 @@ function process_line_kernel!(α, σ, λs_d, line, temps_d, β, m, ξ, Γ, γ, n
 
         # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
         # angular, not cyclical frequency (ω, not ν).
-        @inbounds Γ[index] = line.gamma_rad
+        Γ = line.gamma_rad
         if !line.ismolecular
-            @inbounds Γ[index] += nₑ_d[index] * scaled_stark_cuda(line.gamma_stark, temps_d[index])
-            @inbounds Γ[index] += n_H_I_d[index] * scaled_vdW_cuda(line.vdW, m, temps_d[index])
+            Γ += nₑ_d[index] * scaled_stark_cuda(line.gamma_stark, temps_d[index])
+            Γ += n_H_I_d[index] * scaled_vdW_cuda(line.vdW, m, temps_d[index])
         end
 
         # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
         # implicit aproximation that λ(ν) is linear over the line window.
         # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
         # and the last factor of 1/2 is for FWHM vs HWHM
-        @inbounds γ[index] = Γ[index] * line.wl^2 / (c_cgs * 4π)
+        @inbounds γ[index] = Γ * line.wl^2 / (c_cgs * 4π)
 
         E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
         @inbounds levels_factor[index] = exp(-β[index] * line.E_lower) - exp(-β[index] * E_upper)
