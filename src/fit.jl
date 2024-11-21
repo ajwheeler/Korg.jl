@@ -277,6 +277,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
     chi2 = let data = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
+        obs_wls = obs_wls[obs_wl_mask],
         synth_wls = synthesis_wls, LSF_matrix = LSF_matrix, linelist = linelist,
         params_to_fit = params_to_fit, fixed_params = fixed_params
 
@@ -309,6 +310,15 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                 rethrow(e)
             end
 
+            if adjust_continuum
+                try
+                    linear_continuum_adjustment!(obs_wls, windows, flux, data, obs_err)
+                catch e
+                    println(stderr, "Error while calling adjust_continuum")
+                    rethrow(e)
+                end
+            end
+
             sum(((flux .- data) ./ obs_err) .^ 2) + negative_log_scaled_prior
         end
     end
@@ -325,6 +335,10 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
                                   synthesis_kwargs)
         postprocess(flux, obs_flux[obs_wl_mask], obs_err[obs_wl_mask])
+        if adjust_continuum
+            linear_continuum_adjustment!(obs_wls[obs_wl_mask], windows, flux, obs_flux[obs_wl_mask],
+                                         obs_err[obs_wl_mask])
+        end
         flux
     catch e
         println(stderr, "Exception while synthesizing best-fit spectrum")
@@ -354,6 +368,32 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     (best_fit_params=best_fit_params, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask,
      solver_result=res, trace=trace, covariance=(params_to_fit, invH))
+end
+
+"""
+    linear_continuum_adjustment!(obs_wls, windows, model_flux, obs_flux, obs_err)
+
+Adjust the model flux to match the observed flux by fitting a line (as a function of wavelength) to
+the residuals, and dividing it out. This can compensate for poorly done continuum normalization.
+
+Note, obs_wls must be masked.
+"""
+function linear_continuum_adjustment!(obs_wls, windows, model_flux, obs_flux, obs_err)
+    if isnothing(windows)
+        windows = [(first(obs_wls), last(obs_wls))]
+    end
+
+    for (λstart, λstop) in windows
+        lb = searchsortedfirst(obs_wls, λstart)
+        ub = searchsortedlast(obs_wls, λstop)
+        ivar = 1 ./ obs_err[lb:ub] .^ 2
+
+        X = [model_flux[lb:ub] model_flux[lb:ub] .* obs_wls[lb:ub]]
+        β = (X' * (ivar .* X)) \ (X' * (ivar .* obs_flux[lb:ub]))
+
+        view(model_flux, lb:ub) .*= β[1] .+ β[2] .* obs_wls[lb:ub]
+    end
+    return
 end
 
 # called by fit_spectrum
