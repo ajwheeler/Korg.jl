@@ -255,10 +255,14 @@ Return a new linelist containing only lines within the provided wavelength range
 function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
     nlines_before = length(linelist)
 
-    # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
-    first_line_index = searchsortedfirst(linelist, (; wl=wls[1]); by=l -> l.wl)
-    last_line_index = searchsortedlast(linelist, (; wl=wls[end]); by=l -> l.wl)
-    linelist = linelist[first_line_index:last_line_index]
+    sub_ranges = map(eachwindow(wls)) do (λstart, λstop)
+        first_line_index = searchsortedfirst(linelist, (; wl=λstart - line_buffer); by=l -> l.wl)
+        first_line_index = isnothing(first_line_index) ? 1 : first_line_index
+        last_line_index = searchsortedlast(linelist, (; wl=λstop + line_buffer); by=l -> l.wl)
+        last_line_index = isnothing(last_line_index) ? length(linelist) : last_line_index
+        first_line_index:last_line_index
+    end
+    linelist = vcat((linelist[r] for r in sub_ranges)...)
 
     if nlines_before != 0 && length(linelist) == 0 && warn_empty
         @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
