@@ -257,9 +257,7 @@ function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
 
     sub_ranges = map(eachwindow(wls)) do (λstart, λstop)
         first_line_index = searchsortedfirst(linelist, (; wl=λstart - line_buffer); by=l -> l.wl)
-        first_line_index = isnothing(first_line_index) ? 1 : first_line_index
         last_line_index = searchsortedlast(linelist, (; wl=λstop + line_buffer); by=l -> l.wl)
-        last_line_index = isnothing(last_line_index) ? length(linelist) : last_line_index
         first_line_index:last_line_index
     end
     linelist = vcat((linelist[r] for r in sub_ranges)...)
