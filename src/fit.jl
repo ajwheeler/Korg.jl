@@ -114,6 +114,8 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
     initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
     fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
 
+    # TODO warn if cntm_offset or cntm_slope are non-zero
+
     # check that all required params are specified
     all_params = keys(initial_guesses) ∪ keys(fixed_params)
     for param in required_params
@@ -202,10 +204,6 @@ values are used.
   - `epsilon`: the linear limb-darkening coefficient. Default: `0.6`. Used for applying rotational
     broadening only.  See [`Korg.apply_rotation`](@ref) for details.
   - Individual elements, e.g. `Na`, specify the solar-relative ([X/H]) abundance of that element.
-  - `cntm_offset`: a constant offset to the continuum. Default: `0.0` (no correction).
-  - `cntm_slope`: the slope of a linear correction applied to the continuum. Default: `0.0` (no
-    correction). The linear correction will be zero at the central wavelength. While it's possible to
-    fit for a continuum slope with a fixed offset, it is highly disrecommended.
 
 !!! tip
 
@@ -220,6 +218,7 @@ values are used.
     "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is
     used. Overlapping windows are automatically merged.
   - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
+  - `adjust_continuum` TODO
   - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
     transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
     the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`,
@@ -261,7 +260,7 @@ A NamedTuple with the following fields:
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                       windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
-                      time_limit=10_000, synthesis_kwargs...)
+                      time_limit=10_000, adjust_continuum=false, synthesis_kwargs...)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
     end
@@ -383,7 +382,7 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
                                 "Korg.Fit.fit_spectrum (unless LSF_matrix and synthesis_wls are provided.)"))
         end
 
-        # wavelenths and windows setup
+        # wavelengths and windows setup
         isnothing(windows) && (windows = [(first(obs_wls), last(obs_wls))])
 
         windows, _ = Korg.merge_bounds(windows, 2wl_buffer)
