@@ -1,6 +1,6 @@
 name = "Korg"
 uuid = "acafc109-a718-429c-b0e5-afd7f8c7ae46"
-authors = ["Adam Wheeler <a.wheeler@columbia.edu>"]
+authors = ["Adam Wheeler <adamwhlr@gmail.com>", "Matthew Abruzzo <matthewabruzzo@gmail.com>"]
 version = "0.40.2"
 
 [deps]
