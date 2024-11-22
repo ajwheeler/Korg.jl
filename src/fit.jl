@@ -114,13 +114,11 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
     initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
     fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
 
-    # TODO warn if cntm_offset or cntm_slope are non-zero
-
     # check that all required params are specified
     all_params = keys(initial_guesses) ∪ keys(fixed_params)
     for param in required_params
         if !(param in all_params)
-            throw(ArgumentError("Must specify $param in either starting_params or fixed_params. (Did you get the capitalization right?)"))
+            throw(ArgumentError("Must specify $param in either initial_guesses or fixed_params. (Did you get the capitalization right?)"))
         end
     end
 
@@ -143,6 +141,11 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
         if length(keys_in_both) > 0
             throw(ArgumentError("These parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
         end
+    end
+
+    if "cntm_offset" in keys(initial_guesses) || "cntm_slope" in keys(initial_guesses)
+        @warn "Instead of `\"cntm_offset\"`` and `\"cntm_slope\"`, it's now recommended to pass " *
+              "`adjust_continuum=true` to Korg.Fit.fit_spectrum."
     end
 
     initial_guesses, fixed_params
@@ -218,7 +221,9 @@ values are used.
     "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is
     used. Overlapping windows are automatically merged.
   - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
-  - `adjust_continuum` TODO
+  - `adjust_continuum` (default: `false`) if true, adjust the continuum with the best-fit linear
+    correction within each window, minimizing the chi-squared between data and model at every step
+    of the optimizer.
   - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
     transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
     the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`,
@@ -408,6 +413,10 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
         if isnothing(LSF_matrix) || isnothing(synthesis_wls)
             throw(ArgumentError("LSF_matrix and synthesis_wls must both be defined if the other is."))
         end
+
+        # do this after verifying that it's not nothing, but before checking the lengths
+        synthesis_wls = Korg.Wavelengths(synthesis_wls)
+
         if length(obs_wls) != size(LSF_matrix, 1)
             throw(ArgumentError("the first dimension of LSF_matrix ($(size(LSF_matrix, 1))) must be the length of obs_wls ($(length(obs_wls)))."))
         end
@@ -415,7 +424,7 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
             throw(ArgumentError("the second dimension of LSF_matrix $(size(LSF_matrix, 2)) must be the length of synthesis_wls ($(length(synthesis_wls)))"))
         end
 
-        Korg.Wavelengths(synthesis_wls), ones(Bool, length(obs_wls)), LSF_matrix
+        synthesis_wls, ones(Bool, length(obs_wls)), LSF_matrix
     else
         if isnothing(R)
             throw(ArgumentError("The resolution, R, must be specified with a keyword argument to " *
@@ -426,7 +435,7 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
         isnothing(windows) && (windows = [(first(obs_wls), last(obs_wls))])
 
         windows, _ = Korg.merge_bounds(windows, 2wl_buffer)
-        synthesis_wls = Korg.Wavelengths([(w[1], w[2]) for w in windows])
+        synthesis_wls = Korg.Wavelengths([(w[1] - wl_buffer, w[2] + wl_buffer) for w in windows])
         obs_wl_mask = zeros(Bool, length(obs_wls))
         for (λstart, λstop) in windows
             lb = searchsortedfirst(obs_wls, λstart)
