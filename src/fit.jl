@@ -394,8 +394,9 @@ the residuals, and dividing it out. This can compensate for poorly done continuu
 Note, obs_wls must be masked.
 """
 function linear_continuum_adjustment!(obs_wls, windows, model_flux, obs_flux, obs_err)
-    @show length(obs_wls), length(model_flux), length(obs_flux), length(obs_err)
     @assert length(obs_wls) == length(model_flux) == length(obs_flux) == length(obs_err)
+    # this calculates ranges which are the same for each iteration.  Ideally, we would do this 
+    # ahead of time in _setup_wavelengths_and_LSF.
 
     if isnothing(windows)
         windows = [(first(obs_wls), last(obs_wls))]
