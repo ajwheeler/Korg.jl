@@ -144,8 +144,9 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
     end
 
     if "cntm_offset" in keys(initial_guesses) || "cntm_slope" in keys(initial_guesses)
-        @warn "Instead of `\"cntm_offset\"`` and `\"cntm_slope\"`, it's now recommended to pass " *
-              "`adjust_continuum=true` to Korg.Fit.fit_spectrum."
+        @warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` parameters, it's now" *
+              " recommended to pass `adjust_continuum=true` to Korg.Fit.fit_spectrum. These parameters " *
+              "may be removed in a future version of Korg."
     end
 
     initial_guesses, fixed_params
