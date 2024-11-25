@@ -98,6 +98,49 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthes
 end
 
 """
+Synthesize a spectrum, apply the LSF, and postprocess it, catching and potentially rethrowing
+errors. This is used by [`fit_spectrum`](@ref).
+"""
+function postprocessed_synthetic_spectrum(synth_wls, linelist, LSF_matrix, params,
+                                          synthesis_kwargs, obs_wls, windows, obs_flux, obs_err,
+                                          postprocess, adjust_continuum)
+    flux = try
+        synthetic_spectrum(synth_wls, linelist, LSF_matrix, params, synthesis_kwargs)
+    catch e
+        if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError)
+            # chemical equilibrium errors happen for a few unphysical model atmospheres
+
+            # LazyMultilinearInterpError happens when logg is oob for the low-Z atmosphere grid
+
+            # This is a nice huge chi2 value, but not too big.  It's what you get if 
+            # difference at each pixel in the (rectified) spectra is 1, which is 
+            # more-or-less an upper bound.
+            return sum(1 ./ obs_err .^ 2)
+        else
+            rethrow(e)
+        end
+    end
+
+    try
+        postprocess(flux, obs_flux, obs_err)
+    catch e
+        println(stderr, "Error while calling postprocess")
+        rethrow(e)
+    end
+
+    if adjust_continuum
+        try
+            linear_continuum_adjustment!(obs_wls, windows, flux, obs_flux, obs_err)
+        catch e
+            println(stderr, "Error while calling adjust_continuum")
+            rethrow(e)
+        end
+    end
+
+    flux
+end
+
+"""
 Validate fitting parameters, and insert default values when needed. Used by [`fit_spectrum`](@ref).
 
 these can be specified in either initial_guesses or fixed_params, but if they are not, these values
@@ -118,7 +161,7 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
     all_params = keys(initial_guesses) ∪ keys(fixed_params)
     for param in required_params
         if !(param in all_params)
-            throw(ArgumentError("Must specify $param in either starting_params or fixed_params. (Did you get the capitalization right?)"))
+            throw(ArgumentError("Must specify $param in either initial_guesses or fixed_params. (Did you get the capitalization right?)"))
         end
     end
 
@@ -141,6 +184,12 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
         if length(keys_in_both) > 0
             throw(ArgumentError("These parameters: $(keys_in_both) are specified as both initial guesses and fixed params."))
         end
+    end
+
+    if "cntm_offset" in keys(initial_guesses) || "cntm_slope" in keys(initial_guesses)
+        @warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` parameters, it's now" *
+              " recommended to pass `adjust_continuum=true` to Korg.Fit.fit_spectrum. These parameters " *
+              "may be removed in a future version of Korg."
     end
 
     initial_guesses, fixed_params
@@ -202,10 +251,6 @@ values are used.
   - `epsilon`: the linear limb-darkening coefficient. Default: `0.6`. Used for applying rotational
     broadening only.  See [`Korg.apply_rotation`](@ref) for details.
   - Individual elements, e.g. `Na`, specify the solar-relative ([X/H]) abundance of that element.
-  - `cntm_offset`: a constant offset to the continuum. Default: `0.0` (no correction).
-  - `cntm_slope`: the slope of a linear correction applied to the continuum. Default: `0.0` (no
-    correction). The linear correction will be zero at the central wavelength. While it's possible to
-    fit for a continuum slope with a fixed offset, it is highly disrecommended.
 
 !!! tip
 
@@ -219,6 +264,9 @@ values are used.
   - `windows` is a vector of wavelength pairs, each of which specifies a wavelength
     "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is
     used. Overlapping windows are automatically merged.
+  - `adjust_continuum` (default: `false`) if true, adjust the continuum with the best-fit linear
+    correction within each window, minimizing the chi-squared between data and model at every step
+    of the optimization.
   - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
   - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
     transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
@@ -261,7 +309,7 @@ A NamedTuple with the following fields:
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                       windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
-                      time_limit=10_000, synthesis_kwargs...)
+                      time_limit=10_000, adjust_continuum=false, synthesis_kwargs...)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
     end
@@ -277,40 +325,20 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
-    chi2 = let data = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
-        synth_wls = synthesis_wls, LSF_matrix = LSF_matrix, linelist = linelist,
-        params_to_fit = params_to_fit, fixed_params = fixed_params
+    chi2 = let obs_flux = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
+        obs_wls = obs_wls[obs_wl_mask], synthesis_wls = synthesis_wls, LSF_matrix = LSF_matrix,
+        linelist = linelist, params_to_fit = params_to_fit, fixed_params = fixed_params
 
         function chi2(scaled_p)
             # this extremely weak prior helps to regularize the optimization
             negative_log_scaled_prior = sum(@. scaled_p^2 / 100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
-            flux = try
-                synthetic_spectrum(synth_wls, linelist, LSF_matrix, params, synthesis_kwargs)
-            catch e
-                if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError)
-                    # chemical equilibrium errors happen for a few unphysical model atmospheres
-
-                    # LazyMultilinearInterpError happens when logg is oob for the low-Z atmosphere grid
-
-                    # This is a nice huge chi2 value, but not too big.  It's what you get if 
-                    # difference at each pixel in the (rectified) spectra is 1, which is 
-                    # more-or-less an upper bound.
-                    return sum(1 ./ obs_err .^ 2)
-                else
-                    rethrow(e)
-                end
-            end
-
-            try
-                postprocess(flux, data, obs_err)
-            catch e
-                println(stderr, "Error while calling postprocess")
-                rethrow(e)
-            end
-
-            sum(((flux .- data) ./ obs_err) .^ 2) + negative_log_scaled_prior
+            @show length(obs_wls), length(obs_flux), length(obs_err)
+            flux = postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
+                                                    synthesis_kwargs, obs_wls, windows, obs_flux,
+                                                    obs_err, postprocess, adjust_continuum)
+            sum(((flux .- obs_flux) ./ obs_err) .^ 2) + negative_log_scaled_prior
         end
     end
 
@@ -323,10 +351,10 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     best_fit_flux = try
         full_solution = merge(best_fit_params, fixed_params)
-        flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
-                                  synthesis_kwargs)
-        postprocess(flux, obs_flux[obs_wl_mask], obs_err[obs_wl_mask])
-        flux
+        postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
+                                         synthesis_kwargs, obs_wls[obs_wl_mask], windows,
+                                         obs_flux[obs_wl_mask], obs_err[obs_wl_mask],
+                                         postprocess, adjust_continuum)
     catch e
         println(stderr, "Exception while synthesizing best-fit spectrum")
         rethrow(e)
@@ -357,6 +385,36 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
      solver_result=res, trace=trace, covariance=(params_to_fit, invH))
 end
 
+"""
+    linear_continuum_adjustment!(obs_wls, windows, model_flux, obs_flux, obs_err)
+
+Adjust the model flux to match the observed flux by fitting a line (as a function of wavelength) to
+the residuals, and dividing it out. This can compensate for poorly done continuum normalization.
+
+Note, obs_wls must be masked.
+"""
+function linear_continuum_adjustment!(obs_wls, windows, model_flux, obs_flux, obs_err)
+    @assert length(obs_wls) == length(model_flux) == length(obs_flux) == length(obs_err)
+    # this calculates ranges which are the same for each iteration.  Ideally, we would do this 
+    # ahead of time in _setup_wavelengths_and_LSF.
+
+    if isnothing(windows)
+        windows = [(first(obs_wls), last(obs_wls))]
+    end
+
+    for (λstart, λstop) in windows
+        lb = searchsortedfirst(obs_wls, λstart)
+        ub = searchsortedlast(obs_wls, λstop)
+        ivar = 1 ./ obs_err[lb:ub] .^ 2
+
+        X = [model_flux[lb:ub] model_flux[lb:ub] .* obs_wls[lb:ub]]
+        β = (X' * (ivar .* X)) \ (X' * (ivar .* obs_flux[lb:ub]))
+
+        view(model_flux, lb:ub) .*= β[1] .+ β[2] .* obs_wls[lb:ub]
+    end
+    return
+end
+
 # called by fit_spectrum
 function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows, wl_buffer)
     if (!isnothing(LSF_matrix) || !isnothing(synthesis_wls))
@@ -369,6 +427,10 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
         if isnothing(LSF_matrix) || isnothing(synthesis_wls)
             throw(ArgumentError("LSF_matrix and synthesis_wls must both be defined if the other is."))
         end
+
+        # do this after verifying that it's not nothing, but before checking the lengths
+        synthesis_wls = Korg.Wavelengths(synthesis_wls)
+
         if length(obs_wls) != size(LSF_matrix, 1)
             throw(ArgumentError("the first dimension of LSF_matrix ($(size(LSF_matrix, 1))) must be the length of obs_wls ($(length(obs_wls)))."))
         end
@@ -376,18 +438,18 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
             throw(ArgumentError("the second dimension of LSF_matrix $(size(LSF_matrix, 2)) must be the length of synthesis_wls ($(length(synthesis_wls)))"))
         end
 
-        Korg.Wavelengths(synthesis_wls), ones(Bool, length(obs_wls)), LSF_matrix
+        synthesis_wls, ones(Bool, length(obs_wls)), LSF_matrix
     else
         if isnothing(R)
             throw(ArgumentError("The resolution, R, must be specified with a keyword argument to " *
                                 "Korg.Fit.fit_spectrum (unless LSF_matrix and synthesis_wls are provided.)"))
         end
 
-        # wavelenths and windows setup
+        # wavelengths and windows setup
         isnothing(windows) && (windows = [(first(obs_wls), last(obs_wls))])
 
         windows, _ = Korg.merge_bounds(windows, 2wl_buffer)
-        synthesis_wls = Korg.Wavelengths([(w[1], w[2]) for w in windows])
+        synthesis_wls = Korg.Wavelengths([(w[1] - wl_buffer, w[2] + wl_buffer) for w in windows])
         obs_wl_mask = zeros(Bool, length(obs_wls))
         for (λstart, λstop) in windows
             lb = searchsortedfirst(obs_wls, λstart)

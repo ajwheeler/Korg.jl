@@ -1,113 +1,139 @@
 using Random
 
 @testset "Fit" begin
-    @testset "parameter scaling" begin
-        params = Dict("Teff" => 3200.0, "logg" => 4.5, "m_H" => -2.0, "vmic" => 3.2,
-                      "vsini" => 10.0, "O" => -1.0)
-        sparams = Korg.Fit.scale(params)
-        uparams = Korg.Fit.unscale(sparams)
-        @test all(isapprox.(values(uparams), values(params); rtol=1e-3))
-    end
+    @testset "fit_spectrum" begin
+        @testset "parameter scaling" begin
+            params = Dict("Teff" => 3200.0, "logg" => 4.5, "m_H" => -2.0, "vmic" => 3.2,
+                          "vsini" => 10.0, "O" => -1.0)
+            sparams = Korg.Fit.scale(params)
+            uparams = Korg.Fit.unscale(sparams)
+            @test all(isapprox.(values(uparams), values(params); rtol=1e-3))
+        end
 
-    @testset "fit param validation" begin
-        @test_throws ArgumentError Korg.Fit.validate_params((; Teff=3200), (;))
-        @test_throws ArgumentError Korg.Fit.validate_params((; logg=3200), (;))
-        @test_throws ArgumentError Korg.Fit.validate_params((Teff=4500, logg=3200, m_H=0.1),
-                                                            (; m_H=0.1))
+        @testset "fit param validation" begin
+            @test_throws ArgumentError Korg.Fit.validate_params((; Teff=3200), (;))
+            @test_throws ArgumentError Korg.Fit.validate_params((; logg=3200), (;))
+            @test_throws ArgumentError Korg.Fit.validate_params((Teff=4500, logg=3200, m_H=0.1),
+                                                                (; m_H=0.1))
 
-        # alpha may be specified, but it has no default, making it a special case
-        p0, _ = Korg.Fit.validate_params((Teff=4500, logg=4.5, alpha_H=0.2), (;))
-        @test p0["alpha_H"] == 0.2
-        _, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (; alpha_H=0.2))
-        @test fixed["alpha_H"] == 0.2
-        p0, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (;))
-        @test !("alpha_H" in keys(p0)) && !("alpha_H" in keys(fixed))
+            # alpha may be specified, but it has no default, making it a special case
+            p0, _ = Korg.Fit.validate_params((Teff=4500, logg=4.5, alpha_H=0.2), (;))
+            @test p0["alpha_H"] == 0.2
+            _, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (; alpha_H=0.2))
+            @test fixed["alpha_H"] == 0.2
+            p0, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (;))
+            @test !("alpha_H" in keys(p0)) && !("alpha_H" in keys(fixed))
 
-        for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff" => 4500, "logg" => 4.5)]
-            for fixed_params in [(;), Dict()]
-                _, fixed_params = Korg.Fit.validate_params(initial_guess, fixed_params)
-                @test fixed_params["m_H"] == 0
-                @test fixed_params["vmic"] == 1
+            for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff" => 4500, "logg" => 4.5)]
+                for fixed_params in [(;), Dict()]
+                    _, fixed_params = Korg.Fit.validate_params(initial_guess, fixed_params)
+                    @test fixed_params["m_H"] == 0
+                    @test fixed_params["vmic"] == 1
+                end
+            end
+
+            @test_warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` " begin
+                Korg.Fit.validate_params((; Teff=4500, cntm_slope=0), (; logg=4.0))
+            end
+            @test_warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` " begin
+                Korg.Fit.validate_params((; Teff=4500, cntm_offset=0), (; logg=4.0))
             end
         end
-    end
 
-    @testset "fit_spectrum" begin
-        # fit params
-        Teff = 6402.0
-        m_H = -1.02
+        # it would be good to write some tests for Korg.Fit._setup_wavelengths_and_LSF directly
 
-        # fixed_params
-        logg = 4.52
-        vmic = 0.83
-        cntm_offset = 0.04
+        @testset "calls to fit_spectrum" begin
+            perturb!(flux, _, _) = (flux .= flux .^ 1.2)
+            linelist = Korg.get_VALD_solar_linelist()
+            windows = [(5000, 5010), (5015, 5025), (5030, 5040)]
+            obs_wls = 4990:0.07:5050
+            synth_wls = (4990, 5050)
+            R = 20_000
+            LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, R)
 
-        R = 50_000
-        obs_wls = 5003:0.03:5008
-        synth_wls = 5000:0.01:5010
-        LSF_matrix = Korg.compute_LSF_matrix(synth_wls, obs_wls, R)
+            fixed_params = (; vmic=0.83, logg=4.52)
+            # true parameters
+            Teff = 5350.0
+            m_H = 0.11
 
-        linelist = Korg.get_VALD_solar_linelist()
+            # start slightly off.  It would be a more robust test to start further away, but it
+            # would also be more expensive.
+            p0 = (; Teff=5000.0, m_H=0.0)
 
-        # generate a spectrum
-        atm = interpolate_marcs(Teff, logg, m_H)
-        sol = synthesize(atm, linelist, format_A_X(m_H), [synth_wls]; vmic=vmic)
-        spectrum = LSF_matrix * (sol.flux ./ (sol.cntm .* (1 - cntm_offset)))
-        spectrum ./= 2 # scale out a factor of 2 and account for it with the "postprocess" kwarg
-        err = 0.01 * ones(length(spectrum)) # don't actually apply error to keep tests deterministic
+            # synthesize a spectrum, to be turned into fake data
+            A_X = Korg.format_A_X(m_H, m_H)
+            atm = interpolate_marcs(Teff, fixed_params.logg, A_X)
+            sol = synthesize(atm, linelist, A_X, synth_wls; vmic=fixed_params.vmic)
 
-        scale!(flux, data, err) = flux ./= 2
-        p0 = (Teff=5350.0, m_H=0.0)
-        fixed = (logg=logg, vmic=vmic, cntm_offset=cntm_offset)
+            fake_data = LSF * (sol.flux ./ sol.cntm)
+            # add an "instrumental" effect to be taken out with postprocess
+            fake_data .= fake_data .^ 1.2
 
-        # specify the LSF matrix and synthesis wavelengths OR the R value
-        wl_kwargs = [
-            Dict([:synthesis_wls => synth_wls, :LSF_matrix => LSF_matrix]),
-            Dict([:R => R])
-        ]
+            # apply LSF and resampling, and put a crazy continuum in each window
+            # it's important to do this after perturbing the data.
+            for (i, (λstart, λstop)) in enumerate(windows)
+                m = λstart .<= obs_wls .<= λstop
 
-        # now fit it
-        for wlkw in wl_kwargs
-            result = Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                           precision=1e-3, postprocess=scale!, wlkw...)
+                slope = i * 0.01
+                offset = 1.1 - 5000 * slope
 
-            params, Σ = result.covariance
-            Teff_index = findfirst(params .== "Teff")
-            Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
-            m_H_index = findfirst(params .== "m_H")
-            m_H_sigma = sqrt(Σ[m_H_index, m_H_index])
+                fake_data[m] .*= offset .+ slope * obs_wls[m]
+            end
 
-            # check that inferred parameters are within 2 sigma of the true values
-            @test result.best_fit_params["Teff"]≈Teff atol=1Teff_sigma
-            @test result.best_fit_params["m_H"]≈m_H atol=1m_H_sigma
+            err = 0.01 * ones(length(obs_wls)) # don't actually apply error to keep tests deterministic
 
-            # check that best-fit flux is within 1% of the true flux at all pixels
-            @test assert_allclose(spectrum, result.best_fit_flux, rtol=0.01)
-        end
+            @testset "fit test" begin
+                result = Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
+                                               precision=1e-4,
+                                               postprocess=perturb!,
+                                               adjust_continuum=true,
+                                               R=R,
+                                               windows=windows,)
 
-        # test argument checks
-        @test_throws "LSF_matrix and synthesis_wls cannot be specified if R is provided" begin
-            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                  R=R, synthesis_wls=synth_wls, LSF_matrix=LSF_matrix, time_limit=1)
-        end
-        @test_throws "LSF_matrix and synthesis_wls can't be specified if windows is also specified" begin
-            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix,
-                                  windows=[(5003, 5008)], time_limit=1)
-        end
-        @test_throws "must all have the same length" begin
-            Korg.Fit.fit_spectrum(obs_wls[1:end-1], spectrum, err, linelist, p0, fixed;
-                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix, time_limit=1)
-        end
-        @test_throws "the first dimension of LSF_matrix" begin
-            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix[1:end-1, :],
-                                  time_limit=1)
-        end
-        @test_throws "the second dimension of LSF_matrix" begin
-            Korg.Fit.fit_spectrum(obs_wls, spectrum, err, linelist, p0, fixed;
-                                  synthesis_wls=synth_wls, LSF_matrix=LSF_matrix[:, 1:end-1],
-                                  time_limit=1)
+                params, Σ = result.covariance
+
+                Teff_index = findfirst(params .== "Teff")
+                Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
+                m_H_index = findfirst(params .== "m_H")
+                m_H_sigma = sqrt(Σ[m_H_index, m_H_index])
+
+                # check that inferred parameters are within 2 sigma of the true values
+                @test result.best_fit_params["Teff"]≈Teff atol=1Teff_sigma
+                @test result.best_fit_params["m_H"]≈m_H atol=1m_H_sigma
+
+                # check that best-fit flux is within 1% of the true flux at all pixels
+                @test assert_allclose(fake_data[result.obs_wl_mask], result.best_fit_flux,
+                                      rtol=0.01)
+            end
+
+            @testset "argument checks" begin
+                @test_throws "LSF_matrix and synthesis_wls cannot be specified if R is provided" begin
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
+                                          R=R, synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                          time_limit=1)
+                end
+                @test_throws "LSF_matrix and synthesis_wls can't be specified if windows is also specified" begin
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                          windows=[(5003, 5008)], time_limit=1)
+                end
+                @test_throws "must all have the same length" begin
+                    Korg.Fit.fit_spectrum(obs_wls[1:end-1], fake_data, err, linelist, p0,
+                                          fixed_params;
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                          time_limit=1)
+                end
+                @test_throws "the first dimension of LSF_matrix" begin
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF[1:end-1, :],
+                                          time_limit=1)
+                end
+                @test_throws "the second dimension of LSF_matrix" begin
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF[:, 1:end-1],
+                                          time_limit=1)
+                end
+            end
         end
     end
 
