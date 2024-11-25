@@ -98,6 +98,49 @@ function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthes
 end
 
 """
+Synthesize a spectrum, apply the LSF, and postprocess it, catching and potentially rethrowing
+errors. This is used by [`fit_spectrum`](@ref).
+"""
+function postprocessed_synthetic_spectrum(synth_wls, linelist, LSF_matrix, params,
+                                          synthesis_kwargs, obs_wls, windows, obs_flux, obs_err,
+                                          postprocess, adjust_continuum)
+    flux = try
+        synthetic_spectrum(synth_wls, linelist, LSF_matrix, params, synthesis_kwargs)
+    catch e
+        if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError)
+            # chemical equilibrium errors happen for a few unphysical model atmospheres
+
+            # LazyMultilinearInterpError happens when logg is oob for the low-Z atmosphere grid
+
+            # This is a nice huge chi2 value, but not too big.  It's what you get if 
+            # difference at each pixel in the (rectified) spectra is 1, which is 
+            # more-or-less an upper bound.
+            return sum(1 ./ obs_err .^ 2)
+        else
+            rethrow(e)
+        end
+    end
+
+    try
+        postprocess(flux, obs_flux, obs_err)
+    catch e
+        println(stderr, "Error while calling postprocess")
+        rethrow(e)
+    end
+
+    if adjust_continuum
+        try
+            linear_continuum_adjustment!(obs_wls, windows, flux, obs_flux, obs_err)
+        catch e
+            println(stderr, "Error while calling adjust_continuum")
+            rethrow(e)
+        end
+    end
+
+    flux
+end
+
+"""
 Validate fitting parameters, and insert default values when needed. Used by [`fit_spectrum`](@ref).
 
 these can be specified in either initial_guesses or fixed_params, but if they are not, these values
@@ -292,39 +335,9 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             negative_log_scaled_prior = sum(@. scaled_p^2 / 100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
-            flux = try
-                synthetic_spectrum(synth_wls, linelist, LSF_matrix, params, synthesis_kwargs)
-            catch e
-                if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError)
-                    # chemical equilibrium errors happen for a few unphysical model atmospheres
-
-                    # LazyMultilinearInterpError happens when logg is oob for the low-Z atmosphere grid
-
-                    # This is a nice huge chi2 value, but not too big.  It's what you get if 
-                    # difference at each pixel in the (rectified) spectra is 1, which is 
-                    # more-or-less an upper bound.
-                    return sum(1 ./ obs_err .^ 2)
-                else
-                    rethrow(e)
-                end
-            end
-
-            try
-                postprocess(flux, data, obs_err)
-            catch e
-                println(stderr, "Error while calling postprocess")
-                rethrow(e)
-            end
-
-            if adjust_continuum
-                try
-                    linear_continuum_adjustment!(obs_wls, windows, flux, data, obs_err)
-                catch e
-                    println(stderr, "Error while calling adjust_continuum")
-                    rethrow(e)
-                end
-            end
-
+            flux = postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
+                                                    synthesis_kwargs, obs_wls, windows, obs_flux,
+                                                    obs_err, postprocess, adjust_continuum)
             sum(((flux .- data) ./ obs_err) .^ 2) + negative_log_scaled_prior
         end
     end
@@ -338,14 +351,9 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     best_fit_flux = try
         full_solution = merge(best_fit_params, fixed_params)
-        flux = synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
-                                  synthesis_kwargs)
-        postprocess(flux, obs_flux[obs_wl_mask], obs_err[obs_wl_mask])
-        if adjust_continuum
-            linear_continuum_adjustment!(obs_wls[obs_wl_mask], windows, flux, obs_flux[obs_wl_mask],
-                                         obs_err[obs_wl_mask])
-        end
-        flux
+        postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
+                                         synthesis_kwargs, obs_wls, windows, obs_flux, obs_err,
+                                         postprocess, adjust_continuum)
     catch e
         println(stderr, "Exception while synthesizing best-fit spectrum")
         rethrow(e)
