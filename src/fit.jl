@@ -221,10 +221,10 @@ values are used.
   - `windows` is a vector of wavelength pairs, each of which specifies a wavelength
     "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is
     used. Overlapping windows are automatically merged.
-  - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
   - `adjust_continuum` (default: `false`) if true, adjust the continuum with the best-fit linear
     correction within each window, minimizing the chi-squared between data and model at every step
-    of the optimizer.
+    of the optimization.
+  - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
   - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
     transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
     the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`,
