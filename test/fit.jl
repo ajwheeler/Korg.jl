@@ -32,10 +32,10 @@ using Random
                 end
             end
 
-            @test_warn "Instead of `\"cntm_offset\"`` and `\"cntm_slope\"`, it's now " begin
+            @test_warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` " begin
                 Korg.Fit.validate_params((; Teff=4500, cntm_slope=0), (; logg=4.0))
             end
-            @test_warn "Instead of `\"cntm_offset\"`` and `\"cntm_slope\"`, it's now " begin
+            @test_warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` " begin
                 Korg.Fit.validate_params((; Teff=4500, cntm_offset=0), (; logg=4.0))
             end
         end

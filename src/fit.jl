@@ -325,7 +325,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
-    chi2 = let data = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
+    chi2 = let obs_flux = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
         obs_wls = obs_wls[obs_wl_mask], synthesis_wls = synthesis_wls, LSF_matrix = LSF_matrix,
         linelist = linelist, params_to_fit = params_to_fit, fixed_params = fixed_params
 
@@ -334,10 +334,11 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             negative_log_scaled_prior = sum(@. scaled_p^2 / 100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
+            @show length(obs_wls), length(obs_flux), length(obs_err)
             flux = postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
                                                     synthesis_kwargs, obs_wls, windows, obs_flux,
                                                     obs_err, postprocess, adjust_continuum)
-            sum(((flux .- data) ./ obs_err) .^ 2) + negative_log_scaled_prior
+            sum(((flux .- obs_flux) ./ obs_err) .^ 2) + negative_log_scaled_prior
         end
     end
 
@@ -351,7 +352,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     best_fit_flux = try
         full_solution = merge(best_fit_params, fixed_params)
         postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
-                                         synthesis_kwargs, obs_wls, windows, obs_flux, obs_err,
+                                         synthesis_kwargs, obs_wls[obs_wl_mask], windows,
+                                         obs_flux[obs_wl_mask], obs_err[obs_wl_mask],
                                          postprocess, adjust_continuum)
     catch e
         println(stderr, "Exception while synthesizing best-fit spectrum")
@@ -392,6 +394,9 @@ the residuals, and dividing it out. This can compensate for poorly done continuu
 Note, obs_wls must be masked.
 """
 function linear_continuum_adjustment!(obs_wls, windows, model_flux, obs_flux, obs_err)
+    @show length(obs_wls), length(model_flux), length(obs_flux), length(obs_err)
+    @assert length(obs_wls) == length(model_flux) == length(obs_flux) == length(obs_err)
+
     if isnothing(windows)
         windows = [(first(obs_wls), last(obs_wls))]
     end
