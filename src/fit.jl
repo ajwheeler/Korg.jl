@@ -326,9 +326,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
     chi2 = let data = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
-        obs_wls = obs_wls[obs_wl_mask],
-        synth_wls = synthesis_wls, LSF_matrix = LSF_matrix, linelist = linelist,
-        params_to_fit = params_to_fit, fixed_params = fixed_params
+        obs_wls = obs_wls[obs_wl_mask], synthesis_wls = synthesis_wls, LSF_matrix = LSF_matrix,
+        linelist = linelist, params_to_fit = params_to_fit, fixed_params = fixed_params
 
         function chi2(scaled_p)
             # this extremely weak prior helps to regularize the optimization
