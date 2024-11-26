@@ -74,7 +74,8 @@
         @testset "linelist filtering" for wls in [
             6000:7000,
             15100:15200,
-            [6000:7000, 15100:15200, 16900:17100]
+            [6000:7000, 15100:15200, 16900:17100],
+            [15100:15101, 15102:15103]
         ]
             wls = Korg.Wavelengths(wls)
             @test length(Korg.filter_linelist(linelist, wls, b)) ==
@@ -83,7 +84,7 @@
     end
 
     @testset "α(5000 Å) linelist" begin
-        # test automatic construction of a linelist at 5000 Å for the calculation of α(5000 Å), 
+        # test automatic construction of a linelist at 5000 Å for the calculation of α(5000 Å),
         # which is used by the default RT scheme
 
         # synthesis linelist
