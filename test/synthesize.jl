@@ -8,10 +8,10 @@
         # strong line at 5997 Å
         line2 = Korg.Line(5997e-8, 1.0, Korg.species"Na I", 0.0)
 
-        # use a 2 Å line buffer so only line1 in included
-        sol_no_lines = synthesize(atm, [], format_A_X(), 6000, 6000; line_buffer=2.0) #synthesize at 6000 Å only
-        sol_one_lines = synthesize(atm, [line1], format_A_X(), 6000, 6000; line_buffer=2.0)
-        sol_two_lines = synthesize(atm, [line1, line2], format_A_X(), 6000, 6000; line_buffer=2.0)
+        # use a 1 Å line buffer so only line1 in included
+        sol_no_lines = synthesize(atm, [], format_A_X(), 6000, 6000; line_buffer=1.0) #synthesize at 6000 Å only
+        sol_one_lines = synthesize(atm, [line1], format_A_X(), 6000, 6000; line_buffer=1.0)
+        sol_two_lines = synthesize(atm, [line1, line2], format_A_X(), 6000, 6000; line_buffer=1.0)
 
         @test sol_no_lines.flux != sol_one_lines.flux
         @test sol_two_lines.flux == sol_one_lines.flux

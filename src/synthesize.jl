@@ -255,9 +255,14 @@ Return a new linelist containing only lines within the provided wavelength range
 function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
     nlines_before = length(linelist)
 
+    last_line_index = 0 # we need to keep track of this across iterations to avoid double-counting lines.
     sub_ranges = map(eachwindow(wls)) do (λstart, λstop)
         first_line_index = searchsortedfirst(linelist, (; wl=λstart - line_buffer); by=l -> l.wl)
+        # ensure we don't double-count lines.
+        first_line_index = max(first_line_index, last_line_index + 1)
+
         last_line_index = searchsortedlast(linelist, (; wl=λstop + line_buffer); by=l -> l.wl)
+
         first_line_index:last_line_index
     end
     linelist = vcat((linelist[r] for r in sub_ranges)...)
@@ -286,7 +291,7 @@ function get_alpha_5000_linelist(linelist)
     # if there aren't any, use the built-in one
     if length(linelist5) == 0
         _alpha_5000_default_linelist
-        # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they 
+        # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they
         # aren't present
     elseif linelist5[1].wl > 5e-5
         ll = filter(_alpha_5000_default_linelist) do line
