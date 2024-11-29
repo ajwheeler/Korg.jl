@@ -148,6 +148,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     cntm_windows, _ = merge_bounds(cntm_windows)
     cntm_wls = Wavelengths([w[1]:cntm_step:w[2] for w in cntm_windows])
 
+    #sort the lines if necessary
+    if !issorted(linelist; by=l -> l.wl)
+        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
+        linelist = sort(linelist; by=l -> l.wl)
+    end
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
     if tau_scheme == "anchored"
@@ -258,23 +263,19 @@ end
 Return a new linelist containing only lines within the provided wavelength ranges.
 """
 function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
-    # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
-
-    #sort the lines if necessary
-    if !issorted(linelist; by=l -> l.wl)
-        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
-        linelist = sort(linelist; by=l -> l.wl)
-    end
     nlines_before = length(linelist)
 
-    linelist = filter(linelist) do line
-        for (λstart, λstop) in eachwindow(wls)
-            if (λstart - line_buffer) <= line.wl <= (λstop + line_buffer)
-                return true
-            end
-        end
-        return false
+    last_line_index = 0 # we need to keep track of this across iterations to avoid double-counting lines.
+    sub_ranges = map(eachwindow(wls)) do (λstart, λstop)
+        first_line_index = searchsortedfirst(linelist, (; wl=λstart - line_buffer); by=l -> l.wl)
+        # ensure we don't double-count lines.
+        first_line_index = max(first_line_index, last_line_index + 1)
+
+        last_line_index = searchsortedlast(linelist, (; wl=λstop + line_buffer); by=l -> l.wl)
+
+        first_line_index:last_line_index
     end
+    linelist = vcat((linelist[r] for r in sub_ranges)...)
 
     if nlines_before != 0 && length(linelist) == 0 && warn_empty
         @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
@@ -300,7 +301,7 @@ function get_alpha_5000_linelist(linelist)
     # if there aren't any, use the built-in one
     if length(linelist5) == 0
         _alpha_5000_default_linelist
-        # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they 
+        # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they
         # aren't present
     elseif linelist5[1].wl > 5e-5
         ll = filter(_alpha_5000_default_linelist) do line
