@@ -403,7 +403,7 @@ expansions to get an approximation which is accurate within 1% for all `x`
 """
 function exponential_integral_2(x)  # this implementation could definitely be improved
     if x == 0
-        0.0
+        1.0
     elseif x < 1.1
         _expint_small(x)
     elseif x < 2.5
