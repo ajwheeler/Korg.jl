@@ -24,9 +24,9 @@ Korg.get_GES_linelist
 
 # Fitting
 ```@docs
+Korg.Fit.fit_spectrum
 Korg.Fit.ews_to_abundances
 Korg.Fit.ews_to_stellar_parameters
-Korg.Fit.fit_spectrum
 ```
 
 # Secondary functions
