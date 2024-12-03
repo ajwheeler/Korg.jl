@@ -219,6 +219,13 @@ function _get_cool_dwarfs_atm_itp()
     _cool_dwarfs_atm_itp
 end
 
+struct AtmosphereInterpolationError <: Exception
+    msg::String
+end
+function Base.showerror(io::IO, e::AtmosphereInterpolationError)
+    print(io, "Chemical equilibrium failed: ", e.msg)
+end
+
 """
     interpolate_marcs(Teff, logg, A_X; kwargs...)
     interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; kwargs...)
@@ -292,7 +299,7 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
                            archives=(_sdss_marcs_atmospheres, _get_cool_dwarfs_atm_itp(),
                                      _low_Z_marcs_atmospheres))
     # cool dwarfs
-    if Teff <= 4000 && logg >= 3.5 && m_H >= -2.5 && resampled_cubic_for_cool_dwarfs
+    atm = if Teff <= 4000 && logg >= 3.5 && m_H >= -2.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]
         atm_quants = itp(1:nlayers, 1:5, Teff, logg, m_H, alpha_m, C_m)
         PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[:, 4],
@@ -337,6 +344,11 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
                                                     exp.(atm_quants[nanmask, 3])))
         end
     end
+
+    if any(get_tau_5000s(atm) .< 0)
+        throw(AtmosphereInterpolationError("Interpolated atmosphere has negative optical depths and is not reliable.  See https://github.com/ajwheeler/Korg.jl/issues/378 for details."))
+    end
+    atm
 end
 # handle the case where Teff, logg, and [m/H] are integers. As long as not all (interpolated) params 
 # are passed in as integers, there's no problem. 
