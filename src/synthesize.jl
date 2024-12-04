@@ -25,8 +25,8 @@ Compute a synthetic spectrum.
 
 A named tuple with keys:
 
-  - `flux`: the output spectrum
-  - `cntm`: the continuum at each wavelength
+  - `flux`: the output spectrum (in units of erg/s/cm^5)
+  - `cntm`: the continuum at each wavelength (in units of erg/s/cm^5)
   - `intensity`: the intensity at each wavelength and mu value, and possibly each layer in the model
     atmosphere, depending on the radiative transfer scheme.
   - `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer a Matrix of
