@@ -28,7 +28,7 @@ Trapz = "592b5752-818d-11e9-1e9a-2b8ca4a44cd1"
 [compat]
 CSV = "0.8, 0.9, 0.10"
 Compat = "4.10 - 4"
-DSP = "0.7"
+DSP = "0.7, 0.8"
 DiffResults = "1"
 FastGaussQuadrature = "0.4, 0.5, 1"
 ForwardDiff = "0.10"
