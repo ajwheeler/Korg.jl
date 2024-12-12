@@ -334,7 +334,6 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             negative_log_scaled_prior = sum(@. scaled_p^2 / 100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
-            @show length(obs_wls), length(obs_flux), length(obs_err)
             flux = postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
                                                     synthesis_kwargs, obs_wls, windows, obs_flux,
                                                     obs_err, postprocess, adjust_continuum)
