@@ -28,7 +28,7 @@ tan_unscale(p, lower, upper) = (atan(p) / π + 0.5) * (upper - lower) + lower
 const tan_scale_params = Dict("epsilon" => (0, 1),
                               "cntm_offset" => (-0.5, 0.5),
                               "cntm_slope" => (-0.1, 0.1),
-                              # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the 
+                              # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the
                               # test environment, but they are simply the boundaries of the SDSS marcs grid used by
                               # Korg.interpolate_marcs.
                               "Teff" => (2800, 8000),
@@ -112,8 +112,8 @@ function postprocessed_synthetic_spectrum(synth_wls, linelist, LSF_matrix, param
 
             # LazyMultilinearInterpError happens when logg is oob for the low-Z atmosphere grid
 
-            # This is a nice huge chi2 value, but not too big.  It's what you get if 
-            # difference at each pixel in the (rectified) spectra is 1, which is 
+            # This is a nice huge chi2 value, but not too big.  It's what you get if
+            # difference at each pixel in the (rectified) spectra is 1, which is
             # more-or-less an upper bound.
             return sum(1 ./ obs_err .^ 2)
         else
@@ -334,7 +334,6 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
             negative_log_scaled_prior = sum(@. scaled_p^2 / 100^2)
             guess = unscale(Dict(params_to_fit .=> scaled_p))
             params = merge(guess, fixed_params)
-            @show length(obs_wls), length(obs_flux), length(obs_err)
             flux = postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
                                                     synthesis_kwargs, obs_wls, windows, obs_flux,
                                                     obs_err, postprocess, adjust_continuum)
@@ -374,7 +373,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                 unscale(Dict(param_name => scaled_param))[param_name]
             end
         end
-        # the fact that the scaling is a diagonal operation means that we can do this as an 
+        # the fact that the scaling is a diagonal operation means that we can do this as an
         # element-wise product.  If we think of ds/dp as a (diagonal) matrix, this is equivalent to
         # (ds/dp)^T * invH * (ds/dp)
         invH_scaled = res.trace[end].metadata["~inv(H)"]
@@ -395,7 +394,7 @@ Note, obs_wls must be masked.
 """
 function linear_continuum_adjustment!(obs_wls, windows, model_flux, obs_flux, obs_err)
     @assert length(obs_wls) == length(model_flux) == length(obs_flux) == length(obs_err)
-    # this calculates ranges which are the same for each iteration.  Ideally, we would do this 
+    # this calculates ranges which are the same for each iteration.  Ideally, we would do this
     # ahead of time in _setup_wavelengths_and_LSF.
 
     if isnothing(windows)
@@ -768,7 +767,7 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, pas
     end
 
     if EW_err == ones(length(EW))
-        # in the case that EW uncertainties were specified, the residuals were calculated 
+        # in the case that EW uncertainties were specified, the residuals were calculated
         # assuming errs = 1, but we want to ignore them here, and call all error "systematic"
         [0.0, 0.0, 0.0, 0.0], total_sigma
     else

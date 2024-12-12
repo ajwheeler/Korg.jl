@@ -14,7 +14,7 @@ jobs:
       - name: Find TODOs
         id: find_todos
         run: |
-          TODO_LIST=$(grep -r -n -A 3 "TODO" --include="*.jl" --include="*.ipynb" || true)
+          TODO_LIST=$(grep -r -n -A 3 -E "TODO|@show " --include="*.jl" --include="*.ipynb" || true)
           echo "todo_list<<EOF" >> $GITHUB_OUTPUT
           echo "$TODO_LIST" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -31,17 +31,17 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const todoList = process.env.TODO_LIST;
-            const body = `## TODOs found in this PR:\n\n\`\`\`\n${todoList}\n\`\`\``;
-            
+            const body = `## TODOs and @show instances found in this PR:\n\n\`\`\`\n${todoList}\n\`\`\``;
+
             const { data: comments } = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
             });
-            
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && comment.body.includes('TODOs found in this PR'));
-            
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body.includes('instances found in this PR'));
+
             if (botComment) {
               await github.rest.issues.updateComment({
                 comment_id: botComment.id,
@@ -71,10 +71,10 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
             });
-            
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && comment.body.includes('TODOs found in this PR'));
-            
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body.includes('instances found in this PR'));
+
             if (botComment) {
               await github.rest.issues.deleteComment({
                 comment_id: botComment.id,
