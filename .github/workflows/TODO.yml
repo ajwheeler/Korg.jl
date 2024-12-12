@@ -40,7 +40,7 @@ jobs:
             });
 
             const botComment = comments.find(comment =>
-              comment.user.type === 'Bot' && comment.body.includes('TODOs found in this PR'));
+              comment.user.type === 'Bot' && comment.body.includes('instances found in this PR'));
 
             if (botComment) {
               await github.rest.issues.updateComment({
@@ -73,7 +73,7 @@ jobs:
             });
 
             const botComment = comments.find(comment =>
-              comment.user.type === 'Bot' && comment.body.includes('TODOs found in this PR'));
+              comment.user.type === 'Bot' && comment.body.includes('instances found in this PR'));
 
             if (botComment) {
               await github.rest.issues.deleteComment({
