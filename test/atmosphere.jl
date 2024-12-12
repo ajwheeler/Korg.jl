@@ -131,6 +131,8 @@
             @test assert_atmospheres_close(atm2, atm3; tol=1e-10)
 
             @test_throws ArgumentError interpolate_marcs(5000, 4.5, -3, 0)
+
+            @test_throws Korg.AtmosphereInterpolationError interpolate_marcs(4100, 5.25, -4, 0.4, 0)
         end
 
         @testset "integer arguments" begin
