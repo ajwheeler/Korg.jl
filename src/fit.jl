@@ -765,6 +765,8 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, pas
         vmic_residual_sigma = _get_slope_uncertainty(REWs, ivar[neutrals])
         [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
     end
+    # TODO delete this
+    @show EW_err
 
     if EW_err == ones(length(EW))
         # in the case that EW uncertainties were specified, the residuals were calculated
