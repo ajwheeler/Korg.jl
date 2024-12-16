@@ -252,11 +252,6 @@ values are used.
     broadening only.  See [`Korg.apply_rotation`](@ref) for details.
   - Individual elements, e.g. `Na`, specify the solar-relative ([X/H]) abundance of that element.
 
-!!! tip
-
-    If you are doing more than a few fits, you will save a lot of time by precomputing the LSF
-    matrix and synthesis wavelengths.  See the keyword arguments below for how to do that.
-
 # Keyword arguments
 
   - `R`, the resolution of the observed spectrum. This is required.  It can be specified as a
@@ -303,7 +298,7 @@ A NamedTuple with the following fields:
 !!! tip
 
     This function takes a long time to compile the first time it is called. Compilation performance
-    is significantly better on Julia 1.10 than previous versions, so if you are using an older
+    is significantly better on Julia 1.10+ than previous versions, so if you are using an older
     version of Julia, you may want to upgrade.
 """
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
