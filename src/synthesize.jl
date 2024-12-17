@@ -63,8 +63,10 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
   - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is
     calculated.
   - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
-  - `use_MHD_for_hydrogen_lines` (default: `true`): whether or not to use the MHD occupation
+  - `use_MHD_for_hydrogen_lines` (default: `false`): whether or not to use the MHD occupation
     probability formalism for hydrogen lines. (MHD is always used for hydrogen bound-free absorption.)
+    [Wheeler et al. 2024](https://ui.adsabs.harvard.edu/link_gateway/2024AJ....167...83W/doi:10.3847/1538-3881/ad19cc)
+    demonstrates that this fits real data better, despite not being physically self-consistent.
   - `hydrogen_line_window_size` (default: 150): the maximum distance (in Å) from each hydrogen line
     center at which to calculate its contribution to the total absorption coefficient.
   - `mu_values` (default: 20): the number of μ values at which to calculate the surface flux, or a
@@ -113,7 +115,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
                     vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
-                    air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
+                    air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=false,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=Inf,
                     electron_number_density_warn_min_value=1e-4, return_cntm=true,
