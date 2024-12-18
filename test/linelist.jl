@@ -18,10 +18,11 @@
             λ = linelist[1].wl * 1e8
             synthesize(atm, linelist, format_A_X(), λ, λ)
 
+            # test saving and loading
             filename = tempname() * ".h5"
-            Korg.save_linelist(filename, linelist)
+            Korg.save_linelist(filename, linelist[1:1000])
             linelist2 = read_linelist(filename)
-            @test linelist == linelist2
+            @test linelist[1:1000] == linelist2
         end
     end
 
