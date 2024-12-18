@@ -629,6 +629,7 @@ set to 0.01.  It was downloaded on 2021-05-20. It is intended to be used for qui
 """
 get_VALD_solar_linelist() = read_linelist(joinpath(_data_dir, "linelists",
                                                    "vald_extract_stellar_solar_threshold001.vald"))
+# this should be rewritten to use save_linelist and read_linelist
 
 """
     get_APOGEE_DR17_linelist(; include_water=true)
@@ -638,6 +639,7 @@ nearly the same at the DR 16 linelist described in
 [Smith+ 2021](https://ui.adsabs.harvard.edu/abs/2021AJ....161..254S/abstract).
 """
 function get_APOGEE_DR17_linelist(; include_water=true)
+    # this should be rewritten to use save_linelist and read_linelist
     dir = joinpath(_data_dir, "linelists", "APOGEE_DR17")
 
     atoms = read_linelist(joinpath(dir, "turbospec.20180901t20.atoms_no_ba");
@@ -671,6 +673,7 @@ See [Buder et al. 2021](https://ui.adsabs.harvard.edu/abs/2021MNRAS.506..150B%2F
 details.
 """
 function get_GALAH_DR3_linelist()
+    # this should be rewritten to use save_linelist and read_linelist
     path = joinpath(_data_dir, "linelists", "GALAH_DR3", "galah_dr3_linelist.h5")
     h5open(path, "r") do f
         species = map(eachcol(read(f["formula"])), read(f["ionization"])) do atoms, ion
@@ -710,6 +713,7 @@ don't need molecular lines, you can set `include_molecules=false` to speed thing
   - `include_molecules` (default: `true`): whether to include molecular lines.
 """
 function get_GES_linelist(; include_molecules=true)
+    # this should be rewritten to use save_linelist and read_linelist
     path = joinpath(artifact"Heiter_2021_GES_linelist",
                     "Heiter_et_al_2021_2022_06_17",
                     "Heiter_et_al_2021.h5")
@@ -746,6 +750,7 @@ This linelist loaded into `Korg._alpha_5000_default_linelist` when Korg is impor
 """
 function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_5000",
                                                  "alpha_5000_lines.csv"))
+    # this should be rewritten to use save_linelist and read_linelist
     csv = CSV.File(path)
     map(csv) do row
         vdW = if ',' in row.vdW
