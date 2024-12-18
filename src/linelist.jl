@@ -204,11 +204,18 @@ a dict mapping atomic number to a dict mapping from atomic weight to abundance.
 
 Be warned that for linelists which are pre-scaled for isotopic abundance, the estimation of
 radiative broadening from log(gf) is not accurate.
+
+See also [`save_linelist`](@ref).
 """
 function read_linelist(fname::String;
                        format=endswith(fname, ".h5") ? "korg" : "vald",
                        isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
+    # special case for Korg linelists because it's an hdf5 file
+    if format == "korg"
+        return read_korg_linelist(fname)
+    end
+    # otherwise it's plain text
     linelist = open(fname) do f
         if startswith(format, "kurucz")
             vac = endswith(format, "_vac")
@@ -554,14 +561,64 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
 end
 
 """
-TODO
+    save_linelist(path, linelist)
+
+Save a Korg linelist (a `Vector{Line}`) to an HDF5 file which can be read by `read_linelist`.
 """
 function save_linelist(path, linelist)
-    # TODO
+    vdW = [l.vdW for l in linelist]
+    h5open(path, "w") do f
+        attributes(f)["version"] = "2024-12-18"
+
+        f["wl"] = [l.wl for l in linelist]
+        attributes(f["wl"])["description"] = "Wavelength in cm"
+
+        f["log_gf"] = [l.log_gf for l in linelist]
+        attributes(f["log_gf"])["description"] = "Log of oscillator strength times statistical weight"
+
+        f["formula"] = reduce(hcat, [l.species.formula.atoms for l in linelist])
+        attributes(f["formula"])["description"] = "Array of atomic numbers representing molecular formula"
+
+        f["charge"] = [l.species.charge for l in linelist]
+        attributes(f["charge"])["description"] = "Ionization state (0=neutral, 1=singly ionized, etc)"
+
+        f["species"] = [string(l.species) for l in linelist]
+        attributes(f["species"])["description"] = "String representation of atomic/molecular species"
+
+        f["E_lower"] = [l.E_lower for l in linelist]
+        attributes(f["E_lower"])["description"] = "Lower energy level in eV"
+
+        f["gamma_rad"] = [l.gamma_rad for l in linelist]
+        attributes(f["gamma_rad"])["description"] = "Radiative damping parameter in rad/s"
+
+        f["gamma_stark"] = [l.gamma_stark for l in linelist]
+        attributes(f["gamma_stark"])["description"] = "Stark broadening parameter"
+
+        f["vdW_1"] = first.(vdW)
+        attributes(f["vdW_1"])["description"] = "First van der Waals broadening parameter"
+
+        f["vdW_2"] = last.(vdW)
+        attributes(f["vdW_2"])["description"] = "Second van der Waals broadening parameter"
+    end
 end
 
 function read_korg_linelist(path)
-    # TODO
+    h5open(path, "r") do f
+        species = map(eachcol(read(f["formula"])), read(f["charge"])) do atoms, charge
+            i = findfirst(atoms .!= 0x0)
+            @assert !isnothing(i)
+            formula = Formula(atoms[i:end])
+            Species(formula, charge)
+        end
+        vdW = tuple.(read(f["vdW_1"]), read(f["vdW_2"]))
+        Line.(read(f["wl"]),
+              read(f["log_gf"]),
+              species,
+              read(f["E_lower"]),
+              read(f["gamma_rad"]),
+              read(f["gamma_stark"]),
+              vdW)
+    end
 end
 
 """

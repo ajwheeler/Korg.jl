@@ -17,6 +17,11 @@
             # make sure things run (types have caused problems in the past)
             λ = linelist[1].wl * 1e8
             synthesize(atm, linelist, format_A_X(), λ, λ)
+
+            filename = tempname() * ".h5"
+            Korg.save_linelist(filename, linelist)
+            linelist2 = read_linelist(filename)
+            @test linelist == linelist2
         end
     end
 
@@ -179,7 +184,7 @@
 
         vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
         for (l_air, l_vac) in zip(ll, vac_ll)
-            # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg 
+            # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg
             # to read it in as vacuum
             @test l_air.wl≈Korg.air_to_vacuum(l_vac.wl) rtol=1e-8
         end
