@@ -178,6 +178,10 @@ end
 function load_ExoMol_linelist(spec::Species, states_file, transitions_file; wavelengths=nothing)
     @info "Loading ExoMol linelist from $states_file and $transitions_file. This functionality is experimental. Please report any issues."
 
+    if !occursin("states", states_file) || !occursin("trans", transitions_file)
+        @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
+    end
+
     raw_transitions = CSV.read(transitions_file, DataFrame;
                                header=["id_upper", "id_lower", "A", "wavenumber"], delim=" ",
                                ignorerepeated=true)
