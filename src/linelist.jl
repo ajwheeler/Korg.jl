@@ -1,5 +1,5 @@
 using CSV, HDF5, LazyArtifacts
-using DataFrames: DataFrame, leftjoin
+using DataFrames: DataFrame, leftjoin!, rename!
 using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
@@ -170,12 +170,16 @@ end
     load_ExoMol_linelist(states_file, transitions_file)
 
 Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`read_linelist`](@ref).
+
+TODO ll, ul
 """
-function load_ExoMol_linelist(spec::AbstractString, states_file, transitions_file; kwargs...)
+function load_ExoMol_linelist(spec::AbstractString, states_file, transitions_file, ll, ul;
+                              kwargs...)
     # handle the case where the species is passed as a string
-    load_ExoMol_linelist(Species(spec), states_file, transitions_file; kwargs...)
+    load_ExoMol_linelist(Species(spec), states_file, transitions_file, ll, ul; kwargs...)
 end
-function load_ExoMol_linelist(spec::Species, states_file, transitions_file; wavelengths=nothing)
+function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, ul;
+                              wavelengths=nothing)
     @info "Loading ExoMol linelist from $states_file and $transitions_file. This functionality is experimental. Please report any issues."
 
     if !occursin("states", states_file) || !occursin("trans", transitions_file)
@@ -217,6 +221,7 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file; wave
     # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere
     # difference of 1e16 is due to Å vs cm
     # TODO is the 1/4π appropriate?
+    # seems like it is
     prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (4π^2 * Korg.electron_charge_cgs^2)
 
     transitions.f = @. transitions.A * prefactor * transitions.g_upper /
@@ -225,7 +230,8 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file; wave
 
     # isotopic correction. For synthesis, not cross-section calculation.
     # TODO check species? provide isotopologue?
-    transitions.log_gf .+= log10(Korg.isotopic_abundances[22][48])
+    #println("isotopic correction: ", log10(Korg.isotopic_abundances[22][48])) # TODO remove
+    #transitions.log_gf .+= log10(Korg.isotopic_abundances[22][48])
 
     transitions.E_lower = @. Korg.hplanck_eV * transitions.wavenumber_lower * Korg.c_cgs
     transitions.E_upper = @. Korg.hplanck_eV * transitions.wavenumber_upper * Korg.c_cgs
