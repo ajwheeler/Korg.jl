@@ -210,9 +210,7 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
 
     # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere
     # difference of 1e16 is due to Å vs cm
-    # TODO is the 1/4π appropriate?
-    # seems like it is
-    prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (4π^2 * Korg.electron_charge_cgs^2)
+    prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (8π^2 * Korg.electron_charge_cgs^2)
 
     transitions.wavenumber = transitions.wavenumber_upper .- transitions.wavenumber_lower
     transitions.f = @. transitions.A * prefactor * transitions.g_upper /
