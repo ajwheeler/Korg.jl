@@ -15,5 +15,5 @@ const eV_to_cgs = 1.602e-12 # ergs per eV
 
 const kboltz_eV = 8.617333262145e-5 #eV/K
 const hplanck_eV = 4.135667696e-15 #eV*s
-const RydbergH_eV = 13.598287264 #eV 
+const RydbergH_eV = 13.598287264 #eV
 const Rydberg_eV = 13.605693122994 #eV 2018 CODATA via wikipedia

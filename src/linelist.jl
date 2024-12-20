@@ -1,4 +1,5 @@
-using CSV, HDF5, LazyArtifacts
+using CSV, HDF5, LazyArtifacts, TableOperations
+using DataFrames: DataFrame, leftjoin, leftjoin!, rename!
 using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
@@ -166,6 +167,101 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
+    load_ExoMol_linelist(specs, states_file, transitions_file, upper_wavelength, lower_wavelength)
+
+Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`read_linelist`](@ref).
+
+# Arguments
+
+  - `spec`: the species, i.e. the molecule that the linelist is for
+  - `states_file`: the path to the ExoMol states file
+  - `transitions_file`: the path to the ExoMol, transitions file
+  - `upper_wavelength`: the upper limit of the wavelength range to load (Å)
+  - `lower_wavelength`: the lower limit of the wavelength range to load (Å)
+
+# Keyword Arguments
+
+  - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
+    linelist. See [`approximate_line_strength`](@ref) for more information.
+  - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
+
+!!! warning
+
+    This functionality is in beta.
+"""
+function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
+                              line_strength_cutoff=-15, T_line_strength=3500.0)
+    if spec isa AbstractString
+        spec = Species(spec)
+    end
+    @info "Loading ExoMol linelist from $states_file and $transitions_file. This functionality is experimental. Please report any issues."
+
+    if !occursin("states", states_file) || !occursin("trans", transitions_file)
+        @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
+    end
+
+    # These contortions allow us to read only the first N columns, without parsing the rest.
+    # This is (probably) faster, and more memory efficient. But also the ExoMol files sometimes
+    # have various extra columns. Hopefully we can cound on the first three being consistent.
+    raw_transitions = CSV.File(transitions_file; delim=" ", ignorerepeated=true, header=false) |>
+                      TableOperations.select(:Column1, :Column2, :Column3) |>
+                      DataFrame
+    rename!(raw_transitions, :Column1 => :id_upper, :Column2 => :id_lower, :Column3 => :A)
+    states = CSV.File(states_file; delim=" ", ignorerepeated=true, header=false) |>
+             TableOperations.select(:Column1, :Column2, :Column3) |>
+             DataFrame
+    rename!(states, :Column1 => :id, :Column2 => :E_wavenumber, :Column3 => :g)
+
+    # join the transitions and states tables on the id column to get the upper and lower level info
+    transitions = leftjoin(raw_transitions, states; on=:id_upper => :id)
+    rename!(transitions, :E_wavenumber => :wavenumber_upper, :g => :g_upper)
+    leftjoin!(transitions, states; on=:id_lower => :id)
+    rename!(transitions, :E_wavenumber => :wavenumber_lower, :g => :g_lower)
+
+    # if the column is missing, the join didn't find a matching state
+    if any(ismissing.(transitions.g_lower)) || any(ismissing.(transitions.g_upper))
+        throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
+    end
+
+    # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere
+    # difference of 1e16 is due to Å vs cm
+    prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (8π^2 * Korg.electron_charge_cgs^2)
+
+    transitions.wavenumber = transitions.wavenumber_upper .- transitions.wavenumber_lower
+    transitions.f = @. transitions.A * prefactor * transitions.g_upper /
+                       (transitions.g_lower * transitions.wavenumber^2)
+    transitions.log_gf = log10.(transitions.g_lower .* transitions.f)
+
+    isotopic_correction = log10(prod(maximum(last.(collect(values(Korg.isotopic_abundances[Z]))))
+                                     for Z in get_atoms(spec.formula)))
+    @info "Applying isotopic correction of $isotopic_correction to all log gf values. (Assuming most abundant isotope for all atoms.)"
+    transitions.log_gf .+= isotopic_correction
+
+    transitions.E_lower = @. Korg.hplanck_eV * transitions.wavenumber_lower * Korg.c_cgs
+    transitions.wavelength = 1.0 ./ transitions.wavenumber
+
+    region = transitions[ll.<transitions.wavelength.*1e8.<ul, :]
+
+    lines = map(eachrow(region)) do row
+        Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
+    end |> reverse
+    lines = lines[approximate_line_strength.(lines, T_line_strength).>line_strength_cutoff]
+    sort!(lines; by=l -> l.wl)
+    lines
+end
+
+"""
+    approximate_line_strength(line::Line, T)
+
+Approximate the line strength (`log10(gfλ) - θχ`, in arbitrary units) of a line at temperature
+`T` (K).  This can be used to very quickly filter a linelist, and is used to filter very large
+molecular linelists from ExoMol (see [`load_ExoMol_linelist`](@ref)).
+"""
+function approximate_line_strength(line::Line, T)
+    line.log_gf + log10(line.wl) - log10(ℯ) * line.E_lower / (Korg.kboltz_eV * T)
+end
+
+"""
     read_linelist(filename; format="vald", isotopic_abundances=Korg.isotopic_abundances)
 
 Parse a linelist file, returning a vector of [`Line`](@ref)s.
@@ -205,7 +301,7 @@ a dict mapping atomic number to a dict mapping from atomic weight to abundance.
 Be warned that for linelists which are pre-scaled for isotopic abundance, the estimation of
 radiative broadening from log(gf) is not accurate.
 
-See also [`save_linelist`](@ref).
+See also: [`load_ExoMol_linelist`](@ref), [`save_linelist`](@ref).
 """
 function read_linelist(fname::String;
                        format=endswith(fname, ".h5") ? "korg" : "vald",
