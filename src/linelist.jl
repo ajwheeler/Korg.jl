@@ -1,5 +1,5 @@
-using CSV, HDF5, LazyArtifacts
-using DataFrames: DataFrame, leftjoin!, rename!
+using CSV, HDF5, LazyArtifacts, TableOperations
+using DataFrames: DataFrame, leftjoin, leftjoin!, rename!
 using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
@@ -186,37 +186,28 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
         @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
     end
 
-    raw_transitions = CSV.read(transitions_file, DataFrame;
-                               header=["id_upper", "id_lower", "A", "wavenumber"], delim=" ",
-                               ignorerepeated=true)
-
-    # NOTE sigma E is not present in table 9 in TOTO paper.
-    # Not sure why as it is in table 10 of the ExoMol format paper and it's defnintely in the file
-    states = CSV.read("../linelists/exomol/40Ca-1H__XAB.states", DataFrame;
-                      header=["id",
-                          "E_wavenumber",
-                          "g",
-                          "J",
-                          "sigma_E",
-                          "lifetime",
-                          "lande",
-                          "parity",
-                          "rotationless_parity",
-                          "state",
-                          "ν",
-                          "Λ",
-                          "Σ",
-                          "Ω",
-                          "Eduo"], delim=" ", ignorerepeated=true)
+    # These contortions allow us to read only the first N columns, without parsing the rest.
+    # This is (probably) faster, and more memory efficient. But also the ExoMol files sometimes
+    # have various extra columns. Hopefully we can cound on the first three being consistent.
+    raw_transitions = CSV.File(transitions_file; delim=" ", ignorerepeated=true, header=false) |>
+                      TableOperations.select(:Column1, :Column2, :Column3) |>
+                      DataFrame
+    rename!(raw_transitions, :Column1 => :id_upper, :Column2 => :id_lower, :Column3 => :A)
+    states = CSV.File(states_file; delim=" ", ignorerepeated=true, header=false) |>
+             TableOperations.select(:Column1, :Column2, :Column3) |>
+             DataFrame
+    rename!(states, :Column1 => :id, :Column2 => :E_wavenumber, :Column3 => :g)
 
     # it is not 100% obvious that this is the best way to get the energy
-    Ecol = :E_wavenumber
-    transitions = leftjoin(raw_transitions, states[:, [:id, Ecol, :g, :state]]; on=:id_upper => :id)
-    rename!(transitions, Ecol => :wavenumber_upper, :g => :g_upper, :state => :state_upper)
-    leftjoin!(transitions, states[:, [:id, Ecol, :g, :state]]; on=:id_lower => :id)
-    rename!(transitions, Ecol => :wavenumber_lower, :g => :g_lower, :state => :state_lower)
+    Ecol = :E_wavenumber #TODO there's also Eduo, but that's specific to some molecules?
+    transitions = leftjoin(raw_transitions, states; on=:id_upper => :id)
+    rename!(transitions, Ecol => :wavenumber_upper, :g => :g_upper)
+    leftjoin!(transitions, states; on=:id_lower => :id)
+    rename!(transitions, Ecol => :wavenumber_lower, :g => :g_lower)
 
-    transitions.wavelength = 1 ./ transitions.wavenumber
+    if any(ismissing.(transitions.g_lower)) || any(ismissing.(transitions.g_upper))
+        throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
+    end
 
     # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere
     # difference of 1e16 is due to Å vs cm
@@ -224,6 +215,7 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
     # seems like it is
     prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (4π^2 * Korg.electron_charge_cgs^2)
 
+    transitions.wavenumber = transitions.wavenumber_upper .- transitions.wavenumber_lower
     transitions.f = @. transitions.A * prefactor * transitions.g_upper /
                        (transitions.g_lower * transitions.wavenumber^2)
     transitions.log_gf = log10.(transitions.g_lower .* transitions.f)
@@ -234,9 +226,7 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
     #transitions.log_gf .+= log10(Korg.isotopic_abundances[22][48])
 
     transitions.E_lower = @. Korg.hplanck_eV * transitions.wavenumber_lower * Korg.c_cgs
-    transitions.E_upper = @. Korg.hplanck_eV * transitions.wavenumber_upper * Korg.c_cgs
-
-    states.E = states.E_wavenumber * Korg.c_cgs * Korg.hplanck_eV
+    transitions.wavelength = 1.0 ./ transitions.wavenumber
 
     region = transitions[ll.<transitions.wavelength.*1e8.<ul, :]
 
