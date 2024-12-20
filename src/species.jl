@@ -6,7 +6,7 @@ const MAX_ATOMS_PER_MOLECULE = 6
 Represents an atom or molecule, irrespective of its charge.
 """
 struct Formula
-    # Support molecules with up to MAX_ATOMS_PER_MOLECULE atoms. 
+    # Support molecules with up to MAX_ATOMS_PER_MOLECULE atoms.
     # Unlike tuples, SVectors support sorting, which is why we use them here.
     atoms::SVector{6,UInt8}
 
@@ -30,7 +30,7 @@ struct Formula
     """
         Formula(code::String)
 
-    Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code, 
+    Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code,
     i.e. "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
     function Formula(code::AbstractString)
@@ -117,7 +117,33 @@ function n_atoms(f::Formula)
 end
 
 # it's important that this produces something parsable by the constructor
-Base.show(io::IO, f::Formula) = print(io, *([atomic_symbols[i] for i in f.atoms if i != 0]...))
+function Base.show(io::IO, f::Formula)
+    i = findfirst(f.atoms .!= 0)
+    @assert !isnothing(i) # formula with no atoms should be allowed by the constructor
+
+    a = f.atoms[i]
+    n_of_this_atom = 1
+    i += 1
+    while i <= length(f.atoms)
+        if f.atoms[i] == a
+            n_of_this_atom += 1
+        else
+            formula_show_helper(io, a, n_of_this_atom)
+            a = f.atoms[i]
+            n_of_this_atom = 1
+        end
+        i += 1
+    end
+    formula_show_helper(io, a, n_of_this_atom)
+end
+
+function formula_show_helper(io::IO, atom, n_of_this_atom)
+    if n_of_this_atom == 1
+        print(io, atomic_symbols[atom])
+    else
+        print(io, atomic_symbols[atom], n_of_this_atom)
+    end
+end
 
 """
     ismolecule(f::Formula)
@@ -183,7 +209,7 @@ representing the species. `code` can be either a string or a float.
 function Species(code::AbstractString)
     code = strip(code, ['0', ' ']) # leading 0s are safe to remove
 
-    # if the species ends in "+" or "-", convert it to a numerical charge. Remember, the ionization 
+    # if the species ends in "+" or "-", convert it to a numerical charge. Remember, the ionization
     # number is the charge+1, so for us "H 0" is H⁻ and "H 2" in H⁺.
     if code[end] == '+'
         code = code[1:end-1] * " 2"
@@ -191,11 +217,11 @@ function Species(code::AbstractString)
         code = code[1:end-1] * " 0"
     end
 
-    # these are the valid separators between the atomic number part of a species code and the 
+    # these are the valid separators between the atomic number part of a species code and the
     # charge-containing part.  For example, "01.01" parses the same as "01 01", but "01,01" fails.
     # Or, "C 2" parses the same at "C.2".  "-"s can't be separators as they can be minus signs.
     toks = split(code, [' ', '.', '_'])
-    # this allows for leading, trailing, and repeat separators.  "01.01" parses the same as 
+    # this allows for leading, trailing, and repeat separators.  "01.01" parses the same as
     # ".01..01.".
     filter!(!=(""), toks)
 
