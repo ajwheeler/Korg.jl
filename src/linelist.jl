@@ -198,12 +198,11 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
              DataFrame
     rename!(states, :Column1 => :id, :Column2 => :E_wavenumber, :Column3 => :g)
 
-    # it is not 100% obvious that this is the best way to get the energy
-    Ecol = :E_wavenumber #TODO there's also Eduo, but that's specific to some molecules?
+    # join the transitions and states tables on the id column to get the upper and lower level info
     transitions = leftjoin(raw_transitions, states; on=:id_upper => :id)
-    rename!(transitions, Ecol => :wavenumber_upper, :g => :g_upper)
+    rename!(transitions, :E_wavenumber => :wavenumber_upper, :g => :g_upper)
     leftjoin!(transitions, states; on=:id_lower => :id)
-    rename!(transitions, Ecol => :wavenumber_lower, :g => :g_lower)
+    rename!(transitions, :E_wavenumber => :wavenumber_lower, :g => :g_lower)
 
     if any(ismissing.(transitions.g_lower)) || any(ismissing.(transitions.g_upper))
         throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
@@ -230,9 +229,10 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
 
     region = transitions[ll.<transitions.wavelength.*1e8.<ul, :]
 
-    map(eachrow(region)) do row
+    lines = map(eachrow(region)) do row
         Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
     end
+    reverse(lines)
 end
 
 """
