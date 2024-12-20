@@ -231,8 +231,9 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
 
     lines = map(eachrow(region)) do row
         Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
-    end
-    reverse(lines)
+    end |> reverse
+    sort!(lines; by=l -> l.wl)
+    lines
 end
 
 """
