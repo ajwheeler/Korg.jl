@@ -167,7 +167,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    load_ExoMol_linelist(specs, states_file, transitions_file) TODO
+    load_ExoMol_linelist(specs, states_file, transitions_file, upper_wavelength, lower_wavelength)
 
 Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`read_linelist`](@ref).
 
@@ -176,16 +176,14 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
   - `spec`: the species, i.e. the molecule that the linelist is for
   - `states_file`: the path to the ExoMol states file
   - `transitions_file`: the path to the ExoMol, transitions file
-  - `ll`: the lower limit of the wavelength range to load (Å)
-  - `ul`: the upper limit of the wavelength range to load (Å)
+  - `upper_wavelength`: the upper limit of the wavelength range to load (Å)
+  - `lower_wavelength`: the lower limit of the wavelength range to load (Å)
 
 # Keyword Arguments
 
   - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
     linelist. See [`approximate_line_strength`](@ref) for more information.
   - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
-
-TODO wavelengths
 
 !!! warning
 
@@ -220,6 +218,7 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
     leftjoin!(transitions, states; on=:id_lower => :id)
     rename!(transitions, :E_wavenumber => :wavenumber_lower, :g => :g_lower)
 
+    # if the column is missing, the join didn't find a matching state
     if any(ismissing.(transitions.g_lower)) || any(ismissing.(transitions.g_upper))
         throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
     end
@@ -233,8 +232,6 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
                        (transitions.g_lower * transitions.wavenumber^2)
     transitions.log_gf = log10.(transitions.g_lower .* transitions.f)
 
-    # isotopic correction. For synthesis, not cross-section calculation.
-    # TODO check species? provide isotopologue?
     isotopic_correction = log10(prod(maximum(last.(collect(values(Korg.isotopic_abundances[Z]))))
                                      for Z in get_atoms(spec.formula)))
     @info "Applying isotopic correction of $isotopic_correction to all log gf values. (Assuming most abundant isotope for all atoms.)"
