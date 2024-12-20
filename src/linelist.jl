@@ -167,19 +167,35 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    load_ExoMol_linelist(states_file, transitions_file)
+    load_ExoMol_linelist(specs, states_file, transitions_file) TODO
 
 Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`read_linelist`](@ref).
 
-TODO ll, ul
+# Arguments
+
+  - `spec`: the species, i.e. the molecule that the linelist is for
+  - `states_file`: the path to the ExoMol states file
+  - `transitions_file`: the path to the ExoMol, transitions file
+  - `ll`: the lower limit of the wavelength range to load (Å)
+  - `ul`: the upper limit of the wavelength range to load (Å)
+
+# Keyword Arguments
+
+  - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
+    linelist. See [`approximate_line_strength`](@ref) for more information.
+  - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
+
+TODO wavelengths
+
+!!! warning
+
+    This functionality is in beta.
 """
-function load_ExoMol_linelist(spec::AbstractString, states_file, transitions_file, ll, ul;
-                              kwargs...)
-    # handle the case where the species is passed as a string
-    load_ExoMol_linelist(Species(spec), states_file, transitions_file, ll, ul; kwargs...)
-end
-function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, ul;
-                              wavelengths=nothing)
+function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
+                              line_strength_cutoff=-15, T_line_strength=3500.0)
+    if spec isa AbstractString
+        spec = Species(spec)
+    end
     @info "Loading ExoMol linelist from $states_file and $transitions_file. This functionality is experimental. Please report any issues."
 
     if !occursin("states", states_file) || !occursin("trans", transitions_file)
@@ -219,8 +235,10 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
 
     # isotopic correction. For synthesis, not cross-section calculation.
     # TODO check species? provide isotopologue?
-    #println("isotopic correction: ", log10(Korg.isotopic_abundances[22][48])) # TODO remove
-    #transitions.log_gf .+= log10(Korg.isotopic_abundances[22][48])
+    isotopic_correction = log10(prod(maximum(last.(collect(values(Korg.isotopic_abundances[Z]))))
+                                     for Z in get_atoms(spec.formula)))
+    @info "Applying isotopic correction of $isotopic_correction to all log gf values. (Assuming most abundant isotope for all atoms.)"
+    transitions.log_gf .+= isotopic_correction
 
     transitions.E_lower = @. Korg.hplanck_eV * transitions.wavenumber_lower * Korg.c_cgs
     transitions.wavelength = 1.0 ./ transitions.wavenumber
@@ -230,8 +248,20 @@ function load_ExoMol_linelist(spec::Species, states_file, transitions_file, ll, 
     lines = map(eachrow(region)) do row
         Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
     end |> reverse
+    lines = lines[approximate_line_strength.(lines, T_line_strength).>line_strength_cutoff]
     sort!(lines; by=l -> l.wl)
     lines
+end
+
+"""
+    approximate_line_strength(line::Line, T)
+
+Approximate the line strength (`log10(gfλ) - θχ`, in arbitrary units) of a line at temperature
+`T` (K).  This can be used to very quickly filter a linelist, and is used to filter very large
+molecular linelists from ExoMol (see [`load_ExoMol_linelist`](@ref)).
+"""
+function approximate_line_strength(line::Line, T)
+    line.log_gf + log10(line.wl) - log10(ℯ) * line.E_lower / (Korg.kboltz_eV * T)
 end
 
 """
