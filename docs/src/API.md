@@ -1,15 +1,16 @@
-This page documents the Korg API for users of the package. Low-level functions that only people 
-digging into the internals of Korg will be interested in can be found in the 
+This page documents the Korg API for users of the package. Low-level functions that only people
+digging into the internals of Korg will be interested in can be found in the
 [Developer documentation](@ref).
 
 # [Top-level functions](@id API)
-If you are synthesize a spectrum Korg, these are the functions you will call.  
+If you are synthesize a spectrum Korg, these are the functions you will call.
 These functions are exported, so if you do `using Korg`, you can call them unqualified (i.e.
-`synthesize` instead of `Korg.synthesize`).  
+`synthesize` instead of `Korg.synthesize`).
 
 ```@docs
 synthesize
 read_linelist
+load_ExoMol_linelist
 read_model_atmosphere
 interpolate_marcs
 format_A_X
@@ -30,7 +31,7 @@ Korg.Fit.ews_to_stellar_parameters
 ```
 
 # Secondary functions
-You don't need use these to synthesize spectra, but they might be relevant depending on what you are 
+You don't need use these to synthesize spectra, but they might be relevant depending on what you are
 doing.
 
 ## Postprocessing
