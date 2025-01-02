@@ -34,6 +34,31 @@
               Korg.Line(5e-5, 0.0, Korg.species"Fe I", 1.0)
     end
 
+    @testset "ExoMol linelist parsing" begin
+        # whole thing
+        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
+                                             6800, 6810)
+        @test length(linelist) == 284
+        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6810)
+
+        # no lines in this range
+        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
+                                             5500, 6000)
+        @test length(linelist) == 0
+
+        # restrict to 5000-5025 Å
+        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
+                                             6800, 6804)
+        @test 0 < length(linelist) < 284 # some lines
+        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6804) # right wavelengths
+    end
+
     @testset "kurucz linelist parsing" begin
         for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
             kurucz_ll = read_linelist("data/linelists/" * fname; format="kurucz")
