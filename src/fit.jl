@@ -263,6 +263,9 @@ values are used.
     correction within each window, minimizing the chi-squared between data and model at every step
     of the optimization.
   - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
+  - `time_limit` is the maximum number of seconds to spend in the optimizer. (default: `10_000`).
+    The optimizer will only checks against the time limit after each step, so the actual wall time
+    may exceed this limit.
   - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
     transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
     the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`,
