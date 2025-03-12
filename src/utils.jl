@@ -25,7 +25,7 @@ function merge_bounds(bounds, merge_distance=0.0)
     new_bounds = [bounds[1]]
     indices = [[bound_indices[1]]]
     for i in 2:length(bounds)
-        # if these bounds are within merge_distance of the previous, extend the previous, 
+        # if these bounds are within merge_distance of the previous, extend the previous,
         # otherwise add them to the list
         if bounds[i][1] <= new_bounds[end][2] + merge_distance
             new_bounds[end] = (new_bounds[end][1], max(bounds[i][2], new_bounds[end][2]))
@@ -49,7 +49,7 @@ function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R:
 end
 # handle case where R is a function of wavelength
 function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R, window_size)
-    # λ0 should have been converted to cm by the caller, but R is a functino of λ in Å
+    # λ0 should have been converted to cm by the caller, but R is a function of λ in Å
     line_spread_function_core!(out, factor, synth_wls, λ0, R(λ0 * 1e8), window_size)
 end
 
@@ -179,7 +179,7 @@ function _apply_rotation_core(flux, wls::StepRangeLen, vsini, ε=0.6)
     # precompute constants
     c1 = 2(1 - ε)
     c2 = π * ε / 2
-    # c3 is the denomicator.  the factor of v_L in Gray becomes Δλrot (because we are working in 
+    # c3 is the denomicator.  the factor of v_L in Gray becomes Δλrot (because we are working in
     # wavelenths) and moves inside the loop
     c3 = π * (1 - ε / 3)
 
@@ -198,7 +198,7 @@ function _apply_rotation_core(flux, wls::StepRangeLen, vsini, ε=0.6)
     newF
 end
 
-# the indefinite integral of the rotation kernel 
+# the indefinite integral of the rotation kernel
 function _rotation_kernel_integral_kernel(c1, c2, c3, detuning, Δλrot)
     if abs(detuning) == Δλrot
         return sign(detuning) * 0.5 # make it nan-safe for ForwardDiff
