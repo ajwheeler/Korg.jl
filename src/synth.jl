@@ -1,3 +1,18 @@
+"""
+    synth(kwargs...)
+
+This function creates a synthetic spectrum. It's easier to use than `synthesize`, but it gives you
+less control. Rather than returning a `SynthesisResult`, it returns a tuple of
+`(wavelengths, flux, cntm)`.
+
+# Keyword arguments
+
+TODO
+
+# Returns
+
+TODO
+"""
 function synth(;
                Teff=5000,
                logg=4.5,
@@ -10,6 +25,7 @@ function synth(;
                vsini=0,
                synthesize_kwargs=Dict(),
                abundances...,)
+    # TODO prefer "X_H" to "X" for abundances
     A_X = format_A_X(metals_H, alpha_H, abundances)
     atm = interpolate_marcs(Teff, logg, A_X)
 
@@ -27,5 +43,6 @@ function synth(;
     if vsini > 0
         flux = apply_rotation(flux, spectrum.wavelengths, vsini)
     end
+
     spectrum.wavelengths, flux, spectrum.cntm
 end
