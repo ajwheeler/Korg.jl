@@ -38,19 +38,23 @@ function merge_bounds(bounds, merge_distance=0.0)
     new_bounds, indices
 end
 
-# used by apply_LSF and compute_LSF_matrix
-# handle case where R is wavelength independent
-function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R::Real, window_size)
-    σ = λ0 / R / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
+# Convert R to a value based on its type
+# used in `_lsf_bounds_and_kernel`
+_resolve_R(R::Real, λ0) = R
+_resolve_R(R::Function, λ0) = R(λ0 * 1e8)  # R is a function of λ in Å
+
+# Core LSF calculation shared by all variants
+function _lsf_bounds_and_kernel(synth_wls::Wavelengths, λ0, R, window_size)
+    R_val = _resolve_R(R, λ0)
+    σ = λ0 / R_val / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
+
+    # Calculate bounds and kernel
     lb = searchsortedfirst(synth_wls, λ0 - window_size * σ)
     ub = searchsortedlast(synth_wls, λ0 + window_size * σ)
     @views ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ)
-    out[lb:ub] .+= factor * ϕ ./ sum(ϕ)
-end
-# handle case where R is a function of wavelength
-function line_spread_function_core!(out, factor, synth_wls::Wavelengths, λ0, R, window_size)
-    # λ0 should have been converted to cm by the caller, but R is a function of λ in Å
-    line_spread_function_core!(out, factor, synth_wls, λ0, R(λ0 * 1e8), window_size)
+    normalized_ϕ = ϕ ./ sum(ϕ)
+
+    lb, ub, normalized_ϕ
 end
 
 """
@@ -86,7 +90,8 @@ function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4) where F<:Real
     convF = zeros(F, length(flux))
     for i in eachindex(wls)
         λ0 = wls[i]
-        line_spread_function_core!(convF, flux[i], wls, λ0, R, window_size)
+        lb, ub, normalized_ϕ = _lsf_bounds_and_kernel(wls, λ0, R, window_size)
+        convF[i] = sum(flux[lb:ub] .* normalized_ϕ)
     end
     convF
 end
@@ -134,7 +139,8 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
     LSF = spzeros((length(synth_wls), length(obs_wls)))
     for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
-        line_spread_function_core!(view(LSF, :, i), 1.0, synth_wls, λ0, R, window_size)
+        lb, ub, normalized_ϕ = _lsf_bounds_and_kernel(synth_wls, λ0, R, window_size)
+        LSF[lb:ub, i] .+= normalized_ϕ
     end
     LSF'
 end
