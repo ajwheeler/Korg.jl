@@ -73,7 +73,7 @@
 
         # make sure the default window_size values are OK
         @test assert_allclose(convF, convF_mat5; atol=1e-4)
-        @test assert_allclose(convF_5sigma, convF_mat5; atol=1e-4)
+        @test assert_allclose(convF_5sigma, convF_mat5; rtol=1e-11)
         @test assert_allclose(convF_mat, convF_mat5; atol=1e-4)
 
         # but also check that they are definitely doing something
@@ -91,7 +91,7 @@
             c1 = 2(1 - ε)
             c2 = π * ε / 2
 
-            # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot 
+            # step(wls) makes things normalized on the grid, and the factor of v_L in Gray becomes Δλrot
             # (because we are working in wavelenths) and moves inside the loop
             denominator = π * (1 - ε / 3) / step(wls)
 
