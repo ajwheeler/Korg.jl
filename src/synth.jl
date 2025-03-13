@@ -2,14 +2,11 @@
     synth(kwargs...)
 
 This function creates a synthetic spectrum. It's easier to use than `synthesize`, but it gives you
-less control. Rather than returning a `SynthesisResult`, it returns a tuple of
-`(wavelengths, flux, cntm)`.
+less control. Unlike [`synthesize`](@ref), it **returns a tuple of `(wavelengths, flux, cntm)`**
+(Wavelength in Å, flux in erg/s/cm^5, and continuum in the same units). To get a
+continuum-normalized spectrum, divide `flux` by `cntm`.
 
 # Keyword arguments
-
-TODO
-
-# Returns
 
 TODO
 """
@@ -37,7 +34,6 @@ function synth(;
         spectrum.flux
     end
     if isfinite(R)
-        # TODO this induces edge effects
         flux = apply_LSF(flux, spectrum.wavelengths, R)
     end
     if vsini > 0
