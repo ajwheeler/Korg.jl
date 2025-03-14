@@ -1,22 +1,24 @@
 """
     synth(kwargs...)
 
-This function creates a synthetic spectrum. It's easier to use than `synthesize`, but it gives you
-less control. Unlike [`synthesize`](@ref), it **returns a tuple of `(wavelengths, rectified_flux, cntm)`**
-(Wavelength in Å, rectified flux as a unitless number between 0 and 1, and continuum in erg/s/cm^5).
-`Korg.synth` also provides shortcuts for some ways you might want to post-process the spectrum
-(applying a LSF, rotation, etc). See the keyword arguments below for more information.
+This function creates a synthetic spectrum. It's easier to use than [`synthesize`](@ref), but it
+gives you less control. Unlike [`synthesize`](@ref), it **returns a tuple of
+`(wavelengths, rectified_flux, cntm)`** (Wavelength in Å, rectified flux as a unitless number
+between 0 and 1, and continuum in erg/s/cm^5).  `Korg.synth` also provides shortcuts for some ways
+you might want to post-process the spectrum (applying a LSF, rotation, etc).
 
 # Keyword arguments
 
   - `Teff`: effective temperature in K (default: 5000)
   - `logg`: surface gravity in cgs units (default: 4.5)
-  - `metals_H`: metallicity [Fe/H] (default: 0.0)
-  - `alpha_H`: alpha enhancement [α/Fe] (default: 0.0)
+  - `metals_H`: metallicity, [metals/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
+    how this is interpreted.)
+  - `alpha_H`: alpha enhancement, [α/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
+    how this is interpreted.)
   - `linelist`: a linelist, (default: [`get_VALD_solar_linelist()`](@ref)). See also
     [`read_linelist`](@ref).
   - `wavelengths`: a tuple of the start and end wavelengths (default: (5000, 6000)), or a vector
-    of `(λstart, λstop)` pairs. See [`Korg.Wavelengths`](@ref) for all the ways the wavelengths can
+    of `(λstart, λstop)` pairs. See [`Wavelengths`](@ref) for all the ways the wavelengths can
     be specified.
   - `rectify`: whether to rectify the spectrum (default: true)
   - `R`: resolution (default: `Inf`, no LSF applied). `R` can be a scalar, or a function from
