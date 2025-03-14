@@ -2,9 +2,8 @@
     synth(kwargs...)
 
 This function creates a synthetic spectrum. It's easier to use than `synthesize`, but it gives you
-less control. Unlike [`synthesize`](@ref), it **returns a tuple of `(wavelengths, flux, cntm)`**
-(Wavelength in Å, flux in erg/s/cm^5, and continuum in the same units). To get a
-continuum-normalized spectrum, divide `flux` by `cntm`.
+less control. Unlike [`synthesize`](@ref), it **returns a tuple of `(wavelengths, rectified_flux, cntm)`**
+(Wavelength in Å, rectified flux as a unitless number between 0 and 1, and continuum in erg/s/cm^5).
 
 # Keyword arguments
 
@@ -20,14 +19,15 @@ function synth(;
                rectify=true,
                R=Inf,
                vsini=0,
+               vmic=1.0,
                synthesize_kwargs=Dict(),
+               format_A_X_kwargs=Dict(),
                abundances...,)
-    # TODO prefer "X_H" to "X" for abundances
-    A_X = format_A_X(metals_H, alpha_H, abundances)
+    A_X = format_A_X(metals_H, alpha_H, abundances; format_A_X_kwargs...)
     atm = interpolate_marcs(Teff, logg, A_X)
 
     # synthesize kwargs currently must be symbols, which is annoying
-    spectrum = synthesize(atm, linelist, A_X, wavelengths; synthesize_kwargs...)
+    spectrum = synthesize(atm, linelist, A_X, wavelengths; vmic, synthesize_kwargs...)
     flux = if rectify
         spectrum.flux ./ spectrum.cntm
     else
