@@ -1,5 +1,5 @@
 @testset "synth" begin
-    default_linelist = get_VALD_solar_linelist()
+    default_linelist = Korg.get_VALD_solar_linelist()
 
     @testset "basic functionality" begin
         # Compare with direct Korg.synthesize call
