@@ -49,6 +49,9 @@ function format_A_X(default_metals_H::R1=0.0, default_alpha_H::R2=default_metals
     # make sure the keys of abundances are valid, and convert them to Z if they are strings
     clean_abundances = Dict{UInt8,V}()
     for (el, abund) in abundances
+        if el isa Symbol
+            el = string(el)
+        end
         if el isa AbstractString
             if !(el in keys(Korg.atomic_numbers))
                 throw(ArgumentError("$el isn't a valid atomic symbol."))

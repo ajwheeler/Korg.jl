@@ -3,27 +3,11 @@ import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
 
 """
-    synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
-    synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
+    SynthesisResult
 
-Compute a synthetic spectrum.
+The result of a synthesis. Returned by [`synthesize`](@ref).
 
-# Arguments
-
-  - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
-  - `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref),
-    [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
-  - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
-    uranium.  (see [`format_A_X`](@ref))
-  - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
-    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`.
-  - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
-  - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
-  - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
-
-# Returns
-
-A named tuple with keys:
+# Fields
 
   - `flux`: the output spectrum
   - `cntm`: the continuum at each wavelength
@@ -41,6 +25,38 @@ A named tuple with keys:
   - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum
     for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`,
     `λ_step` arguments, this will be a vector containing only one range.
+"""
+@kwdef struct SynthesisResult
+    # specify container types to make debugging easier, but more precise typing would be better
+    flux::Vector
+    cntm::Union{Vector,Nothing}
+    intensity::Array # can be either matrix or 3-tensor
+    alpha::Matrix
+    mu_grid::Vector{Tuple}
+    number_densities::Dict{Species,Vector}
+    electron_number_density::Vector
+    wavelengths::Vector
+    subspectra::Vector
+end
+
+"""
+    synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
+    synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
+
+Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
+
+# Arguments
+
+  - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
+  - `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref),
+    [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+  - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
+    uranium.  (see [`format_A_X`](@ref))
+  - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
+    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`.
+  - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
+  - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
+  - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
 
 # Example
 
@@ -51,7 +67,7 @@ to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances 
 atm = read_model_atmosphere("path/to/atmosphere.mod")
 linelist = read_linelist("path/to/linelist.vald")
 A_X = format_A_X(-0.5, Dict("C" => -0.25))
-solution = synthesize(atm, linelist, A_X, 5000, 5100)
+result = synthesize(atm, linelist, A_X, 5000, 5100)
 ```
 
 # Optional arguments:
@@ -122,7 +138,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     partition_funcs=default_partition_funcs,
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
-                    verbose=false)
+                    verbose=false)::SynthesisResult
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
     if air_wavelengths
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
@@ -256,9 +272,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
 
-    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, mu_grid=collect(zip(μ_grid, μ_weights)),
-     number_densities=number_densities, electron_number_density=nₑs,
-     wavelengths=wls .* 1e8, subspectra=subspectrum_indices(wls))
+    SynthesisResult(; flux=flux, cntm=cntm, intensity=intensity, alpha=α,
+                    mu_grid=collect(zip(μ_grid, μ_weights)), number_densities=number_densities,
+                    electron_number_density=nₑs, wavelengths=wls .* 1e8,
+                    subspectra=subspectrum_indices(wls))
 end
 
 """

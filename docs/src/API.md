@@ -8,6 +8,7 @@ These functions are exported, so if you do `using Korg`, you can call them unqua
 `synthesize` instead of `Korg.synthesize`).
 
 ```@docs
+synth
 synthesize
 read_linelist
 load_ExoMol_linelist
