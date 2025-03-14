@@ -26,16 +26,17 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
     for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`,
     `λ_step` arguments, this will be a vector containing only one range.
 """
-@kwdef struct SynthesisResult{F1,F2,F3,F4,F5,F6,F7,F8,F9,F10}
-    flux::Vector{F1}
-    cntm::Union{Vector{F2},Nothing}
-    intensity::Matrix{F3}
-    alpha::Matrix{F4}
-    mu_grid::Vector{Tuple{F5,F6}}
-    number_densities::Dict{Species,Vector{F7}}
-    electron_number_density::Vector{F8}
-    wavelengths::Vector{F9}
-    subspectra::Vector{Tuple{F10,F10}}
+@kwdef struct SynthesisResult
+    # specify container types to make debugging easier, but more precise typing would be better
+    flux::Vector
+    cntm::Union{Vector,Nothing}
+    intensity::Array # can be either matrix or 3-tensor
+    alpha::Matrix
+    mu_grid::Vector{Tuple}
+    number_densities::Dict{Species,Vector}
+    electron_number_density::Vector
+    wavelengths::Vector
+    subspectra::Vector
 end
 
 """
