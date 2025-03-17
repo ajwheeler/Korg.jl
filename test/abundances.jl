@@ -49,7 +49,7 @@
     @test format_A_X(1.1) != format_A_X(1.1, 0)
     @test format_A_X(1.1)[50] == format_A_X(1.1, 0)[50] == format_A_X(-1, -2, Dict(50 => 1.1))[50]
 
-    @testset for metallicity in [0.0, 0.5], abundances in [Dict(), Dict("C" => 1.1)],
+    @testset for metallicity in [0.0, 0.5], abundances in [Dict(), Dict(:C => 1.1)],
                  solar_relative in [true, false]
 
         A_X = format_A_X(metallicity, abundances;
