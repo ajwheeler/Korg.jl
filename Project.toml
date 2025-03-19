@@ -4,7 +4,9 @@ authors = ["Adam Wheeler <adamwhlr@gmail.com>", "Matthew Abruzzo <matthewabruzzo
 version = "0.42.0"
 
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -28,7 +30,9 @@ TableOperations = "ab02a1b2-a7df-11e8-156e-fb1833f50b87"
 Trapz = "592b5752-818d-11e9-1e9a-2b8ca4a44cd1"
 
 [compat]
+Adapt = "4.1.1"
 CSV = "0.8, 0.9, 0.10"
+CUDA = "5.5.2"
 Compat = "4.10 - 4"
 DSP = "0.7, 0.8"
 DataFrames = "1.7.0"

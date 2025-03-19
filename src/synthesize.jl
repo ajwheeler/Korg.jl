@@ -108,6 +108,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
     intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
     calculation, but stores the intensity at every layer. `"bezier"` is for testing and not
     recommended.
+  - use_CUDA TODO
   - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
@@ -122,7 +123,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     partition_funcs=default_partition_funcs,
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
-                    verbose=false)
+                    use_CUDA=false, verbose=false)
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
     if air_wavelengths
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
@@ -218,10 +219,15 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # line contributions to α5
     if tau_scheme == "anchored"
         α_cntm_5 = [_ -> a for a in copy(α5)] # lambda per layer
-        line_absorption!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm), nₑs,
-                         number_densities,
-                         partition_funcs, vmic * 1e5, α_cntm_5;
-                         cutoff_threshold=line_cutoff_threshold)
+        if use_CUDA
+            line_absorption_cuda!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]),
+                                  get_temps(atm), nₑs, number_densities, partition_funcs,
+                                  vmic * 1e5, α_cntm_5; cutoff_threshold=line_cutoff_threshold)
+        else
+            line_absorption!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm),
+                             nₑs, number_densities, partition_funcs, vmic * 1e5, α_cntm_5;
+                             cutoff_threshold=line_cutoff_threshold)
+        end
         interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
                                               Korg.Wavelengths([5000]),
                                               get_temps(atm), vmic, number_densities)
@@ -246,8 +252,15 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
-                     vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
+    if use_CUDA
+        line_absorption_cuda!(α, linelist, wls, get_temps(atm), nₑs, number_densities,
+                              partition_funcs, vmic * 1e5, α_cntm;
+                              cutoff_threshold=line_cutoff_threshold, verbose=verbose)
+    else
+        line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
+                         vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold,
+                         verbose=verbose)
+    end
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 
