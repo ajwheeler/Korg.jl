@@ -15,12 +15,16 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
     how this is interpreted.)
   - `alpha_H`: alpha enhancement, [α/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
     how this is interpreted.)
+  - _Any atomic symbol_ (e.g. `Fe` or `C`) can be used to to specify a (solar relative, [_X_/H])
+    abundance. These override `metals_H` and `alpha_H`. Specifying an individual abundance means
+    that the true metallicity and alpha will not correspond precisely to the values of `metals_H`
+    and `alpha_H`. See [`format_A_X`](@ref) for details.
   - `linelist`: a linelist, (default: [`get_VALD_solar_linelist()`](@ref)). See also
     [`read_linelist`](@ref).
   - `wavelengths`: a tuple of the start and end wavelengths (default: (5000, 6000)), or a vector
     of `(λstart, λstop)` pairs. See [`Wavelengths`](@ref) for all the ways the wavelengths can
     be specified.
-  - `rectify`: whether to rectify the spectrum (default: true)
+  - `rectify`: whether to rectify (continuum normalize) the spectrum (default: true)
   - `R`: resolution (default: `Inf`, no LSF applied). `R` can be a scalar, or a function from
     wavelength (in Å) to resolving power. See [`apply_LSF`](@ref) for details on how to do this
     manually.
