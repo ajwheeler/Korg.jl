@@ -11,13 +11,13 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
 
   - `Teff`: effective temperature in K (default: 5000)
   - `logg`: surface gravity in cgs units (default: 4.5)
-  - `metals_H`: metallicity, [metals/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
+  - `m_H`: metallicity, [metals/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
     how this is interpreted.)
-  - `alpha_H`: alpha enhancement, [α/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
+  - `alpha_H`: alpha enhancement, [α/H], (default: `m_H`) (See [`format_A_X`](@ref) for precisely
     how this is interpreted.)
   - _Any atomic symbol_ (e.g. `Fe` or `C`) can be used to to specify a (solar relative, [_X_/H])
-    abundance. These override `metals_H` and `alpha_H`. Specifying an individual abundance means
-    that the true metallicity and alpha will not correspond precisely to the values of `metals_H`
+    abundance. These override `m_H` and `alpha_H`. Specifying an individual abundance means
+    that the true metallicity and alpha will not correspond precisely to the values of `m_H`
     and `alpha_H`. See [`format_A_X`](@ref) for details.
   - `linelist`: a linelist, (default: [`get_VALD_solar_linelist()`](@ref)). See also
     [`read_linelist`](@ref).
@@ -37,8 +37,8 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
 function synth(;
                Teff=5000,
                logg=4.5,
-               metals_H=0.0,
-               alpha_H=0.0,
+               m_H=0.0,
+               alpha_H=m_H,
                linelist=get_VALD_solar_linelist(),
                wavelengths=(5000, 6000),
                rectify=true,
@@ -48,7 +48,7 @@ function synth(;
                synthesize_kwargs=Dict(),
                format_A_X_kwargs=Dict(),
                abundances...,)
-    A_X = format_A_X(metals_H, alpha_H, abundances; format_A_X_kwargs...)
+    A_X = format_A_X(m_H, alpha_H, abundances; format_A_X_kwargs...)
     atm = interpolate_marcs(Teff, logg, A_X)
 
     # synthesize kwargs currently must be symbols, which is annoying

@@ -35,7 +35,7 @@
 
     @testset "abundances" begin
         # Test that abundance changes match direct synthesize calls
-        wls, flux, _ = synth(; wavelengths=(5000, 5001), metals_H=-0.5, alpha_H=0.4, C=-0.3)
+        wls, flux, _ = synth(; wavelengths=(5000, 5001), m_H=-0.5, alpha_H=0.4, C=-0.3)
 
         atm = interpolate_marcs(5000, 4.5, format_A_X(-0.5, 0.4, Dict("C" => -0.3)))
         sol = synthesize(atm, default_linelist, format_A_X(-0.5, 0.4, Dict("C" => -0.3)), 5000,
