@@ -21,6 +21,7 @@ using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, Aqua
     include("atmosphere.jl")                     # slow
     include("abundances.jl")
     include("synthesize.jl")
+    include("synth.jl")
     include("prune_linelist.jl")
     include("utils.jl")
     include("line_absorption.jl")
