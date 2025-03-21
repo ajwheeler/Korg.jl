@@ -66,7 +66,7 @@ function setup_partition_funcs_and_equilibrium_constants()
     polyatomic_Ks = map(zip(Korg.Species.(atomization_Es.spec), atomization_Es.energy)) do (spec,
                                                                                             D00)
         D00 *= 0.01036 # convert from kJ/mol to eV
-        # this let block slightly improves performance. 
+        # this let block slightly improves performance.
         # https://docs.julialang.org/en/v1/manual/performance-tips/#man-performance-captured
         calculate_logK = let partition_funcs = partition_funcs
             function logK(logT)
@@ -103,11 +103,25 @@ end
 
 Reads the equilibrium constants from the HDF5 file produced by the Barklem and Collet 2016 paper.
 Returns a Dict from Korg.Species to Korg.CubicSplines from ln(T) to log10(K).
+
+As recommended by [Aquilina+ 2024](https://ui.adsabs.harvard.edu/abs/2024MNRAS.531.4538A/), we
+modify the C2 equilibrium constant reflect the dissociation energy reported by
+[Visser+ 2019](https://doi.org/10.1080/00268976.2018.1564849).
 """
 function read_Barklem_Collet_logKs(fname)
     mols = Korg.Species.(h5read(fname, "mols"))
     lnTs = h5read(fname, "lnTs")
     logKs = h5read(fname, "logKs")
+
+    # correct the C2 equilibrium constant from Barklem and Collet to reflect the dissociation
+    # energy reported by Visser+ 2019, as recommended by Aquilina+ 2024.
+    C2ind = findfirst(mols .== Korg.species"C2")
+    BC_C2_E0 = 6.371 # value from Barklem and Collet (in table), eV
+    Visser_C2_E0 = 6.24 # value from Visser+ 2019, eV
+    correction = @. log10(ℯ) / (kboltz_eV * exp(lnTs[C2ind, :])) * (Visser_C2_E0 - BC_C2_E0)
+
+    logKs[C2ind, :] .+= correction
+
     map(mols, eachrow(lnTs), eachrow(logKs)) do mol, lnTs, logKs
         mask = isfinite.(lnTs)
         mol => CubicSplines.CubicSpline(lnTs[mask], logKs[mask]; extrapolate=true)
@@ -143,7 +157,7 @@ function read_Barklem_Collet_table(fname; transform=identity)
     end
 
     map(data_pairs) do (species, vals)
-        # We want to extrapolate the molecular partition funcs because they are only defined up to 
+        # We want to extrapolate the molecular partition funcs because they are only defined up to
         # 10,000 K. There won't be any molecules past that temperature anyway.
         species, CubicSpline(log.(temperatures), vals; extrapolate=true)
     end |> Dict
@@ -194,11 +208,11 @@ function load_exomol_partition_functions()
         map(f) do group
             spec = Korg.Species(HDF5.name(group)[2:end]) # cut off leading '/'
 
-            # total nuclear spin degeneracy, which must be divided out to convert from the 
+            # total nuclear spin degeneracy, which must be divided out to convert from the
             # "physics" convention for the partition function to the "astrophysics" convention
             total_g_ns = map(get_atoms(spec)) do Z
                 # at the moment, we assume all molecules are the most common isotopologue internally
-                # difference isotopologues are handled by scaling the log_gf values when parsing 
+                # difference isotopologues are handled by scaling the log_gf values when parsing
                 # the linelist
                 most_abundant_A = argmax(isotopic_abundances[Z])
                 g_ns = isotopic_nuclear_spin_degeneracies[Z][most_abundant_A]
@@ -210,6 +224,6 @@ function load_exomol_partition_functions()
     end
 end
 
-#load data when the package is imported. 
+#load data when the package is imported.
 const ionization_energies = setup_ionization_energies()
 const default_partition_funcs, default_log_equilibrium_constants = setup_partition_funcs_and_equilibrium_constants()
