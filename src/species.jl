@@ -87,6 +87,9 @@ struct Formula
     end
 end
 
+# make it broadcast like a scalar
+Base.broadcastable(f::Formula) = Ref(f)
+
 """
     get_atoms(x)
 
@@ -245,6 +248,9 @@ function Species(code::AbstractString)
     Species(formula, charge)
 end
 Species(code::AbstractFloat) = Species(string(code))
+
+# make it broadcast like a scalar
+Base.broadcastable(s::Species) = Ref(s)
 
 #used to contruct Species at compile time and avoid parsing in hot loops
 macro species_str(s)
