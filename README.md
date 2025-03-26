@@ -16,13 +16,19 @@ Tutorials:
 ## Example
 ```julia
 using Korg, PyPlot
-lines = Korg.get_GALAH_DR3_linelist()
-A_X = format_A_X(-1.1, Dict("C"=>-0.5))
-atm = interpolate_marcs(5000.0, 4.32, A_X)
-sol = synthesize(atm, lines, A_X, 5850, 5900);
 
+wls, flux, continuum = synth(
+    Teff=5000,
+    logg=4.32,
+    m_H=-1.1,
+    C=-0.5,
+    linelist=Korg.get_GALAH_DR3_linelist(),
+    wavelengths=(5850, 5900)
+)
+
+# plot
 figure(figsize=(12, 4))
-plot(sol.wavelengths, sol.flux, "k-")
+plot(wls, flux, "k-")
 xlabel(L"$\lambda$ [Å]")
 ylabel(L"$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-5}$]");
 ```
@@ -33,20 +39,15 @@ ylabel(L"$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-5}$]");
 ## You can also call Korg from python
 See [the documentation](https://ajwheeler.github.io/Korg.jl/stable/install/) for setup instructions.
 ```python
-# imports
 from juliacall import Main as jl
 jl.seval("using Korg"); Korg = jl.Korg
-from matplotlib import pyplot as plt
 
-# synthesize spectrum
-lines = Korg.get_GALAH_DR3_linelist()
-A_X = Korg.format_A_X(-1.1, {"C": -0.5})
-atm = Korg.interpolate_marcs(5000.0, 4.32, A_X)
-sol = Korg.synthesize(atm, lines, A_X, 5850, 5900);
-
-# plot
-fig, ax = plt.subplots(figsize=(12, 4))
-ax.plot(sol.wavelengths, sol.flux, "k-")
-ax.set_xlabel("$\lambda$ [Å]")
-ax.set_ylabel("$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-5}$]")
+wls, flux, continuum = Korg.synth(
+    Teff=5000,
+    logg=4.32,
+    m_H=-1.1,
+    C=-0.5,
+    linelist=Korg.get_GALAH_DR3_linelist(),
+    wavelengths=(5850, 5900)
+)
 ```
