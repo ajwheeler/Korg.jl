@@ -22,6 +22,7 @@ format_A_X
 Korg.get_APOGEE_DR17_linelist
 Korg.get_GALAH_DR3_linelist
 Korg.get_GES_linelist
+Korg.get_VALD_solar_linelist
 ```
 
 # Fitting
