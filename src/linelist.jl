@@ -722,6 +722,8 @@ end
 
 Get a VALD "extract stellar" linelist produced at solar parameters, with the "threshold" value
 set to 0.01.  It was downloaded on 2021-05-20. It is intended to be used for quick tests only.
+
+If you use this in a paper, please [cite VALD appropriately](https://www.astro.uu.se/valdwiki/Acknowledgement).
 """
 get_VALD_solar_linelist() = read_linelist(joinpath(_data_dir, "linelists",
                                                    "vald_extract_stellar_solar_threshold001.vald"))
