@@ -22,16 +22,16 @@ A_X = format_A_X(m_H, alpha_H, Dict("C" => C_H))
 atm = interpolate_marcs(Teff, logg, A_X)
 
 # set up sparse matrix that applies the LSF and resamples to the apogee grid
-synthesis_wavelenghts = 15_000:0.01:17_000
+synthesis_wavelengths = 15_000:0.01:17_000
 apogee_wavelengths = 10 .^ range(; start=log10(15100.802), step=6e-6, length=8575)
-LSF = Korg.compute_LSF_matrix(synthesis_wavelenghts, apogee_wavelengths, 22_500)
+LSF = Korg.compute_LSF_matrix(synthesis_wavelengths, apogee_wavelengths, 22_500)
 
 # don't include water lines because we will use the precomputed cross-section instead
 linelist = Korg.get_APOGEE_DR17_linelist(; include_water=false)
 
 # this returns a "solution" object with lots of data
 # @time is a macro that reports how long this line takes
-@time sol = synthesize(atm, linelist, A_X, synthesis_wavelenghts;
+@time sol = synthesize(atm, linelist, A_X, synthesis_wavelengths;
                        vmic=vmic, use_MHD_for_hydrogen_lines=false,
                        molecular_cross_sections=[water])
 
