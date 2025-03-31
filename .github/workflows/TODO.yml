@@ -26,7 +26,7 @@ jobs:
 
       - name: Update or Create Comment
         if: steps.find_todos.outputs.has_todos == 'true'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
@@ -62,7 +62,7 @@ jobs:
 
       - name: Remove Comment if No TODOs
         if: steps.find_todos.outputs.has_todos == 'false'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
@@ -84,7 +84,7 @@ jobs:
             }
 
       - name: TODO Check
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
