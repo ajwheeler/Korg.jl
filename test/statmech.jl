@@ -93,14 +93,14 @@ end
         BC_Us = Korg.read_Barklem_Collet_table("data/BarklemCollet2016-atomic_partition.dat")
         Ts = 10 .^ logTs
 
-        # I'm only comparing the first 10 neutal species because of unexplained weirdness with the 
+        # I'm only comparing the first 10 neutal species because of unexplained weirdness with the
         # B&C numbers.
         @testset for spec in Korg.Species.(Korg.atomic_symbols[1:10] .* " I")
             BC_U = BC_Us[spec].(logTs * log(10))
             korg_U = Korg.default_partition_funcs[spec].(logTs * log(10))
 
             # we can't get closer than 2% because NIST has changed some things
-            # (There may also be edge-case energy levels that are weird in some way that are only 
+            # (There may also be edge-case energy levels that are weird in some way that are only
             # included in one calculation, but I think this effect is small.)
             @test assert_allclose_grid(korg_U, BC_U, [("T", Ts, "K")]; rtol=0.01,
                                        print_rachet_info=false)
@@ -147,5 +147,14 @@ end
         @test Korg.ionization_energies[Korg.atomic_numbers["H"]] == [13.5984, -1.000, -1.000]
         @test Korg.ionization_energies[Korg.atomic_numbers["Ru"]] == [7.3605, 16.760, 28.470]
         @test Korg.ionization_energies[Korg.atomic_numbers["U"]] == [6.1940, 11.590, 19.800]
+    end
+
+    @testset "O I-III and CN partition functions are (nearly) monotonic in T" begin
+        lnTs = 0:0.1:log(100_000.0)
+        nearly_monotonic(Us) = all(diff(Us) .> -1e-4)
+        @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"O_I"].(lnTs))
+        @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"O_II"].(lnTs))
+        @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"O_III"].(lnTs))
+        @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"CN_I"].(lnTs))
     end
 end
