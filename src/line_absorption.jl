@@ -42,22 +42,18 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
     end
 
     # TODO
-    tasks_per_thread = 2 # customize this as needed. More tasks have more overhead, but better
+    tasks_per_thread = 1 # customize this as needed. More tasks have more overhead, but better
     # load balancing
     chunk_size = max(1, length(linelist) ÷ (tasks_per_thread * Threads.nthreads()))
     linelist_chunks = partition(linelist, chunk_size)
-
-    α_lock = ReentrantLock()
+    #TODO
+    #linelist_chunks = [linelist]
 
     tasks = map(linelist_chunks) do linelist_chunk
         # Each chunk of your data gets its own spawned task that does its own local, sequential work
         # and then returns the result
         Threads.@spawn begin
-            #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
-            #and longest wavelengths which feel the effect of each line
-            # TODO does it make sense to preallocate these????
-            lb = 1
-            ub = 1
+            α_task = zeros(eltype(α), size(α))
 
             # preallocate some arrays for the core loop.
             # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and
@@ -70,7 +66,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
             inverse_densities = Vector{eltype(α)}(undef, size(temps))
 
-            for line in linelist
+            for line in linelist_chunk
                 m = get_mass(line.species)
 
                 # doppler-broadening width, σ (NOT √[2]σ)
@@ -110,15 +106,13 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                     continue
                 end
 
-                @lock α_lock begin
-                    view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
-                end
+                α_task[:, lb:ub] .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
             end
+            return α_task
         end
     end
 
-    # TODO is this the best way?
-    fetch.(tasks)
+    α .+= sum(fetch.(tasks))
     return nothing
 end
 
