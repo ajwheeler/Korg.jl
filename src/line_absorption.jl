@@ -23,10 +23,12 @@ other arguments:
 # Keyword Arguments
 
   - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
+  - `tasks_per_thread` (default: 1): the number of tasks to run per Julia thread. This function
+    is multithreaded over the lines in `linelist`.
   - `verbose` (default: false): if true, show a progress bar.
 """
 function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
-                          α_cntm; cutoff_threshold=3e-4, verbose=false)
+                          α_cntm; cutoff_threshold=3e-4, verbose=false, tasks_per_thread=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end
@@ -41,14 +43,8 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
 
-    # TODO
-    tasks_per_thread = 1 # customize this as needed. More tasks have more overhead, but better
-    # load balancing
     chunk_size = max(1, length(linelist) ÷ (tasks_per_thread * Threads.nthreads()))
     linelist_chunks = partition(linelist, chunk_size)
-    #TODO
-    #linelist_chunks = [linelist]
-
     tasks = map(linelist_chunks) do linelist_chunk
         # Each chunk of your data gets its own spawned task that does its own local, sequential work
         # and then returns the result
