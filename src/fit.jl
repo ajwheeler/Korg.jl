@@ -208,6 +208,27 @@ function _namedtuple_to_dict(nt::NamedTuple)
     Dict{String,Float64}([string(p[1]) => Float64(p[2]) for p in pairs(nt)])
 end
 
+# throw informative errors if the observed spectrum has issues
+function _validate_observed_spectrum(obs_wls, obs_flux, obs_err)
+    if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
+        throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_wls, obs_flux, and obs_err must all have the same length."))
+    end
+
+    if !issorted(obs_wls)
+        throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_wls must be sorted in order of increasing wavelength."))
+    end
+
+    for arr in [obs_wls, obs_flux, obs_err]
+        if any(.!isfinite, arr)
+            throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_wls, obs_flux, and obs_err must not contain NaN or Inf."))
+        end
+    end
+
+    if any(iszero, obs_err)
+        throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_err must not contain zeros."))
+    end
+end
+
 """
     fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params; kwargs...)
 
@@ -308,9 +329,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                       windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
                       time_limit=10_000, adjust_continuum=false, synthesis_kwargs...)
-    if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
-        throw(ArgumentError("obs_wls, obs_flux, and obs_err must all have the same length."))
-    end
+    _validate_observed_spectrum(obs_wls, obs_flux, obs_err)
+
     # wavelengths, windows and LSF
     synthesis_wls, obs_wl_mask, LSF_matrix = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls,
                                                                         LSF_matrix, R, windows,
