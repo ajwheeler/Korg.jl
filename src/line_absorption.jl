@@ -43,7 +43,8 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
 
-    chunk_size = max(1, length(linelist) ÷ (tasks_per_thread * Threads.nthreads()))
+    n_chunks = tasks_per_thread * Threads.nthreads()
+    chunk_size = max(1, length(linelist) ÷ n_chunks + (length(linelist) % n_chunks > 0))
     linelist_chunks = partition(linelist, chunk_size)
     tasks = map(linelist_chunks) do linelist_chunk
         # Each chunk of your data gets its own spawned task that does its own local, sequential work
