@@ -43,6 +43,7 @@ See [the documentation](https://ajwheeler.github.io/Korg.jl/stable/install/) for
 from juliacall import Main as jl
 jl.seval("using Korg"); Korg = jl.Korg
 
+# calling Korg.synth is exactly the same as in Julia.
 wls, flux, continuum = Korg.synth(
     Teff=5000,
     logg=4.32,
