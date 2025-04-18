@@ -1,5 +1,6 @@
 using SpecialFunctions: gamma
 using ProgressMeter: @showprogress
+using Base.Iterators: partition
 
 """
     line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
@@ -22,18 +23,16 @@ other arguments:
 # Keyword Arguments
 
   - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
-  - `verbose` (default: false): if true, show a progress bar.
+  - `tasks_per_thread` (default: 1): the number of tasks to run per Julia thread. This function
+    is multithreaded over the lines in `linelist`.
+  - `verbose` (deprecated): no longer used.
 """
 function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
-                          α_cntm; cutoff_threshold=3e-4, verbose=false)
+                          α_cntm; cutoff_threshold=3e-4, verbose=false, tasks_per_thread=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end
 
-    #lb and ub are the indices to the upper and lower wavelengths in the "window", i.e. the shortest
-    #and longest wavelengths which feel the effect of each line 
-    lb = 1
-    ub = 1
     β = @. 1 / (kboltz_eV * temps)
 
     # precompute number density / partition function for each species in the linelist
@@ -44,58 +43,74 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
 
-    # preallocate some arrays for the core loop. 
-    # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and 
-    # the values in "number_densities"
-    Γ = Vector{eltype(α)}(undef, size(temps))
-    γ = Vector{eltype(α)}(undef, size(temps))
-    σ = Vector{eltype(α)}(undef, size(temps))
-    amplitude = Vector{eltype(α)}(undef, size(temps))
-    levels_factor = Vector{eltype(α)}(undef, size(temps))
-    ρ_crit = Vector{eltype(α)}(undef, size(temps))
-    inverse_densities = Vector{eltype(α)}(undef, size(temps))
-    @showprogress desc="calculating line opacities" enabled=verbose for line in linelist
-        m = get_mass(line.species)
+    n_chunks = tasks_per_thread * Threads.nthreads()
+    chunk_size = max(1, length(linelist) ÷ n_chunks + (length(linelist) % n_chunks > 0))
+    linelist_chunks = partition(linelist, chunk_size)
+    tasks = map(linelist_chunks) do linelist_chunk
+        # Each chunk of your data gets its own spawned task that does its own local, sequential work
+        # and then returns the result
+        Threads.@spawn begin
+            α_task = zeros(eltype(α), size(α))
 
-        # doppler-broadening width, σ (NOT √[2]σ)
-        σ .= doppler_width.(line.wl, temps, m, ξ)
+            # preallocate some arrays for the core loop.
+            # Each element of the arrays corresponds to an atmospheric layer, same at the "temps" array and
+            # the values in "number_densities"
+            Γ = Vector{eltype(α)}(undef, size(temps))
+            γ = Vector{eltype(α)}(undef, size(temps))
+            σ = Vector{eltype(α)}(undef, size(temps))
+            amplitude = Vector{eltype(α)}(undef, size(temps))
+            levels_factor = Vector{eltype(α)}(undef, size(temps))
+            ρ_crit = Vector{eltype(α)}(undef, size(temps))
+            inverse_densities = Vector{eltype(α)}(undef, size(temps))
 
-        # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in 
-        # angular, not cyclical frequency (ω, not ν).
-        Γ .= line.gamma_rad
-        if !ismolecule(line.species)
-            @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
-            Γ .+= n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temps)
+            for line in linelist_chunk
+                m = get_mass(line.species)
+
+                # doppler-broadening width, σ (NOT √[2]σ)
+                σ .= doppler_width.(line.wl, temps, m, ξ)
+
+                # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in
+                # angular, not cyclical frequency (ω, not ν).
+                Γ .= line.gamma_rad
+                if !ismolecule(line.species)
+                    @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
+                    Γ .+= n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temps)
+                end
+                # calculate the lorentz broadening parameter in wavelength. Doing this involves an
+                # implicit aproximation that λ(ν) is linear over the line window.
+                # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
+                # and the last factor of 1/2 is for FWHM vs HWHM
+                @. γ = Γ * line.wl^2 / (c_cgs * 4π)
+
+                E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
+                @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
+
+                #total wl-integrated absorption coefficient
+                @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor *
+                               n_div_Z[line.species]
+
+                ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
+                inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
+                doppler_line_window = maximum(inverse_densities)
+                inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
+                lorentz_line_window = maximum(inverse_densities)
+                window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
+                # at present, this line is allocating. Would be good to fix that.
+                lb = searchsortedfirst(λs, line.wl - window_size)
+                ub = searchsortedlast(λs, line.wl + window_size)
+                # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
+                if lb > ub
+                    continue
+                end
+
+                α_task[:, lb:ub] .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+            end
+            return α_task
         end
-        # calculate the lorentz broadening parameter in wavelength. Doing this involves an 
-        # implicit aproximation that λ(ν) is linear over the line window.
-        # the factor of λ²/c is |dλ/dν|, the factor of 1/2π is for angular vs cyclical freqency,
-        # and the last factor of 1/2 is for FWHM vs HWHM
-        @. γ = Γ * line.wl^2 / (c_cgs * 4π)
-
-        E_upper = line.E_lower + c_cgs * hplanck_eV / line.wl
-        @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
-
-        #total wl-integrated absorption coefficient
-        @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor *
-                       n_div_Z[line.species]
-
-        ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
-        inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
-        doppler_line_window = maximum(inverse_densities)
-        inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
-        lorentz_line_window = maximum(inverse_densities)
-        window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
-        # at present, this line is allocating. Would be good to fix that.
-        lb = searchsortedfirst(λs, line.wl - window_size)
-        ub = searchsortedlast(λs, line.wl + window_size)
-        # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
-        if lb > ub
-            continue
-        end
-
-        view(α, :, lb:ub) .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
     end
+
+    α .+= sum(fetch.(tasks))
+    return nothing
 end
 
 """
