@@ -20,7 +20,7 @@ using Korg, PyPlot
 wls, flux, continuum = synth(
     Teff=5000, # effective temperature of 5000 Kelvin
     logg=4.32, # surface gravity of 10^(4.32) cm/s²
-    m_H=-1.1,  # metallicity, [m/H]. Overriden for individual elements by alpha_H and individual abundances
+    m_H=-1.1,  # metallicity, [m/H]. Overridden for individual elements by alpha_H and individual abundances
     C=-0.5,    # The Carbon abundance, [C/H].  Works for anything from He to U.
     linelist=Korg.get_GALAH_DR3_linelist(),
     wavelengths=(5850, 5900)
