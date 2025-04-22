@@ -249,8 +249,6 @@ function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin=0, λmax=Inf;
     # convolve impact and quasistatic profiles
     ϕ_conv = autodiffable_conv(ϕ_impact, ϕ_quasistatic) * step(wls)
 
-    #itp = linear_interpolation(ForwardDiff.value.(wls), #TODO delete
-    #                           ϕ_conv[start_ind:start_ind+n_wavelength_points-1])
     itp = linear_interpolation(wls, ϕ_conv[start_ind:start_ind+n_wavelength_points-1])
     itp, window
 end
