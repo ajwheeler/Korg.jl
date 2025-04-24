@@ -36,17 +36,18 @@ end
   - `S`: the source function as a matrix of the same shape.
     rescale the total absorption to match the model atmosphere. This value should be calculated by
     Korg.
-  - `n_μ_points`: the number of quadrature points to use when integrating over I_surface(μ) to obtain
-    the astrophysical flux. (TODO make this either a number or a vector of μ values)
+  - `μ_points`: the number of quadrature points to use when integrating over I_surface(μ) to obtain
+    the astrophysical flux, or, alternatively, the specific μ values to use (in which case the
+    integral is done with the trapezoid rule).
   - `spatial_coord`: a physical distance coordinate (radius for a spherical atmosphere, height above
     the photosphere for a plane-parallel atmosphere).
   - `spherical`: whether the atmosphere is spherical or plane-parallel.
 
 # Keyword Arguments:
 
-  - `include_inward_rays` (default: `false`): if true, light propagating into the star (negative μs) is included.  If
-    false, only those which are needed to seed the intensity at the bottom of the atmosphere are
-    included.
+  - `include_inward_rays` (default: `false`): if true, light propagating into the star (negative μs)
+    is included.  If false, only those which are needed to seed the intensity at the bottom of the
+    atmosphere are included.
   - `τ_scheme` (default: "anchored"): how to compute the optical depth.  Options are "linear" and
     "bezier" (not recommended).
   - `I_scheme` (default: "linear_flux_only"): how to compute the intensity.  Options are "linear",
@@ -54,22 +55,22 @@ end
     intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
     calculation, but stores the intensity at every layer.  "bezier" is not recommended.
 """
-function radiative_transfer(atm::PlanarAtmosphere, α, S, n_μ_points;
+function radiative_transfer(atm::PlanarAtmosphere, α, S, μ_points;
                             α_ref=nothing, τ_ref=isnothing(α_ref) ? nothing : get_tau_5000s(atm),
                             τ_scheme="anchored", I_scheme="linear_flux_only", kwargs...)
-    radiative_transfer(α, S, get_zs(atm), n_μ_points, false; α_ref=α_ref, τ_ref=τ_ref,
+    radiative_transfer(α, S, get_zs(atm), μ_points, false; α_ref=α_ref, τ_ref=τ_ref,
                        I_scheme=I_scheme, τ_scheme=τ_scheme, kwargs...)
 end
-function radiative_transfer(atm::ShellAtmosphere, α, S, n_μ_points;
+function radiative_transfer(atm::ShellAtmosphere, α, S, μ_points;
                             α_ref=nothing, τ_ref=isnothing(α_ref) ? nothing : get_tau_5000s(atm),
                             τ_scheme="anchored", I_scheme="linear", kwargs...)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2
-    F, others... = radiative_transfer(α, S, radii, n_μ_points, true; α_ref=α_ref, τ_ref=τ_ref,
+    F, others... = radiative_transfer(α, S, radii, μ_points, true; α_ref=α_ref, τ_ref=τ_ref,
                                       I_scheme=I_scheme, τ_scheme=τ_scheme, kwargs...)
     photosphere_correction .* F, others...
 end
-function radiative_transfer(α, S, spatial_coord, n_μ_points, spherical;
+function radiative_transfer(α, S, spatial_coord, μ_points, spherical;
                             include_inward_rays=false,
                             α_ref=nothing, τ_ref=nothing, I_scheme="linear_flux_only",
                             τ_scheme="anchored")
@@ -78,7 +79,7 @@ function radiative_transfer(α, S, spatial_coord, n_μ_points, spherical;
         # in this special case, we can use exponential integral tricks
         μ_surface_grid, μ_weights = [1], [1]
     else
-        μ_surface_grid, μ_weights = generate_mu_grid(n_μ_points)
+        μ_surface_grid, μ_weights = generate_mu_grid(μ_points)
     end
 
     # distance along ray, and derivative wrt spatial coord
@@ -306,7 +307,11 @@ function compute_I_linear_flux_only(τ, S)
     I = 0.0
     next_exp_negτ = exp(-τ[1])
     for i in 1:length(τ)-1
-        @inbounds m = (S[i+1] - S[i]) / (τ[i+1] - τ[i])
+        @inbounds Δτ = τ[i+1] - τ[i]
+        # fix the case where large τ causes numerically 0 Δτ
+        Δτ += (Δτ == 0) # if it's 0, make it 1
+        @inbounds m = (S[i+1] - S[i]) / Δτ
+
         cur_exp_negτ = next_exp_negτ
         @inbounds next_exp_negτ = exp(-τ[i+1])
         @inbounds I += (-next_exp_negτ * (S[i+1] + m) + cur_exp_negτ * (S[i] + m))
@@ -398,7 +403,7 @@ expansions to get an approximation which is accurate within 1% for all `x`
 """
 function exponential_integral_2(x)  # this implementation could definitely be improved
     if x == 0
-        0.0
+        1.0
     elseif x < 1.1
         _expint_small(x)
     elseif x < 2.5

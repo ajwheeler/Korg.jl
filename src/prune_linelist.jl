@@ -23,8 +23,8 @@ equivalent width.
     order is much faster, but sorting by strength is useful for visualizing the strongest lines.
   - `verbose=true`: If `true`, a progress bar will be displayed while measuring the EWs.
     All other kwargs are passed to internal calls to [`synthesize`](@ref).
-  - `max_distance=0.0`, how far from `wls` lines can be before they are excluded from the returned
-    list.
+  - `max_distance=0.0`, how far from `wls` lines can be (in Å) before they are excluded from the
+    returned list.
 
 !!! caution
 
@@ -36,13 +36,13 @@ equivalent width.
 
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
-function prune_linelist(atm, linelist, A_X, wls...;
+function prune_linelist(atm, linelist, A_X, wl_params...;
                         threshold=0.1, sort_by_EW=true, verbose=true, max_distance=0.0,
                         synthesis_kwargs...)
+    wls = Wavelengths(wl_params...)
     # linelist will be sorted after call to synthesize
-    sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
-    cntm_sol = synthesize(atm, [], A_X, wls...; synthesis_kwargs...)
-    wl_ranges = construct_wavelength_ranges(wls...)
+    sol = synthesize(atm, linelist, A_X, wls; synthesis_kwargs...)
+    cntm_sol = synthesize(atm, [], A_X, wls; synthesis_kwargs...)
 
     # get the atmosphere layer where τ ≈ 1 for each wavelength
     approximate_τ = cumsum(sol.alpha[1:end-1, :] .* -diff(get_zs(atm)); dims=1)
@@ -64,11 +64,12 @@ function prune_linelist(atm, linelist, A_X, wls...;
     λ_ind = 1
     strong_lines = eltype(linelist)[]
     for line in linelist
-        line_center = line.wl * 1e8
-        if !any((λs[begin] - max_distance) < line_center < (λs[end] + max_distance)
-                for λs in wl_ranges)
+        if !any((λstart - max_distance * 1e-8) <= line.wl <= (λstop + max_distance * 1e-8)
+                for (λstart, λstop) in eachwindow(wls))
             continue
         end
+
+        line_center = line.wl * 1e8
 
         # move λ_ind to the wavelength in the synthesis grid closest to the line center
         while (λ_ind < length(sol.wavelengths)) &&

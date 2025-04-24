@@ -1,6 +1,6 @@
 @testset "linelist pruning" begin
     linelist = Korg.read_linelist("data/linelists/gfallvac08oct17.stub.dat"; format="kurucz")
-    wls = linelist[1].wl*1e8:0.01:linelist[end].wl*1e8
+    wls = (linelist[1].wl, linelist[end].wl)
     atm = interpolate_marcs(5000, 4.44)
     A_X = format_A_X()
 
@@ -9,6 +9,8 @@
                                                 ; sort_by_EW=false, verbose=false)
     more_strong_lines = Korg.prune_linelist(atm, linelist, A_X, wls
                                             ; sort_by_EW=false, threshold=0.01, verbose=false)
+
+    @test 0 < length(strong_lines_sorted) < length(more_strong_lines) < length(linelist)
 
     @test Set(strong_lines_sorted) == Set(strong_lines_unsorted)
     @test issorted(strong_lines_unsorted; by=l -> l.wl)

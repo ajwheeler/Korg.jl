@@ -14,8 +14,7 @@
 
     synth_wls = wl_lo:0.01:wl_hi
 
-    LSF_model = Korg.compute_LSF_matrix(synth_wls, apowls, 22_500; renormalize_edge=true,
-                                        verbose=false)
+    LSF_model = Korg.compute_LSF_matrix(synth_wls, apowls, 22_500; verbose=false)
 
     # it's less accurate to not include water lines, but that's fine for this test
     apolines = Korg.get_APOGEE_DR17_linelist(; include_water=false)
@@ -35,7 +34,7 @@
     msk[1:100] .= false
 
     Q = Korg.Qfactor(synth_flux, synth_wls, apowls, LSF_model; obs_mask=msk)
-    @test Q≈810.9267657701387 rtol=1e-4
+    @test Q≈810.4642695969038 rtol=1e-4
     SNR = flux ./ obs_err
     RMS_SNR = sqrt(mean(SNR[msk] .^ 2))
     Q_prec = Korg.RV_prec_from_Q(Q, RMS_SNR, count(msk))
