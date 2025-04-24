@@ -470,9 +470,9 @@ function calculate_EWs(atm, linelist, A_X; ew_window_size::Real=2.0, wl_step=0.0
         throw(ArgumentError("linelist must be sorted"))
     end
 
-    merged_windows, lines_per_window = merge_bounds([(line.wl * 1e8 - ew_window_size,
-                                                      line.wl * 1e8 + ew_window_size)
-                                                     for line in linelist], 0.0)
+    merged_windows, lines_per_window = Korg.merge_bounds([(line.wl * 1e8 - ew_window_size,
+                                                           line.wl * 1e8 + ew_window_size)
+                                                          for line in linelist], 0.0)
     wl_ranges = map(merged_windows) do (wl1, wl2)
         wl1:wl_step:wl2
     end
@@ -875,6 +875,7 @@ A tuple containing:
 """
 function ews_to_stellar_parameters(linelist, measured_EWs,
                                    measured_EW_err=ones(length(measured_EWs));
+                                   func=ews_to_abundances,
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
@@ -884,7 +885,6 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                                       Korg._sdss_marcs_atmospheres[1][3][end])],
                                    fix_params=[false, false, false, false],
                                    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
-    throw("This function is currently disabled while we fix some bugs. See https://github.com/ajwheeler/Korg.jl/pull/331 for details.")
     if :vmic in keys(passed_kwargs)
         throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
     end
@@ -932,7 +932,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     # set up closure to compute residuals
     get_residuals = (p) -> _stellar_param_equation_residuals(p, linelist, measured_EWs,
                                                              measured_EW_err,
-                                                             fix_params, callback, passed_kwargs)
+                                                             fix_params, callback, func,
+                                                             passed_kwargs)
     iterations = 0
     J_result = DiffResults.JacobianResult(params)
     while true
@@ -956,7 +957,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
 
     # compute uncertainties
     stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs,
-                                                              measured_EW_err, passed_kwargs)
+                                                              measured_EW_err, func, passed_kwargs)
 
     J = DiffResults.jacobian(J_result)[.!fix_params, .!fix_params]
     stat_σ = zeros(4)
@@ -969,9 +970,11 @@ end
 
 # called by ews_to_stellar_parameters
 function _stellar_param_equation_residuals(params, linelist, EW, EW_err,
-                                           fix_params, callback, passed_kwargs)
+                                           fix_params, callback, ews_to_abundances, passed_kwargs)
     A, A_inv_var, neutrals, REWs, Z = _stellar_param_equations_precalculation(params, linelist, EW,
-                                                                              EW_err, passed_kwargs)
+                                                                              EW_err,
+                                                                              ews_to_abundances,
+                                                                              passed_kwargs)
 
     teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
                                A[neutrals], A_inv_var[neutrals])
@@ -989,9 +992,12 @@ end
 
 # called by _stellar_param_equation_residuals
 # returns (statistical_uncertainty, systematic_uncertainty)
-function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, passed_kwargs)
+function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, ews_to_abundances,
+                                               passed_kwargs)
     A, A_inv_var, neutrals, REWs, _ = _stellar_param_equations_precalculation(params, linelist, EW,
-                                                                              EW_err, passed_kwargs)
+                                                                              EW_err,
+                                                                              ews_to_abundances,
+                                                                              passed_kwargs)
 
     # estimated total (including systematic) err in the abundances of each line
     total_err = std(A)
@@ -1014,7 +1020,8 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, pas
     end
 end
 
-function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, passed_kwargs)
+function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, ews_to_abundances,
+                                                 passed_kwargs)
     teff, logg, vmic, feh = params
     A_X = Korg.format_A_X(feh)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true,
