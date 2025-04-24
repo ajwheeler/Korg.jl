@@ -160,9 +160,6 @@ function formula_show_helper(io::IO, atom, n_of_this_atom)
     end
 end
 
-# make it broadcast like a scalar
-Base.broadcastable(f::Formula) = Ref(f)
-
 """
     ismolecule(f::Formula)
 
@@ -287,9 +284,6 @@ function Base.show(io::IO, s::Species)
         print(io, " ", s.charge)
     end
 end
-
-# make it broadcast like a scalar
-Base.broadcastable(s::Species) = Ref(s)
 
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
