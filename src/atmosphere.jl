@@ -5,6 +5,19 @@ import Interpolations
 
 abstract type ModelAtmosphere end
 
+"""
+    PlanarAtmosphereLayer(tau_5000, z, temp, nₑ, n)
+
+A layer of a planar atmosphere.
+
+# Arguments
+
+  - `tau_5000`: the optical depth at 5000 Å.  This is useful for radiative transfer.
+  - `z`: the height (cm) of the layer relative to the photosphere.
+  - `temp`: the temperature (K) of the layer.
+  - `nₑ`: the electron number density (cm⁻³) of the layer.
+  - `n`: the total number density (cm⁻³) of the layer.
+"""
 struct PlanarAtmosphereLayer{F1,F2,F3,F4,F5}
     tau_5000::F1                #dimensionless (used for legacy radiative transfer)
     z::F2                       #cm
@@ -13,10 +26,29 @@ struct PlanarAtmosphereLayer{F1,F2,F3,F4,F5}
     number_density::F5          #cm^-3
 end
 
+"""
+    PlanarAtmosphere(layers)
+
+A planar atmosphere is a flat atmosphere with its photosphere at `z = 0`.  The atmosphere is
+specified by a vector of [`PlanarAtmosphereLayer`](@ref)s.
+"""
 struct PlanarAtmosphere{F1,F2,F3,F4,F5} <: ModelAtmosphere
     layers::Vector{PlanarAtmosphereLayer{F1,F2,F3,F4,F5}}
 end
 
+"""
+    ShellAtmosphereLayer(tau_5000, z, temp, nₑ, n)
+
+A layer of a shell atmosphere.
+
+# Arguments
+
+  - `tau_5000`: the optical depth at 5000 Å.  This is useful for radiative transfer.
+  - `z`: the height (cm) of the layer relative to the photosphere.
+  - `temp`: the temperature (K) of the layer.
+  - `nₑ`: the electron number density (cm⁻³) of the layer.
+  - `n`: the total number density (cm⁻³) of the layer.
+"""
 struct ShellAtmosphereLayer{F1,F2,F3,F4,F5}
     tau_5000::F1                #dimensionless (used for legacy radiative transfer)
     z::F2                       #cm
@@ -25,6 +57,12 @@ struct ShellAtmosphereLayer{F1,F2,F3,F4,F5}
     number_density::F5          #cm^-3
 end
 
+"""
+    ShellAtmosphere(layers, R)
+
+`ShellAtmosphere`s (spherical atmospheres) are specified by a vector of
+[`ShellAtmosphereLayer`](@ref)s and a photospheric radius `R`.
+"""
 struct ShellAtmosphere{F1,F2,F3,F4,F5,F6} <: ModelAtmosphere
     layers::Vector{ShellAtmosphereLayer{F1,F2,F3,F4,F5}}
     R::F6 #the radius of the star where τ_ros == 1, i.e. the photosphere (not the top)
@@ -93,7 +131,7 @@ memory-efficient order.
 """
 get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
 """
-    get_gas_pressures(atm::ModelAtmosphere) 
+    get_gas_pressures(atm::ModelAtmosphere)
 
 This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
@@ -159,7 +197,7 @@ function read_model_atmosphere(fname::AbstractString)::ModelAtmosphere
     end
 end
 
-# used for the standard and low-metallicity grids.  Lazy linear interp is used for these, so it's 
+# used for the standard and low-metallicity grids.  Lazy linear interp is used for these, so it's
 # just a matter of reading the data and setting up the mmap.
 function _prepare_linear_atmosphere_archive(path)
     h5open(path, "r") do f
@@ -182,7 +220,7 @@ _low_Z_marcs_atmospheres = let
     _prepare_linear_atmosphere_archive(path)
 end
 
-# cubic interp is used for the cool dwarfs, so we need to set up the interpolator. This takes more 
+# cubic interp is used for the cool dwarfs, so we need to set up the interpolator. This takes more
 # cpu/memory.
 function _prepare_cool_dwarf_atm_archive(grid, nodes)
     nodes_ranges = [range(first(n), last(n), length(n)) for n in nodes]
@@ -191,7 +229,7 @@ function _prepare_cool_dwarf_atm_archive(grid, nodes)
     nlayers = size(grid, 1)
     knots = tuple(1.0f0:nlayers, 1.0f0:5.0f0, nodes_ranges...)
 
-    # This currently add a lot of time to package precompile time if not done lazily.  
+    # This currently add a lot of time to package precompile time if not done lazily.
     # Ideally it would be faster.
     itp = Interpolations.scale(Interpolations.interpolate(grid,
                                                           (Interpolations.NoInterp(),
@@ -231,7 +269,7 @@ end
     interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; kwargs...)
 
 Returns a model atmosphere computed by interpolating models from [MARCS](https://marcs.astro.uu.se/)
-([Gustafsson+ 2008](https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract)).
+((Gustafsson+ 2008)[https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract]).
 Along with `Teff` and `logg`, the atmosphere is specified by `m_H`, `alpha_m`, and `C_m`, which can
 be automatically determined from an `A_X` abundance vector (the recommended method,
 see [`format_A_X`](@ref)). Note that the MARCS atmosphere models were constructed with the
@@ -316,7 +354,7 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
             end
             params = [Teff, logg, m_H]
             param_names = ["Teff", "log(g)", "[M/H]"]
-            # standard 
+            # standard
         else
             nodes, grid = archives[1]
             params = [Teff, logg, m_H, alpha_m, C_m]
@@ -326,7 +364,7 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
         atm_quants = lazy_multilinear_interpolation(params, nodes, grid; param_names=param_names,
                                                     perturb_at_grid_values=perturb_at_grid_values)
 
-        # grid atmospheres are allowed to have to NaNs to represent layers that should be dropped. 
+        # grid atmospheres are allowed to have to NaNs to represent layers that should be dropped.
         nanmask = .!isnan.(atm_quants[:, 4]) # any column will do. This is τ_5000.
 
         if spherical
@@ -350,8 +388,8 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
     end
     atm
 end
-# handle the case where Teff, logg, and [m/H] are integers. As long as not all (interpolated) params 
-# are passed in as integers, there's no problem. 
+# handle the case where Teff, logg, and [m/H] are integers. As long as not all (interpolated) params
+# are passed in as integers, there's no problem.
 function interpolate_marcs(Teff::Int, logg::Int, m_H::Int, args...; kwargs...)
     interpolate_marcs(Float64(Teff), args...; kwargs...)
 end
