@@ -60,8 +60,8 @@ Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
 
 # Example
 
-to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to
-0.5 dex less than the solar value except carbon, except carbon, which we set to [C/H]=-0.25:
+To synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to
+0.5 dex less than the solar value except carbon, which we set to [C/H]=-0.25:
 
 ```
 atm = read_model_atmosphere("path/to/atmosphere.mod")

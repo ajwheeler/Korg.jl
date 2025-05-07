@@ -231,7 +231,7 @@ end
     interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; kwargs...)
 
 Returns a model atmosphere computed by interpolating models from [MARCS](https://marcs.astro.uu.se/)
-((Gustafsson+ 2008)[https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract]).
+([Gustafsson+ 2008](https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract)).
 Along with `Teff` and `logg`, the atmosphere is specified by `m_H`, `alpha_m`, and `C_m`, which can
 be automatically determined from an `A_X` abundance vector (the recommended method,
 see [`format_A_X`](@ref)). Note that the MARCS atmosphere models were constructed with the

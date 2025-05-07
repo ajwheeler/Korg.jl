@@ -1,5 +1,7 @@
 using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, Aqua
 
+println("running test suite with  ", Threads.nthreads(), " threads.")
+
 @testset "Korg tests" verbose=true showtiming=true begin
 
     # tools for testing: assert_allclose and assert_allclose_grid
