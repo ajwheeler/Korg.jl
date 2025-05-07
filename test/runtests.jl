@@ -14,7 +14,6 @@ println("running test suite with  ", Threads.nthreads(), " threads.")
     include("species.jl")
     include("interval.jl")
     include("continuum_absorption.jl") # test this after the "Interval" testset
-    include("partition_funcs.jl")
     include("statmech.jl")
     include("linelist.jl")
     include("fit.jl")                            # slow

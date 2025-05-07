@@ -117,12 +117,49 @@ using Random
                                           synthesis_wls=synth_wls, LSF_matrix=LSF,
                                           windows=[(5003, 5008)], time_limit=1)
                 end
-                @test_throws "must all have the same length" begin
+                @test_throws "obs_wls, obs_flux, and obs_err must all have the same length" begin
                     Korg.Fit.fit_spectrum(obs_wls[1:end-1], fake_data, err, linelist, p0,
+                                          fixed_params;
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF[1:end-1, :],
+                                          time_limit=1)
+                end
+
+                @test_throws "obs_wls must be sorted in order of increasing wavelength" begin
+                    Korg.Fit.fit_spectrum(reverse(obs_wls), fake_data, err, linelist, p0,
                                           fixed_params;
                                           synthesis_wls=synth_wls, LSF_matrix=LSF,
                                           time_limit=1)
                 end
+
+                @testset "bad vals" for bad_val in [NaN, Inf, -Inf]
+                    @test_throws "obs_wls, obs_flux, and obs_err must not contain NaN or Inf" begin
+                        bad_flux = copy(fake_data)
+                        bad_flux[1] = bad_val
+                        Korg.Fit.fit_spectrum(obs_wls, bad_flux, err, linelist, p0,
+                                              fixed_params;
+                                              synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                              time_limit=1)
+                    end
+
+                    # check that it works if the bad val is outside the mask
+                    bad_flux = copy(fake_data)
+                    bad_flux[1] = bad_val
+                    Korg.Fit.fit_spectrum(obs_wls, bad_flux, err, linelist, p0,
+                                          fixed_params;
+                                          R=Inf, time_limit=1, windows=[(5000, 5010)])
+                end
+
+                @testset "err contains zeros" begin
+                    @test_throws "obs_err must not contain zeros" begin
+                        bad_err = copy(err)
+                        bad_err[1] = 0
+                        Korg.Fit.fit_spectrum(obs_wls, fake_data, bad_err, linelist, p0,
+                                              fixed_params;
+                                              synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                              time_limit=1)
+                    end
+                end
+
                 @test_throws "the first dimension of LSF_matrix" begin
                     Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
                                           synthesis_wls=synth_wls, LSF_matrix=LSF[1:end-1, :],
@@ -204,7 +241,7 @@ using Random
 
                 mean_diff_abundances = sum(diff_abundances) / length(diff_abundances)
                 @test abs(mean_diff_abundances) < 0.05
-                # consider testing stddev?        
+                # consider testing stddev?
             end
         end
 
