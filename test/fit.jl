@@ -120,7 +120,7 @@ using Random
                 @test_throws "obs_wls, obs_flux, and obs_err must all have the same length" begin
                     Korg.Fit.fit_spectrum(obs_wls[1:end-1], fake_data, err, linelist, p0,
                                           fixed_params;
-                                          synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF[1:end-1, :],
                                           time_limit=1)
                 end
 
@@ -146,8 +146,7 @@ using Random
                     bad_flux[1] = bad_val
                     Korg.Fit.fit_spectrum(obs_wls, bad_flux, err, linelist, p0,
                                           fixed_params;
-                                          synthesis_wls=synth_wls, LSF_matrix=LSF,
-                                          time_limit=1, windows=[(5000, 5010)])
+                                          R=Inf, time_limit=1, windows=[(5000, 5010)])
                 end
 
                 @testset "err contains zeros" begin
