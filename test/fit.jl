@@ -140,6 +140,14 @@ using Random
                                               synthesis_wls=synth_wls, LSF_matrix=LSF,
                                               time_limit=1)
                     end
+
+                    # check that it works if the bad val is outside the mask
+                    bad_flux = copy(fake_data)
+                    bad_flux[1] = bad_val
+                    Korg.Fit.fit_spectrum(obs_wls, bad_flux, err, linelist, p0,
+                                          fixed_params;
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                          time_limit=1, windows=[(5000, 5010)])
                 end
 
                 @testset "err contains zeros" begin

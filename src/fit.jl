@@ -209,22 +209,18 @@ function _namedtuple_to_dict(nt::NamedTuple)
 end
 
 # throw informative errors if the observed spectrum has issues
-function _validate_observed_spectrum(obs_wls, obs_flux, obs_err)
+function _validate_observed_spectrum(obs_wls, obs_flux, obs_err, obs_wl_mask)
     if length(obs_wls) != length(obs_flux) || length(obs_wls) != length(obs_err)
         throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_wls, obs_flux, and obs_err must all have the same length."))
     end
 
-    if !issorted(obs_wls)
-        throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_wls must be sorted in order of increasing wavelength."))
-    end
-
     for arr in [obs_wls, obs_flux, obs_err]
-        if any(.!isfinite, arr)
+        if any(.!isfinite, arr[obs_wl_mask])
             throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_wls, obs_flux, and obs_err must not contain NaN or Inf."))
         end
     end
 
-    if any(iszero, obs_err)
+    if any(iszero, obs_err[obs_wl_mask])
         throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_err must not contain zeros."))
     end
 end
@@ -329,12 +325,12 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                       windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
                       time_limit=10_000, adjust_continuum=false, synthesis_kwargs...)
-    _validate_observed_spectrum(obs_wls, obs_flux, obs_err)
-
     # wavelengths, windows and LSF
     synthesis_wls, obs_wl_mask, LSF_matrix = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls,
                                                                         LSF_matrix, R, windows,
                                                                         wl_buffer)
+
+    _validate_observed_spectrum(obs_wls, obs_flux, obs_err, obs_wl_mask)
 
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
     ps = collect(pairs(scale(initial_guesses)))
@@ -434,6 +430,10 @@ end
 
 # called by fit_spectrum
 function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows, wl_buffer)
+    if !issorted(obs_wls)
+        throw(ArgumentError("When using Korg.Fit.fit_spectrum, obs_wls must be sorted in order of increasing wavelength."))
+    end
+
     if (!isnothing(LSF_matrix) || !isnothing(synthesis_wls))
         if !isnothing(R)
             throw(ArgumentError("LSF_matrix and synthesis_wls cannot be specified if R is provided."))
