@@ -15,7 +15,9 @@ using ForwardDiff, DiffResults
 using Trapz
 using Statistics: mean, std
 using ProgressMeter
-using SimpleNonlinearSolve
+using NonlinearSolve
+using SciMLBase: successful_retcode
+using FiniteDiff
 
 # used by scale and unscale for some parameters
 function tan_scale(p, lower, upper)
@@ -462,7 +464,29 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
 end
 
 """
-TODO
+    calculate_EWs(atm, linelist, A_X; kwargs...)
+
+Calculate the equivalent widths of the lines in `linelist` in the spectrum synthesized from `atm`
+with abundances `A_X`.
+
+# Arguments:
+
+  - `atm`: the model atmosphere (see [`Korg.read_model_atmosphere`](@ref) and
+    [`Korg.interpolate_marcs`](@ref)).
+  - `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref)).  The lines must
+    be sorted by wavelength.
+  - `A_X`: a vector containing the A(X) abundances (log(n_X/n_H) + 12) for elements from hydrogen to
+    uranium (see [`Korg.format_A_X`](@ref)). All syntheses are done with these abundances, so if the
+    resulting abundances deviate significantly from these, you may wish to iterate.
+
+# Keyword arguments:
+
+  - `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for
+    each line.
+  - `wl_step` (default: 0.01): the resolution in Å at which to synthesize the spectrum around each
+    line.
+  - `blend_warn_threshold` (default: 0.01): the minimum depth between two lines allowed before
+    triggering a warning that they may be blended.
 """
 function calculate_EWs(atm, linelist, A_X; ew_window_size::Real=2.0, wl_step=0.01,
                        blend_warn_threshold=0.01, synthesize_kwargs...)
@@ -528,6 +552,8 @@ end
 Compute per-line abundances on the linear part of the curve of growth given a model atmosphere and a
 list of lines with equivalent widths.
 
+TODO assumptions
+
 # Arguments:
 
   - `atm`: the model atmosphere (see [`Korg.read_model_atmosphere`](@ref) and
@@ -552,9 +578,12 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
   - `blend_warn_threshold` (default: 0.01) is the minimum absorption between two lines allowed before
     triggering a warning that they may be blended.
     All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
+  - `finite_difference_delta_A` (default: 0.01): the step size in A(X) to use for the finite
+    difference calculation of the curve of growth slope.
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0, wl_step=0.01,
-                           blend_warn_threshold=0.01, synthesize_kwargs...)
+                           blend_warn_threshold=0.01, finite_difference_delta_A=0.01,
+                           synthesize_kwargs...)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -572,11 +601,11 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
 
     EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size, wl_step=wl_step,
                         blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
-    A_X[3:Korg.MAX_ATOMIC_NUMBER] .+= 0.01 #TODO factor into kwarg
+    A_X[3:Korg.MAX_ATOMIC_NUMBER] .+= finite_difference_delta_A
     perturbed_EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size,
                                   wl_step=wl_step,
                                   blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
-    ∂A_∂REW = @. 0.01 / (log10(perturbed_EWs) - log10(EWs))
+    ∂A_∂REW = @. finite_difference_delta_A / (log10(perturbed_EWs) - log10(EWs))
 
     @. A0 + ∂A_∂REW * (log10(measured_EWs) - log10.(EWs))
 end
@@ -585,8 +614,8 @@ end
 don't converge quickly because of curvature
 """
 function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
-                                   wl_step=0.01, callback=Returns(nothing),
-                                   blend_warn_threshold=0.01, synthesize_kwargs...)
+                                   wl_step=0.01, callback=Returns(nothing), abundance_tol=1e-5,
+                                   max_iter=30, blend_warn_threshold=0.01, synthesize_kwargs...)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -600,32 +629,48 @@ function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_s
         @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
     end
 
-    A_X = copy(A_X)
-    A0 = [A_X[Korg.get_atom(l.species)] for l in linelist]
-    ΔA = zeros(length(linelist))
-    while true
-        #display(ΔA)
-        @show maximum(abs.(ΔA))
-        perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ Δ) for (l, Δ) in zip(linelist, ΔA)]
-        EWs = calculate_EWs(atm, perturbed_linelist, A_X; ew_window_size=ew_window_size,
-                            wl_step=wl_step, blend_warn_threshold=blend_warn_threshold,
-                            synthesize_kwargs...)
+    # do a single synthesis to get the chemical equilibrium once
+    sol = synthesize(atm, [], A_X, 5000, 5000)
 
-        A_X[3:Korg.MAX_ATOMIC_NUMBER] .+= 0.01 #TODO factor into kwarg
-        perturbed_EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size,
-                                      wl_step=wl_step,
-                                      blend_warn_threshold=blend_warn_threshold,
-                                      synthesize_kwargs...)
-        A_X[3:Korg.MAX_ATOMIC_NUMBER] .-= 0.01 #TODO factor into kwarg
-        ∂A_∂REW = @. 0.01 / (log10(perturbed_EWs) - log10(EWs))
-        δA = @. ∂A_∂REW * (log10(measured_EWs) - log10(EWs))
-        ΔA .+= δA
+    A_X = copy(A_X)
+    # fiducial abundance for each line is taked from the A_X vector
+    A0 = [A_X[Korg.get_atom(l.species)] for l in linelist]
+    # difference between the measured and fiducial abundance for each line
+    ΔA = zeros(length(linelist))
+    ΔA_prev = copy(ΔA) .+ 0.01
+    fitmask = ones(Bool, length(linelist))
+
+    perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ 0.01) for l in linelist] # TODO
+    EWs_prev = calculate_EWs(atm, perturbed_linelist, A_X; ew_window_size=ew_window_size,
+                             wl_step=wl_step, blend_warn_threshold=blend_warn_threshold,
+                             use_chemical_equilibrium_from=sol, synthesize_kwargs...)
+    EWs = copy(EWs_prev) # just to allocate
+
+    iter = 0
+    while sum(fitmask) > 0 && iter < max_iter # while there are still lines to fit
+        iter += 1
+        @show maximum(abs.(ΔA))
+        @show sum(.!fitmask)
+
+        perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ Δ)
+                              for (l, Δ) in zip(linelist[fitmask], ΔA[fitmask])]
+        EWs[fitmask] .= calculate_EWs(atm, perturbed_linelist, A_X; ew_window_size=ew_window_size,
+                                      wl_step=wl_step, blend_warn_threshold=blend_warn_threshold,
+                                      use_chemical_equilibrium_from=sol, synthesize_kwargs...)
+
+        ∂A_∂REW = @. (ΔA[fitmask] - ΔA_prev[fitmask]) / log10(EWs[fitmask] / EWs_prev[fitmask])
+        δA = @. ∂A_∂REW * log10(measured_EWs[fitmask] / EWs[fitmask])
+
+        ΔA_prev[fitmask] .= ΔA[fitmask]
+        ΔA[fitmask] .+= δA
         callback(A0 .+ ΔA)
 
-        if all(abs.(δA) .< 1e-6)
-            break
-        end
+        # stop fitting lines that have converged
+        fitmask[fitmask] .&= abs.(δA) .> abundance_tol
     end
+
+    ΔA[fitmask] .= NaN # NaN out anything unconverged
+
     A0 .+ ΔA
 end
 
@@ -647,21 +692,32 @@ function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_siz
                                       wl_step=wl_step, synthesis_kwargs...)
 
     sol = synthesize(atm, [], A_X, 5000, 5000)
-    @showprogress desc="solving for each line" map(linelist, measured_EWs,
-                                                   initial_guess) do line, EW, A0
+    desc = "solving for each line"
+    @showprogress desc=desc map(linelist, measured_EWs, initial_guess) do line, EW, A0
         A_fiducial = A_X[Korg.get_atom(line.species)]
         # use Optim.jl to find the abundance that gives the measured EW
-        function residual(A, p)
-            perturbed_line = [Korg.Line(line; log_gf=line.log_gf + A[1] - A_fiducial)]
-            synthetic_EW = calculate_EWs(atm, perturbed_line, A_X; ew_window_size=ew_window_size,
-                                         wl_step=wl_step,
-                                         electron_number_density_warn_threshold=Inf,
-                                         use_chemical_equilibrium_from=sol, synthesis_kwargs...)[1]
-            synthetic_EW - EW
+        params = (A_X, line, A_fiducial, EW, atm, sol, ew_window_size, wl_step, synthesis_kwargs)
+
+        prob = NonlinearProblem(residuals_ews_to_abundances, A0, params)
+        #solve(prob, SimpleNewtonRaphson(; autodiff=nothing); store_trace=Val(true))#.u[1] # TODO
+        s = solve(prob; store_trace=Val(true), abstol=1e-10, maxiters=30) # TODO tol
+        if successful_retcode(s)
+            s.u[1]
+        else
+            NaN * s.u[1]
         end
-        prob = NonlinearProblem(residual, A0; abstol=1e-6)
-        solve(prob, SimpleNewtonRaphson(); store_trace=Val(true)).u[1]
     end
+end
+
+function residuals_ews_to_abundances(A, p)
+    A_X, line, A_fiducial, EW, atm, sol, ew_window_size, wl_step, synthesis_kwargs = p
+
+    perturbed_line = [Korg.Line(line; log_gf=line.log_gf + A[1] - A_fiducial)]
+    synthetic_EW = calculate_EWs(atm, perturbed_line, A_X; ew_window_size=ew_window_size,
+                                 wl_step=wl_step,
+                                 electron_number_density_warn_threshold=Inf,
+                                 use_chemical_equilibrium_from=sol, synthesis_kwargs...)[1]
+    synthetic_EW - EW
 end
 
 """
@@ -695,6 +751,9 @@ function _ew_correction(line, αcntm, ntot, A_X, number_densities, level_ind, T)
      log10(line.wl))
 end
 
+"""
+    f
+"""
 function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size=2.0, wl_step=0.01,
                                 synthesis_kwargs...)
     # TODO reevaluate argument checks
@@ -875,14 +934,15 @@ A tuple containing:
 """
 function ews_to_stellar_parameters(linelist, measured_EWs,
                                    measured_EW_err=ones(length(measured_EWs));
-                                   func=ews_to_abundances,
+                                   ews_to_abundances_func=ews_to_abundances,
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
-                                   parameter_ranges=[extrema.(Korg._sdss_marcs_atmospheres[1][1:2])
-                                                     (1e-3, 10.0);
-                                                     (Korg._low_Z_marcs_atmospheres[1][3][1],
-                                                      Korg._sdss_marcs_atmospheres[1][3][end])],
+                                   # TODO expand to include low metallicity atmospheres
+                                   parameter_ranges=[(2800.0, 8000.0),
+                                       (-0.5, 5.5),
+                                       (1e-3, 10.0),
+                                       (-2.5, 1.0)],
                                    fix_params=[false, false, false, false],
                                    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
     if :vmic in keys(passed_kwargs)
@@ -932,14 +992,18 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     # set up closure to compute residuals
     get_residuals = (p) -> _stellar_param_equation_residuals(p, linelist, measured_EWs,
                                                              measured_EW_err,
-                                                             fix_params, callback, func,
+                                                             fix_params, callback,
+                                                             ews_to_abundances_func,
                                                              passed_kwargs)
     iterations = 0
     J_result = DiffResults.JacobianResult(params)
+    #J = Matrix{Float64}(undef, 4, 4)
     while true
         J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
         J = DiffResults.jacobian(J_result)
         residuals = DiffResults.value(J_result)
+        #residuals = get_residuals(params)
+        #J .= FiniteDiff.finite_difference_jacobian(get_residuals, params)
         if all((abs.(residuals).<tolerances)[.!fix_params]) # stopping condition
             break
         end
@@ -957,7 +1021,9 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
 
     # compute uncertainties
     stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs,
-                                                              measured_EW_err, func, passed_kwargs)
+                                                              measured_EW_err,
+                                                              ews_to_abundances_func,
+                                                              passed_kwargs)
 
     J = DiffResults.jacobian(J_result)[.!fix_params, .!fix_params]
     stat_σ = zeros(4)
@@ -1022,10 +1088,11 @@ end
 
 function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, ews_to_abundances,
                                                  passed_kwargs)
-    teff, logg, vmic, feh = params
-    A_X = Korg.format_A_X(feh)
+    teff, logg, vmic, m_H = params
+    A_X = Korg.format_A_X(m_H)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true,
                                  clamp_abundances=true)
+
     A = ews_to_abundances(atm, linelist, A_X, EW; vmic=vmic, passed_kwargs...)
     # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
     A_inv_var = (EW .* A ./ EW_err) .^ 2
