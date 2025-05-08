@@ -640,7 +640,9 @@ function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_s
     ΔA_prev = copy(ΔA) .+ 0.01
     fitmask = ones(Bool, length(linelist))
 
-    perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ 0.01) for l in linelist] # TODO
+    perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ Δ)
+                          for (l, Δ) in zip(linelist, ΔA_prev - ΔA)]
+
     EWs_prev = calculate_EWs(atm, perturbed_linelist, A_X; ew_window_size=ew_window_size,
                              wl_step=wl_step, blend_warn_threshold=blend_warn_threshold,
                              use_chemical_equilibrium_from=sol, synthesize_kwargs...)
@@ -718,151 +720,6 @@ function residuals_ews_to_abundances(A, p)
                                  electron_number_density_warn_threshold=Inf,
                                  use_chemical_equilibrium_from=sol, synthesis_kwargs...)[1]
     synthetic_EW - EW
-end
-
-"""
-TODO
-"""
-function _ew_correction(line, αcntm, ntot, A_X, number_densities, level_ind, T)
-    fractional_abundances = 10 .^ (A_X .- 12)
-    fractional_abundances ./= sum(fractional_abundances)
-
-    E_up = line.E_lower + Korg.hplanck_eV * Korg.c_cgs / line.wl
-    β = 1 / (Korg.kboltz_eV * T)
-
-    # TODO pass in partition functions
-    U = Korg.default_partition_funcs[line.species](log(T))
-
-    n_nuclei = map(collect(keys(number_densities))) do spec
-        sum(Korg.get_atoms(spec) .== Korg.get_atom(line.species)) *
-        number_densities[spec][level_ind]
-    end |> sum
-    n_species = number_densities[line.species][level_ind]
-
-    (-log10(αcntm)
-     + line.log_gf
-     # TODO including this factor causes a non-monotonicity because of molecules?
-     + log10(n_species / n_nuclei) # splits out the ions??? order unity within a species
-     + log10(ntot * fractional_abundances[1]) # big effect
-     + log10(exp(-β * line.E_lower) - exp(-β * E_up)) # big effect, same as -θχ because stimulated emission is tiny
-     -
-     log10(U) # small effect
-     +
-     log10(line.wl))
-end
-
-"""
-    f
-"""
-function ews_to_abundances_gray(atm, linelist, A_X, measured_EWs; ew_window_size=2.0, wl_step=0.01,
-                                synthesis_kwargs...)
-    # TODO reevaluate argument checks
-    if length(linelist) != length(measured_EWs)
-        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
-    end
-    if any(l -> Korg.ismolecule(l.species), linelist)
-        throw(ArgumentError("linelist contains molecular species"))
-    end
-    # Check that the user is supplying EWs in mA
-    if 1 > maximum(measured_EWs)
-        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
-    end
-
-    # calculate the curve of growth using a single fictitious line, then generalize it to all
-    # transitions in the linelist and solve for the abundances measured from each.
-    # use the prescription described in Gray's Stellar Atmospheres
-
-    # TODO consider what the fictitious line should be when the linelist has multiple species
-    # should we just dissallow that?
-    fictitious_line = Korg.Line(mean(line.wl for line in linelist),
-                                mean(line.log_gf for line in linelist),
-                                linelist[1].species,
-                                mean(line.E_lower for line in linelist))
-
-    # first synthesis to get the formation depths
-    wls = linelist[1].wl * 1e8 - 5, linelist[end].wl * 1e8 + 5
-    @time sol = synthesize(atm, linelist, A_X, wls...; synthesis_kwargs...)
-    # second synthesis to get the continuum opacities
-    @time cntmsol = synthesize(atm, [], A_X, wls[1]:1.0:wls[end]; synthesis_kwargs...)
-
-    # TODO dynamically calculate what this needs to be from the line parameters?
-    # TODO abundance perturbation resolution?
-    # TODO this assumes linelist is all one element (not species)
-    # TODO resolution!
-    abundance_perturbations = -4:0.5:3 # TODO WHY IS THIS NON-MONOTONIC???
-    fict_wls = (fictitious_line.wl*1e8):(fictitious_line.wl*1e8)
-    fictitious_line_wl_cntm_ind = findfirst(fictitious_line.wl * 1e8 .> cntmsol.wavelengths)
-
-    falphas = []
-    fns = []
-    fnspecies = []
-    fts = []
-    frews = []
-    corrected_fictitious_REWs = @showprogress desc="fictitious EWs" map(abundance_perturbations) do perturbation
-        #TODO do this by modifying A_X or log gf?
-        fline = Korg.Line(fictitious_line; log_gf=fictitious_line.log_gf + perturbation)
-        ew = calculate_EWs(atm, [fline], A_X;
-                           ew_window_size=ew_window_size, wl_step=wl_step, synthesis_kwargs...)[1]
-        fict_sol = synthesize(atm, [fline], A_X, fict_wls; synthesis_kwargs...)
-        τform = Korg.depth_of_formation(atm, fict_sol)[1] #TODO reference wavelength?
-        layer_ind = findfirst(Korg.get_tau_5000s(atm) .> τform)
-
-        push!(falphas, cntmsol.alpha[layer_ind, fictitious_line_wl_cntm_ind])
-        push!(fns, atm.layers[layer_ind].number_density)
-        push!(fnspecies, cntmsol.number_densities[fictitious_line.species][layer_ind])
-        push!(fts, atm.layers[layer_ind].temp)
-        push!(frews, log10(ew / fictitious_line.wl))
-
-        correction = _ew_correction(fictitious_line, # NOT fline, because we want constant gf
-                                    cntmsol.alpha[layer_ind, fictitious_line_wl_cntm_ind],
-                                    atm.layers[layer_ind].number_density,
-                                    A_X,
-                                    cntmsol.number_densities,
-                                    layer_ind,
-                                    atm.layers[layer_ind].temp)
-
-        log10(ew / fictitious_line.wl) - correction
-    end
-    @show extrema(corrected_fictitious_REWs)
-    println("corrected_fictitious_REWs: ", corrected_fictitious_REWs)
-    #return falphas, fns, fnspecies, fts, frews, corrected_fictitious_REWs
-    fictitious_abundances = abundance_perturbations .+ A_X[Korg.get_atom(fictitious_line.species)]
-    #itp = linear_interpolation(corrected_fictitious_REWs, fictitious_abundances;
-    #                           extrapolation_bc=Line())
-
-    tau_formation = Korg.depth_of_formation(atm, sol)
-    # get info needed for EW correction for the measured lines
-    formation_temps = Vector{Float64}(undef, length(linelist))
-    alpha_cntms = Vector{Float64}(undef, length(linelist))
-    formation_ns = Vector{Float64}(undef, length(linelist))
-    formation_layer = Vector{Int}(undef, length(linelist))
-    for line_ind in eachindex(linelist)
-        wl_ind = findfirst(linelist[line_ind].wl * 1e8 .< sol.wavelengths)
-        layer_ind = argmin(abs.(Korg.get_tau_5000s(atm) .- tau_formation[wl_ind]))
-        formation_temps[line_ind] = atm.layers[layer_ind].temp
-        formation_ns[line_ind] = atm.layers[layer_ind].number_density
-        formation_layer[line_ind] = layer_ind
-        wl_ind = findfirst(linelist[line_ind].wl * 1e8 .< cntmsol.wavelengths)
-        alpha_cntms[line_ind] = cntmsol.alpha[layer_ind, wl_ind]
-    end
-    @show extrema(alpha_cntms)
-    @show extrema(formation_temps)
-    per_line_correction = _ew_correction.(linelist,
-                                          alpha_cntms,
-                                          formation_ns,
-                                          Ref(A_X),
-                                          Ref(cntmsol.number_densities),
-                                          formation_layer,
-                                          formation_temps)
-    measured_REWs = log10.(measured_EWs ./ (l.wl for l in linelist))
-    corrected_measured_REWs = measured_REWs .- per_line_correction
-
-    @show(extrema(corrected_measured_REWs))
-
-    (NaN,#itp.(corrected_measured_REWs),
-     fictitious_abundances,
-     corrected_fictitious_REWs,
-     corrected_measured_REWs)
 end
 
 """
