@@ -858,13 +858,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     params, stat_σ, sys_σ
 end
 
-"""
-    _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params, tolerances,
-                                        max_step_sizes, parameter_ranges, max_iterations)
-
-Perform one phase of the stellar parameter iteration, either with approximate or exact calculations.
-Returns true if the iteration converged, false otherwise.
-"""
+# Perform one phase of the stellar parameter iteration, either with approximate or exact calculations.
+# Returns true if the iteration converged, false otherwise.
 function _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
                                                tolerances, max_step_sizes, parameter_ranges,
                                                max_iterations)
