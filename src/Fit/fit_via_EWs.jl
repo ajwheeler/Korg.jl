@@ -229,6 +229,11 @@ A tuple containing:
   - the systematic uncertainties in the parameters, estimated from the scatter the abundances computed
     from each line not accounted for by the EW uncertainties.
 
+!!! info
+
+    For now, this function is limited to the parameters supported by the SDSS MARCS grid, i.e.
+    down to [m/H] = -2.5 at the lowest metallicity grid point.
+
 # Keyword arguments:
 
   - `Teff0` (default: 5000.0) is the starting guess for Teff
@@ -245,7 +250,7 @@ A tuple containing:
     unadjusted step size is often too large.
   - `parameter_ranges` (default: `[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)]`) is the
     allowed range for each parameter. This is used to prevent the solver from wandering into
-    unphysical parameter space, or outside the range of the MARCS grid supported by
+    unphysical parameter space, or outside the range of the SDSS MARCS grid supported by
     [`Korg.interpolate_marcs`](@ref). The default ranges for ``T_\\mathrm{eff}``, ``\\log g``, and [m/H]
     are the widest supported by the MARCS grid. The minimum value for `vmic` is set to 1e-3 km/s to
     avoid null derivatives in the optimization.
@@ -266,7 +271,6 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
-                                   # TODO expand to include low metallicity atmospheres
                                    parameter_ranges=[(2800.0, 8000.0),
                                        (-0.5, 5.5),
                                        (1e-3, 10.0),
