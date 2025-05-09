@@ -823,33 +823,26 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     params = _validate_stellar_parameters(linelist, measured_EWs, measured_EW_err, params0,
                                           parameter_ranges)
 
-    # set up closure to compute residuals
+    # First phase: approximate calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
                                                              measured_EW_err, fix_params, callback,
                                                              passed_kwargs)
     iterations = 0
     J_result = DiffResults.JacobianResult(params)
-    while true
-        _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
-                                              tolerances, max_step_sizes, parameter_ranges) && break
-        iterations += 1
-        if iterations > max_iterations
-            @warn "Failed to converge after $max_iterations iterations.  Returning the current guess."
-            return params, fill(NaN, 4), fill(NaN, 4)
-        end
+    if !_ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
+                                              tolerances, max_step_sizes, parameter_ranges,
+                                              max_iterations)
+        return params, fill(NaN, 4), fill(NaN, 4)
     end
-    iterations = 0
+
+    # Second phase: exact calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(true, p, linelist, measured_EWs,
                                                              measured_EW_err, fix_params, callback,
                                                              passed_kwargs)
-    while true
-        _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
-                                              tolerances, max_step_sizes, parameter_ranges) && break
-        iterations += 1
-        if iterations > max_iterations
-            @warn "Failed to converge after $max_iterations iterations.  Returning the current guess."
-            return params, fill(NaN, 4), fill(NaN, 4)
-        end
+    if !_ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
+                                              tolerances, max_step_sizes, parameter_ranges,
+                                              max_iterations)
+        return params, fill(NaN, 4), fill(NaN, 4)
     end
 
     # compute uncertainties
@@ -865,23 +858,37 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     params, stat_σ, sys_σ
 end
 
-function _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params,
-                                               fix_params, tolerances, max_step_sizes,
-                                               parameter_ranges)
-    J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
-    J = DiffResults.jacobian(J_result)
-    residuals = DiffResults.value(J_result)
-    if all((abs.(residuals).<tolerances)[.!fix_params]) # stopping condition
-        return true
+"""
+    _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params, tolerances,
+                                        max_step_sizes, parameter_ranges, max_iterations)
+
+Perform one phase of the stellar parameter iteration, either with approximate or exact calculations.
+Returns true if the iteration converged, false otherwise.
+"""
+function _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
+                                               tolerances, max_step_sizes, parameter_ranges,
+                                               max_iterations)
+    iterations = 0
+    while true
+        J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
+        J = DiffResults.jacobian(J_result)
+        residuals = DiffResults.value(J_result)
+        if all((abs.(residuals).<tolerances)[.!fix_params]) # stopping condition
+            return true
+        end
+
+        # calculate step, and update params
+        step = zeros(length(params))
+        step[.!fix_params] = -J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
+        params .+= clamp.(step, -max_step_sizes, max_step_sizes)
+        params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
+
+        iterations += 1
+        if iterations > max_iterations
+            @warn "Failed to converge after $max_iterations iterations.  Returning the current guess."
+            return false
+        end
     end
-
-    # calculate step, and update params
-    step = zeros(length(params))
-    step[.!fix_params] = -J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
-    params .+= clamp.(step, -max_step_sizes, max_step_sizes)
-    params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
-
-    return false
 end
 
 # called by ews_to_stellar_parameters
