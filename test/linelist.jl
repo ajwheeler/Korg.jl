@@ -10,8 +10,8 @@
         @test Korg.Line(l1; E_lower=2.0).E_lower == 2.0
         @test Korg.Line(l1; gamma_rad=1e-8).gamma_rad == 1e-8
         @test Korg.Line(l1; gamma_stark=1e-8).gamma_stark == 1e-8
-        @test Korg.Line(l1; vdW=1e-8).vdW == 1e-8
-        @test Korg.Line(l1; vdW=-8.0).vdW == 1e-8
+        @test Korg.Line(l1; vdW=1e-8).vdW[1] == 1e-8
+        @test Korg.Line(l1; vdW=-8.0).vdW[1] == 1e-8
     end
 
     @testset "built-in linelists" begin
