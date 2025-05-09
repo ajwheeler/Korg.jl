@@ -309,7 +309,7 @@ using Random
                                                                           vmic0=0)
         end
 
-        @testset "basic EW fit" begin
+        @testset "basic fit" begin
             # 2 Å wide window around each line
             synth_wls = map(good_linelist) do line
                 wl = line.wl * 1e8
@@ -347,6 +347,35 @@ using Random
                     @test bestfit_fixed[i]≈best_fit_params[i] atol=stat_err[i]/10
                 end
             end
+        end
+
+        @testset "unconverged line behavior" begin
+            A_X = format_A_X()
+            atm = interpolate_marcs(5000, 4.0)
+
+            # make a linelist with one too-strong line
+            linelist = [Korg.Line(5000e-8, -2.5, Korg.species"Fe I", 4.0),
+                Korg.Line(5001e-8, -2.5, Korg.species"Fe I", 4.0),
+                Korg.Line(5002e-8, -2.5, Korg.species"Fe I", 4.0),
+                Korg.Line(5003e-8, -2.5, Korg.species"Fe II", 4.0)]
+
+            measured_EWs = Korg.Fit.calculate_EWs(atm, linelist, A_X)
+            As = Korg.Fit.ews_to_abundances(atm, linelist, A_X, measured_EWs)
+
+            # do a simple sanity check that calculate_EWs
+            # and ews_to_abundances do indeed invert each other
+            @test all(As .== Korg.default_solar_abundances[26])
+
+            # make sure one of the lines fails
+            erroneous_EWs = copy(measured_EWs)
+            erroneous_EWs[1:2] .= 0 # mess up some neutral line measurements
+            m = "Less than 70% of the lines converged"
+            @test_throws m Korg.Fit.ews_to_stellar_parameters(linelist, erroneous_EWs)
+
+            erroneous_EWs = copy(measured_EWs)
+            erroneous_EWs[end] = 0 # mess up the one ion line measurement
+            m = "Less than 50% of the ion lines converged"
+            @test_throws m Korg.Fit.ews_to_stellar_parameters(linelist, erroneous_EWs)
         end
     end
 end

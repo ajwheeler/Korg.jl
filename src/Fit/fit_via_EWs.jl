@@ -406,8 +406,19 @@ function _stellar_param_equation_residuals(exact_calculation, params, linelist, 
     A, A_inv_var, neutrals, REWs, Z = _stellar_param_equations_precalculation(exact_calculation,
                                                                               params, linelist, EW,
                                                                               EW_err, passed_kwargs)
-
     finitemask = isfinite.(A)
+
+    if mean(finitemask) < 0.7
+        throw(ErrorException("Less than 70% of the lines converged.  This may be due to a " *
+                             "problem with the linelist, the measured EWs, or the initial parameter " *
+                             "guess."))
+    end
+    if mean(finitemask[.!neutrals]) < 0.5
+        throw(ErrorException("Less than 50% of the ion lines converged.  This may be due to a " *
+                             "problem with the linelist, the measured EWs, or the initial parameter " *
+                             "guess."))
+    end
+
     neutrals = neutrals .& finitemask
 
     teff_residual = get_slope([line.E_lower for line in linelist[neutrals]],
@@ -415,13 +426,7 @@ function _stellar_param_equation_residuals(exact_calculation, params, linelist, 
     logg_residual = (weighted_mean(A[neutrals], A_inv_var[neutrals]) -
                      weighted_mean(A[.!neutrals.&finitemask], A_inv_var[.!neutrals.&finitemask]))
 
-    # TODO make sure it works if a line fails to converge
-    #@show length(REWs)
-    #@show length(finitemask)
-    #@show length(neutrals)
-    #@show length(finitemask[neutrals])
-
-    vmic_residual = get_slope(REWs[finitemask[neutrals]], A[neutrals], A_inv_var[neutrals])
+    vmic_residual = get_slope(REWs[neutrals], A[neutrals], A_inv_var[neutrals])
     feh_residual = weighted_mean(A[finitemask], A_inv_var[finitemask]) -
                    (params[4] + Korg.grevesse_2007_solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
@@ -446,7 +451,7 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, pas
         sigma_mean = 1 ./ sqrt(sum(ivar))
         teff_residual_sigma = get_slope_uncertainty([line.E_lower for line in linelist[neutrals]],
                                                     ivar[neutrals])
-        vmic_residual_sigma = get_slope_uncertainty(REWs, ivar[neutrals])
+        vmic_residual_sigma = get_slope_uncertainty(REWs[neutrals], ivar[neutrals])
         [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
     end
 
@@ -477,7 +482,7 @@ function _stellar_param_equations_precalculation(exact_calculation, params, line
     A_inv_var = (EW .* A ./ EW_err) .^ 2
 
     neutrals = [l.species.charge == 0 for l in linelist]
-    REWs = log10.(EW[neutrals] ./ [line.wl for line in linelist[neutrals]])
+    REWs = log10.(EW ./ [line.wl for line in linelist])
     # this is guaranteed not to be a mol (checked by ews_to_stellar_parameters).
     Z = Korg.get_atoms(linelist[1].species)[1]
 
