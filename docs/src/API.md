@@ -3,7 +3,7 @@ digging into the internals of Korg will be interested in can be found in the
 [Developer documentation](@ref).
 
 # [Top-level functions](@id API)
-If you are synthesize a spectrum Korg, these are the functions you will call.
+If you are trying to synthesize a spectrum with Korg, these are the functions you will call.
 These functions are exported, so if you do `using Korg`, you can call them unqualified (i.e.
 `synthesize` instead of `Korg.synthesize`).
 

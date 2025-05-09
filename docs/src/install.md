@@ -3,7 +3,7 @@ While Korg is written in Julia, it's possible to use it from either Julia or Pyt
 # Using Korg from Julia
 
 ## [1. Install Julia](@id install)
-Install Julia, by following the ([instructions on the website](https://julialang.org/downloads/)).
+Install Julia, by following the [instructions on the website](https://julialang.org/downloads/).
 
 !!! warning
     The latest versions of Korg support Julia 1.7 and greater, so make sure you are not using an
