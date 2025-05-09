@@ -680,58 +680,6 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
     A0 .+ ΔA
 end
 
-# Validate the input parameters for stellar parameter determination.
-function validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
-                                               parameter_ranges)
-    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
-        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
-    end
-
-    formulas = [line.species.formula for line in linelist]
-    if any(Ref(formulas[1]) .!= formulas)
-        throw(ArgumentError("All lines must be from the same element."))
-    end
-
-    if Korg.ismolecule(linelist[1].species)
-        throw(ArgumentError("Cannot do stellar parameter determination with molecular lines."))
-    end
-
-    neutrals = [l.species.charge == 0 for l in linelist]
-    if (sum(neutrals) < 3) || (sum(.!neutrals) < 1)
-        throw(ArgumentError("Must have at least 3 neutral lines and 1 ion line."))
-    end
-
-    if params0[3] == 0.0  # vmic0
-        throw(ArgumentError("Starting guess for vmic (vmic0) must be nonzero."))
-    end
-
-    if any(p[1] >= p[2] for p in parameter_ranges)
-        throw(ArgumentError("The lower bound of each parameter must be less than the upper bound."))
-    end
-
-    if parameter_ranges[3][1] <= 0.0
-        throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
-    end
-
-    # the widest parameter ranges allowed for model atmosphere interp
-    atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
-    atm_lb[3] = Korg._low_Z_marcs_atmospheres[1][3][1]
-    atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
-    if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) ||
-       any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
-        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid"))
-    end
-
-    params = clamp(params0, first.(parameter_ranges), last.(parameter_ranges))
-    for (p, p0, n) in zip(params, params0, ["Teff", "logg", "vmic", "metallicity"])
-        if p != p0
-            @warn "Initial guess for $n ($p0) has been clamped to $p, to be within the allowed range."
-        end
-    end
-
-    return params
-end
-
 """
     ews_to_stellar_parameters(linelist, measured_EWs, [measured_EW_err]; kwargs...)
 
@@ -852,6 +800,58 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     sys_σ[.!fix_params] .= abs.(J \ sys_σ_r[.!fix_params])
 
     params, stat_σ, sys_σ
+end
+
+# Validate the input parameters for stellar parameter determination.
+function validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
+                                               parameter_ranges)
+    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+
+    formulas = [line.species.formula for line in linelist]
+    if any(Ref(formulas[1]) .!= formulas)
+        throw(ArgumentError("All lines must be from the same element."))
+    end
+
+    if Korg.ismolecule(linelist[1].species)
+        throw(ArgumentError("Cannot do stellar parameter determination with molecular lines."))
+    end
+
+    neutrals = [l.species.charge == 0 for l in linelist]
+    if (sum(neutrals) < 3) || (sum(.!neutrals) < 1)
+        throw(ArgumentError("Must have at least 3 neutral lines and 1 ion line."))
+    end
+
+    if params0[3] == 0.0  # vmic0
+        throw(ArgumentError("Starting guess for vmic (vmic0) must be nonzero."))
+    end
+
+    if any(p[1] >= p[2] for p in parameter_ranges)
+        throw(ArgumentError("The lower bound of each parameter must be less than the upper bound."))
+    end
+
+    if parameter_ranges[3][1] <= 0.0
+        throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
+    end
+
+    # the widest parameter ranges allowed for model atmosphere interp
+    atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
+    atm_lb[3] = Korg._low_Z_marcs_atmospheres[1][3][1]
+    atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
+    if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) ||
+       any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
+        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid"))
+    end
+
+    params = clamp(params0, first.(parameter_ranges), last.(parameter_ranges))
+    for (p, p0, n) in zip(params, params0, ["Teff", "logg", "vmic", "metallicity"])
+        if p != p0
+            @warn "Initial guess for $n ($p0) has been clamped to $p, to be within the allowed range."
+        end
+    end
+
+    return params
 end
 
 # Perform one phase of the stellar parameter iteration, either with approximate or exact calculations.
