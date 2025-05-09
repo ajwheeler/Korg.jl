@@ -544,11 +544,6 @@ end
 """
     ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs... )
 
-!!! danger
-
-    Functions using equivalent widths have been dissabled while we
-    [fix some bugs](https://github.com/ajwheeler/Korg.jl/pull/331).
-
 Compute per-line abundances on the linear part of the curve of growth given a model atmosphere and a
 list of lines with equivalent widths.
 
@@ -580,41 +575,6 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
     All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
   - `finite_difference_delta_A` (default: 0.01): the step size in A(X) to use for the finite
     difference calculation of the curve of growth slope.
-"""
-# TODO
-
-"""
-    assume that all lines are on the linear part of the curve of growth?
-"""
-function ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
-                                  wl_step=0.01,
-                                  blend_warn_threshold=0.01, finite_difference_delta_A=0.01,
-                                  synthesize_kwargs...)
-    if length(linelist) != length(measured_EWs)
-        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
-    end
-
-    if any(l -> Korg.ismolecule(l.species), linelist)
-        throw(ArgumentError("linelist contains molecular species"))
-    end
-
-    # Check that the user is supplying EWs in mA
-    if 1 > maximum(measured_EWs)
-        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
-    end
-
-    A0 = [A_X[Korg.get_atoms(l.species)[1]] for l in linelist]
-
-    EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size, wl_step=wl_step,
-                        blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
-    # ∂A/∂REW = 1 by assumption
-    @. A0 + (log10(measured_EWs) - log10.(EWs))
-end
-
-"""
-TODO
-
-TODO rename
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
                            wl_step=0.01, callback=Returns(nothing), abundance_tol=1e-5,
@@ -681,12 +641,37 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
 end
 
 """
+    ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; kwargs...)
+
+A very approximate method for fitting abundances from equivalent widths.  It assumes that all lines
+are on the linear part of the curve of growth, and that the lines are not blended. Arguments and
+keyword arguments are the same as for [`ews_to_abundances`](@ref).
+"""
+function ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
+                                  wl_step=0.01, blend_warn_threshold=0.01, synthesize_kwargs...)
+    if length(linelist) != length(measured_EWs)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+
+    if any(l -> Korg.ismolecule(l.species), linelist)
+        throw(ArgumentError("linelist contains molecular species"))
+    end
+
+    # Check that the user is supplying EWs in mA
+    if 1 > maximum(measured_EWs)
+        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
+    end
+
+    A0 = [A_X[Korg.get_atoms(l.species)[1]] for l in linelist]
+
+    EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size, wl_step=wl_step,
+                        blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
+
+    @. A0 + (log10(measured_EWs) - log10.(EWs))
+end
+
+"""
     ews_to_stellar_parameters(linelist, measured_EWs, [measured_EW_err]; kwargs...)
-
-!!! danger
-
-    Functions using equivalent widths have been dissabled while we
-    [fix some bugs](https://github.com/ajwheeler/Korg.jl/pull/331).
 
 Find stellar parameters from equivalent widths the "old fashioned" way.  This function finds the
 values of ``T_\\mathrm{eff}``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy the following conditions
@@ -711,7 +696,7 @@ values of ``T_\\mathrm{eff}``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy
 
 A tuple containing:
 
-  - the best-fit parameters: `[Teff, logg, vmic, [m/H]]` as a vector
+  - the best-fit parameters: `[Teff, logg, vmic, [m/H]]` as a vector (with vmic in km/s)
   - the statistical uncertainties in the parameters, propagated from the uncertainties in the
     equivalent widths. This is zero when EW uncertainties are not specified.
   - the systematic uncertainties in the parameters, estimated from the scatter the abundances computed
@@ -734,15 +719,17 @@ A tuple containing:
   - `parameter_ranges` (default: `[(2800.0, 8000.0), (-0.5, 5.5), (1e-3, 10.0), (-2.5, 1.0)]`) is the
     allowed range for each parameter. This is used to prevent the solver from wandering into
     unphysical parameter space, or outside the range of the MARCS grid supported by
-    [`Korg.interpolate_marcs`](@ref). The default ranges ``T_\\mathrm{eff}``, ``\\log g``,  and [m/H]
-    are the widest supported by the MARCS grid. Note that vmic must be nonzero in order to avoid null
-    derivatives.
-  - `callback`:  is a function which is called at each step of the optimization.
+    [`Korg.interpolate_marcs`](@ref). The default ranges for ``T_\\mathrm{eff}``, ``\\log g``, and [m/H]
+    are the widest supported by the MARCS grid. The minimum value for `vmic` is set to 1e-3 km/s to
+    avoid null derivatives in the optimization.
+  - `fix_params` (default: `[false, false, false, false]`) is a vector of booleans indicating which
+    parameters should be held fixed during the optimization. The order is [Teff, logg, vmic, [m/H]].
+  - `callback`: is a function which is called at each step of the optimization.
     It is passed three arguments:
 
-      + the current values of the parameters
+      + the current values of the parameters [Teff, logg, vmic, [m/H]]
       + the residuals of each equation being solved
-      + the abundances of each line computed with the current parameters.
+      + the abundances of each line computed with the current parameters
         You can pass a callback function, to e.g. make a plot of the residuals at each step.
   - `max_iterations` (default: 30) is the maximum number of iterations to allow before stopping the
     optimization.
@@ -760,7 +747,10 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                    fix_params=[false, false, false, false],
                                    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
     if :vmic in keys(passed_kwargs)
-        throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
+        throw(ArgumentError("vmic must not be specified, because it is a parameter fit by " *
+                            "ews_to_stellar_parameters. Did you mean to specify vmic0, the starting " *
+                            "value? See the documentation for ews_to_stellar_parameters if you would " *
+                            "like to fix microturbulence to a given value."))
     end
 
     params0 = [Teff0, logg0, vmic0, m_H0]
@@ -771,7 +761,6 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
                                                              measured_EW_err, fix_params, callback,
                                                              passed_kwargs)
-    iterations = 0
     J_result = DiffResults.JacobianResult(params)
     if !_ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
                                               tolerances, max_step_sizes, parameter_ranges,
@@ -781,7 +770,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
 
     # Second phase: exact calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(true, p, linelist, measured_EWs,
-                                                             measured_EW_err, fix_params, callback,
+                                                             measured_EW_err, fix_params,
+                                                             callback,
                                                              passed_kwargs)
     if !_ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
                                               tolerances, max_step_sizes, parameter_ranges,
@@ -851,7 +841,7 @@ function validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_
         end
     end
 
-    return params
+    params
 end
 
 # Perform one phase of the stellar parameter iteration, either with approximate or exact calculations.
