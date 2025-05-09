@@ -680,13 +680,9 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
     A0 .+ ΔA
 end
 
-"""
-    _validate_stellar_parameters(linelist, measured_EWs, measured_EW_err, params0, parameter_ranges)
-
-Validate the input parameters for stellar parameter determination.
-"""
-function _validate_stellar_parameters(linelist, measured_EWs, measured_EW_err, params0,
-                                      parameter_ranges)
+# Validate the input parameters for stellar parameter determination.
+function validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
+                                               parameter_ranges)
     if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -820,8 +816,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     end
 
     params0 = [Teff0, logg0, vmic0, m_H0]
-    params = _validate_stellar_parameters(linelist, measured_EWs, measured_EW_err, params0,
-                                          parameter_ranges)
+    params = validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
+                                                   parameter_ranges)
 
     # First phase: approximate calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
