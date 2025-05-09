@@ -581,9 +581,15 @@ A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `l
   - `finite_difference_delta_A` (default: 0.01): the step size in A(X) to use for the finite
     difference calculation of the curve of growth slope.
 """
-function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0, wl_step=0.01,
-                           blend_warn_threshold=0.01, finite_difference_delta_A=0.01,
-                           synthesize_kwargs...)
+# TODO
+
+"""
+    assume that all lines are on the linear part of the curve of growth?
+"""
+function ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
+                                  wl_step=0.01,
+                                  blend_warn_threshold=0.01, finite_difference_delta_A=0.01,
+                                  synthesize_kwargs...)
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -601,21 +607,19 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
 
     EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size, wl_step=wl_step,
                         blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
-    A_X[3:Korg.MAX_ATOMIC_NUMBER] .+= finite_difference_delta_A
-    perturbed_EWs = calculate_EWs(atm, linelist, A_X; ew_window_size=ew_window_size,
-                                  wl_step=wl_step,
-                                  blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
-    ∂A_∂REW = @. finite_difference_delta_A / (log10(perturbed_EWs) - log10(EWs))
-
-    @. A0 + ∂A_∂REW * (log10(measured_EWs) - log10.(EWs))
+    # ∂A/∂REW = 1 by assumption
+    @. A0 + (log10(measured_EWs) - log10.(EWs))
 end
 
 """
-don't converge quickly because of curvature
+TODO
+
+TODO rename
 """
-function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
-                                   wl_step=0.01, callback=Returns(nothing), abundance_tol=1e-5,
-                                   max_iter=30, blend_warn_threshold=0.01, synthesize_kwargs...)
+function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
+                           wl_step=0.01, callback=Returns(nothing), abundance_tol=1e-5,
+                           max_iter=30, blend_warn_threshold=0.01, synthesize_kwargs...)
+    # TODO factor out these checks if multiple methods remain
     if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
@@ -636,7 +640,7 @@ function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_s
     # fiducial abundance for each line is taked from the A_X vector
     A0 = [A_X[Korg.get_atom(l.species)] for l in linelist]
     # difference between the measured and fiducial abundance for each line
-    ΔA = zeros(length(linelist))
+    ΔA = zeros(eltype(sol.flux), length(linelist))
     ΔA_prev = copy(ΔA) .+ 0.01
     fitmask = ones(Bool, length(linelist))
 
@@ -651,9 +655,6 @@ function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_s
     iter = 0
     while sum(fitmask) > 0 && iter < max_iter # while there are still lines to fit
         iter += 1
-        @show maximum(abs.(ΔA))
-        @show sum(.!fitmask)
-
         perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ Δ)
                               for (l, Δ) in zip(linelist[fitmask], ΔA[fitmask])]
         EWs[fitmask] .= calculate_EWs(atm, perturbed_linelist, A_X; ew_window_size=ew_window_size,
@@ -669,57 +670,14 @@ function ews_to_abundances_refined(atm, linelist, A_X, measured_EWs; ew_window_s
 
         # stop fitting lines that have converged
         fitmask[fitmask] .&= abs.(δA) .> abundance_tol
+
+        # TODO verbose?
+        println("iter $iter ($(sum(fitmask)) lines unconverged)")
     end
 
     ΔA[fitmask] .= NaN # NaN out anything unconverged
 
     A0 .+ ΔA
-end
-
-function ews_to_abundances_exact(atm, linelist, A_X, measured_EWs; ew_window_size=2.0, wl_step=0.01,
-                                 synthesis_kwargs...)
-    if length(linelist) != length(measured_EWs)
-        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
-    end
-    if any(l -> Korg.ismolecule(l.species), linelist)
-        throw(ArgumentError("linelist contains molecular species"))
-    end
-    # Check that the user is supplying EWs in mA
-    if 1 > maximum(measured_EWs)
-        @warn "Maximum EW given is less than 1 mA. Check that you're giving EWs in mÅ (*not* Å)."
-    end
-
-    initial_guess = ews_to_abundances(atm, linelist, A_X, measured_EWs;
-                                      ew_window_size=ew_window_size,
-                                      wl_step=wl_step, synthesis_kwargs...)
-
-    sol = synthesize(atm, [], A_X, 5000, 5000)
-    desc = "solving for each line"
-    @showprogress desc=desc map(linelist, measured_EWs, initial_guess) do line, EW, A0
-        A_fiducial = A_X[Korg.get_atom(line.species)]
-        # use Optim.jl to find the abundance that gives the measured EW
-        params = (A_X, line, A_fiducial, EW, atm, sol, ew_window_size, wl_step, synthesis_kwargs)
-
-        prob = NonlinearProblem(residuals_ews_to_abundances, A0, params)
-        #solve(prob, SimpleNewtonRaphson(; autodiff=nothing); store_trace=Val(true))#.u[1] # TODO
-        s = solve(prob; store_trace=Val(true), abstol=1e-10, maxiters=30) # TODO tol
-        if successful_retcode(s)
-            s.u[1]
-        else
-            NaN * s.u[1]
-        end
-    end
-end
-
-function residuals_ews_to_abundances(A, p)
-    A_X, line, A_fiducial, EW, atm, sol, ew_window_size, wl_step, synthesis_kwargs = p
-
-    perturbed_line = [Korg.Line(line; log_gf=line.log_gf + A[1] - A_fiducial)]
-    synthetic_EW = calculate_EWs(atm, perturbed_line, A_X; ew_window_size=ew_window_size,
-                                 wl_step=wl_step,
-                                 electron_number_density_warn_threshold=Inf,
-                                 use_chemical_equilibrium_from=sol, synthesis_kwargs...)[1]
-    synthetic_EW - EW
 end
 
 """
@@ -791,7 +749,6 @@ A tuple containing:
 """
 function ews_to_stellar_parameters(linelist, measured_EWs,
                                    measured_EW_err=ones(length(measured_EWs));
-                                   ews_to_abundances_func=ews_to_abundances,
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
@@ -847,28 +804,27 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     end
 
     # set up closure to compute residuals
-    get_residuals = (p) -> _stellar_param_equation_residuals(p, linelist, measured_EWs,
-                                                             measured_EW_err,
-                                                             fix_params, callback,
-                                                             ews_to_abundances_func,
+    get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
+                                                             measured_EW_err, fix_params, callback,
                                                              passed_kwargs)
     iterations = 0
     J_result = DiffResults.JacobianResult(params)
-    #J = Matrix{Float64}(undef, 4, 4)
     while true
-        J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
-        J = DiffResults.jacobian(J_result)
-        residuals = DiffResults.value(J_result)
-        #residuals = get_residuals(params)
-        #J .= FiniteDiff.finite_difference_jacobian(get_residuals, params)
-        if all((abs.(residuals).<tolerances)[.!fix_params]) # stopping condition
-            break
+        _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
+                                              tolerances, max_step_sizes, parameter_ranges) && break
+        iterations += 1
+        if iterations > max_iterations
+            @warn "Failed to converge after $max_iterations iterations.  Returning the current guess."
+            return params, fill(NaN, 4), fill(NaN, 4)
         end
-        step = zeros(length(params))
-        step[.!fix_params] = -J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
-        params += clamp.(step, -max_step_sizes, max_step_sizes)
-        params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
-
+    end
+    iterations = 0
+    get_residuals = (p) -> _stellar_param_equation_residuals(true, p, linelist, measured_EWs,
+                                                             measured_EW_err, fix_params, callback,
+                                                             passed_kwargs)
+    while true
+        _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
+                                              tolerances, max_step_sizes, parameter_ranges) && break
         iterations += 1
         if iterations > max_iterations
             @warn "Failed to converge after $max_iterations iterations.  Returning the current guess."
@@ -878,9 +834,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
 
     # compute uncertainties
     stat_σ_r, sys_σ_r = _stellar_param_residual_uncertainties(params, linelist, measured_EWs,
-                                                              measured_EW_err,
-                                                              ews_to_abundances_func,
-                                                              passed_kwargs)
+                                                              measured_EW_err, passed_kwargs)
 
     J = DiffResults.jacobian(J_result)[.!fix_params, .!fix_params]
     stat_σ = zeros(4)
@@ -891,20 +845,49 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     params, stat_σ, sys_σ
 end
 
+function _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params,
+                                               fix_params, tolerances, max_step_sizes,
+                                               parameter_ranges)
+    J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
+    J = DiffResults.jacobian(J_result)
+    residuals = DiffResults.value(J_result)
+    if all((abs.(residuals).<tolerances)[.!fix_params]) # stopping condition
+        return true
+    end
+
+    # calculate step, and update params
+    step = zeros(length(params))
+    step[.!fix_params] = -J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
+    params .+= clamp.(step, -max_step_sizes, max_step_sizes)
+    params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
+
+    return false
+end
+
 # called by ews_to_stellar_parameters
-function _stellar_param_equation_residuals(params, linelist, EW, EW_err,
-                                           fix_params, callback, ews_to_abundances, passed_kwargs)
-    A, A_inv_var, neutrals, REWs, Z = _stellar_param_equations_precalculation(params, linelist, EW,
-                                                                              EW_err,
-                                                                              ews_to_abundances,
-                                                                              passed_kwargs)
+function _stellar_param_equation_residuals(exact_calculation, params, linelist, EW, EW_err,
+                                           fix_params, callback,
+                                           passed_kwargs)
+    A, A_inv_var, neutrals, REWs, Z = _stellar_param_equations_precalculation(exact_calculation,
+                                                                              params, linelist, EW,
+                                                                              EW_err, passed_kwargs)
+
+    finitemask = isfinite.(A)
+    neutrals = neutrals .& finitemask
 
     teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
                                A[neutrals], A_inv_var[neutrals])
     logg_residual = (_weighted_mean(A[neutrals], A_inv_var[neutrals]) -
-                     _weighted_mean(A[.!neutrals], A_inv_var[.!neutrals]))
-    vmic_residual = _get_slope(REWs, A[neutrals], A_inv_var[neutrals])
-    feh_residual = _weighted_mean(A, A_inv_var) -
+                     _weighted_mean(A[.!neutrals.&finitemask], A_inv_var[.!neutrals.&finitemask]))
+
+    # TODO make sure it works if a line fails to converge
+    #@show length(REWs)
+    #@show length(finitemask)
+    #@show length(neutrals)
+    #@show length(finitemask[neutrals])
+
+    vmic_residual = _get_slope(REWs[finitemask[neutrals]], A[neutrals], A_inv_var[neutrals])
+    feh_residual = _weighted_mean(A[finitemask], A_inv_var[finitemask]) -
                    (params[4] + Korg.grevesse_2007_solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
     residuals .*= .!fix_params # zero out residuals for fixed parameters
@@ -915,12 +898,10 @@ end
 
 # called by _stellar_param_equation_residuals
 # returns (statistical_uncertainty, systematic_uncertainty)
-function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, ews_to_abundances,
-                                               passed_kwargs)
-    A, A_inv_var, neutrals, REWs, _ = _stellar_param_equations_precalculation(params, linelist, EW,
-                                                                              EW_err,
-                                                                              ews_to_abundances,
-                                                                              passed_kwargs)
+function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, passed_kwargs)
+    A, A_inv_var, neutrals, REWs, _ = _stellar_param_equations_precalculation(true, params,
+                                                                              linelist, EW,
+                                                                              EW_err, passed_kwargs)
 
     # estimated total (including systematic) err in the abundances of each line
     total_err = std(A)
@@ -943,14 +924,20 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, ews
     end
 end
 
-function _stellar_param_equations_precalculation(params, linelist, EW, EW_err, ews_to_abundances,
+function _stellar_param_equations_precalculation(exact_calculation, params, linelist, EW, EW_err,
                                                  passed_kwargs)
     teff, logg, vmic, m_H = params
     A_X = Korg.format_A_X(m_H)
     atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true,
                                  clamp_abundances=true)
 
-    A = ews_to_abundances(atm, linelist, A_X, EW; vmic=vmic, passed_kwargs...)
+    if exact_calculation
+        A = ews_to_abundances(atm, linelist, A_X, EW; vmic=vmic, blend_warn_threshold=Inf,
+                              passed_kwargs...)
+    else
+        A = ews_to_abundances_approx(atm, linelist, A_X, EW; vmic=vmic, blend_warn_threshold=Inf,
+                                     passed_kwargs...)
+    end
     # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
     A_inv_var = (EW .* A ./ EW_err) .^ 2
 
