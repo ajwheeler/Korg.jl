@@ -351,27 +351,3 @@ function blackbody(T, λ)
 
     2 * h * c^2 / λ^5 * 1 / (exp(h * c / λ / k / T) - 1)
 end
-
-"""
-TODO
-
-TODO make it work with just sol.
-TODO requires tau anchored
-"""
-function depth_of_formation(atm, sol; ref_wavelength=5000)
-    tau = similar(sol.alpha) # allocate array for the optical depths
-    τ_ref = Korg.get_tau_5000s(atm)
-    buffer = similar(τ_ref)
-
-    log_τ_ref = log.(τ_ref)
-    τ_ref_α_ref = τ_ref ./ sol.alpha_ref
-
-    for λ_ind in 1:size(tau, 2)
-        Korg.RadiativeTransfer.compute_tau_anchored!(view(tau, :, λ_ind), view(sol.alpha, :, λ_ind),
-                                                     τ_ref_α_ref, log_τ_ref, buffer)
-    end
-    tau_formation = map(1:size(tau, 2)) do λ_ind
-        linear_interpolation(tau[:, λ_ind], τ_ref)(1.0)
-    end
-    # TODO per-line depth?
-end
