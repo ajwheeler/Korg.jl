@@ -681,6 +681,62 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
 end
 
 """
+    _validate_stellar_parameters(linelist, measured_EWs, measured_EW_err, params0, parameter_ranges)
+
+Validate the input parameters for stellar parameter determination.
+"""
+function _validate_stellar_parameters(linelist, measured_EWs, measured_EW_err, params0,
+                                      parameter_ranges)
+    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
+        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
+    end
+
+    formulas = [line.species.formula for line in linelist]
+    if any(Ref(formulas[1]) .!= formulas)
+        throw(ArgumentError("All lines must be from the same element."))
+    end
+
+    if Korg.ismolecule(linelist[1].species)
+        throw(ArgumentError("Cannot do stellar parameter determination with molecular lines."))
+    end
+
+    neutrals = [l.species.charge == 0 for l in linelist]
+    if (sum(neutrals) < 3) || (sum(.!neutrals) < 1)
+        throw(ArgumentError("Must have at least 3 neutral lines and 1 ion line."))
+    end
+
+    if params0[3] == 0.0  # vmic0
+        throw(ArgumentError("Starting guess for vmic (vmic0) must be nonzero."))
+    end
+
+    if any(p[1] >= p[2] for p in parameter_ranges)
+        throw(ArgumentError("The lower bound of each parameter must be less than the upper bound."))
+    end
+
+    if parameter_ranges[3][1] <= 0.0
+        throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
+    end
+
+    # the widest parameter ranges allowed for model atmosphere interp
+    atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
+    atm_lb[3] = Korg._low_Z_marcs_atmospheres[1][3][1]
+    atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
+    if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) ||
+       any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
+        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid"))
+    end
+
+    params = clamp(params0, first.(parameter_ranges), last.(parameter_ranges))
+    for (p, p0, n) in zip(params, params0, ["Teff", "logg", "vmic", "metallicity"])
+        if p != p0
+            @warn "Initial guess for $n ($p0) has been clamped to $p, to be within the allowed range."
+        end
+    end
+
+    return params
+end
+
+"""
     ews_to_stellar_parameters(linelist, measured_EWs, [measured_EW_err]; kwargs...)
 
 !!! danger
@@ -725,7 +781,7 @@ A tuple containing:
   - `vmic0` (default: 1.0) is the starting guess for vmic. Note that this must be nonzero in order to
     avoid null derivatives. Very small values are fine.
   - `m_H0` (default: 0.0) is the starting guess for [m/H]
-  - `tolerances` (default: `[1e-3, 1e-3, 1e-3, 1e-3]`) is the tolerance for the residuals each equation
+  - `tolerances` (default: `[1e-3, 1e-3, 1e-4, 1e-3]`) is the tolerance for the residuals each equation
     listed above. The solver stops when all residuals are less than the corresponding tolerance.
   - `max_step_sizes` (default: `[1000.0, 1.0, 0.3, 0.5]`) is the maximum step size to take in each
     parameter direction.  This is used to prevent the solver from taking too large of a step and
@@ -762,46 +818,10 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     if :vmic in keys(passed_kwargs)
         throw(ArgumentError("vmic must not be specified, because it is a parameter fit by ews_to_stellar_parameters.  Did you mean to specify vmic0, the starting value? See the documentation for ews_to_stellar_parameters if you would like to fix microturbulence to a given value."))
     end
-    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
-        throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
-    end
-    formulas = [line.species.formula for line in linelist]
-    if any(Ref(formulas[1]) .!= formulas)
-        throw(ArgumentError("All lines must be from the same element."))
-    end
-    if Korg.ismolecule(linelist[1].species)
-        throw(ArgumentError("Cannot do stellar parameter determination with molecular lines."))
-    end
-    neutrals = [l.species.charge == 0 for l in linelist]
-    if (sum(neutrals) < 3) || (sum(.!neutrals) < 1)
-        throw(ArgumentError("Must have at least 3 neutral lines and 1 ion line."))
-    end
-    if vmic0 == 0.0
-        throw(ArgumentError("Starting guess for vmic (vmic0) must be nonzero."))
-    end
-    if any(p[1] >= p[2] for p in parameter_ranges)
-        throw(ArgumentError("The lower bound of each parameter must be less than the upper bound."))
-    end
-    if parameter_ranges[3][1] <= 0.0
-        throw(ArgumentError("The lower bound of vmic must be greater than zero. (vmic must be nonzero in order to avoid null derivatives. Very small values are fine.)"))
-    end
-
-    # the widest parameter ranges allowed for model atmosphere interp
-    atm_lb = first.(Korg._sdss_marcs_atmospheres[1][1:3])
-    atm_lb[3] = Korg._low_Z_marcs_atmospheres[1][3][1]
-    atm_ub = last.(Korg._sdss_marcs_atmospheres[1][1:3])
-    if any(first.(parameter_ranges[[1, 2, 4]]) .< atm_lb) ||
-       any(last.(parameter_ranges[[1, 2, 4]]) .> atm_ub)
-        throw(ArgumentError("The parameter ranges must be within the range of the MARCS grid"))
-    end
 
     params0 = [Teff0, logg0, vmic0, m_H0]
-    params = clamp(params0, first.(parameter_ranges), last.(parameter_ranges))
-    for (p, p0, n) in zip(params, params0, ["Teff", "logg", "vmic", "metallicity"])
-        if p != p0
-            @warn "Initial guess for $n ($p0) has been clamped to $p, to be within the allowed range."
-        end
-    end
+    params = _validate_stellar_parameters(linelist, measured_EWs, measured_EW_err, params0,
+                                          parameter_ranges)
 
     # set up closure to compute residuals
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
@@ -875,10 +895,10 @@ function _stellar_param_equation_residuals(exact_calculation, params, linelist, 
     finitemask = isfinite.(A)
     neutrals = neutrals .& finitemask
 
-    teff_residual = _get_slope([line.E_lower for line in linelist[neutrals]],
-                               A[neutrals], A_inv_var[neutrals])
-    logg_residual = (_weighted_mean(A[neutrals], A_inv_var[neutrals]) -
-                     _weighted_mean(A[.!neutrals.&finitemask], A_inv_var[.!neutrals.&finitemask]))
+    teff_residual = get_slope([line.E_lower for line in linelist[neutrals]],
+                              A[neutrals], A_inv_var[neutrals])
+    logg_residual = (weighted_mean(A[neutrals], A_inv_var[neutrals]) -
+                     weighted_mean(A[.!neutrals.&finitemask], A_inv_var[.!neutrals.&finitemask]))
 
     # TODO make sure it works if a line fails to converge
     #@show length(REWs)
@@ -886,8 +906,8 @@ function _stellar_param_equation_residuals(exact_calculation, params, linelist, 
     #@show length(neutrals)
     #@show length(finitemask[neutrals])
 
-    vmic_residual = _get_slope(REWs[finitemask[neutrals]], A[neutrals], A_inv_var[neutrals])
-    feh_residual = _weighted_mean(A[finitemask], A_inv_var[finitemask]) -
+    vmic_residual = get_slope(REWs[finitemask[neutrals]], A[neutrals], A_inv_var[neutrals])
+    feh_residual = weighted_mean(A[finitemask], A_inv_var[finitemask]) -
                    (params[4] + Korg.grevesse_2007_solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
     residuals .*= .!fix_params # zero out residuals for fixed parameters
@@ -909,9 +929,9 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, EW_err, pas
 
     stat_sigma, total_sigma = map([A_inv_var, total_ivar]) do ivar
         sigma_mean = 1 ./ sqrt(sum(ivar))
-        teff_residual_sigma = _get_slope_uncertainty([line.E_lower for line in linelist[neutrals]],
-                                                     ivar[neutrals])
-        vmic_residual_sigma = _get_slope_uncertainty(REWs, ivar[neutrals])
+        teff_residual_sigma = get_slope_uncertainty([line.E_lower for line in linelist[neutrals]],
+                                                    ivar[neutrals])
+        vmic_residual_sigma = get_slope_uncertainty(REWs, ivar[neutrals])
         [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
     end
 
@@ -949,16 +969,16 @@ function _stellar_param_equations_precalculation(exact_calculation, params, line
     A, A_inv_var, neutrals, REWs, Z
 end
 
-_weighted_mean(x, inv_var) = sum(x .* inv_var) / sum(inv_var)
+weighted_mean(x, inv_var) = sum(x .* inv_var) / sum(inv_var)
 
 # called by _stellar_param_equation_residuals
-function _get_slope(xs, ys, inv_var)
+function get_slope(xs, ys, inv_var)
     Δx = xs .- mean(xs)
     Δy = ys .- mean(ys)
     sum(Δx .* Δy .* inv_var) ./ sum(Δx .^ 2 .* inv_var)
 end
 
-function _get_slope_uncertainty(xs, ivar::AbstractVector) # guard against scalar ivar
+function get_slope_uncertainty(xs, ivar::AbstractVector) # guard against scalar ivar
     sqrt(sum(ivar) / (sum(ones(length(xs)) .* ivar) * sum(ivar .* xs .^ 2) - sum(ivar .* xs)^2))
 end
 
