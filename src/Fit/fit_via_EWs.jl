@@ -14,8 +14,9 @@ with abundances `A_X`.
   - `linelist`: A vector of [`Korg.Line`](@ref)s (see [`Korg.read_linelist`](@ref)).  The lines must
     be sorted by wavelength.
   - `A_X`: a vector containing the A(X) abundances (log(n_X/n_H) + 12) for elements from hydrogen to
-    uranium (see [`Korg.format_A_X`](@ref)). All syntheses are done with these abundances, so if the
-    resulting abundances deviate significantly from these, you may wish to iterate.
+    uranium ([`Korg.format_A_X`](@ref) exists as a convenience for creating this vector). All
+    syntheses are done with these abundances, so if the resulting abundances deviate significantly
+    from these, you may wish to iterate.
 
 # Keyword arguments:
 
