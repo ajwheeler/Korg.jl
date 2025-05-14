@@ -35,7 +35,7 @@
 
             # make sure things run (types have caused problems in the past)
             λ = linelist[1].wl * 1e8
-            synthesize(atm, linelist, format_A_X(), λ, λ)
+            synthesize(atm, linelist, format_A_X(), λ, λ; use_chemical_equilibrium_from=sol)
 
             # test saving and loading
             filename = tempname() * ".h5"
