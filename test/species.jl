@@ -65,4 +65,10 @@
         @test Korg.get_atoms(Korg.Formula("C2")) == [0x06, 0x06]
         @test Korg.get_atoms(Korg.Formula("MgO")) == [0x08, 0x0c]
     end
+
+    @testset "get_atom" begin
+        @test Korg.get_atom(Korg.species"O I") == 0x08
+        @test Korg.get_atom(Korg.species"O II") == 0x08
+        @test_throws ArgumentError Korg.get_atom(Korg.species"CO")
+    end
 end

@@ -106,6 +106,18 @@ function get_atoms(f::Formula)
 end
 
 """
+    get_atom(x)
+
+Returns the atomic number of an atomic Korg.Species or Korg.Formula.
+"""
+function get_atom(f::Formula)
+    if ismolecule(f)
+        throw(ArgumentError("Can't get the atomic number of a molecule.  Use `Korg.get_atoms` instead."))
+    end
+    get_atoms(f)[1]
+end
+
+"""
     n_atoms(x)
 
 The number of atoms in the Korg.Species or Korg.Formula x.
@@ -276,6 +288,7 @@ end
 ismolecule(s::Species) = ismolecule(s.formula)
 get_mass(s::Species) = get_mass(s.formula)
 get_atoms(s::Species) = get_atoms(s.formula)
+get_atom(s::Species) = get_atom(s.formula)
 n_atoms(s::Species) = n_atoms(s.formula)
 
 """

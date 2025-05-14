@@ -144,7 +144,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
     end
 
-    if use_MHD_for_hydrogen_lines && (wls[end] > 13_000 * 1e-8)
+    if hydrogen_lines && use_MHD_for_hydrogen_lines && (wls[end] > 13_000 * 1e-8)
         @warn "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
     end
 
