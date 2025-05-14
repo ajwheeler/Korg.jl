@@ -55,5 +55,5 @@ wls, flux, continuum = Korg.synth(
 ```
 
 # Multithreading
-Korg can use multithreading to speed to line opacity calculation, the most expensive step for for syntheses.
+Korg can use multithreading to speed up line opacity calculation, the most epxensive step for for syntheses.
 To use it [launch Julia with more than one thread](https://docs.julialang.org/en/v1/manual/multi-threading/), using the `-t` command-line argument, or by setting the [`$JULIA_NUM_THREADS`](https://docs.julialang.org/en/v1/manual/environment-variables/#JULIA_NUM_THREADS) environment variable.
