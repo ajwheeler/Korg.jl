@@ -40,23 +40,22 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
 end
 
 """
-    synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
+    synthesize(atm, linelist, A_X, λ_start, λ_stop; kwargs... )
     synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
 
 Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
 
 # Arguments
 
-  - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
+  - `atm`: the model atmosphere (see [`interpolate_marcs`](@ref) and [`read_model_atmosphere`](@ref))
   - `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref),
-    [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+    [`get_APOGEE_DR17_linelist`](@ref), [`get_GES_linelist`](@ref),
+    [`get_GALAH_DR3_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
   - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
-    uranium.  (see [`format_A_X`](@ref))
+    uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
   - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
-    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`.
-  - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
-  - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
-  - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
+    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`
+    (or as an valid arugments to the [`Wavelengths`](@ref) constructor).
 
 # Example
 
