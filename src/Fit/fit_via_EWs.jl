@@ -81,7 +81,8 @@ function calculate_EWs(atm, linelist, A_X; ew_window_size::Real=2.0, wl_step=0.0
 end
 
 """
-    ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs... )
+    ews_to_abundances(atm, linelist, A_X, measured_EWs; kwargs...)
+    ews_to_abundances(params, linelist, measured_EWs; kwargs...)
 
 Compute per-line abundances on the linear part of the curve of growth given a model atmosphere and a
 list of lines with equivalent widths.
@@ -97,25 +98,36 @@ list of lines with equivalent widths.
     resulting abundances deviate significantly from these, you may wish to iterate.
   - `measured_EWs`: a vector of equivalent widths (in mÅ)
 
+Alternatively, you can pass a vector of parameters like the one returned by
+[`ews_to_stellar_parameters`](@ref) instead of a model atmosphere and abundances vector. These
+should be in the order `[Teff, logg, vmic, m_H]`.
+
 # Returns
 
-A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in `linelist`.
+A vector of abundances (`A(X) = log10(n_X/n_H) + 12` format) for each line in`linelist`, and a
+vector of ∂A/∂log(EW) for each line.
 
 # Optional arguments:
 
   - `wl_step` (default: 0.01) is the resolution in Å at which to synthesize the spectrum around each
     line.
+
   - `ew_window_size` (default: 2): the farthest (in Å) to consider equivalent width contributions for
     each line.  It's very important that this is large enough to include each line entirely.
   - `blend_warn_threshold` (default: 0.01) is the minimum absorption between two lines allowed before
     triggering a warning that they may be blended.
-    All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
   - `finite_difference_delta_A` (default: 0.01): the step size in A(X) to use for the finite
     difference calculation of the curve of growth slope.
+  - `solar_abundances` (default: `Korg.default_solar_abundances`): the solar abundances to use for
+    the calculation of A(X). Only used if `ews_to_abundances` is called with a vector of parameters
+    instead of a model atmosphere and abundances vector.
+
+All other keyword arguments are passed to [`Korg.synthesize`](@ref) when synthesizing each line.
 """
 function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
                            wl_step=0.01, callback=Returns(nothing), abundance_tol=1e-5,
                            max_iter=30, blend_warn_threshold=0.01, verbose=false,
+                           solar_abundances=Korg.default_solar_abundances,
                            synthesize_kwargs...)
     ews_to_abundances_parameter_validation(linelist, measured_EWs)
 
@@ -139,19 +151,29 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
     EWs = copy(EWs_prev) # just to allocate
 
     iter = 0
+    ∂A_∂logEW = similar(ΔA)
     while sum(fitmask) > 0 && iter < max_iter # while there are still lines to fit
         iter += 1
+
+        # calculate the EWs for ΔA[fitmask] and it's derivative wrt log(EW)
         perturbed_linelist = [Korg.Line(l; log_gf=l.log_gf .+ Δ)
                               for (l, Δ) in zip(linelist[fitmask], ΔA[fitmask])]
         EWs[fitmask] .= calculate_EWs(atm, perturbed_linelist, A_X; ew_window_size=ew_window_size,
                                       wl_step=wl_step, blend_warn_threshold=blend_warn_threshold,
                                       use_chemical_equilibrium_from=sol, synthesize_kwargs...)
+        ∂A_∂logEW[fitmask] .= @. (ΔA[fitmask] - ΔA_prev[fitmask]) /
+                                 log10(EWs[fitmask] / EWs_prev[fitmask])
 
-        ∂A_∂REW = @. (ΔA[fitmask] - ΔA_prev[fitmask]) / log10(EWs[fitmask] / EWs_prev[fitmask])
-        δA = @. ∂A_∂REW * log10(measured_EWs[fitmask] / EWs[fitmask])
+        # calculate the change in abundances according to the secant method
+        δA = @. ∂A_∂logEW[fitmask] * log10(measured_EWs[fitmask] / EWs[fitmask])
 
+        # update the "previous" abundances and EWs
         ΔA_prev[fitmask] .= ΔA[fitmask]
+        EWs_prev[fitmask] .= EWs[fitmask]
+
+        # update the abundances of the lines that are still being fit
         ΔA[fitmask] .+= δA
+
         callback(A0 .+ ΔA)
 
         # stop fitting lines that have converged
@@ -160,9 +182,19 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
         verbose && println("iter $iter ($(sum(fitmask)) lines unconverged)")
     end
 
-    ΔA[fitmask] .= NaN # NaN out anything unconverged
+    # NaN out anything unconverged
+    ΔA[fitmask] .= NaN
+    ∂A_∂logEW[fitmask] .= NaN
 
-    A0 .+ ΔA
+    A0 .+ ΔA, ∂A_∂logEW
+end
+function ews_to_abundances(params, linelist, measured_EWs;
+                           solar_abundaces=Korg.default_solar_abundances, kwargs...)
+    Teff, logg, vmic, m_H = params
+    A_X = Korg.format_A_X(m_H; solar_abundances=solar_abundaces)
+    atm = Korg.interpolate_marcs(Teff, logg, A_X; perturb_at_grid_values=true,
+                                 clamp_abundances=true)
+    ews_to_abundances(atm, linelist, A_X, measured_EWs; vmic=vmic, kwargs...)
 end
 
 """
@@ -170,7 +202,8 @@ end
 
 A very approximate method for fitting abundances from equivalent widths.  It assumes that all lines
 are on the linear part of the curve of growth, and that the lines are not blended. Arguments and
-keyword arguments are the same as for [`ews_to_abundances`](@ref).
+keyword arguments are the same as for [`ews_to_abundances`](@ref). Returns the abundances, but not
+∂A/∂logEW, since this is constant by assumption.
 """
 function ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; ew_window_size::Real=2.0,
                                   wl_step=0.01, blend_warn_threshold=0.01, synthesize_kwargs...)
@@ -180,6 +213,14 @@ function ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; ew_window_si
                         blend_warn_threshold=blend_warn_threshold, synthesize_kwargs...)
 
     @. A0 + (log10(measured_EWs) - log10.(EWs))
+end
+function ews_to_abundances_approx(params, linelist, measured_EWs;
+                                  solar_abundances=Korg.default_solar_abundances, kwargs...)
+    Teff, logg, vmic, m_H = params
+    A_X = Korg.format_A_X(m_H; solar_abundances=solar_abundances)
+    atm = Korg.interpolate_marcs(Teff, logg, A_X; perturb_at_grid_values=true,
+                                 clamp_abundances=true)
+    ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; vmic=vmic, kwargs...)
 end
 
 # basic checks for the parameters of ews_to_abundances and ews_to_abundances_approx
@@ -216,9 +257,10 @@ values of ``T_\\mathrm{eff}``, ``\\log g``, ``v_{mic}``, and [m/H] which satisfy
   - `linelist`: A vector of [`Korg.Line`](@ref) objects (see [`Korg.read_linelist`](@ref)).  The lines
     must be sorted by wavelength.
   - `measured_EWs`: a vector of equivalent widths (in mÅ).
-  - `measured_EW_err` (optional): the uncertainty in `measured_EWs`.  If not specified, all lines are
-    assumed to have the same uncertainty. These uncertainties are used when evaluating the equations
-    above, and are propagated to provide uncertainties in the resulting parameters.
+  - `measured_EW_err` (optional): the uncertainty in `measured_EWs`. These uncertainties are used
+    when evaluating the equations above, and are propagated to provide uncertainties in the
+    resulting parameters. If no uncertainties are specified, all lines are given the same weight,
+    which is almost, but not exactly, the same as assuming equal uncertainty in all EW measurements.
 
 # Returns:
 
@@ -257,6 +299,8 @@ A tuple containing:
     avoid null derivatives in the optimization.
   - `fix_params` (default: `[false, false, false, false]`) is a vector of booleans indicating which
     parameters should be held fixed during the optimization. The order is [Teff, logg, vmic, [m/H]].
+  - `verbose` (default: `false`) is a boolean indicating whether to print verbose output during the
+    optimization. TODO add default callback.
   - `callback`: is a function which is called at each step of the optimization.
     It is passed three arguments:
 
@@ -268,7 +312,7 @@ A tuple containing:
     optimization.
 """
 function ews_to_stellar_parameters(linelist, measured_EWs,
-                                   measured_EW_err=ones(length(measured_EWs));
+                                   measured_EW_err=zeros(length(measured_EWs));
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
@@ -277,6 +321,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                        (1e-3, 10.0),
                                        (-2.5, 1.0)],
                                    fix_params=[false, false, false, false],
+                                   verbose=false,
                                    callback=Returns(nothing), max_iterations=30, passed_kwargs...)
     if :vmic in keys(passed_kwargs)
         throw(ArgumentError("vmic must not be specified, because it is a parameter fit by " *
@@ -289,25 +334,27 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     params = validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
                                                    parameter_ranges)
 
+    # TODO factor get_residuals definition into the _ews_to_stellar_parameters_phase! 
     # First phase: approximate calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
                                                              measured_EW_err, fix_params, callback,
                                                              passed_kwargs)
     J_result = DiffResults.JacobianResult(params)
-    if !_ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
-                                              tolerances, max_step_sizes, parameter_ranges,
-                                              max_iterations)
+    if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
+                                          tolerances, max_step_sizes, parameter_ranges,
+                                          max_iterations)
         return params, fill(NaN, 4), fill(NaN, 4)
     end
 
-    # Second phase: exact calculations
+    verbose && println("Approximate solve converged. Starting exact solve.")
+
+    # Second phase: exact calculations TODO different max_step_sizes?
     get_residuals = (p) -> _stellar_param_equation_residuals(true, p, linelist, measured_EWs,
-                                                             measured_EW_err, fix_params,
-                                                             callback,
+                                                             measured_EW_err, fix_params, callback,
                                                              passed_kwargs)
-    if !_ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
-                                              tolerances, max_step_sizes, parameter_ranges,
-                                              max_iterations)
+    if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
+                                          tolerances, max_step_sizes ./ 4, parameter_ranges,
+                                          max_iterations)
         return params, fill(NaN, 4), fill(NaN, 4)
     end
 
@@ -378,9 +425,9 @@ end
 
 # Perform one phase of the stellar parameter iteration, either with approximate or exact calculations.
 # Returns true if the iteration converged, false otherwise.
-function _ews_to_stellar_parameters_iteration!(J_result, get_residuals, params, fix_params,
-                                               tolerances, max_step_sizes, parameter_ranges,
-                                               max_iterations)
+function _ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
+                                           tolerances, max_step_sizes, parameter_ranges,
+                                           max_iterations)
     iterations = 0
     while true
         J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
@@ -471,20 +518,20 @@ end
 
 function _stellar_param_equations_precalculation(exact_calculation, params, linelist, EW, EW_err,
                                                  passed_kwargs)
-    teff, logg, vmic, m_H = params
-    A_X = Korg.format_A_X(m_H)
-    atm = Korg.interpolate_marcs(teff, logg, A_X; perturb_at_grid_values=true,
-                                 clamp_abundances=true)
-
-    if exact_calculation
-        A = ews_to_abundances(atm, linelist, A_X, EW; vmic=vmic, blend_warn_threshold=Inf,
-                              passed_kwargs...)
+    A, ∂A_∂logEW = if exact_calculation
+        ews_to_abundances(params, linelist, EW; blend_warn_threshold=Inf, passed_kwargs...)
     else
-        A = ews_to_abundances_approx(atm, linelist, A_X, EW; vmic=vmic, blend_warn_threshold=Inf,
-                                     passed_kwargs...)
+        # in this case, ∂A/∂logEW is constant by assumption
+        (ews_to_abundances_approx(params, linelist, EW; blend_warn_threshold=Inf, passed_kwargs...),
+         ones(length(linelist)))
     end
-    # convert error in EW to inverse variance in A (assuming linear part of C.O.G.)
-    A_inv_var = (EW .* A ./ EW_err) .^ 2
+    A_inv_var = if all(EW_err .== 0.0)
+        # assume equal uncertainty in all abundances -> equal weight for all lines
+        ones(length(A))
+    else
+        # convert error in EW to inverse variance in A, using the correct COG slope
+        @. (EW / (EW_err * ∂A_∂logEW))^2
+    end
 
     neutrals = [l.species.charge == 0 for l in linelist]
     REWs = log10.(EW ./ [line.wl for line in linelist])
