@@ -1,5 +1,6 @@
 using DiffResults, Trapz
 using Statistics: mean, std
+using Optim
 
 """
     calculate_EWs(atm, linelist, A_X; kwargs...)
@@ -239,6 +240,34 @@ function ews_to_abundances_parameter_validation(linelist, measured_EWs)
     end
 end
 
+function neo_ews_to_stellar_parameters(linelist, measured_EWs,
+                                       measured_EW_err=ones(length(measured_EWs));
+                                       p0=[5.0, 3.5, 1.0, 0.0], precision=1e-5, time_limit=500)
+    function cost(params)
+        Teff, logg, vmic, m_H = params
+        Teff = Teff * 1e3
+        A_X = format_A_X(m_H)
+        atm = interpolate_marcs(Teff, logg, A_X)
+        EWs = calculate_EWs(atm, linelist, A_X; vmic=vmic)
+        sum(@. ((EWs - measured_EWs) / measured_EW_err)^2)
+    end
+
+    @time res = optimize(cost, p0, BFGS(; linesearch=LineSearches.BackTracking(; maxstep=1.0)),
+                         Optim.Options(; x_tol=precision, time_limit=time_limit, show_trace=true,
+                                       extended_trace=true); autodiff=:forward)
+
+    if !Optim.converged(res)
+        @warn "Stellar parameter fit to EWs did not converge"
+    end
+
+    @time H = ForwardDiff.hessian(cost, res.minimizer)
+    @show H
+    scales = [1e3, 1.0, 1.0, 1.0]
+    Σ = @. inv(H) * scales * scales'
+
+    (res.minimizer, Σ)
+end
+
 """
     ews_to_stellar_parameters(linelist, measured_EWs, [measured_EW_err]; kwargs...)
 
@@ -353,7 +382,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
                                                              measured_EW_err, fix_params, callback,
                                                              passed_kwargs)
     if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
-                                          tolerances, max_step_sizes ./ 4, parameter_ranges,
+                                          tolerances, max_step_sizes, parameter_ranges,
                                           max_iterations)
         return params, fill(NaN, 4), fill(NaN, 4)
     end
@@ -427,7 +456,7 @@ end
 # Returns true if the iteration converged, false otherwise.
 function _ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
                                            tolerances, max_step_sizes, parameter_ranges,
-                                           max_iterations)
+                                           max_iterations, damping_factor=1.0)
     iterations = 0
     while true
         J_result = ForwardDiff.jacobian!(J_result, get_residuals, params)
@@ -440,6 +469,7 @@ function _ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_
         # calculate step, and update params
         step = zeros(length(params))
         step[.!fix_params] = -J[.!fix_params, .!fix_params] \ residuals[.!fix_params]
+        step .*= damping_factor
         params .+= clamp.(step, -max_step_sizes, max_step_sizes)
         params .= clamp.(params, first.(parameter_ranges), last.(parameter_ranges))
 
