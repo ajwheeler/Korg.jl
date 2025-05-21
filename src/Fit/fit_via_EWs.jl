@@ -363,7 +363,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     params = validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
                                                    parameter_ranges)
 
-    # TODO factor get_residuals definition into the _ews_to_stellar_parameters_phase! 
+    # TODO factor get_residuals definition into the _ews_to_stellar_parameters_phase!
     # First phase: approximate calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
                                                              measured_EW_err, fix_params, callback,
@@ -576,10 +576,12 @@ weighted_mean(x, inv_var) = sum(x .* inv_var) / sum(inv_var)
 # called by _stellar_param_equation_residuals
 function get_slope(xs, ys, inv_var)
     Δx = xs .- mean(xs)
-    Δy = ys .- mean(ys)
+    # inefficient (the denominator is the same as below, but it's OK)
+    Δy = ys .- weighted_mean(ys, inv_var)
     sum(Δx .* Δy .* inv_var) ./ sum(Δx .^ 2 .* inv_var)
 end
 
+# TODO fix
 function get_slope_uncertainty(xs, ivar::AbstractVector) # guard against scalar ivar
     sqrt(sum(ivar) / (sum(ones(length(xs)) .* ivar) * sum(ivar .* xs .^ 2) - sum(ivar .* xs)^2))
 end
