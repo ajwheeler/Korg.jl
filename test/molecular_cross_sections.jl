@@ -14,7 +14,7 @@
 
     table = Korg.MolecularCrossSection(water_lines, wls; verbose=false)
 
-    atm = interpolate_marcs(4000.0, 4.5)
+    atm = Korg.PlanarAtmosphere(interpolate_marcs(4000.0, 4.5).layers[40:43])
 
     filename = tempname()
     Korg.save_molecular_cross_section(filename, table)
@@ -23,7 +23,7 @@
     @test all(table.wls .≈ deserialized_table.wls)
     @test table.species == deserialized_table.species
 
-    @testset for vmic in [0.5, 2.5]
+    @testset for vmic in [0.5, [0.5, 0.5, 2.0, 2.5]]
         sol_without = synthesize(atm, linelist, format_A_X(), wls; verbose=false, vmic=vmic)
         sol_with = synthesize(atm, linelist_less_water, format_A_X(), wls;
                               molecular_cross_sections=[deserialized_table], verbose=false,
