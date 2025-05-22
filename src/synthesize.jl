@@ -71,7 +71,8 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 
 # Optional arguments:
 
-  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
+  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
+    value or a vector of values, one for each atmospheric layer.
   - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
     before it is discarded.  If the edge of your window is near a strong line, you may have to turn
     this up.
@@ -127,7 +128,7 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
-                    vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
+                    vmic=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
                     air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=Inf,
@@ -189,7 +190,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     #float-like type general to handle dual numbers
     α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
-                          eltype(wls), typeof(vmic), typeof.(abs_abundances)...)
+                          eltype(wls), eltype(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(wls))
     # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
@@ -254,9 +255,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             nH_I = n_dict[species"H_I"]
             nHe_I = n_dict[species"He_I"]
             U_H_I = partition_funcs[species"H_I"](log(layer.temp))
+            ξ = (isa(vmic, Number) ? vmic : vmic[i]) * 1e5
             hydrogen_line_absorption!(view(α, i, :), wls, layer.temp, nₑ, nH_I, nHe_I,
-                                      U_H_I, vmic * 1e5,
-                                      hydrogen_line_window_size * 1e-8;
+                                      U_H_I, ξ, hydrogen_line_window_size * 1e-8;
                                       use_MHD=use_MHD_for_hydrogen_lines)
         end
     end
