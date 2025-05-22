@@ -1,9 +1,8 @@
 name: Benchmark a pull request
 
 on:
-  pull_request_target:
-    branches:
-      - main
+  workflow_dispatch:
+  pull_request:
 
 permissions:
   pull-requests: write
