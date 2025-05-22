@@ -14,7 +14,9 @@
 
     table = Korg.MolecularCrossSection(water_lines, wls; verbose=false)
 
-    atm = Korg.PlanarAtmosphere(interpolate_marcs(4000.0, 4.5).layers[40:43])
+    # this test fails if I truncate the atmosphere to 40:43, which _may_ indicate that it's worth
+    # better understanding the precision of interpolation here
+    atm = interpolate_marcs(4000.0, 4.5)
 
     filename = tempname()
     Korg.save_molecular_cross_section(filename, table)
@@ -23,7 +25,9 @@
     @test all(table.wls .≈ deserialized_table.wls)
     @test table.species == deserialized_table.species
 
-    @testset for vmic in [0.5, [0.5, 0.5, 1.0, 1.0]]
+    depth_dependent_vmics = fill(0.5, length(atm.layers))
+    depth_dependent_vmics[20:end] .= 1.0
+    @testset for vmic in [0.5, depth_dependent_vmics]
         sol_without = synthesize(atm, linelist, format_A_X(), wls; verbose=false, vmic=vmic)
         sol_with = synthesize(atm, linelist_less_water, format_A_X(), wls;
                               molecular_cross_sections=[deserialized_table], verbose=false,
