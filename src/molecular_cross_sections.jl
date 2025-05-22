@@ -50,7 +50,7 @@ function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
 
     α = zeros(length(vmic_vals), length(log_temp_vals), length(wls))
 
-    # set both the continuum absorption coef (cntm) and the cutoff absorption coef to 
+    # set both the continuum absorption coef (cntm) and the cutoff absorption coef to
     # unity.  Handle the cutoff value by scaling the number density of the molecule
     # (in n_dict).
     Ts = 10 .^ log_temp_vals
@@ -94,11 +94,11 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
     end
 
     for sigma in molecular_cross_sections
+        # this is an inefficient order in which to write to α, but doing the interpolations this
+        # way uses less memory.
         for i in 1:size(α, 1)
-            # this is an inefficient order in which to write to α, but doing the interpolations this
-            # way uses less memory.
-            view(α, i, :) .+= sigma.itp.(vmic, log10(Ts[i]), λs) *
-                              number_densities[sigma.species][i]
+            vm = vmic isa Number ? vmic : vmic[i]
+            α[i, :] .+= sigma.itp.(vm, log10(Ts[i]), λs) * number_densities[sigma.species][i]
         end
     end
 end
