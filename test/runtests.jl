@@ -1,6 +1,6 @@
 using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, Aqua
 
-println("running test suite with  ", Threads.nthreads(), " threads.")
+println("running test suite with ", Threads.nthreads(), " threads.")
 
 @testset "Korg tests" verbose=true showtiming=true begin
 
