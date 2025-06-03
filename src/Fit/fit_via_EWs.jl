@@ -255,8 +255,8 @@ function ews_to_stellar_parameters_direct(linelist, measured_EWs,
     end
 
     @time res = optimize(cost, p0, BFGS(; linesearch=LineSearches.BackTracking(; maxstep=1.0)),
-                         Optim.Options(; x_tol=precision, time_limit=time_limit, show_trace=true,
-                                       extended_trace=true); autodiff=:forward)
+                         Optim.Options(; x_abstol=precision, time_limit=time_limit,
+                                       store_trace=true, show_trace=verbose); autodiff=:forward)
 
     if !Optim.converged(res)
         @warn "Stellar parameter fit to EWs did not converge"
