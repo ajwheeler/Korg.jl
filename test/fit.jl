@@ -321,13 +321,10 @@ using Random
             # EWs you get for the fake linelist with solar params
             # the real implementation uses the trapezoid rule, but this is close enough
             EWs = [sum((1 .- sol.flux./sol.cntm)[r]) for r in sol.subspectra] * 10 #0.01 Å -> mÅ
-            EW_err = ones(length(EWs)) * 0.5
-            best_fit_params, stat_err, sys_err = Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                                    EWs, EW_err)
+            best_fit_params, param_err = Korg.Fit.ews_to_stellar_parameters(good_linelist, EWs)
 
-            @test sys_err == [0.0, 0.0, 0.0, 0.0]
             for (i, p) in enumerate([5777.0, 4.44, 1.0, 0.0])
-                @test best_fit_params[i]≈p atol=stat_err[i]
+                @test best_fit_params[i]≈p atol=param_err[i]
             end
 
             # check that fixing parameters works
@@ -336,15 +333,14 @@ using Random
                 fixed_params[i] = true
                 kwargs = Dict(param => best_fit_params[i])
                 # start teff and logg close to right answer to make it faster.
-                bestfit_fixed, _, _ = Korg.Fit.ews_to_stellar_parameters(good_linelist, EWs,
-                                                                         EW_err;
-                                                                         Teff0=5740.0,
-                                                                         logg0=4.4,
-                                                                         fix_params=fixed_params,
-                                                                         kwargs...)
+                bestfit_fixed, param_err = Korg.Fit.ews_to_stellar_parameters(good_linelist, EWs;
+                                                                              Teff0=5740.0,
+                                                                              logg0=4.4,
+                                                                              fix_params=fixed_params,
+                                                                              kwargs...)
 
                 for i in 1:4
-                    @test bestfit_fixed[i]≈best_fit_params[i] atol=stat_err[i]/10
+                    @test bestfit_fixed[i]≈best_fit_params[i] atol=param_err[i]/10
                 end
             end
         end
