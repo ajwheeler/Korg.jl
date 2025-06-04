@@ -27,8 +27,9 @@ other arguments:
     is multithreaded over the lines in `linelist`.
   - `verbose` (deprecated): no longer used.
 """
-function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
-                          α_cntm; cutoff_threshold=3e-4, verbose=false, tasks_per_thread=1)
+function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wavelengths, temps,
+                          nₑ, n_densities, partition_fns, ξ, α_cntm; cutoff_threshold=3e-4,
+                          verbose=false, tasks_per_thread=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end
@@ -46,7 +47,9 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
     n_chunks = tasks_per_thread * Threads.nthreads()
     chunk_size = max(1, length(linelist) ÷ n_chunks + (length(linelist) % n_chunks > 0))
     linelist_chunks = partition(linelist, chunk_size)
-    tasks = map(linelist_chunks) do linelist_chunk
+    lande_g_factors_chunks = partition(lande_g_factors, chunk_size)
+
+    tasks = map(linelist_chunks, lande_g_factors_chunks) do linelist_chunk, lande_g_factor_chunk
         # Each chunk of your data gets its own spawned task that does its own local, sequential work
         # and then returns the result
         Threads.@spawn begin
@@ -63,8 +66,11 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
             inverse_densities = Vector{eltype(α)}(undef, size(temps))
 
-            for line in linelist_chunk
+            for (line, lande_g_factor) in zip(linelist_chunk, lande_g_factor_chunk)
                 m = get_mass(line.species)
+
+                # TODO account totally for selection effects? I think it's slightly more complicated than this.
+                ΔE_zeeman = bohr_magneton_cgs * lande_g_factor * magnetic_field
 
                 # doppler-broadening width, σ (NOT √[2]σ)
                 σ .= doppler_width.(line.wl, temps, m, ξ)
