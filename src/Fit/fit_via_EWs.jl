@@ -317,6 +317,7 @@ A pair, `(params, uncertainties)`, containing:
   - the best-fit parameters: `[Teff, logg, vmic, [m/H]]` as a vector (with vmic in km/s)
   - the uncertainties in the parameters, propagated from the uncertainties in the
     equivalent widths, which estimated from the line-to-line scatter and assumed to be uncorrelated.
+    This is not a particularly rigorous error estimate, but it is a good sanity check.
 
 !!! info
 
@@ -540,10 +541,11 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, passed_kwar
     # from the line-to-line scatter
     estimated_err = std(A[isfinite.(A)])
 
-    sigma_mean = 1 ./ sqrt(sum(1 ./ estimated_err .^ 2))
+    sigma_mean = estimated_err ./ sqrt(length(estimated_err))
     teff_residual_sigma = estimated_err *
                           get_slope_uncertainty([line.E_lower for line in linelist[neutrals]])
     vmic_residual_sigma = estimated_err * get_slope_uncertainty(REWs[neutrals])
+
     [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
 end
 
@@ -570,7 +572,6 @@ function get_slope(xs, ys)
     Δy = ys .- mean(ys)
     sum(Δx .* Δy) ./ sum(Δx .^ 2)
 end
-
 function get_slope_uncertainty(xs)
     n = length(xs)
     sqrt(1 / (sum(xs .^ 2) - sum(xs)^2 / n))
