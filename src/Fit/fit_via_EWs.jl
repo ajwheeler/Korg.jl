@@ -326,8 +326,10 @@ A pair, `(params, uncertainties)`, containing:
 
 # Keyword arguments:
 
-  - `Teff0` (default: 5000.0) is the starting guess for Teff
+  - `abundance_adjustments` (default: `zeros(length(measured_EWs))`) is a vector of abundances
+    adjustments to be applied to the lines. This is useful when doing a differential analysis.
 
+  - `Teff0` (default: 5000.0) is the starting guess for Teff
   - `logg0` (default: 3.5) is the starting guess for logg
   - `vmic0` (default: 1.0) is the starting guess for vmic. Note that this must be nonzero in order to
     avoid null derivatives. Very small values are fine.
@@ -389,7 +391,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
 
     # First phase: approximate calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
-                                                             fix_params, callback, passed_kwargs)
+                                                             abundance_adjustments, fix_params,
+                                                             callback, passed_kwargs)
     J_result = DiffResults.JacobianResult(params)
     if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
                                           tolerances * 10, max_step_sizes, parameter_ranges,
@@ -401,7 +404,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
 
     # Second phase: exact calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(true, p, linelist, measured_EWs,
-                                                             fix_params, callback, passed_kwargs)
+                                                             abundance_adjustments, fix_params,
+                                                             callback, passed_kwargs)
     if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
                                           tolerances, max_step_sizes, parameter_ranges,
                                           max_iterations)
@@ -410,6 +414,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
 
     # compute uncertainties
     residual_uncertainties = _stellar_param_residual_uncertainties(params, linelist, measured_EWs,
+                                                                   abundance_adjustments,
                                                                    passed_kwargs)
 
     J = DiffResults.jacobian(J_result)[.!fix_params, .!fix_params]
@@ -501,10 +506,13 @@ function _ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_
 end
 
 # called by ews_to_stellar_parameters
-function _stellar_param_equation_residuals(exact_calculation, params, linelist, EW, fix_params,
-                                           callback, passed_kwargs)
+function _stellar_param_equation_residuals(exact_calculation, params, linelist, EW,
+                                           abundance_adjustments, fix_params, callback,
+                                           passed_kwargs)
     A, neutrals, REWs, Z = _stellar_param_equations_precalculation(exact_calculation, params,
-                                                                   linelist, EW, passed_kwargs)
+                                                                   linelist, EW,
+                                                                   abundance_adjustments,
+                                                                   passed_kwargs)
     finitemask = isfinite.(A)
 
     if mean(finitemask) < 0.7
@@ -534,8 +542,10 @@ end
 
 # called by _stellar_param_equation_residuals
 # returns (statistical_uncertainty, systematic_uncertainty)
-function _stellar_param_residual_uncertainties(params, linelist, EW, passed_kwargs)
+function _stellar_param_residual_uncertainties(params, linelist, EW, abundance_adjustments,
+                                               passed_kwargs)
     A, neutrals, REWs, _ = _stellar_param_equations_precalculation(true, params, linelist, EW,
+                                                                   abundance_adjustments,
                                                                    passed_kwargs)
     # assume the total (including systematic) err in the abundances of each line can be obtained
     # from the line-to-line scatter
@@ -550,7 +560,7 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, passed_kwar
 end
 
 function _stellar_param_equations_precalculation(exact_calculation, params, linelist, EW,
-                                                 passed_kwargs)
+                                                 abundance_adjustments, passed_kwargs)
     if exact_calculation
         A = ews_to_abundances(params, linelist, EW; blend_warn_threshold=Inf, passed_kwargs...)
     else
@@ -563,7 +573,7 @@ function _stellar_param_equations_precalculation(exact_calculation, params, line
     # this is guaranteed not to be a mol (checked by ews_to_stellar_parameters).
     Z = Korg.get_atoms(linelist[1].species)[1]
 
-    A, neutrals, REWs, Z
+    A + abundance_adjustments, neutrals, REWs, Z
 end
 
 # called by _stellar_param_equation_residuals
