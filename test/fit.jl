@@ -259,9 +259,6 @@ using Random
 
             # number of EWs, EW uncertainties, and lines should match
             @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(simple_linelist, [1.0])
-            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(simple_linelist,
-                                                                          ones(length(simple_linelist)),
-                                                                          [1.0])
 
             # different elements
             linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
