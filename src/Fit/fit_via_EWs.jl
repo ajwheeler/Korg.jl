@@ -240,11 +240,24 @@ function ews_to_abundances_parameter_validation(linelist, measured_EWs)
 end
 
 """
-TODO
+    ews_to_stellar_parameters_direct(linelist, measured_EWs,
+                                    measured_EW_err=ones(length(measured_EWs));
+                                    p0=[5.0, 3.5, 1.0, 0.0], precision=1e-5, time_limit=500)
+
+!!! warning
+
+    This function is experimental and may change or be removed in the future.
+
+Find stellar parameters from equivalent widths the "direct" way, e.g. by forward modelling the
+equivalent widths and minimizing the chi-squared.
+
+Returns a vector of parameters `[Teff, logg, vmic, [m/H]]`, and an estimate of the uncertainties
+from the approximate inverse Hessian matrix from BFGS.
 """
 function ews_to_stellar_parameters_direct(linelist, measured_EWs,
                                           measured_EW_err=ones(length(measured_EWs));
-                                          p0=[5.0, 3.5, 1.0, 0.0], precision=1e-5, time_limit=500)
+                                          verbose=false, p0=[5.0, 3.5, 1.0, 0.0], precision=1e-5,
+                                          time_limit=500)
     function cost(params)
         Teff, logg, vmic, m_H = params
         Teff = Teff * 1e3
@@ -256,13 +269,20 @@ function ews_to_stellar_parameters_direct(linelist, measured_EWs,
 
     @time res = optimize(cost, p0, BFGS(; linesearch=LineSearches.BackTracking(; maxstep=1.0)),
                          Optim.Options(; x_abstol=precision, time_limit=time_limit,
-                                       store_trace=true, show_trace=verbose); autodiff=:forward)
+                                       extended_trace=true, store_trace=true, show_trace=verbose);
+                         autodiff=:forward)
 
     if !Optim.converged(res)
         @warn "Stellar parameter fit to EWs did not converge"
     end
+    params = res.minimizer
+    params[1] *= 1e3
 
-    res.minimizer
+    scales = [1e3, 1.0, 1.0, 1.0]
+    uncertainties = res.trace[end].metadata["~inv(H)"]
+    uncertainties .*= scales .* scales'
+
+    params, uncertainties
 end
 
 function _stellar_params_default_callback(params, residuals, abundances)
@@ -373,7 +393,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
                                           tolerances * 10, max_step_sizes, parameter_ranges,
                                           max_iterations)
-        return params, fill(NaN, 4), fill(NaN, 4)
+        return params, fill(NaN, 4)
     end
 
     verbose && println("Approximate solve converged. Starting exact solve.")
@@ -384,7 +404,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
                                           tolerances, max_step_sizes, parameter_ranges,
                                           max_iterations)
-        return params, fill(NaN, 4), fill(NaN, 4)
+        return params, fill(NaN, 4)
     end
 
     # compute uncertainties
@@ -518,7 +538,7 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, passed_kwar
                                                                    passed_kwargs)
     # assume the total (including systematic) err in the abundances of each line can be obtained
     # from the line-to-line scatter
-    estimated_err = std(A)
+    estimated_err = std(A[isfinite.(A)])
 
     sigma_mean = 1 ./ sqrt(sum(1 ./ estimated_err .^ 2))
     teff_residual_sigma = estimated_err *
