@@ -3,6 +3,7 @@
 /Manifest.toml
 test/Manifest.toml
 docs/Manifest.toml
+benchmark/Manifest.toml
 sanity_checks/Manifest.toml
 *.jl~
 misc/Tutorial\ notebooks/Project.toml
@@ -16,3 +17,5 @@ misc/d.pdf
 misc/*.png
 docs/build/
 *.DS_Store
+results_*.json
+results_*.json.tmp
