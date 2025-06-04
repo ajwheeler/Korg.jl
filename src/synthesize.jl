@@ -128,6 +128,7 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
+                    land_g_factors=nothing, magnetic_field=nothing,
                     vmic=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
                     air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
@@ -234,8 +235,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # line contributions to α5
     if tau_scheme == "anchored"
         α_cntm_5 = [_ -> a for a in copy(α5)] # lambda per layer
-        line_absorption!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm), nₑs,
-                         number_densities,
+        line_absorption!(view(α5, :, 1), linelist5, land_g_factors, magnetic_field,
+                         Wavelengths([5000]), get_temps(atm), nₑs, number_densities,
                          partition_funcs, vmic * 1e5, α_cntm_5;
                          cutoff_threshold=line_cutoff_threshold)
         interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
@@ -262,8 +263,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
-                     vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
+    line_absorption!(α, linelist, land_g_factors, magnetic_field, wls, get_temps(atm), nₑs,
+                     number_densities, partition_funcs, vmic * 1e5, α_cntm;
+                     cutoff_threshold=line_cutoff_threshold, verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 
