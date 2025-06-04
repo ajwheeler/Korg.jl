@@ -7,7 +7,8 @@ Functions for fitting to data.
 """
 module Fit
 using Compat: @compat
-@compat public fit_spectrum, ews_to_abundances, ews_to_stellar_parameters
+@compat public fit_spectrum, ews_to_abundances, ews_to_stellar_parameters,
+               ews_to_stellar_parameters_direct
 
 using ..Korg, ForwardDiff
 

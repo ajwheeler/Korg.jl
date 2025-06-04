@@ -246,22 +246,19 @@ using Random
 
     @testset "stellar parameters via EWs" begin
         # used in both tests below
-        good_linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 4.1),
+        simple_linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 4.1),
             Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 4.2),
             Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 4.3),
             Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 4.4)]
 
         @testset "validate arguments" begin
             # vmic can't be specified
-            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                          ones(length(good_linelist));
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(simple_linelist,
+                                                                          ones(length(simple_linelist));
                                                                           vmic=1.0)
 
             # number of EWs, EW uncertainties, and lines should match
-            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist, [1.0])
-            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                          ones(length(good_linelist)),
-                                                                          [1.0])
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(simple_linelist, [1.0])
 
             # different elements
             linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
@@ -295,8 +292,8 @@ using Random
                                                                           ones(length(linelist)))
 
             # parameter ranges must have positive measure
-            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                          ones(length(good_linelist));
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(simple_linelist,
+                                                                          ones(length(simple_linelist));
                                                                           parameter_ranges=[(5777,
                                                                                              5777),
                                                                               (3.0, 4.0),
@@ -304,30 +301,38 @@ using Random
                                                                               (-0.5, 0.0)])
 
             # vmic0 can't be 0
-            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                          ones(length(good_linelist));
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(simple_linelist,
+                                                                          ones(length(simple_linelist));
                                                                           vmic0=0)
         end
 
         @testset "basic fit" begin
+            linelist = Korg.get_VALD_solar_linelist()
+            filter!(linelist) do line
+                (Korg.get_atoms(line.species) == [26]) && (line.wl * 1e8 .> 8500)
+            end
+            linelist = linelist[1:4:end]
+
             # 2 Å wide window around each line
-            synth_wls = map(good_linelist) do line
+            synth_wls = map(linelist) do line
                 wl = line.wl * 1e8
                 wl-1.0:0.01:wl+1.0
             end
-            sol = synthesize(interpolate_marcs(5777.0, 4.44), good_linelist, format_A_X(),
+            sol = synthesize(interpolate_marcs(5777.0, 4.44), linelist, format_A_X(),
                              synth_wls; hydrogen_lines=false)
 
             # EWs you get for the fake linelist with solar params
             # the real implementation uses the trapezoid rule, but this is close enough
             EWs = [sum((1 .- sol.flux./sol.cntm)[r]) for r in sol.subspectra] * 10 #0.01 Å -> mÅ
-            EW_err = ones(length(EWs)) * 0.5
-            best_fit_params, stat_err, sys_err = Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                                    EWs, EW_err)
+            best_fit_params, param_err = Korg.Fit.ews_to_stellar_parameters(linelist, EWs)
 
-            @test sys_err == [0.0, 0.0, 0.0, 0.0]
-            for (i, p) in enumerate([5777.0, 4.44, 1.0, 0.0])
-                @test best_fit_params[i]≈p atol=stat_err[i]
+            # in this fake data case, the reported uncertainties are meaningless because there is no
+            # line-to-line scatter, save for what arises from imperfect fit convergence.
+            # so, just check that the fit is good.
+            param_tolerance = 10
+            for (guess, p, tol) in zip(best_fit_params, [5777.0, 4.44, 1.0, 0.0],
+                                       [param_tolerance, 0.05, 0.1, 0.01])
+                @test guess≈p atol=tol
             end
 
             # check that fixing parameters works
@@ -336,15 +341,16 @@ using Random
                 fixed_params[i] = true
                 kwargs = Dict(param => best_fit_params[i])
                 # start teff and logg close to right answer to make it faster.
-                bestfit_fixed, _, _ = Korg.Fit.ews_to_stellar_parameters(good_linelist, EWs,
-                                                                         EW_err;
-                                                                         Teff0=5740.0,
-                                                                         logg0=4.4,
-                                                                         fix_params=fixed_params,
-                                                                         kwargs...)
+                bestfit_fixed, param_err = Korg.Fit.ews_to_stellar_parameters(linelist, EWs;
+                                                                              Teff0=5740.0,
+                                                                              logg0=4.4,
+                                                                              fix_params=fixed_params,
+                                                                              kwargs...)
 
-                for i in 1:4
-                    @test bestfit_fixed[i]≈best_fit_params[i] atol=stat_err[i]/10
+                # check that the fixed parameters are close to the one from the full fit with 10x
+                # smaller tolerance
+                for (fixed, best, tol) in zip(bestfit_fixed, best_fit_params, param_tolerance)
+                    @test fixed≈best atol=tol/10
                 end
             end
         end
