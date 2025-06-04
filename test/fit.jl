@@ -329,8 +329,13 @@ using Random
             EWs = [sum((1 .- sol.flux./sol.cntm)[r]) for r in sol.subspectra] * 10 #0.01 Å -> mÅ
             best_fit_params, param_err = Korg.Fit.ews_to_stellar_parameters(linelist, EWs)
 
-            for (i, p) in enumerate([5777.0, 4.44, 1.0, 0.0])
-                @test best_fit_params[i]≈p atol=param_err[i]
+            # in this fake data case, the reported uncertainties are meaningless because there is no
+            # line-to-line scatter, save for what arises from imperfect fit convergence.
+            # so, just check that the fit is good.
+            param_tolerance = 10
+            for (guess, p, tol) in zip(best_fit_params, [5777.0, 4.44, 1.0, 0.0],
+                                       [param_tolerance, 0.05, 0.1, 0.01])
+                @test guess≈p atol=tol
             end
 
             # check that fixing parameters works
@@ -345,8 +350,10 @@ using Random
                                                                               fix_params=fixed_params,
                                                                               kwargs...)
 
-                for i in 1:4
-                    @test bestfit_fixed[i]≈best_fit_params[i] atol=param_err[i]/10
+                # check that the fixed parameters are close to the one from the full fit with 10x
+                # smaller tolerance
+                for (fixed, best, tol) in zip(bestfit_fixed, best_fit_params, param_tolerance)
+                    @test fixed≈best atol=tol/10
                 end
             end
         end
