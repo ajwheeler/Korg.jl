@@ -3,7 +3,7 @@ name: Benchmark
 on:
   pull_request:
     branches: [ main ]   # change if your default branch differs
-  workflow_dispatch:     # allows manual triggering
+  workflow_dispatch:     # allows manual triggering for PRs from forks
 
 permissions:
   pull-requests: write    # needed to post comments
