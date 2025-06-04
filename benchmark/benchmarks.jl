@@ -14,7 +14,7 @@ const WAVELENGTH_RANGES_AND_LINELISTS = [
     ("one wavelength", (5000, 5000), []),
     ("4000 Å - 8000 Å VALD solar", (4000, 8000), Korg.get_VALD_solar_linelist()),
     ("APOGEE DR17 w/o water", (15000, 17000), Korg.get_APOGEE_DR17_linelist(; include_water=false)),
-    ("500 Å of APOGEE w/ water", (15500, 16000), Korg.get_APOGEE_DR17_linelist())
+    ("100 Å of APOGEE w/ water", (15500, 15600), Korg.get_APOGEE_DR17_linelist())
 ]
 
 SUITE["synthesis"] = BenchmarkGroup()
