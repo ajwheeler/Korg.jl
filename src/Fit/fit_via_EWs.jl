@@ -359,8 +359,8 @@ A pair, `(params, uncertainties)`, containing:
   - `max_iterations` (default: 30) is the maximum number of iterations to allow before stopping the
     optimization.
 """
-function ews_to_stellar_parameters(linelist, measured_EWs,
-                                   measured_EW_err=zeros(length(measured_EWs));
+function ews_to_stellar_parameters(linelist, measured_EWs;
+                                   abundance_adjustments=zeros(length(measured_EWs)),
                                    Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
@@ -384,7 +384,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
     end
 
     params0 = [Teff0, logg0, vmic0, m_H0]
-    params = validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
+    params = validate_ews_to_stellar_params_inputs(linelist, measured_EWs, params0,
                                                    parameter_ranges)
 
     # First phase: approximate calculations
@@ -420,9 +420,9 @@ function ews_to_stellar_parameters(linelist, measured_EWs,
 end
 
 # Validate the input parameters for stellar parameter determination.
-function validate_ews_to_stellar_params_inputs(linelist, measured_EWs, measured_EW_err, params0,
+function validate_ews_to_stellar_params_inputs(linelist, measured_EWs, params0,
                                                parameter_ranges)
-    if length(linelist) != length(measured_EWs) || length(linelist) != length(measured_EW_err)
+    if length(linelist) != length(measured_EWs)
         throw(ArgumentError("length of linelist does not match length of ews ($(length(linelist)) != $(length(measured_EWs)))"))
     end
 
