@@ -1,5 +1,8 @@
 @testset "Wavelengths" begin
     @testset "constructor" begin
+
+        @test_throws "wavelengths must be non-empty" Korg.Wavelengths([])
+
         wls = Korg.Wavelengths(15000, 15500)
         @test wls == Korg.Wavelengths((15000, 15500))
         @test wls == Korg.Wavelengths([(15000, 15500)])

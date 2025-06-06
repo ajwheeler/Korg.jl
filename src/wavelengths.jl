@@ -60,7 +60,7 @@ struct Wavelengths{F} <: AbstractArray{F,1}
         new{eltype(all_wls)}(wl_ranges, all_wls, all_freqs)
     end
 end
-function Wavelengths(wls::Wavelengths; air_wavelengths=false,)
+function Wavelengths(wls::Wavelengths; air_wavelengths=false, kwargs...)
     if air_wavelengths
         Wavelengths(wls.wl_ranges; air_wavelengths=true, kwargs...)
     else
@@ -68,7 +68,9 @@ function Wavelengths(wls::Wavelengths; air_wavelengths=false,)
     end
 end
 Wavelengths(wls::R; kwargs...) where R<:AbstractRange = Wavelengths([wls]; kwargs...)
-function Wavelengths(wls::AbstractVector{<:Real}; tolerance=1e-6, kwargs...)
+# this handles the vector of wl values case. The eltype is unspecified (Any) so that
+# empty vectors get dispatched to this method.
+function Wavelengths(wls::AbstractVector; tolerance=1e-6, kwargs...)
     if length(wls) == 0
         throw(ArgumentError("wavelengths must be non-empty"))
     elseif length(wls) == 1
