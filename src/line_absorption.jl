@@ -47,9 +47,8 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
     n_chunks = tasks_per_thread * Threads.nthreads()
     chunk_size = max(1, length(linelist) ÷ n_chunks + (length(linelist) % n_chunks > 0))
     linelist_chunks = partition(linelist, chunk_size)
-    lande_g_factors_chunks = partition(lande_g_factors, chunk_size)
 
-    tasks = map(linelist_chunks, lande_g_factors_chunks) do linelist_chunk, lande_g_factor_chunk
+    tasks = map(linelist_chunks) do linelist_chunk
         # Each chunk of your data gets its own spawned task that does its own local, sequential work
         # and then returns the result
         Threads.@spawn begin
@@ -65,12 +64,11 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
             levels_factor = Vector{eltype(α)}(undef, size(temps))
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
             inverse_densities = Vector{eltype(α)}(undef, size(temps))
+            ΔE_zeeman = Vector{eltype(α)}(undef, size(temps))
+            Δλ = Vector{eltype(α)}(undef, size(temps))
 
-            for (line, lande_g_factor) in zip(linelist_chunk, lande_g_factor_chunk)
+            for line in linelist_chunk
                 m = get_mass(line.species)
-
-                # TODO account totally for selection effects? I think it's slightly more complicated than this.
-                ΔE_zeeman = bohr_magneton_cgs * lande_g_factor * magnetic_field
 
                 # doppler-broadening width, σ (NOT √[2]σ)
                 σ .= doppler_width.(line.wl, temps, m, ξ)
@@ -100,15 +98,35 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 doppler_line_window = maximum(inverse_densities)
                 inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
                 lorentz_line_window = maximum(inverse_densities)
-                window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
-                lb = searchsortedfirst(λs, line.wl - window_size)
-                ub = searchsortedlast(λs, line.wl + window_size)
-                # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
-                if lb > ub
-                    continue
+
+                # TODO don't just use odd g
+                if ismissing(line.lande_g_odd)
+                    Δλ .= 0.0
+                else
+                    ΔE_zeeman .= bohr_magneton_eV / eV_to_cgs * line.lande_g_odd * magnetic_field
+                    # TODO upper or lower E
+                    Δλ .= @. (c_cgs * hplanck_eV) / line.E_lower^2 * ΔE_zeeman
+                    @show extrema(Δλ)
                 end
 
-                α_task[:, lb:ub] .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+                window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
+                              maximum(Δλ) - minimum(Δλ) # make sure it's big enough to include all Zeeman shifts
+                for shift in (-Δλ, Δλ) # TODO selection rules
+                    λ = @. line.wl + shift
+
+                    # calculate the window center from the nominal line center, not the shifted line
+                    # centers
+                    # at present, this line is allocating. Would be good to fix that.
+                    lb = searchsortedfirst(λs, line.wl - window_size)
+                    ub = searchsortedlast(λs, line.wl + window_size)
+                    # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
+                    if lb > ub
+                        continue
+                    end
+
+                    # TODO selection rules scaling
+                    α_task[:, lb:ub] .+= line_profile.(λ, σ, γ, amplitude ./ 2, view(λs, lb:ub)')
+                end
             end
             return α_task
         end
