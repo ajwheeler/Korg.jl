@@ -1,6 +1,5 @@
 @testset "Wavelengths" begin
     @testset "constructor" begin
-
         @test_throws "wavelengths must be non-empty" Korg.Wavelengths([])
 
         wls = Korg.Wavelengths(15000, 15500)
@@ -44,13 +43,13 @@
     end
 
     @testset "searchsortedfirst/last" begin
-
         # give the target wavelengths in both Å and cm
         @testset for conversion_factor in [1, 1e-8]
             wls = Korg.Wavelengths(0.5 .+ (2:10))
             @test searchsortedfirst(wls, 4.0 * conversion_factor) == 3
             @test searchsortedfirst(wls, 1.5 * conversion_factor) == 1
-            @test searchsortedfirst(wls, 3.0 * conversion_factor) == 2
+            @test searchsortedfirst(wls, 3 * conversion_factor) == 2
+
             @test searchsortedlast(wls, 8 * conversion_factor) == 6
             @test searchsortedlast(wls, 4 * conversion_factor) == 2
             @test searchsortedlast(wls, 11 * conversion_factor) == 9
@@ -60,14 +59,14 @@
             @test searchsortedlast(wls, 5.6 * conversion_factor) == 5
 
             wls = Korg.Wavelengths([3:5, 11:0.5:12.5, 16:20])
-            @test searchsortedfirst(wls, 2) == 1
-            @test searchsortedfirst(wls, 11.9) == 6
-            @test searchsortedfirst(wls, 45) == 13
-            @test searchsortedlast(wls, 2) == 0
-            @test searchsortedlast(wls, 4) == 2
-            @test searchsortedlast(wls, 11) == 4
-            @test searchsortedlast(wls, 13.1) == 7
-            @test searchsortedlast(wls, 55) == 12
+            @test searchsortedfirst(wls, 2 * conversion_factor) == 1
+            @test searchsortedfirst(wls, 11.9 * conversion_factor) == 6
+            @test searchsortedfirst(wls, 45 * conversion_factor) == 13
+            @test searchsortedlast(wls, 2 * conversion_factor) == 0
+            @test searchsortedlast(wls, 4 * conversion_factor) == 2
+            @test searchsortedlast(wls, 11 * conversion_factor) == 4
+            @test searchsortedlast(wls, 13.1 * conversion_factor) == 7
+            @test searchsortedlast(wls, 55 * conversion_factor) == 12
         end
     end
 end

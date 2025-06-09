@@ -17,8 +17,8 @@ a vector of upper and lower bounds. For example,
     wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
   - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
 """
-struct Wavelengths{F} <: AbstractArray{F,1}
-    wl_ranges::Vector{StepRangeLen{F}} # in cm, not Å
+struct Wavelengths{F,R} <: AbstractArray{F,1}
+    wl_ranges::Vector{R} # in cm, not Å
     # precomputed arrays.  It may(?) be faster to lazily compute these.
     all_wls::Vector{F}
     all_freqs::Vector{F}
@@ -29,6 +29,10 @@ struct Wavelengths{F} <: AbstractArray{F,1}
         # if the first wavelength is > 1, assume it's in Å and convert to cm
         if first(first(wl_ranges)) >= 1
             wl_ranges = wl_ranges .* 1e-8
+        end
+
+        if !isconcretetype(eltype(wl_ranges))
+            @warn "Korg.Wavelengths is begin constructed with an abstract range type, which will hurt performance."
         end
 
         # this could be more efficient
@@ -57,7 +61,7 @@ struct Wavelengths{F} <: AbstractArray{F,1}
         # precompute all wavelengths and frequencies
         all_freqs = reverse(Korg.c_cgs ./ all_wls)
 
-        new{eltype(all_wls)}(wl_ranges, all_wls, all_freqs)
+        new{eltype(all_wls),eltype(wl_ranges)}(wl_ranges, all_wls, all_freqs)
     end
 end
 function Wavelengths(wls::Wavelengths; air_wavelengths=false, kwargs...)
@@ -83,12 +87,14 @@ function Wavelengths(wls::AbstractVector; tolerance=1e-6, kwargs...)
         Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
     end
 end
-function Wavelengths(wls::AbstractVector, λ_step=(wls[1][1] < 1 ? 0.01e-8 : 0.01); kwargs...)
+# this handles the vector-of-bounds case
+function Wavelengths(wls::AbstractVector{<:Tuple{<:Real,<:Real}},
+                     λ_step=(wls[1][1] < 1 ? 0.01e-8 : 0.01); kwargs...)
     if λ_step isa Integer
         λ_step = convert(Float64, λ_step)
     end
-    Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step) for (λ_start, λ_stop) in wls];
-                kwargs...)
+    Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step)
+                 for (λ_start, λ_stop) in wls]; kwargs...)
 end
 function Wavelengths(λ_start, λ_stop, args...; kwargs...)
     Wavelengths([(λ_start, λ_stop)], args...; kwargs...)
@@ -154,7 +160,10 @@ function Base.Sort.searchsortedfirst(wls::Wavelengths, λ)
     if λ >= 1 # convert Å to cm
         λ *= 1e-8
     end
-    range_ind = searchsortedfirst(last.(wls.wl_ranges), λ)
+    range_ind = 1
+    while (range_ind <= length(wls.wl_ranges)) && (λ > last(wls.wl_ranges[range_ind]))
+        range_ind += 1
+    end
     if range_ind == length(wls.wl_ranges) + 1
         return length(wls) + 1
     end
@@ -169,7 +178,10 @@ function Base.Sort.searchsortedlast(wls::Wavelengths, λ)
     if λ >= 1 # convert Å to cm
         λ *= 1e-8
     end
-    range_ind = searchsortedlast(first.(wls.wl_ranges), λ)
+    range_ind = 0
+    while (range_ind < length(wls.wl_ranges)) && (first(wls.wl_ranges[range_ind+1]) <= λ)
+        range_ind += 1
+    end
     if range_ind == 0
         return 0
     end
