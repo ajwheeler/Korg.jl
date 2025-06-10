@@ -6,6 +6,7 @@ which to compute a spectrum.  The wavelengths can be specified with an upper and
 a vector of upper and lower bounds. For example,
 
     Korg.Wavelengths(5000, 5500)
+    Korg.Wavelengths(5000, 5500, 0.01) # explicitly specify the spacing (0.01 Å is the default)
     Korg.Wavelengths([(5000, 5500), (6000, 6500)])
 
 # Keyword Arguments
