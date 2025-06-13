@@ -9,6 +9,9 @@ a vector of upper and lower bounds. For example,
     Korg.Wavelengths(5000, 5500, 0.01) # explicitly specify the spacing (0.01 Å is the default)
     Korg.Wavelengths([(5000, 5500), (6000, 6500)])
 
+Wavelengths can be specified in either Å or cm. Values >= 1 are assumed to be in Å and values < 1
+are assumed to be in cm.
+
 # Keyword Arguments
 
   - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
