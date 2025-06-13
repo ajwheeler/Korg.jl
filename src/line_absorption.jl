@@ -95,7 +95,6 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
                 lorentz_line_window = maximum(inverse_densities)
                 window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
-                # at present, this line is allocating. Would be good to fix that.
                 lb = searchsortedfirst(λs, line.wl - window_size)
                 ub = searchsortedlast(λs, line.wl + window_size)
                 # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
