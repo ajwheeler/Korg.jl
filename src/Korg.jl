@@ -24,7 +24,7 @@ include("abundances.jl")               # A(X), etc
 include("synthesize.jl")               # top-level API
 include("synth.jl")
 include("prune_linelist.jl")           # select strong lines from a linelist
-include("fit.jl")                      # routines to infer stellar params from data
+include("Fit/Fit.jl")                  # routines to infer stellar params from data
 include("qfactors.jl")                 # formalism to compute theoretical RV precision
 
 @compat public get_APOGEE_DR17_linelist, get_GALAH_DR3_linelist, get_GES_linelist, save_linelist,

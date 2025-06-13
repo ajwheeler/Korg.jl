@@ -39,7 +39,13 @@
     end
 
     @testset "mu grid" begin
-        @testset "valid specifications" for mu_specification in [5, 20, [0, 0.2, 1.0], 0:0.5:1.0]
+        @testset "valid specifications" for mu_specification in [
+            5,
+            20,
+            [0, 0.2, 1.0],
+            0:0.5:1.0,
+            [1.0]
+        ]
             # what length should it be?
             if mu_specification isa Number
                 n = mu_specification

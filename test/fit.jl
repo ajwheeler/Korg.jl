@@ -174,181 +174,208 @@ using Random
         end
     end
 
-    if false # SKIP EWs tests until we fix them
-        @testset "ews_to_abundances" begin
-            @testset "require sorted linelists" begin
-                sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
-                sun_A_X = Korg.format_A_X(sun_Fe_H)
-                sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+    @testset "ews_to_abundances" begin
+        @testset "require sorted linelists" begin
+            sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+            sun_A_X = Korg.format_A_X(sun_Fe_H)
+            sun_atm = Korg.read_model_atmosphere("data/sun.mod")
 
-                linelist = [
-                    Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
-                    Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31)
-                ]
-                sun_ews = [74.3, 40.5]
-                @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X,
-                                                                      sun_ews, vmic=sun_vmic)
+            linelist = [
+                Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
+                Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31)
+            ]
+            sun_ews = [74.3, 40.5]
+            @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X,
+                                                                  sun_ews, vmic=sun_vmic)
+        end
+
+        @testset "length of linelist and ews should match" begin
+            sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+            sun_A_X = Korg.format_A_X(sun_Fe_H)
+            sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+            linelist = [Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512,
+                                  2.71e-31)]
+            @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X,
+                                                                  [],
+                                                                  vmic=sun_vmic)
+        end
+
+        @testset "disallow molecules" begin
+            sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+            sun_A_X = Korg.format_A_X(sun_Fe_H)
+            sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+            linelist = [
+                Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
+                Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("106.0"), 2.8512, 2.71e-31)]
+            sun_ews = [74.3, 40.5]
+            @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X,
+                                                                  sun_ews, vmic=sun_vmic)
+        end
+
+        @testset "Melendez et al. (2014) sanity check" begin
+            sun_ews = [74.3, 40.5, 96.1, 19.1, 80.7]
+            sco_ews = [74.8, 40.9, 97.5, 18.9, 84.0]
+            linelist = [
+                Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
+                Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
+                Korg.Line(5127.359 * 1e-8, -3.30700, Korg.Species("26.0"), 0.915, 1.84e-32),
+                # don't convert these ones to cm.  It should still work.
+                Korg.Line(5127.679, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
+                Korg.Line(5197.577, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33)
+            ]
+            sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
+            sun_A_X = Korg.format_A_X(sun_Fe_H)
+            sun_atm = Korg.read_model_atmosphere("data/sun.mod")
+
+            sco_teff, sco_logg, sco_fe_h, sco_vmic = (5823, 4.45, 0.054, sun_vmic + 0.02)
+            sco_A_X = Korg.format_A_X(sco_fe_h)
+            # Note: NOT true, but just for testing the whole performance
+            sco_atm = sun_atm
+
+            sun_abundances = Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews;
+                                                        vmic=sun_vmic)
+            sco_abundances = Korg.Fit.ews_to_abundances(sco_atm, linelist, sco_A_X, sco_ews;
+                                                        vmic=sco_vmic)
+            diff_abundances = sco_abundances .- sun_abundances
+
+            mean_diff_abundances = sum(diff_abundances) / length(diff_abundances)
+            @test abs(mean_diff_abundances) < 0.05
+            # consider testing stddev?
+        end
+    end
+
+    @testset "stellar parameters via EWs" begin
+        # used in both tests below
+        good_linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 4.1),
+            Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 4.2),
+            Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 4.3),
+            Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 4.4)]
+
+        @testset "validate arguments" begin
+            # vmic can't be specified
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
+                                                                          ones(length(good_linelist));
+                                                                          vmic=1.0)
+
+            # number of EWs, EW uncertainties, and lines should match
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist, [1.0])
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
+                                                                          ones(length(good_linelist)),
+                                                                          [1.0])
+
+            # different elements
+            linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
+                Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                Korg.Line(7e-5, -1.92100, Korg.species"Mn I", 0, 0),
+                Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 0, 0)]
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
+                                                                          ones(length(linelist)))
+
+            # can't use a molecule
+            linelist = [Korg.Line(5e-5, -2.05800, Korg.species"CO I", 0, 0),
+                Korg.Line(6e-5, -1.92100, Korg.species"CO I", 0, 0),
+                Korg.Line(7e-5, -1.92100, Korg.species"CO I", 0, 0),
+                Korg.Line(8e-5, -1.92100, Korg.species"CO II", 0, 0)]
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
+                                                                          ones(length(linelist)))
+
+            # no ions
+            linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
+                Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                Korg.Line(6.5e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 0, 0)]
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
+                                                                          ones(length(linelist)))
+
+            # not enough lines
+            linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
+                Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
+                Korg.Line(7e-5, -1.92100, Korg.species"Fe II", 0, 0)]
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
+                                                                          ones(length(linelist)))
+
+            # parameter ranges must have positive measure
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
+                                                                          ones(length(good_linelist));
+                                                                          parameter_ranges=[(5777,
+                                                                                             5777),
+                                                                              (3.0, 4.0),
+                                                                              (1.0, 2.0),
+                                                                              (-0.5, 0.0)])
+
+            # vmic0 can't be 0
+            @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
+                                                                          ones(length(good_linelist));
+                                                                          vmic0=0)
+        end
+
+        @testset "basic fit" begin
+            # 2 Å wide window around each line
+            synth_wls = map(good_linelist) do line
+                wl = line.wl * 1e8
+                wl-1.0:0.01:wl+1.0
+            end
+            sol = synthesize(interpolate_marcs(5777.0, 4.44), good_linelist, format_A_X(),
+                             synth_wls; hydrogen_lines=false)
+
+            # EWs you get for the fake linelist with solar params
+            # the real implementation uses the trapezoid rule, but this is close enough
+            EWs = [sum((1 .- sol.flux./sol.cntm)[r]) for r in sol.subspectra] * 10 #0.01 Å -> mÅ
+            EW_err = ones(length(EWs)) * 0.5
+            best_fit_params, stat_err, sys_err = Korg.Fit.ews_to_stellar_parameters(good_linelist,
+                                                                                    EWs, EW_err)
+
+            @test sys_err == [0.0, 0.0, 0.0, 0.0]
+            for (i, p) in enumerate([5777.0, 4.44, 1.0, 0.0])
+                @test best_fit_params[i]≈p atol=stat_err[i]
             end
 
-            @testset "length of linelist and ews should match" begin
-                sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
-                sun_A_X = Korg.format_A_X(sun_Fe_H)
-                sun_atm = Korg.read_model_atmosphere("data/sun.mod")
-                linelist = [Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512,
-                                      2.71e-31)]
-                @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X,
-                                                                      [],
-                                                                      vmic=sun_vmic)
-            end
+            # check that fixing parameters works
+            for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :m_H0])
+                fixed_params = zeros(Bool, 4)
+                fixed_params[i] = true
+                kwargs = Dict(param => best_fit_params[i])
+                # start teff and logg close to right answer to make it faster.
+                bestfit_fixed, _, _ = Korg.Fit.ews_to_stellar_parameters(good_linelist, EWs,
+                                                                         EW_err;
+                                                                         Teff0=5740.0,
+                                                                         logg0=4.4,
+                                                                         fix_params=fixed_params,
+                                                                         kwargs...)
 
-            @testset "disallow molecules" begin
-                sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
-                sun_A_X = Korg.format_A_X(sun_Fe_H)
-                sun_atm = Korg.read_model_atmosphere("data/sun.mod")
-                linelist = [
-                    Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
-                    Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("106.0"), 2.8512, 2.71e-31)]
-                sun_ews = [74.3, 40.5]
-                @test_throws ArgumentError Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X,
-                                                                      sun_ews, vmic=sun_vmic)
-            end
-
-            @testset "Melendez et al. (2014) sanity check" begin
-                sun_ews = [74.3, 40.5, 96.1, 19.1, 80.7]
-                sco_ews = [74.8, 40.9, 97.5, 18.9, 84.0]
-                linelist = [
-                    Korg.Line(5044.211 * 1e-8, -2.05800, Korg.Species("26.0"), 2.8512, 2.71e-31),
-                    Korg.Line(5054.642 * 1e-8, -1.92100, Korg.Species("26.0"), 3.64, 4.68e-32),
-                    Korg.Line(5127.359 * 1e-8, -3.30700, Korg.Species("26.0"), 0.915, 1.84e-32),
-                    # don't convert these ones to cm.  It should still work.
-                    Korg.Line(5127.679, -6.12500, Korg.Species("26.0"), 0.052, 1.2e-32),
-                    Korg.Line(5197.577, -2.22000, Korg.Species("26.1"), 3.2306, 8.69e-33)
-                ]
-                sun_Teff, sun_logg, sun_Fe_H, sun_vmic = (5777, 4.44, 0.0, 1.0)
-                sun_A_X = Korg.format_A_X(sun_Fe_H)
-                sun_atm = Korg.read_model_atmosphere("data/sun.mod")
-
-                sco_teff, sco_logg, sco_fe_h, sco_vmic = (5823, 4.45, 0.054, sun_vmic + 0.02)
-                sco_A_X = Korg.format_A_X(sco_fe_h)
-                # Note: NOT true, but just for testing the whole performance
-                sco_atm = sun_atm
-
-                sun_abundances = Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, sun_ews;
-                                                            vmic=sun_vmic)
-                sco_abundances = Korg.Fit.ews_to_abundances(sco_atm, linelist, sco_A_X, sco_ews;
-                                                            vmic=sco_vmic)
-                diff_abundances = sco_abundances .- sun_abundances
-
-                mean_diff_abundances = sum(diff_abundances) / length(diff_abundances)
-                @test abs(mean_diff_abundances) < 0.05
-                # consider testing stddev?
+                for i in 1:4
+                    @test bestfit_fixed[i]≈best_fit_params[i] atol=stat_err[i]/10
+                end
             end
         end
 
-        @testset "stellar parameters via EWs" begin
-            # used in both tests below
-            good_linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 4.1),
-                Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 4.2),
-                Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 4.3),
-                Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 4.4)]
+        @testset "unconverged line behavior" begin
+            A_X = format_A_X()
+            atm = interpolate_marcs(5000, 4.0)
 
-            @testset "validate arguments" begin
-                # vmic can't be specified
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                              ones(length(good_linelist));
-                                                                              vmic=1.0)
+            # make a linelist with one too-strong line
+            linelist = [Korg.Line(5000e-8, -2.5, Korg.species"Fe I", 4.0),
+                Korg.Line(5001e-8, -2.5, Korg.species"Fe I", 4.0),
+                Korg.Line(5002e-8, -2.5, Korg.species"Fe I", 4.0),
+                Korg.Line(5003e-8, -2.5, Korg.species"Fe II", 4.0)]
 
-                # number of EWs, EW uncertainties, and lines should match
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist, [1.0])
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                              ones(length(good_linelist)),
-                                                                              [1.0])
+            measured_EWs = Korg.Fit.calculate_EWs(atm, linelist, A_X)
+            As = Korg.Fit.ews_to_abundances(atm, linelist, A_X, measured_EWs)
 
-                # different elements
-                linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
-                    Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
-                    Korg.Line(7e-5, -1.92100, Korg.species"Mn I", 0, 0),
-                    Korg.Line(8e-5, -1.92100, Korg.species"Fe II", 0, 0)]
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
-                                                                              ones(length(linelist)))
+            # do a simple sanity check that calculate_EWs
+            # and ews_to_abundances do indeed invert each other
+            @test all(As .== Korg.default_solar_abundances[26])
 
-                # can't use a molecule
-                linelist = [Korg.Line(5e-5, -2.05800, Korg.species"CO I", 0, 0),
-                    Korg.Line(6e-5, -1.92100, Korg.species"CO I", 0, 0),
-                    Korg.Line(7e-5, -1.92100, Korg.species"CO I", 0, 0),
-                    Korg.Line(8e-5, -1.92100, Korg.species"CO II", 0, 0)]
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
-                                                                              ones(length(linelist)))
+            # make sure one of the lines fails
+            erroneous_EWs = copy(measured_EWs)
+            erroneous_EWs[1:2] .= 0 # mess up some neutral line measurements
+            m = "Less than 70% of the lines converged"
+            @test_throws m Korg.Fit.ews_to_stellar_parameters(linelist, erroneous_EWs)
 
-                # no ions
-                linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
-                    Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
-                    Korg.Line(6.5e-5, -1.92100, Korg.species"Fe I", 0, 0),
-                    Korg.Line(7e-5, -1.92100, Korg.species"Fe I", 0, 0)]
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
-                                                                              ones(length(linelist)))
-
-                # not enough lines
-                linelist = [Korg.Line(5e-5, -2.05800, Korg.species"Fe I", 0, 0),
-                    Korg.Line(6e-5, -1.92100, Korg.species"Fe I", 0, 0),
-                    Korg.Line(7e-5, -1.92100, Korg.species"Fe II", 0, 0)]
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(linelist,
-                                                                              ones(length(linelist)))
-
-                # parameter ranges must have positive measure
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                              ones(length(good_linelist));
-                                                                              parameter_ranges=[(5777,
-                                                                                                 5777),
-                                                                                  (3.0, 4.0),
-                                                                                  (1.0, 2.0),
-                                                                                  (-0.5, 0.0)])
-
-                # vmic0 can't be 0
-                @test_throws ArgumentError Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                              ones(length(good_linelist));
-                                                                              vmic0=0)
-            end
-
-            @testset "basic EW fit" begin
-                # 2 Å wide window around each line
-                synth_wls = map(good_linelist) do line
-                    wl = line.wl * 1e8
-                    wl-1.0:0.01:wl+1.0
-                end
-                sol = synthesize(interpolate_marcs(5777.0, 4.44), good_linelist, format_A_X(),
-                                 synth_wls; hydrogen_lines=false)
-
-                # EWs you get for the fake linelist with solar params
-                # the real implementation uses the trapezoid rule, but this is close enough
-                EWs = [sum((1 .- sol.flux./sol.cntm)[r]) for r in sol.subspectra] * 10 #0.01 Å -> mÅ
-                EW_err = ones(length(EWs)) * 0.5
-                best_fit_params, stat_err, sys_err = Korg.Fit.ews_to_stellar_parameters(good_linelist,
-                                                                                        EWs, EW_err)
-
-                @test sys_err == [0.0, 0.0, 0.0, 0.0]
-                for (i, p) in enumerate([5777.0, 4.44, 1.0, 0.0])
-                    @test best_fit_params[i]≈p atol=stat_err[i]
-                end
-
-                # check that fixing parameters works
-                for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :m_H0])
-                    fixed_params = zeros(Bool, 4)
-                    fixed_params[i] = true
-                    kwargs = Dict(param => best_fit_params[i])
-                    # start teff and logg close to right answer to make it faster.
-                    bestfit_fixed, _, _ = Korg.Fit.ews_to_stellar_parameters(good_linelist, EWs,
-                                                                             EW_err;
-                                                                             Teff0=5740.0,
-                                                                             logg0=4.4,
-                                                                             fix_params=fixed_params,
-                                                                             kwargs...)
-
-                    for i in 1:4
-                        @test bestfit_fixed[i]≈best_fit_params[i] atol=stat_err[i]/10
-                    end
-                end
-            end
+            erroneous_EWs = copy(measured_EWs)
+            erroneous_EWs[end] = 0 # mess up the one ion line measurement
+            m = "Less than 50% of the ion lines converged"
+            @test_throws m Korg.Fit.ews_to_stellar_parameters(linelist, erroneous_EWs)
         end
     end
 end

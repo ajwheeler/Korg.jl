@@ -17,6 +17,10 @@ function generate_mu_grid(n_points::Integer)
     μ_grid, μ_weights
 end
 function generate_mu_grid(μ_grid::AbstractVector{<:Real})
+    if length(μ_grid) == 1
+        return μ_grid, [1.0]
+    end
+
     if !issorted(μ_grid) || μ_grid[1] < 0 || μ_grid[end] > 1
         throw(ArgumentError("μ_grid must be sorted and bounded between 0 and 1"))
     end

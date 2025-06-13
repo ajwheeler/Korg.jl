@@ -2,17 +2,18 @@
     using ForwardDiff, FiniteDiff
 
     linelist = [Korg.get_VALD_solar_linelist(); Korg.get_APOGEE_DR17_linelist()]
-    #cover the optical and the IR to catch different H lines 
+    #cover the optical and the IR to catch different H lines
     wls = [6564:0.01:6565, 15_045:0.01:15_046]
-    for (atm_file, threshold) in [("data/sun.mod", 0.1),
-        ("data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod", 100)]
-        atm = read_model_atmosphere(atm_file)
-        # the second model atmosphere happens to be in a weird (probably unphysical) part of 
+    for atm in read_model_atmosphere.([
+                                          "data/sun.mod",
+                                          "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"
+                                      ])
+        # the second model atmosphere happens to be in a weird (probably unphysical) part of
         # parameter space where the electron number densities calculated doesn't match the marcs
-        # numbers.  We suppress the warnings in this case by setting the threshold to 100.
+        # numbers.
         function flux(p)
             synthesize(atm, linelist, format_A_X(p[1], Dict("Ni" => p[2])), wls;
-                       vmic=p[3], electron_number_density_warn_threshold=threshold).flux
+                       vmic=p[3], electron_number_density_warn_threshold=Inf).flux
         end
         #make sure this works.
         J = ForwardDiff.jacobian(flux, [0.0, 0.0, 1.5])
@@ -22,8 +23,8 @@
     @testset "autodiff just one abundance" begin
         atm = read_model_atmosphere("data/sun.mod")
         linelist = [Korg.Line(6000e-8, 0.0, Korg.species"C I", 0.0)]
-        # If this line is super weak (or removed), the test will fail due to numerics in the 
-        # abundances and continuum opacities. It used to be a fake line at 5000, but the fact that 
+        # If this line is super weak (or removed), the test will fail due to numerics in the
+        # abundances and continuum opacities. It used to be a fake line at 5000, but the fact that
         # that's the reference wavelength caused instability in the finie differnces calculation.
         function f(A_C)
             A_X = format_A_X(Dict("C" => A_C))

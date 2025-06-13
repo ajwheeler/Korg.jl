@@ -1,7 +1,7 @@
 name = "Korg"
 uuid = "acafc109-a718-429c-b0e5-afd7f8c7ae46"
 authors = ["Adam Wheeler <adamwhlr@gmail.com>", "Matthew Abruzzo <matthewabruzzo@gmail.com>"]
-version = "0.44.0"
+version = "0.45.0"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
@@ -34,9 +34,9 @@ DSP = "0.7, 0.8"
 DataFrames = "1.7.0"
 DiffResults = "1"
 FastGaussQuadrature = "0.4, 0.5, 1"
-ForwardDiff = "0.10"
+ForwardDiff = "1.0"
 HDF5 = "0.15, 0.16, 0.17"
-Interpolations = "0.14, 0.15"
+Interpolations = "0.16"
 LazyArtifacts = "1"
 LineSearches = "7"
 LinearAlgebra = "1.7 - 1"

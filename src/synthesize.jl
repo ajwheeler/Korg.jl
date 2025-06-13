@@ -40,23 +40,22 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
 end
 
 """
-    synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
+    synthesize(atm, linelist, A_X, λ_start, λ_stop; kwargs... )
     synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
 
 Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
 
 # Arguments
 
-  - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
+  - `atm`: the model atmosphere (see [`interpolate_marcs`](@ref) and [`read_model_atmosphere`](@ref))
   - `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref),
-    [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+    [`get_APOGEE_DR17_linelist`](@ref), [`get_GES_linelist`](@ref),
+    [`get_GALAH_DR3_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
   - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
-    uranium.  (see [`format_A_X`](@ref))
+    uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
   - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
-    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`.
-  - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
-  - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
-  - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
+    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`
+    (or as an valid arugments to the [`Wavelengths`](@ref) constructor).
 
 # Example
 
@@ -72,7 +71,8 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 
 # Optional arguments:
 
-  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
+  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
+    value or a vector of values, one for each atmospheric layer.
   - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
     before it is discarded.  If the edge of your window is near a strong line, you may have to turn
     this up.
@@ -131,7 +131,7 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
-                    vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
+                    vmic=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
                     air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=Inf,
@@ -148,7 +148,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
     end
 
-    if use_MHD_for_hydrogen_lines && (wls[end] > 13_000 * 1e-8)
+    if hydrogen_lines && use_MHD_for_hydrogen_lines && (wls[end] > 13_000 * 1e-8)
         @warn "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
     end
 
@@ -192,6 +192,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
+    # TODO 
     # float-like type general to handle dual numbers
     # α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
     #                       eltype(wls), typeof(vmic), typeof.(abs_abundances)...)
@@ -222,8 +223,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         typeof(vmic),
         eltype(abs_abundances)
     )
+    # TODO
     @assert α_type != Any "α_type inferred as Any — likely due to malformed linelist or atmosphere."
-
 
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(wls))
@@ -300,9 +301,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             nH_I = n_dict[species"H_I"]
             nHe_I = n_dict[species"He_I"]
             U_H_I = partition_funcs[species"H_I"](log(layer.temp))
+            ξ = (isa(vmic, Number) ? vmic : vmic[i]) * 1e5
             hydrogen_line_absorption!(view(α, i, :), wls, layer.temp, nₑ, nH_I, nHe_I,
-                                      U_H_I, vmic * 1e5,
-                                      hydrogen_line_window_size * 1e-8;
+                                      U_H_I, ξ, hydrogen_line_window_size * 1e-8;
                                       use_MHD=use_MHD_for_hydrogen_lines)
         end
     end

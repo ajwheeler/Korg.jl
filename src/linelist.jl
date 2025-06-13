@@ -46,6 +46,12 @@ struct Line{F1,F2,F3,F4,F5,F6}
 
     Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line
     profile, and are in units of s⁻¹.
+
+
+        Line(line::line; kwargs...)
+
+    Construct a new `Line` by copying the values from an existing `Line`.  Any of the values can be
+    modified with keyword arguments, e.g. `Line(line, log_gf=0.0)`.
     """
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3,
                   gamma_rad::Union{F4,Missing}=missing, gamma_stark::Union{F5,Missing}=missing,
@@ -96,6 +102,12 @@ struct Line{F1,F2,F3,F4,F5,F6}
         new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),eltype(vdW)}(
                     wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW, isotopes)                                                                        
     end
+end
+# constructor to allow for copying a line and modifying some values (see docstring)
+function Line(line::Line; wl=line.wl, log_gf=line.log_gf, species=line.species,
+              E_lower=line.E_lower, gamma_rad=line.gamma_rad, gamma_stark=line.gamma_stark,
+              vdW=line.vdW)
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", line::Line)

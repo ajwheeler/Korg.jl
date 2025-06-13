@@ -28,8 +28,8 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
   - `R`: resolution (default: `Inf`, no LSF applied). `R` can be a scalar, or a function from
     wavelength (in Å) to resolving power. See [`apply_LSF`](@ref) for details on how to do this
     manually.
-  - `vsini`: projected rotational velocity in km/s (default: 0). See [`apply_rotation`](@ref) for
-    details on how to do this manually.
+  - `vsini`: projected rotational velocity in km/s (default: 0). This calls [`apply_rotation`](@ref)
+    under the hood.
   - `vmic`: microturbulent velocity in km/s (default: 1.0).
   - `synthesize_kwargs`: additional keyword arguments pass to [`synthesize`](@ref).
   - `format_A_X_kwargs`: additional keyword arguments pass to [`format_A_X`](@ref).

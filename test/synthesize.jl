@@ -4,6 +4,17 @@
         Korg.PlanarAtmosphere(atm.layers[40:43]) # just a few layers for fast tests
     end
 
+    @testset "vmic specification" begin
+        linelist = [Korg.Line(6000e-8, -1.0, Korg.species"Fe I", 0.3)]
+
+        sol1 = synthesize(atm_small, linelist, format_A_X(), 6000, 6000; vmic=1.0)
+        sol2 = synthesize(atm_small, linelist, format_A_X(), 6000, 6000; vmic=[1.0, 1.0, 1.0, 1.0])
+        @test sol1.flux == sol2.flux
+
+        sol3 = synthesize(atm_small, linelist, format_A_X(), 6000, 6000; vmic=[1.0, 2.0, 3.0, 4.0])
+        @test sol1.flux != sol3.flux
+    end
+
     @testset "line buffer" begin
         # strong line at 5999 Å
         line1 = Korg.Line(5999e-8, 1.0, Korg.species"Na I", 0.0)
