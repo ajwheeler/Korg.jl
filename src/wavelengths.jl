@@ -161,37 +161,25 @@ end
 
 # index of the first element greater than or equal to λ
 function Base.Sort.searchsortedfirst(wls::Wavelengths, λ)
-    if λ >= 1 # convert Å to cm
-        λ *= 1e-8
+    λ = λ >= 1 ? λ * 1e-8 : λ  # Convert Å to cm if needed
+    ind = 0
+    for range in wls.wl_ranges
+        if λ <= last(range)
+            return ind + searchsortedfirst(range, λ)
+        end
+        ind += length(range)
     end
-    range_ind = 1
-    while (range_ind <= length(wls.wl_ranges)) && (λ > last(wls.wl_ranges[range_ind]))
-        range_ind += 1
-    end
-    if range_ind == length(wls.wl_ranges) + 1
-        return length(wls) + 1
-    end
-    ind = searchsortedfirst(wls.wl_ranges[range_ind], λ)
-    for ri in 1:range_ind-1
-        ind += length(wls.wl_ranges[ri])
-    end
-    ind
+    length(wls) + 1
 end
 # index of the last element less than or equal to λ
 function Base.Sort.searchsortedlast(wls::Wavelengths, λ)
-    if λ >= 1 # convert Å to cm
-        λ *= 1e-8
+    λ = λ >= 1 ? λ * 1e-8 : λ  # Convert Å to cm if needed
+    ind = 0
+    for range in wls.wl_ranges
+        if λ <= last(range)
+            return ind + searchsortedlast(range, λ)
+        end
+        ind += length(range)
     end
-    range_ind = 0
-    while (range_ind < length(wls.wl_ranges)) && (first(wls.wl_ranges[range_ind+1]) <= λ)
-        range_ind += 1
-    end
-    if range_ind == 0
-        return 0
-    end
-    ind = searchsortedlast(wls.wl_ranges[range_ind], λ)
-    for ri in 1:range_ind-1
-        ind += length(wls.wl_ranges[ri])
-    end
-    ind
+    length(wls)
 end
