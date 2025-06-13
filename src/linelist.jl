@@ -13,6 +13,7 @@ struct Line{F1,F2,F3,F4,F5,F6}
     # either γ_vdW [s^-1] per electron (as the first element, with -1 as the second) or (σ, α) from
     # ABO theory
     vdW::Tuple{F6,F6}
+    isotopes::Any
 
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F,
@@ -34,8 +35,11 @@ struct Line{F1,F2,F3,F4,F5,F6}
          - A fudge factor for the Unsoeld approximation, assumed if between 0 and 20
          - The [ABO parameters](https://github.com/barklem/public-data/tree/master/broadening-howto)
            as packed float (assumed if >= 20) or a `Tuple`, `(σ, α)`.
-
         This behavior is intended to mirror that of Turbospectrum as closely as possible.
+        - `isotopes`: A vector of isotopes for the line.  This is used to calculate the line strength
+           (log(gf)λ - θχ) at a given temperature. 
+           The default is `nothing`, which means that the line strength will be calculated using the
+           most solar isotope ratios.
 
     See [`approximate_gammas`](@ref) for more information on the default recipes for `gamma_stark`
     and `vdW`.
@@ -51,8 +55,9 @@ struct Line{F1,F2,F3,F4,F5,F6}
     """
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3,
                   gamma_rad::Union{F4,Missing}=missing, gamma_stark::Union{F5,Missing}=missing,
-                  vdW::Union{F6,Tuple{F6,F6},Missing}=missing) where {F1<:Real,F2<:Real,F3<:Real,
-                                                                      F4<:Real,F5<:Real,F6<:Real}
+                  vdW::Union{F6,Tuple{F6,F6},Missing}=missing,
+                  isotopes=nothing
+                  ) where {F1<:Real,F2<:Real,F3<:Real,F4<:Real,F5<:Real,F6<:Real}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
@@ -90,9 +95,12 @@ struct Line{F1,F2,F3,F4,F5,F6}
             end
         end
 
-        new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),eltype(vdW)}(wl, log_gf, species,
-                                                                        E_lower, gamma_rad,
-                                                                        gamma_stark, vdW)
+        # new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),eltype(vdW),typeof(isotopes)}(wl, log_gf, species,
+        #                                                                 E_lower, gamma_rad,
+        #                                                                 gamma_stark, vdW,isotopes)
+
+        new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),eltype(vdW)}(
+                    wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW, isotopes)                                                                        
     end
 end
 # constructor to allow for copying a line and modifying some values (see docstring)
@@ -105,7 +113,11 @@ end
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
     show(io, line.species)
     print(io, " ", round(line.wl * 1e8; digits=6), " Å (log gf = ", round(line.log_gf; digits=2),
-          ", χ = ", round(line.E_lower; digits=2), " eV)")
+          ", χ = ", round(line.E_lower; digits=2), " eV")
+    if line.isotopes != nothing
+        print(io, ", isotopes = ", line.isotopes)
+    end
+    print(io, ")")
 end
 
 # make it broadcast like a scalar

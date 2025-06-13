@@ -124,6 +124,9 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
     intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
     calculation, but stores the intensity at every layer. `"bezier"` is for testing and not
     recommended.
+  - `isotopic_abundances` (default: `nothing`): a dictionary mapping isotopes to their
+    abundances.  This is used to calculate the isotopic abundance of each element in the linelist.
+    The default value is nothing meaning the linelist is not corrected for isotopic abundances.
   - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
@@ -138,6 +141,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     partition_funcs=default_partition_funcs,
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
+                    isotopic_abundances=nothing,
                     verbose=false)::SynthesisResult
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
     if air_wavelengths
@@ -188,9 +192,40 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
-    #float-like type general to handle dual numbers
-    α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
-                          eltype(wls), eltype(vmic), typeof.(abs_abundances)...)
+    # TODO 
+    # float-like type general to handle dual numbers
+    # α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
+    #                       eltype(wls), typeof(vmic), typeof.(abs_abundances)...)
+
+    # Early error if linelist is empty (will cause indexing errors below)
+    if isempty(linelist)
+      sample_line = Korg.Line(0.0, 0.0, Korg.Species("1.0"), 0.0, 1.0, 0.0, (0.0, 0.0), nothing)
+    else
+      sample_line = linelist[1]
+    end
+
+    sample_layer = atm.layers[begin]
+    # sample_line = linelist[begin]
+    
+    α_type = promote_type(
+        typeof(sample_layer.tau_5000),
+        typeof(sample_layer.z),
+        typeof(sample_layer.temp),
+        typeof(sample_layer.electron_number_density),
+        typeof(sample_line.wl),
+        typeof(sample_line.log_gf),
+        typeof(sample_line.E_lower),
+        typeof(sample_line.gamma_rad),
+        typeof(sample_line.gamma_stark),
+        typeof(sample_line.vdW[1]),
+        typeof(sample_line.vdW[2]),
+        eltype(wls),
+        typeof(vmic),
+        eltype(abs_abundances)
+    )
+    # TODO
+    @assert α_type != Any "α_type inferred as Any — likely due to malformed linelist or atmosphere."
+
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(wls))
     # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
@@ -234,7 +269,18 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # line contributions to α5
     if tau_scheme == "anchored"
         α_cntm_5 = [_ -> a for a in copy(α5)] # lambda per layer
-        line_absorption!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm), nₑs,
+
+        if isotopic_abundances != nothing
+          linelist5_adjusted = map(linelist5) do line
+            adjusted_loggf = adjust_loggf_for_isotopes(line, isotopic_abundances)
+            Line(line.wl, adjusted_loggf, line.species, line.E_lower,
+            line.gamma_rad, line.gamma_stark, line.vdW, line.isotopes)
+          end
+        else
+          linelist5_adjusted = linelist5
+        end
+
+        line_absorption!(view(α5, :, 1), linelist5_adjusted, Korg.Wavelengths([5000]), get_temps(atm), nₑs,
                          number_densities,
                          partition_funcs, vmic * 1e5, α_cntm_5;
                          cutoff_threshold=line_cutoff_threshold)
@@ -262,7 +308,18 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
+    if isotopic_abundances != nothing
+      linelist_adjusted = map(linelist) do line
+        adjusted_loggf = adjust_loggf_for_isotopes(line, isotopic_abundances)
+        # preserve the original line but update the log_gf field
+        Line(line.wl, adjusted_loggf, line.species, line.E_lower,
+             line.gamma_rad, line.gamma_stark, line.vdW, line.isotopes)
+      end
+    else
+      linelist_adjusted = linelist
+    end
+
+    line_absorption!(α, linelist_adjusted, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
                      vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
@@ -350,4 +407,54 @@ function blackbody(T, λ)
     k = kboltz_cgs
 
     2 * h * c^2 / λ^5 * 1 / (exp(h * c / λ / k / T) - 1)
+end
+
+"""
+    adjust_loggf_for_isotopes(line::Line, iso_abundances::Dict{Int, Dict{Int, Float64}})
+
+Return the log(gf) value of `line`, adjusted for the isotopic abundances provided in `iso_abundances`.
+
+This works for:
+  - atomic lines, where `line.isotopes` is an `Int` (e.g., 12 for C-12),
+  - molecular lines, where `line.isotopes` is a `Vector{Int}` (e.g., [12, 13]),
+  - or `nothing` (in which case `line.log_gf` is returned unmodified).
+"""
+function adjust_loggf_for_isotopes(line::Line, iso_abundances::Dict{Int, Dict{Int, Float64}})
+    if line.isotopes === nothing
+        return line.log_gf
+    end
+
+    # --- atomic case ---
+    if isa(line.isotopes, Int)
+        Z = Int.(Korg.get_atoms(line.species.formula)[1])
+        A = line.isotopes
+        if haskey(iso_abundances, Z) && haskey(iso_abundances[Z], A)
+          X = iso_abundances[Z][A]
+          return line.log_gf + log10(X)
+        else
+          return line.log_gf
+        end
+    end
+
+    # --- molecular case ---
+    if isa(line.isotopes, AbstractVector{<:Int})
+        atoms = Int.(Korg.get_atoms(line.species.formula))
+        if length(atoms) != length(line.isotopes)
+            @warn "Mismatch in number of atoms and isotopes for $(line.species). Returning unmodified log_gf"
+            return line.log_gf
+        end
+
+        log_corr = 0.0
+        for (Z, A) in zip(atoms, line.isotopes)
+          if haskey(iso_abundances, Z) && haskey(iso_abundances[Z], A)
+            log_corr += log10(iso_abundances[Z][A])
+          else
+            log_corr += 0.0 # no correction because the isotope isn't present in the abundances
+          end
+        end
+        return line.log_gf + log_corr
+    end
+
+    # fallback
+    return line.log_gf
 end
