@@ -105,8 +105,8 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 else
                     ΔE_zeeman .= bohr_magneton_eV / eV_to_cgs * line.lande_g_odd * magnetic_field
                     # TODO upper or lower E
-                    Δλ .= @. (c_cgs * hplanck_eV) / line.E_lower^2 * ΔE_zeeman
-                    @show extrema(Δλ)
+                    Δλ .= @. line.wl^2 / (c_cgs * hplanck_eV) * ΔE_zeeman
+                    @show sum(Δλ) / length(Δλ)
                 end
 
                 window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
