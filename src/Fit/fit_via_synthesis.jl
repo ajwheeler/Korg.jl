@@ -343,7 +343,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     # call optimization library
     res = optimize(chi2, p0, BFGS(; linesearch=LineSearches.BackTracking(; maxstep=1.0)),
-                   Optim.Options(; x_tol=precision, time_limit=time_limit, store_trace=true,
+                   Optim.Options(; x_abstol=precision, time_limit=time_limit, store_trace=true,
                                  extended_trace=true); autodiff=:forward)
 
     best_fit_params = unscale(Dict(params_to_fit .=> res.minimizer))
