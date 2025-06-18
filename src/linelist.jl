@@ -13,6 +13,8 @@ struct Line{F1,F2,F3,F4,F5,F6}
     # either γ_vdW [s^-1] per electron (as the first element, with -1 as the second) or (σ, α) from
     # ABO theory
     vdW::Tuple{F6,F6}
+
+    # TODO
     lande_g_even # Landé g factor for even level
     lande_g_odd  # Landé g factor for odd level
 
@@ -105,8 +107,8 @@ end
 # constructor to allow for copying a line and modifying some values (see docstring)
 function Line(line::Line; wl=line.wl, log_gf=line.log_gf, species=line.species,
               E_lower=line.E_lower, gamma_rad=line.gamma_rad, gamma_stark=line.gamma_stark,
-              vdW=line.vdW)
-    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+              vdW=line.vdW, lande_g_odd=line.lande_g_odd, lande_g_even=line.lande_g_even)
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW, lande_g_odd, lande_g_even)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
