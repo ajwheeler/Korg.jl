@@ -103,10 +103,10 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 if ismissing(line.lande_g_odd)
                     Δλ .= 0.0
                 else
-                    ΔE_zeeman .= bohr_magneton_eV / eV_to_cgs * line.lande_g_odd * magnetic_field
+                    ΔE_zeeman .= bohr_magneton_eV * line.lande_g_odd * magnetic_field
                     # TODO upper or lower E
                     Δλ .= @. line.wl^2 / (c_cgs * hplanck_eV) * ΔE_zeeman
-                    @show sum(Δλ) / length(Δλ)
+                    @show maximum(Δλ) * 1e8
                 end
 
                 window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
