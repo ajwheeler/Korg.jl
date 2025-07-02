@@ -51,6 +51,8 @@ function synth(;
     A_X = format_A_X(m_H, alpha_H, abundances; format_A_X_kwargs...)
     atm = interpolate_marcs(Teff, logg, A_X)
 
+    wavelengths = Korg.Wavelengths(wavelengths)
+
     # synthesize kwargs currently must be symbols, which is annoying
     spectrum = synthesize(atm, linelist, A_X, wavelengths; vmic, synthesize_kwargs...)
     flux = if rectify
@@ -62,7 +64,7 @@ function synth(;
         flux = apply_LSF(flux, spectrum.wavelengths, R)
     end
     if vsini > 0
-        flux = apply_rotation(flux, spectrum.wavelengths, vsini)
+        flux = apply_rotation(flux, wavelengths, vsini)
     end
 
     spectrum.wavelengths, flux, spectrum.cntm
