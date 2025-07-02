@@ -14,5 +14,6 @@ using ..Korg, ForwardDiff
 
 include("fit_via_synthesis.jl")
 include("fit_via_EWs.jl")
+include("euterpe.jl")
 
 end # module
