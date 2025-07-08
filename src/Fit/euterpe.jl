@@ -44,7 +44,7 @@ function abund(linelist, element, lines_to_fit, obs_flux, obs_wls, R,
     model_spectra = hcat(model_spectra...) # shape (n_wls, n_models)
 
     # TODO better
-    pseudocontinuum_mask = abs.(model_spectra[:, end] - model_spectra[:, 1]) .< 0.03 # TODO kwarg
+    pseudocontinuum_mask = abs.(model_spectra[:, end] - model_spectra[:, 1]) .< 0.01 # TODO kwarg
     model_pseudocontinua = [calculate_pseudocontinuum(obs_wls, m, pseudocontinuum_mask)
                             for m in eachcol(model_spectra)]
     model_pseudocontinua = hcat(model_pseudocontinua...)
@@ -66,15 +66,16 @@ function abund(linelist, element, lines_to_fit, obs_flux, obs_wls, R,
     chi2_itps, chi2_coeffs = quadratic_minimizers(abundance_perturbations, chi2)
     chi2_As = -chi2_coeffs[2, :] ./ 2chi2_coeffs[3, :]
 
-    depths = [calculate_line_core_depths(m, line_indices) for m in eachcol(model_spectra)]
+    depths = [calculate_line_core_depths(m, pc, line_indices)
+              for (m, pc) in zip(eachcol(model_spectra), eachcol(model_pseudocontinua))]
     depths = hcat(depths...)
-    obs_depths = calculate_line_core_depths(obs_flux, line_indices)
+    obs_depths = calculate_line_core_depths(obs_flux, obs_pseudocontinuum, line_indices)
     depth_itps = interpolate_and_predict(abundance_perturbations, obs_depths, depths)
     depth_As = [itp.(d) for (itp, d) in zip(depth_itps, obs_depths)]
 
-    (; EW_As, depth_As, chi2_As, obs_wl_mask, model_spectra, pseudocontinuum_mask, EWs,
-     obs_EWs, EW_itps, line_indices, model_pseudocontinua, chi2, chi2_coeffs, chi2_itps,
-     depths, obs_depths, depth_itps)
+    (; EW_As, depth_As, chi2_As, obs_wl_mask, model_spectra, pseudocontinuum_mask,
+     obs_pseudocontinuum, EWs, obs_EWs, EW_itps, line_indices, model_pseudocontinua, chi2,
+     chi2_coeffs, chi2_itps, depths, obs_depths, depth_itps)
 end
 
 """
@@ -109,7 +110,7 @@ function calculate_rough_EWs(obs_wls, spectrum, pseudocontinuum, line_indices)
     end
 end
 
-function calculate_line_core_depths(spectrum, line_indices)
+function calculate_line_core_depths(spectrum, pseudocontinuum, line_indices)
     map(line_indices) do r
         # get the middle 5 pixels in the range
         # TODO everthing about this is terrible
@@ -117,7 +118,7 @@ function calculate_line_core_depths(spectrum, line_indices)
         lastind = firstind + 4
         firstind = max(1, firstind)
         lastind = min(length(spectrum), lastind)
-        mean(spectrum[firstind:lastind])
+        mean(spectrum[firstind:lastind] - pseudocontinuum[firstind:lastind])
     end
 end
 
