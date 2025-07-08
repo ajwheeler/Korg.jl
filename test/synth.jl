@@ -26,10 +26,11 @@
     end
 
     @testset "rotation" begin
-        wls, flux_rot, _ = synth(; wavelengths=(5000, 5001), vsini=10)
-        wls_raw, flux_raw, _ = synth(; wavelengths=(5000, 5001), vsini=0)
+        wl_spec = [(5000, 5001), (5002, 5003)]
+        wls, flux_rot, _ = synth(; wavelengths=wl_spec, vsini=10)
+        wls_raw, flux_raw, _ = synth(; wavelengths=wl_spec, vsini=0)
         @assert wls == wls_raw
-        flux_manual_rot = Korg.apply_rotation(flux_raw, wls_raw, 10)
+        flux_manual_rot = Korg.apply_rotation(flux_raw, wl_spec, 10)
         @test flux_rot ≈ flux_manual_rot
     end
 
