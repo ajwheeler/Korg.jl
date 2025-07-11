@@ -8,16 +8,21 @@ using ..Korg
 using Statistics: mean, std
 using Interpolations: linear_interpolation
 using Trapz: trapz
+using ProgressMeter
 
 """
 TODO
 TODO don't hardcode Fe / [m/H]
-TODO don't hardcode solar abundances
+TODO make sure solar abundances are flexible. I think they currently are.
+
+# Keyword arguments:
+
+  - `verbose` (default: `true`: whether to print progress information
 """
-function abund(linelist, element, lines_to_fit, obs_flux, obs_wls, R,
-               err=ones(length(obs_flux));
-               abundance_perturbations=-0.6:0.3:0.6,
-               synth_kwargs...)
+function multi_method_abundances(linelist, element, lines_to_fit, obs_flux, obs_wls, R,
+                                 err=ones(length(obs_flux));
+                                 verbose=true,
+                                 abundance_perturbations=-0.6:0.3:0.6, synth_kwargs...)
     # TODO check no conflicting R specification
 
     # wavelengths, windows and LSF, TODO refactor
@@ -36,10 +41,16 @@ function abund(linelist, element, lines_to_fit, obs_flux, obs_wls, R,
         searchsortedfirst(obs_wls, λ - 0.2):searchsortedfirst(obs_wls, λ + 0.2)
     end
 
-    model_spectra = map(abundance_perturbations) do ΔA
-        # TODO symbol/str nonsense
-        element_specification = Dict(Symbol(element) => ΔA) # TODO solar is implicit here
-        @time LSF * synth(; wavelengths=synthesis_wls, element_specification..., synth_kwargs...)[2]
+    linelist = Korg.filter_linelist(linelist, synthesis_wls, 10.0; warn_about_time=false)
+
+    #@time model_spectra = map(A_Xs, atms) do A_X, atm
+    model_spectra = @showprogress "synthesizing" map(abundance_perturbations) do ΔA
+
+        # TODO symbol/str nonsense, how to do this for any element?
+        #element_specification = Dict(Symbol(element) => ΔA) # TODO solar is implicit here
+        #@time LSF * synth(; wavelengths=synthesis_wls, element_specification..., synth_kwargs...)[2]
+
+        LSF * synth(; linelist=linelist, wavelengths=synthesis_wls, m_H=ΔA, synth_kwargs...)[2]
     end
     model_spectra = hcat(model_spectra...) # shape (n_wls, n_models)
 
