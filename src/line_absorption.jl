@@ -65,7 +65,7 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
             inverse_densities = Vector{eltype(α)}(undef, size(temps))
             ΔE_zeeman = Vector{eltype(α)}(undef, size(temps))
-            Δλ = Vector{eltype(α)}(undef, size(temps))
+            Δλ_zeeman = Vector{eltype(α)}(undef, size(temps))
 
             for line in linelist_chunk
                 m = get_mass(line.species)
@@ -100,18 +100,28 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 lorentz_line_window = maximum(inverse_densities)
 
                 # TODO don't just use odd g
-                if ismissing(line.lande_g_odd)
-                    Δλ .= 0.0
+                # TODO understand why lande is separated into odd and even
+                lande_g = 0.0
+                # TODO this is wrong
+                if .!ismissing(line.lande_g_odd)
+                    lande_g += line.lande_g_odd
+                end
+                if .!ismissing(line.lande_g_even)
+                    lande_g += line.lande_g_even
+                end
+                if lande_g == 0.0
+                    Δλ_zeeman .= 0.0
                 else
-                    ΔE_zeeman .= bohr_magneton_eV * line.lande_g_odd * magnetic_field
+                    ΔE_zeeman .= bohr_magneton_cgs * lande_g * magnetic_field
                     # TODO upper or lower E
-                    Δλ .= @. line.wl^2 / (c_cgs * hplanck_eV) * ΔE_zeeman
-                    @show maximum(Δλ) * 1e8
+                    Δλ_zeeman .= @. line.wl^2 / (c_cgs * hplanck_cgs) * ΔE_zeeman
+                    ∂λ_∂E = -line.wl^2 / (c_cgs * hplanck_cgs)
+                    Δλ_zeeman = ∂λ_∂E .* ΔE_zeeman
                 end
 
                 window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
-                              maximum(Δλ) - minimum(Δλ) # make sure it's big enough to include all Zeeman shifts
-                for shift in (-Δλ, Δλ) # TODO selection rules
+                              maximum(Δλ_zeeman) - minimum(Δλ_zeeman) # make sure it's big enough to include all Zeeman shifts
+                for shift in (-Δλ_zeeman, Δλ_zeeman) # TODO selection rules
                     λ = @. line.wl + shift
 
                     # calculate the window center from the nominal line center, not the shifted line
