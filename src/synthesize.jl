@@ -149,6 +149,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         @warn "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
     end
 
+    if I_scheme == "linear_flux_only" && mu_values != 20
+        @warn "mu_values was set to a non-default value ($mu_values), which will have no effect when I_scheme is set to \"linear_flux_only\"."
+    end
+
     # Add wavelength bounds check (Rayleigh scattering limitation)
     # we should really have an upper bound as well
     min_allowed_wavelength = 1300.0 * 1e-8  # cm
