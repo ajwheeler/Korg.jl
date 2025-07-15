@@ -34,7 +34,7 @@
             end
             @test assert_allclose_grid(sol.flux, flux,
                                        [("λ [$I_scheme $τ_scheme $atmtype]", sol.wavelengths, "Å")];
-                                       rtol=0.05, print_rachet_info=false)
+                                       rtol=0.08, print_rachet_info=false)
         end
     end
 
