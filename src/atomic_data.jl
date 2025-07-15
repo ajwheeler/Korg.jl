@@ -101,7 +101,7 @@ const magg_2022_solar_abundances = let
 end
 
 # these ones fall back on the meteoritic values
-# 
+#
 const previous_magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56, 7.98, 8.77, 4.4,
     8.15, 6.29,
     7.55, 6.43, 7.59, 5.41, 7.16, 5.25, 6.5,
@@ -114,7 +114,5 @@ const previous_magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56,
     0.524, 0.977, 0.138, 0.965, 0.123, 0.8, -0.108, 0.676, 0.29, 1.399, 1.379, 1.703, 0.861, 1.186,
     0.836,
     2.083, 0.712, -5.0, -5.0, -5.0, -5.0, -5.0, -5.0, 0.116, -5.0, -0.461]
-"""
-Korg's default solar abundances (Asplund 2020, for now).
-"""
-const default_solar_abundances = asplund_2020_solar_abundances
+
+const default_solar_abundances = magg_2022_solar_abundances

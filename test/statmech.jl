@@ -48,7 +48,7 @@ end
 
     @testset "molecular equilibrium" begin
         #solar abundances
-        nX_ntot = @. 10^(Korg.asplund_2009_solar_abundances - 12)
+        nX_ntot = @. 10^(Korg.default_solar_abundances - 12)
         nX_ntot ./= sum(nX_ntot)
 
         nₜ = 1e15
