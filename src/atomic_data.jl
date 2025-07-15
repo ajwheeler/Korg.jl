@@ -64,8 +64,46 @@ const grevesse_2007_solar_abundances = [
     0.90, 2.00, 0.65, -5.00, -5.00, -5.00, -5.00, -5.00, -5.00, 0.06,
     -05.00, -0.52]
 
-#solar abundances per Magg et al. A&A 661, A140 (2022)
-const magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56, 7.98, 8.77, 4.4, 8.15, 6.29,
+# solar abundances per Magg et al. A&A 661, A140 (2022)
+# doi:10.1051/0004-6361/202140401
+# those not specified in Magg et al. are taken from Grevesse
+const magg_2022_solar_abundances = let
+    # these are the photospheric abundances measured in the Magg paper
+    abunds = Dict([
+                      "C" => 8.56,
+                      "N" => 7.98,
+                      "O" => 8.77,
+                      "F" => 4.40,
+                      "Ne" => 8.15,
+                      "Na" => 6.29,
+                      "Mg" => 7.55,
+                      "Al" => 6.43,
+                      "Si" => 7.59,
+                      "P" => 5.41,
+                      "S" => 7.16,
+                      "Cl" => 5.25,
+                      "Ar" => 6.50,
+                      "K" => 5.14,
+                      "Ca" => 6.37,
+                      "Sc" => 3.07,
+                      "Ti" => 4.94,
+                      "V" => 3.89,
+                      "Cr" => 5.74,
+                      "Mn" => 5.52,
+                      "Fe" => 7.50,
+                      "Co" => 4.95,
+                      "Ni" => 6.24
+                  ])
+    # fall back on Grevesse numbers
+    map(atomic_symbols, grevesse_2007_solar_abundances) do symbol, grevesse_abundance
+        get(abunds, symbol, grevesse_abundance)
+    end
+end
+
+# these ones fall back on the meteoritic values
+# 
+const previous_magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56, 7.98, 8.77, 4.4,
+    8.15, 6.29,
     7.55, 6.43, 7.59, 5.41, 7.16, 5.25, 6.5,
     5.14, 6.37, 3.07, 4.94, 3.89, 5.74, 5.52, 7.5, 4.95, 6.24, 4.292, 4.658, 3.126, 3.651, 2.355,
     3.388,
