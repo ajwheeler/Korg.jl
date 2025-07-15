@@ -12,7 +12,7 @@ const atomic_symbols = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
 const MAX_ATOMIC_NUMBER = UInt8(length(atomic_symbols))
 const atomic_numbers = Dict(atomic_symbols .=> UInt8.(1:MAX_ATOMIC_NUMBER))
 
-#in grams
+# in grams
 const atomic_masses = [
     1.008, 4.003, 6.941, 9.012, 10.81, 12.01, 14.01, 16.00, 19.00, 20.18,
     22.99, 24.31, 26.98, 28.08, 30.97, 32.06, 35.45, 39.95, 39.10, 40.08,
@@ -25,7 +25,9 @@ const atomic_masses = [
     204.4, 207.2, 209.0, 210.0, 210.0, 222.0, 223.0, 226.0, 227.0, 232.0,
     231.0, 238.0] .* amu_cgs #,237.0,244.0,243.0]
 
-#solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
+"""
+solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
+"""
 const asplund_2009_solar_abundances = [
     12.00, 10.93, 1.05, 1.38, 2.70, 8.43, 7.83, 8.69, 4.56, 7.93,
     6.24, 7.60, 6.45, 7.51, 5.41, 7.12, 5.50, 6.40, 5.03, 6.34,
@@ -38,7 +40,9 @@ const asplund_2009_solar_abundances = [
     0.90, 1.75, 0.65, -5.00, -5.00, -5.00, -5.00, -5.00, -5.00, 0.02,
     -5.00, -0.54]#,-5.00,-5.00,-5.00]
 
-#solar/meteoritic abundances per Asplund et al. A&A 653, A141 (2021)
+"""
+solar/meteoritic abundances per Asplund et al. A&A 653, A141 (2021)
+"""
 const asplund_2020_solar_abundances = [
     12.00, 10.91, 0.96, 1.38, 2.70, 8.46, 7.83, 8.69, 4.40, 8.06,
     6.22, 7.55, 6.43, 7.51, 5.41, 7.12, 5.31, 6.38, 5.07, 6.30,
@@ -51,7 +55,9 @@ const asplund_2020_solar_abundances = [
     0.92, 1.95, 0.65, -5.00, -5.00, -5.00, -5.00, -5.00, -5.00, 0.03,
     -5.00, -0.54]
 
-#solar abundances per Grevesse et al. Space Sci Rev (2007) 130: 105–114
+"""
+solar abundances per Grevesse et al. Space Sci Rev (2007) 130: 105–114
+"""
 const grevesse_2007_solar_abundances = [
     12.00, 10.93, 1.05, 1.38, 2.70, 8.39, 7.78, 8.66, 4.56, 7.84,
     6.17, 7.53, 6.37, 7.51, 5.36, 7.14, 5.50, 6.18, 5.08, 6.31,
@@ -64,9 +70,11 @@ const grevesse_2007_solar_abundances = [
     0.90, 2.00, 0.65, -5.00, -5.00, -5.00, -5.00, -5.00, -5.00, 0.06,
     -05.00, -0.52]
 
-# solar abundances per Magg et al. A&A 661, A140 (2022)
-# doi:10.1051/0004-6361/202140401
-# those not specified in Magg et al. are taken from Grevesse
+"""
+    Solar abundances per Magg et al. A&A 661, A140 (2022)
+    doi:10.1051/0004-6361/202140401
+    those not specified in Magg et al. are taken from Grevesse
+"""
 const magg_2022_solar_abundances = let
     # these are the photospheric abundances measured in the Magg paper
     abunds = Dict([
@@ -101,7 +109,6 @@ const magg_2022_solar_abundances = let
 end
 
 # these ones fall back on the meteoritic values
-#
 const previous_magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56, 7.98, 8.77, 4.4,
     8.15, 6.29,
     7.55, 6.43, 7.59, 5.41, 7.16, 5.25, 6.5,
@@ -115,4 +122,92 @@ const previous_magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56,
     0.836,
     2.083, 0.712, -5.0, -5.0, -5.0, -5.0, -5.0, -5.0, 0.116, -5.0, -0.461]
 
+"""
+    Solar abundances from Lodders et al. (2025)
+    doi:10.1007/s11214-025-01146-w
+    Those not specified in Lodders et al. are taken from Grevesse
+"""
+const lodders_2025_solar_abundances = let
+    abunds = Dict([
+                      "H" => 12,
+                      "He" => 10.922,
+                      "Li" => 1.04,
+                      "Be" => 1.21,
+                      "B" => 2.7,
+                      "C" => 8.51,
+                      "N" => 7.98,
+                      "O" => 8.76,
+                      "F" => 4.4,
+                      "Ne" => 8.15,
+                      "Na" => 6.29,
+                      "Mg" => 7.58,
+                      "Al" => 6.43,
+                      "Si" => 7.56,
+                      "P" => 5.44,
+                      "S" => 7.16,
+                      "Cl" => 5.43,
+                      "Ar" => 6.5,
+                      "K" => 5.09,
+                      "Ca" => 6.35,
+                      "Sc" => 3.13,
+                      "Ti" => 4.97,
+                      "V" => 3.89,
+                      "Cr" => 5.74,
+                      "Mn" => 5.52,
+                      "Fe" => 7.51,
+                      "Co" => 4.95,
+                      "Ni" => 6.24,
+                      "Cu" => 4.24,
+                      "Zn" => 4.55,
+                      "Ga" => 3.02,
+                      "Ge" => 3.62,
+                      "Kr" => 3.31,
+                      "Rb" => 2.35,
+                      "Sr" => 2.93,
+                      "Y" => 2.3,
+                      "Zr" => 2.68,
+                      "Nb" => 1.47,
+                      "Mo" => 1.88,
+                      "Ru" => 1.75,
+                      "Rh" => 0.78,
+                      "Pd" => 1.57,
+                      "Ag" => 0.96,
+                      "Cd" => 1.77,
+                      "In" => 0.8,
+                      "Sn" => 2.02,
+                      "Xe" => 2.3,
+                      "Ba" => 2.27,
+                      "La" => 1.1,
+                      "Ce" => 1.58,
+                      "Pr" => 0.75,
+                      "Nd" => 1.42,
+                      "Sm" => 0.95,
+                      "Eu" => 0.57,
+                      "Gd" => 1.08,
+                      "Tb" => 0.31,
+                      "Dy" => 1.1,
+                      "Ho" => 0.48,
+                      "Er" => 0.93,
+                      "Tm" => 0.11,
+                      "Yb" => 0.85,
+                      "Lu" => 0.1,
+                      "Hf" => 0.86,
+                      "W" => 0.79,
+                      "Os" => 1.36,
+                      "Ir" => 1.42,
+                      "Au" => 0.91,
+                      "Tl" => 0.95,
+                      "Pb" => 1.95,
+                      "Th" => 0.08
+                  ])
+    # fall back on Grevesse numbers
+    map(atomic_symbols, grevesse_2007_solar_abundances) do symbol, grevesse_abundance
+        get(abunds, symbol, grevesse_abundance)
+    end
+end
+
+"""
+Korg's default solar abundances: the Magg et. al (2022) abundances,
+([`magg_2022_solar_abundances`](@ref)).
+"""
 const default_solar_abundances = magg_2022_solar_abundances
