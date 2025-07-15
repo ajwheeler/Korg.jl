@@ -58,7 +58,7 @@
         #correct absolute abundances?
         if "C" in keys(abundances)
             if solar_relative
-                @test A_X[6] ≈ Korg.default_solar_abundances [6] + 1.1
+                @test A_X[6] ≈ Korg.default_solar_abundances[6] + 1.1
             else
                 @test A_X[6] ≈ 1.1
             end
