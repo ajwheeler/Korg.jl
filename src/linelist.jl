@@ -400,16 +400,8 @@ function parse_kurucz_linelist(f; vacuum=false)
         end
 
         # Parse lande g factors (columns 28 and 29, chars 141:145 and 146:150)
-        lande_g_even = try
-            parse(Float64, strip(row[144:148])) / 1000
-        catch
-            missing
-        end
-        lande_g_odd = try
-            parse(Float64, strip(row[149:153])) / 1000
-        catch
-            missing
-        end
+        lande_g_even = parse(Float64, strip(row[145:149])) / 1000
+        lande_g_odd = parse(Int64, strip(row[150:154])) / 1000
 
         wl_transform = vacuum ? identity : air_to_vacuum
 
