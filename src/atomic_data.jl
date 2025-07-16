@@ -71,9 +71,27 @@ const grevesse_2007_solar_abundances = [
     -05.00, -0.52]
 
 """
+    Solar abundances from Bergemann, Lodders, and Palme (2025)
+    https://zenodo.org/records/14988840
+    Solar convective-zone abundances are used when available, chondritic abundance are used otherwise.
+    Elements without long-lived isotopes have be set to -5.
+"""
+const bergemann_2025_solar_abundances = [
+    12.0, 10.922, 1.04, 1.21, 2.7, 8.51, 7.94, 8.76, 4.4, 8.15,
+    6.29, 7.58, 6.43, 7.56, 5.44, 7.16, 5.43, 6.5, 5.09, 6.35,
+    3.13, 4.97, 3.89, 5.74, 5.52, 7.51, 4.95, 6.24, 4.24, 4.55,
+    3.02, 3.62, 2.34, 3.41, 2.65, 3.31, 2.35, 2.93, 2.3, 2.68,
+    1.47, 1.88, -5.0, 1.75, 0.78, 1.57, 0.96, 1.77, 0.8, 2.02,
+    1.08, 2.23, 1.76, 2.3, 1.12, 2.27, 1.1, 1.58, 0.75, 1.42,
+    -5.0, 0.95, 0.57, 1.08, 0.31, 1.1, 0.48, 0.93, 0.11, 0.85,
+    0.1, 0.86, -0.11, 0.79, 0.3, 1.36, 1.42, 1.64, 0.91, 1.14,
+    0.95, 1.95, 0.7, -5.0, -5.0, -5.0, -5.0, -5.0, -5.0, 0.09,
+    -5.0, -0.5]
+
+"""
     Solar abundances per Magg et al. A&A 661, A140 (2022)
     doi:10.1051/0004-6361/202140401
-    those not specified in Magg et al. are taken from Grevesse
+    those not specified in Magg et al. are taken from Bergemann et al. (2025)
 """
 const magg_2022_solar_abundances = let
     # these are the photospheric abundances measured in the Magg paper
@@ -102,112 +120,14 @@ const magg_2022_solar_abundances = let
                       "Co" => 4.95,
                       "Ni" => 6.24
                   ])
-    # fall back on Grevesse numbers
-    map(atomic_symbols, grevesse_2007_solar_abundances) do symbol, grevesse_abundance
-        get(abunds, symbol, grevesse_abundance)
-    end
-end
-
-# these ones fall back on the meteoritic values
-const previous_magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56, 7.98, 8.77, 4.4,
-    8.15, 6.29,
-    7.55, 6.43, 7.59, 5.41, 7.16, 5.25, 6.5,
-    5.14, 6.37, 3.07, 4.94, 3.89, 5.74, 5.52, 7.5, 4.95, 6.24, 4.292, 4.658, 3.126, 3.651, 2.355,
-    3.388,
-    2.624, 3.312, 2.388, 2.944, 2.234, 2.624, 1.448, 1.985, -5.0, 1.849, 1.139, 1.727, 1.261, 1.77,
-    0.828, 2.142,
-    1.087, 2.253, 1.569, 2.302, 1.135, 2.209, 1.214, 1.638, 0.81, 1.492, -5.0, 0.975, 0.548, 1.091,
-    0.341, 1.157,
-    0.524, 0.977, 0.138, 0.965, 0.123, 0.8, -0.108, 0.676, 0.29, 1.399, 1.379, 1.703, 0.861, 1.186,
-    0.836,
-    2.083, 0.712, -5.0, -5.0, -5.0, -5.0, -5.0, -5.0, 0.116, -5.0, -0.461]
-
-"""
-    Solar abundances from Lodders et al. (2025)
-    doi:10.1007/s11214-025-01146-w
-    Those not specified in Lodders et al. are taken from Grevesse
-"""
-const lodders_2025_solar_abundances = let
-    abunds = Dict([
-                      "H" => 12,
-                      "He" => 10.922,
-                      "Li" => 1.04,
-                      "Be" => 1.21,
-                      "B" => 2.7,
-                      "C" => 8.51,
-                      "N" => 7.98,
-                      "O" => 8.76,
-                      "F" => 4.4,
-                      "Ne" => 8.15,
-                      "Na" => 6.29,
-                      "Mg" => 7.58,
-                      "Al" => 6.43,
-                      "Si" => 7.56,
-                      "P" => 5.44,
-                      "S" => 7.16,
-                      "Cl" => 5.43,
-                      "Ar" => 6.5,
-                      "K" => 5.09,
-                      "Ca" => 6.35,
-                      "Sc" => 3.13,
-                      "Ti" => 4.97,
-                      "V" => 3.89,
-                      "Cr" => 5.74,
-                      "Mn" => 5.52,
-                      "Fe" => 7.51,
-                      "Co" => 4.95,
-                      "Ni" => 6.24,
-                      "Cu" => 4.24,
-                      "Zn" => 4.55,
-                      "Ga" => 3.02,
-                      "Ge" => 3.62,
-                      "Kr" => 3.31,
-                      "Rb" => 2.35,
-                      "Sr" => 2.93,
-                      "Y" => 2.3,
-                      "Zr" => 2.68,
-                      "Nb" => 1.47,
-                      "Mo" => 1.88,
-                      "Ru" => 1.75,
-                      "Rh" => 0.78,
-                      "Pd" => 1.57,
-                      "Ag" => 0.96,
-                      "Cd" => 1.77,
-                      "In" => 0.8,
-                      "Sn" => 2.02,
-                      "Xe" => 2.3,
-                      "Ba" => 2.27,
-                      "La" => 1.1,
-                      "Ce" => 1.58,
-                      "Pr" => 0.75,
-                      "Nd" => 1.42,
-                      "Sm" => 0.95,
-                      "Eu" => 0.57,
-                      "Gd" => 1.08,
-                      "Tb" => 0.31,
-                      "Dy" => 1.1,
-                      "Ho" => 0.48,
-                      "Er" => 0.93,
-                      "Tm" => 0.11,
-                      "Yb" => 0.85,
-                      "Lu" => 0.1,
-                      "Hf" => 0.86,
-                      "W" => 0.79,
-                      "Os" => 1.36,
-                      "Ir" => 1.42,
-                      "Au" => 0.91,
-                      "Tl" => 0.95,
-                      "Pb" => 1.95,
-                      "Th" => 0.08
-                  ])
-    # fall back on Grevesse numbers
-    map(atomic_symbols, grevesse_2007_solar_abundances) do symbol, grevesse_abundance
-        get(abunds, symbol, grevesse_abundance)
+    # fall back on Bergemann et al. numbers
+    map(atomic_symbols, bergemann_2025_solar_abundances) do symbol, bergemann_abundance
+        get(abunds, symbol, bergemann_abundance)
     end
 end
 
 """
-Korg's default solar abundances: the Magg et. al (2022) abundances,
-([`magg_2022_solar_abundances`](@ref)).
+Korg's default solar abundances: the Bergemann, Lodders, and Palme (2025) abundances,
+([`bergemann_2025_solar_abundances`](@ref)).
 """
-const default_solar_abundances = magg_2022_solar_abundances
+const default_solar_abundances = bergemann_2025_solar_abundances

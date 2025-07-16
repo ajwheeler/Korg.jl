@@ -36,7 +36,7 @@ You can specify abundance with these positional arguments.  All are optional, bu
     ``A(x) = \\log_{10}(n_X/n_\\mathrm{H}) + 12``, where ``n_X`` is the number density of ``X``.
     Note that abundances not specified default to the solar value still depend on the solar value, as
     they are set according to `default_metals_H` and `default_alpha_H`.
-  - `solar_abundances` (default: `Korg.magg_2022_solar_abundances`) is the set of solar abundances to
+  - `solar_abundances` (default: `Korg.bergeman_2025_solar_abundances`) is the set of solar abundances to
     use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`,
     `Korg.grevesse_2007_solar_abundances`, and `Korg.asplund_2020_solar_abundances` are also provided for convenience.
   - `alpha_elements` (default: [`Korg.default_alpha_elements`](@ref)): vector of atomic numbers of
@@ -112,7 +112,7 @@ See also [`get_alpha_H`](@ref).
 
 # Keyword Arguments
 
-  - `solar_abundances` (default: `Korg.magg_2022_solar_abundances`) is the set of solar abundances to
+  - `solar_abundances` (default: `Korg.bergeman_2025_solar_abundances`) is the set of solar abundances to
     use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`,
     `Korg.grevesse_2007_solar_abundances`, and `Korg.asplund_2020_solar_abundances` are also provided for
     convenience.
@@ -142,7 +142,7 @@ Here, the alpha elements are defined to be O, Ne, Mg, Si, S, Ar, Ca, Ti.  See al
 
 # Keyword Arguments
 
-  - `solar_abundances` (default: `Korg.magg_2022_solar_abundances`) is the set of solar abundances to
+  - `solar_abundances` (default: `Korg.bergeman_2025_solar_abundances`) is the set of solar abundances to
     use, as a vector indexed by atomic number. `Korg.asplund_2009_solar_abundances`,
     `Korg.grevesse_2007_solar_abundances`, and `Korg.asplund_2020_solar_abundances` are also provided for
     convenience.
