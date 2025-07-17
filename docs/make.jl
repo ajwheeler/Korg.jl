@@ -11,7 +11,6 @@ makedocs(;
                 "Tutorials" => "tutorials.md"
                 "High-level API" => "API.md"
                 "FAQ" => "FAQ.md"
-                "Changelog" => "changelog.md"
                 "Developer Documentation" => "devdocs.md"],
          # ideally we would do link checking, but adam doesn't like it turning his badge red
          linkcheck=false, # check if any external links are broken
