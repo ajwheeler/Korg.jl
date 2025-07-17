@@ -3,7 +3,8 @@
 [![codecov](https://codecov.io/gh/ajwheeler/Korg.jl/branch/main/graph/badge.svg?token=XXK2G8T8CJ)](https://codecov.io/gh/ajwheeler/Korg.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-Korg computes stellar spectra from 1D model atmospheres and linelists assuming local thermodynamic equilibrium.
+Korg is a package for stellar spectra from 1D model atmospheres and linelists assuming local thermodynamic equilibrium. It can be used with Julia or Python
+
 After [installing Korg](https://ajwheeler.github.io/Korg.jl/stable/install), get started by looking at the [top-level functions](https://ajwheeler.github.io/Korg.jl/stable/API) or the [tutorial notebooks](https://ajwheeler.github.io/Korg.jl/stable/tutorials).
 
 ## Example
