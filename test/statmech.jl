@@ -135,7 +135,7 @@ end
                == length(Korg.asplund_2009_solar_abundances)
                == length(Korg.asplund_2020_solar_abundances)
                == length(Korg.grevesse_2007_solar_abundances)
-               == length(Korg.bergeman_2025_solar_abundances)
+               == length(Korg.bergemann_2025_solar_abundances)
                == length(Korg.magg_2022_solar_abundances))
 
         @test (Korg.get_mass(Korg.Formula("CO")) ≈
