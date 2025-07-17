@@ -1,7 +1,17 @@
 using Documenter, Korg
 
 # Use the README.md as index.md in the docs. These should really have the same contents.
-cp("../README.md", "./src/index.md"; force=true)
+
+# Check if we're in docs/ directory or root directory and set paths appropriately
+# locally, it's easier to build from docs, but the CI builds from root
+if basename(pwd()) == "docs"
+    readme_path = "../README.md"
+    target_path = "./src/index.md"
+else
+    readme_path = "./README.md"
+    target_path = "./docs/src/index.md"
+end
+cp(readme_path, target_path; force=true)
 
 makedocs(;
          modules=[Korg],
