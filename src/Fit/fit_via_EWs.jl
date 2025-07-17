@@ -348,6 +348,7 @@ A pair, `(params, uncertainties)`, containing:
     avoid null derivatives in the optimization.
   - `fix_params` (default: `[false, false, false, false]`) is a vector of booleans indicating which
     parameters should be held fixed during the optimization. The order is [Teff, logg, vmic, [m/H]].
+  - `solar_abundances` (default: [`Korg.default_solar_abundances`](@ref)) the solar abundances to assume
   - `verbose` (default: `false`) is a boolean indicating whether to print verbose output during the
     optimization. Works, by default, by adding a callback that prints the current parameters,
     residuals, and abundances. The callback can be explicitly set with the `callback` keyword.
@@ -371,6 +372,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
                                        (1e-3, 10.0),
                                        (-2.5, 1.0)],
                                    fix_params=[false, false, false, false],
+                                   solar_abundances=Korg.default_solar_abundances,
                                    verbose=false,
                                    callback=if verbose
                                        _stellar_params_default_callback
@@ -391,7 +393,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
 
     # First phase: approximate calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(false, p, linelist, measured_EWs,
-                                                             abundance_adjustments, fix_params,
+                                                             abundance_adjustments,
+                                                             solar_abundances, fix_params,
                                                              callback, passed_kwargs)
     J_result = DiffResults.JacobianResult(params)
     if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
@@ -404,7 +407,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
 
     # Second phase: exact calculations
     get_residuals = (p) -> _stellar_param_equation_residuals(true, p, linelist, measured_EWs,
-                                                             abundance_adjustments, fix_params,
+                                                             abundance_adjustments,
+                                                             solar_abundances, fix_params,
                                                              callback, passed_kwargs)
     if !_ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_params,
                                           tolerances, max_step_sizes, parameter_ranges,
@@ -415,7 +419,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
     # compute uncertainties
     residual_uncertainties = _stellar_param_residual_uncertainties(params, linelist, measured_EWs,
                                                                    abundance_adjustments,
-                                                                   passed_kwargs)
+                                                                   solar_abundances, passed_kwargs)
 
     J = DiffResults.jacobian(J_result)[.!fix_params, .!fix_params]
     param_uncertainties = zeros(4)
@@ -424,7 +428,8 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
     params, param_uncertainties
 end
 
-# Validate the input parameters for stellar parameter determination.
+# Check lots of things and throw informative errors.
+# Clamp the parameters to the specified ranges and warn if necessary.
 function validate_ews_to_stellar_params_inputs(linelist, measured_EWs, params0,
                                                parameter_ranges)
     if length(linelist) != length(measured_EWs)
@@ -505,13 +510,15 @@ function _ews_to_stellar_parameters_phase!(J_result, get_residuals, params, fix_
     end
 end
 
-# called by ews_to_stellar_parameters
+# the residuals for the four excitation-ionization equations, using either exact or approximate
+# calculations.
 function _stellar_param_equation_residuals(exact_calculation, params, linelist, EW,
-                                           abundance_adjustments, fix_params, callback,
-                                           passed_kwargs)
+                                           abundance_adjustments, solar_abundances, fix_params,
+                                           callback, passed_kwargs)
     A, neutrals, REWs, Z = _stellar_param_equations_precalculation(exact_calculation, params,
                                                                    linelist, EW,
                                                                    abundance_adjustments,
+                                                                   solar_abundances,
                                                                    passed_kwargs)
     finitemask = isfinite.(A)
 
@@ -532,7 +539,7 @@ function _stellar_param_equation_residuals(exact_calculation, params, linelist, 
     logg_residual = mean(A[neutrals]) - mean(A[.!neutrals.&finitemask])
 
     vmic_residual = get_slope(REWs[neutrals], A[neutrals])
-    feh_residual = mean(A[finitemask]) - (params[4] + Korg.grevesse_2007_solar_abundances[Z])
+    feh_residual = mean(A[finitemask]) - (params[4] + solar_abundances[Z])
     residuals = [teff_residual, logg_residual, vmic_residual, feh_residual]
     residuals .*= .!fix_params # zero out residuals for fixed parameters
 
@@ -543,9 +550,10 @@ end
 # called by _stellar_param_equation_residuals
 # returns (statistical_uncertainty, systematic_uncertainty)
 function _stellar_param_residual_uncertainties(params, linelist, EW, abundance_adjustments,
-                                               passed_kwargs)
+                                               solar_abundances, passed_kwargs)
     A, neutrals, REWs, _ = _stellar_param_equations_precalculation(true, params, linelist, EW,
                                                                    abundance_adjustments,
+                                                                   solar_abundances,
                                                                    passed_kwargs)
     # assume the total (including systematic) err in the abundances of each line can be obtained
     # from the line-to-line scatter
@@ -560,12 +568,14 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, abundance_a
 end
 
 function _stellar_param_equations_precalculation(exact_calculation, params, linelist, EW,
-                                                 abundance_adjustments, passed_kwargs)
+                                                 abundance_adjustments, solar_abundances,
+                                                 passed_kwargs)
     if exact_calculation
-        A = ews_to_abundances(params, linelist, EW; blend_warn_threshold=Inf, passed_kwargs...)
+        A = ews_to_abundances(params, linelist, EW; blend_warn_threshold=Inf,
+                              solar_abundances=solar_abundances, passed_kwargs...)
     else
         A = ews_to_abundances_approx(params, linelist, EW; blend_warn_threshold=Inf,
-                                     passed_kwargs...)
+                                     solar_abundances=solar_abundances, passed_kwargs...)
     end
 
     neutrals = [l.species.charge == 0 for l in linelist]
