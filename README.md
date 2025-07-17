@@ -1,9 +1,18 @@
+# Korg.jl
+
 [![Documentation](https://img.shields.io/badge/Documentation-blue.svg)](https://ajwheeler.github.io/Korg.jl/stable/)
 [![Tests](https://github.com/ajwheeler/Korg.jl/actions/workflows/Test.yml/badge.svg)](https://github.com/ajwheeler/Korg.jl/actions/workflows/Test.yml)
 [![codecov](https://codecov.io/gh/ajwheeler/Korg.jl/branch/main/graph/badge.svg?token=XXK2G8T8CJ)](https://codecov.io/gh/ajwheeler/Korg.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-Korg is a package for stellar spectra from 1D model atmospheres and linelists assuming local thermodynamic equilibrium. It can be used with Julia or Python
+Korg is a package for computing stellar spectra from 1D model atmospheres and linelists assuming local thermodynamic equilibrium. It can be used with Julia or Python. Here's some things it can do:
+- Computing spectra from Teff, logg, abundances, etc.
+- Fitting whole spectra or individual lines via synthesis or equivalent widths
+- Excitation-ionization balance from equivalent width data
+- Model atmosphere interpolation, parsing and using atmosphere files (MARCS)
+- Parsing and using linelists in VALD, Kurucz, MOOG, ExoMol, and Turbospectrum formats, with several defaults built-in.
+- Automatic differentiaion (via ForwardDiff.jl)
+- Synthesis with arbitrary abundances/solar abundance scales, with several defaults built-in.
 
 After [installing Korg](https://ajwheeler.github.io/Korg.jl/stable/install), get started by looking at the [top-level functions](https://ajwheeler.github.io/Korg.jl/stable/API) or the [tutorial notebooks](https://ajwheeler.github.io/Korg.jl/stable/tutorials).
 
