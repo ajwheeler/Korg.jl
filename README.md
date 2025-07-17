@@ -3,17 +3,11 @@
 [![codecov](https://codecov.io/gh/ajwheeler/Korg.jl/branch/main/graph/badge.svg?token=XXK2G8T8CJ)](https://codecov.io/gh/ajwheeler/Korg.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-Code papers (please cite these if you use Korg):
-- [Korg: A Modern 1D LTE Spectral Synthesis Package](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract). This is also a good overview of how spectral synthesis works, the inputs and outputs, etc.
-- [Korg: fitting, model atmosphere interpolation, and Brackett lines](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract)
-
-Tutorials:
-- [Korg basics](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/basics/Basics.ipynb)
-- [Korg basics in python](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/basics/Python%20Basics.ipynb)
-- [other tutorial notebooks](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks)
-
+Korg computes stellar spectra from 1D model atmospheres and linelists assuming local thermodynamic equilibrium.
+After [installing Korg](https://ajwheeler.github.io/Korg.jl/stable/install), get started by looking at the [top-level functions](https://ajwheeler.github.io/Korg.jl/stable/API) or the [tutorial notebooks](https://ajwheeler.github.io/Korg.jl/stable/tutorials).
 
 ## Example
+(Python version below)
 ```julia
 using Korg, PyPlot
 
@@ -36,6 +30,17 @@ See the [documentation for `synth`](https://ajwheeler.github.io/Korg.jl/stable/A
 
 ![image](https://github.com/ajwheeler/Korg.jl/assets/711963/70a13b45-4db2-472c-9121-fdd818a47105)
 
+# Code papers (please cite these if you use Korg):
+- [Korg: A Modern 1D LTE Spectral Synthesis Package](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract). This is also a good overview of how spectral synthesis works, the inputs and outputs, etc.
+- [Korg: fitting, model atmosphere interpolation, and Brackett lines](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract)
+
+# Tutorials:
+- [Korg basics](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/basics/Basics.ipynb)
+- [Korg basics in python](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/basics/Python%20Basics.ipynb)
+- [other tutorial notebooks](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks)
+
+# Getting help
+If you are having trouble using or installing Korg, please get in touch by [opening a GitHub issue](https://github.com/ajwheeler/Korg.jl/issues) (preferred), or [sending Adam an email](mailto:adamwhlr@gmail.com).
 
 ## You can also call Korg from python
 See [the documentation](https://ajwheeler.github.io/Korg.jl/stable/install/) for setup instructions.
