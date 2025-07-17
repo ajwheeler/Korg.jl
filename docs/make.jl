@@ -29,8 +29,10 @@ makedocs(;
          # there are useful if linkchecking gets turned back on
          linkcheck_timeout=30, # default (10s) is too short for slow academic sites
          linkcheck_ignore=["https://marcs.astro.uu.se/"],
+
          authors="Adam Wheeler, Matthew Abruzzo, Andrew Casey, and collaborators",
          format=Documenter.HTML(; assets=["assets/favicon.ico"], size_threshold=500000),
-         checkdocs=:all,)
+         checkdocs=:all,
+)
 
 deploydocs(; repo="github.com/ajwheeler/Korg.jl.git", devbranch="main")
