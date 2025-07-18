@@ -99,20 +99,21 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
                 lorentz_line_window = maximum(inverse_densities)
 
-                # TODO don't just use odd g
-                # TODO understand why lande is separated into odd and even
-                lande_g = 0.0
-                # TODO this is wrong
-                if .!ismissing(line.lande_g_odd)
-                    lande_g += line.lande_g_odd
+                # calculate using LS approximation
+                d = line.J_even * (line.J_even + 1) - line.J_odd * (line.J_odd + 1)
+                LS_g_eff = (line.lande_g_even + line.lande_g_odd) / 2 +
+                           (line.lande_g_even - line.lande_g_odd) / 4 * d
+                if line.wl * 1e8 ≈ 6303.242774
+                    @show LS_g_eff
+                    @show line.lande_g_even
+                    @show line.lande_g_odd
+                    @show line.J_even
+                    @show line.J_odd
                 end
-                if .!ismissing(line.lande_g_even)
-                    lande_g += line.lande_g_even
-                end
-                if lande_g == 0.0
+                if LS_g_eff == 0.0
                     Δλ_zeeman .= 0.0
                 else
-                    ΔE_zeeman .= bohr_magneton_cgs * lande_g * magnetic_field
+                    ΔE_zeeman .= bohr_magneton_cgs * LS_g_eff * magnetic_field
                     # TODO upper or lower E
                     Δλ_zeeman .= @. line.wl^2 / (c_cgs * hplanck_cgs) * ΔE_zeeman
                     ∂λ_∂E = -line.wl^2 / (c_cgs * hplanck_cgs)

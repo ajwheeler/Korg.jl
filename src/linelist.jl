@@ -17,6 +17,8 @@ struct Line{F1,F2,F3,F4,F5,F6}
     # TODO
     lande_g_even # Landé g factor for even level
     lande_g_odd  # Landé g factor for odd level
+    J_even
+    J_odd
 
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F,
@@ -60,7 +62,9 @@ struct Line{F1,F2,F3,F4,F5,F6}
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3,
                   gamma_rad::Union{F4,Missing}=missing, gamma_stark::Union{F5,Missing}=missing,
                   vdW::Union{F6,Tuple{F6,F6},Missing}=missing, lande_g_even=missing,
-                  lande_g_odd=missing) where {F1<:Real,F2<:Real,F3<:Real,F4<:Real,F5<:Real,F6<:Real}
+                  lande_g_odd=missing, J_even=missing,
+                  J_odd=missing) where {F1<:Real,F2<:Real,F3<:Real,F4<:Real,F5<:Real,
+                                        F6<:Real}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
@@ -101,7 +105,9 @@ struct Line{F1,F2,F3,F4,F5,F6}
         new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),eltype(vdW)}(wl, log_gf, species,
                                                                         E_lower, gamma_rad,
                                                                         gamma_stark, vdW,
-                                                                        lande_g_odd, lande_g_even)
+                                                                        lande_g_even,
+                                                                        lande_g_odd,
+                                                                        J_even, J_odd)
     end
 end
 # constructor to allow for copying a line and modifying some values (see docstring)
@@ -388,6 +394,7 @@ function parse_kurucz_linelist(f; vacuum=false)
         row == "" && continue #skip empty lines
 
         #some linelists have a missing column in the wavelenth region
+        # TODO make this more robust!  I think this was the problem!
         if length(row) == 159
             row = " " * row
         end
@@ -399,9 +406,15 @@ function parse_kurucz_linelist(f; vacuum=false)
             abs(parse(Float64, s)) * c_cgs * hplanck_eV
         end
 
+        # TODO I HAD TO EDIT gf0640.10 !!!
+        # I inserted a space at the begining of every line to make it match the spec
+
         # Parse lande g factors (columns 28 and 29, chars 141:145 and 146:150)
         lande_g_even = parse(Float64, strip(row[145:149])) / 1000
         lande_g_odd = parse(Int64, strip(row[150:154])) / 1000
+
+        quantum_g_even = parse(Float64, strip(row[38:41]))
+        quantum_g_odd = parse(Float64, strip(row[66:69]))
 
         wl_transform = vacuum ? identity : air_to_vacuum
 
@@ -414,7 +427,9 @@ function parse_kurucz_linelist(f; vacuum=false)
                    tentotheOrMissing(parse(Float64, row[87:92])),
                    idOrMissing(parse(Float64, row[93:98])),
                    lande_g_even,
-                   lande_g_odd))
+                   lande_g_odd,
+                   quantum_g_even,
+                   quantum_g_odd))
     end
     lines
 end
