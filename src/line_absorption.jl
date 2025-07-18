@@ -73,6 +73,26 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 # doppler-broadening width, σ (NOT √[2]σ)
                 σ .= doppler_width.(line.wl, temps, m, ξ)
 
+                # https://www.aanda.org/articles/aa/full_html/2014/03/aa23166-13/aa23166-13.html
+                # calculate using LS approximation
+                s = line.J_even * (line.J_even + 1) + line.J_odd * (line.J_odd + 1)
+                d = line.J_even * (line.J_even + 1) - line.J_odd * (line.J_odd + 1)
+                gs = line.lande_g_even + line.lande_g_odd
+                gd = line.lande_g_even - line.lande_g_odd
+                g_eff = gs / 2 + gd * d / 4
+                # TODO write in in terms of constants
+                Δλ_B = @. 4.8868e-5 * line.wl * magnetic_field # order of magnitude is difference because my λ is in cm
+                G_T = g_eff^2 + (1 / 16) * gd^2 * (4s - d^2 - 2)
+                σ_zeeman = @. 4 * G_T * (Δλ_B)^2 / sqrt(2)
+                # TODO
+                if line.wl * 1e8 ≈ 6303.242774
+                    #@show g_eff
+                    #@show extrema(σ)
+                    #@show extrema(σ_zeeman)
+                end
+
+                @. σ = sqrt(σ^2 + σ_zeeman^2)
+
                 # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in
                 # angular, not cyclical frequency (ω, not ν).
                 Γ .= line.gamma_rad
@@ -98,46 +118,20 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 doppler_line_window = maximum(inverse_densities)
                 inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
                 lorentz_line_window = maximum(inverse_densities)
+                window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
 
-                # calculate using LS approximation
-                d = line.J_even * (line.J_even + 1) - line.J_odd * (line.J_odd + 1)
-                LS_g_eff = (line.lande_g_even + line.lande_g_odd) / 2 +
-                           (line.lande_g_even - line.lande_g_odd) / 4 * d
-                if line.wl * 1e8 ≈ 6303.242774
-                    @show LS_g_eff
-                    @show line.lande_g_even
-                    @show line.lande_g_odd
-                    @show line.J_even
-                    @show line.J_odd
-                end
-                if LS_g_eff == 0.0
-                    Δλ_zeeman .= 0.0
-                else
-                    ΔE_zeeman .= bohr_magneton_cgs * LS_g_eff * magnetic_field
-                    # TODO upper or lower E
-                    Δλ_zeeman .= @. line.wl^2 / (c_cgs * hplanck_cgs) * ΔE_zeeman
-                    ∂λ_∂E = -line.wl^2 / (c_cgs * hplanck_cgs)
-                    Δλ_zeeman = ∂λ_∂E .* ΔE_zeeman
+                # calculate the window center from the nominal line center, not the shifted line
+                # centers
+                # at present, this line is allocating. Would be good to fix that.
+                lb = searchsortedfirst(λs, line.wl - window_size)
+                ub = searchsortedlast(λs, line.wl + window_size)
+                # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
+                if lb > ub
+                    continue
                 end
 
-                window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
-                              maximum(Δλ_zeeman) - minimum(Δλ_zeeman) # make sure it's big enough to include all Zeeman shifts
-                for shift in (-Δλ_zeeman, Δλ_zeeman) # TODO selection rules
-                    λ = @. line.wl + shift
-
-                    # calculate the window center from the nominal line center, not the shifted line
-                    # centers
-                    # at present, this line is allocating. Would be good to fix that.
-                    lb = searchsortedfirst(λs, line.wl - window_size)
-                    ub = searchsortedlast(λs, line.wl + window_size)
-                    # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
-                    if lb > ub
-                        continue
-                    end
-
-                    # TODO selection rules scaling
-                    α_task[:, lb:ub] .+= line_profile.(λ, σ, γ, amplitude ./ 2, view(λs, lb:ub)')
-                end
+                # TODO selection rules scaling
+                α_task[:, lb:ub] .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
             end
             return α_task
         end

@@ -113,8 +113,10 @@ end
 # constructor to allow for copying a line and modifying some values (see docstring)
 function Line(line::Line; wl=line.wl, log_gf=line.log_gf, species=line.species,
               E_lower=line.E_lower, gamma_rad=line.gamma_rad, gamma_stark=line.gamma_stark,
-              vdW=line.vdW, lande_g_odd=line.lande_g_odd, lande_g_even=line.lande_g_even)
-    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW, lande_g_odd, lande_g_even)
+              vdW=line.vdW, lande_g_odd=line.lande_g_odd, lande_g_even=line.lande_g_even,
+              J_even=line.J_even, J_odd=line.J_odd)
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW, lande_g_odd, lande_g_even,
+         J_even, J_odd)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
