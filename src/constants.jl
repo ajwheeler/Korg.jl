@@ -8,6 +8,8 @@ const electron_charge_cgs = 4.80320425e-10 # statcoulomb or cm^3/2 * g^1/2 / s
 const amu_cgs = 1.6605402e-24 #g
 const bohr_radius_cgs = 5.29177210903e-9 # cm 2018 CODATA recommended value
 
+const bohr_magneton_cgs = 9.2740100783e-21 # erg G
+
 const solar_mass_cgs = 1.9884e33  #g
 const G_cgs = 6.67430e-8
 
