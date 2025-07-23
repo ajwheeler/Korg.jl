@@ -122,7 +122,7 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
 
                 window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
                               maximum(Δλ_zeeman) - minimum(Δλ_zeeman) # make sure it's big enough to include all Zeeman shifts
-                for shift in (-Δλ_zeeman, Δλ_zeeman) # TODO selection rules
+                for shift in (-Δλ_zeeman, 0, Δλ_zeeman) # TODO selection rules
                     λ = @. line.wl + shift
 
                     # calculate the window center from the nominal line center, not the shifted line
@@ -136,7 +136,7 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                     end
 
                     # TODO selection rules scaling
-                    α_task[:, lb:ub] .+= line_profile.(λ, σ, γ, amplitude ./ 2, view(λs, lb:ub)')
+                    α_task[:, lb:ub] .+= line_profile.(λ, σ, γ, amplitude, view(λs, lb:ub)')
                 end
             end
             return α_task
