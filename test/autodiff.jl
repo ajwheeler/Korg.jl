@@ -4,10 +4,10 @@
     linelist = [Korg.get_VALD_solar_linelist(); Korg.get_APOGEE_DR17_linelist()]
     #cover the optical and the IR to catch different H lines
     wls = [6564:0.01:6565, 15_045:0.01:15_046]
-    for atm in read_model_atmosphere.([
-                                          "data/sun.mod",
-                                          "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"
-                                      ])
+    for atm in Korg.read_model_atmosphere.([
+                                               "data/sun.mod",
+                                               "data/s6000_g+1.0_m0.5_t05_st_z+0.00_a+0.00_c+0.00_n+0.00_o+0.00_r+0.00_s+0.00.mod"
+                                           ])
         # the second model atmosphere happens to be in a weird (probably unphysical) part of
         # parameter space where the electron number densities calculated doesn't match the marcs
         # numbers.

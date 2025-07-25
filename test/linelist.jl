@@ -30,7 +30,7 @@
             @test issorted(linelist, by=l -> l.wl)
 
             # truncate model atmosphere for speed
-            atm = read_model_atmosphere("data/sun.mod")
+            atm = Korg.read_model_atmosphere("data/sun.mod")
             atm = Korg.PlanarAtmosphere(atm.layers[1:3])
 
             # make sure things run (types have caused problems in the past)
@@ -45,8 +45,8 @@
         end
     end
 
-    @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
-                                             format="abc")
+    @test_throws ArgumentError Korg.read_linelist("data/linelists/gfallvac08oct17.stub.dat";
+                                                  format="abc")
 
     @testset "wls in either cm or Å" begin
         @test Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0) ==
@@ -80,7 +80,7 @@
 
     @testset "kurucz linelist parsing" begin
         for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
-            kurucz_ll = read_linelist("data/linelists/" * fname; format="kurucz")
+            kurucz_ll = Korg.read_linelist("data/linelists/" * fname; format="kurucz")
             @test issorted(kurucz_ll, by=l -> l.wl)
             @test length(kurucz_ll) == 987
             @test kurucz_ll[1].wl ≈ 0.0007234041763337705
@@ -106,7 +106,7 @@
     end
 
     @testset "vald short format, ABO, missing params" begin
-        linelist = read_linelist("data/linelists/linelist.vald")
+        linelist = Korg.read_linelist("data/linelists/linelist.vald")
         @test length(linelist) == 6
         @test linelist[1].wl ≈ 3000.0414 * 1e-8
         @test linelist[1].log_gf == -2.957
@@ -139,11 +139,11 @@
     end
 
     @testset "vald various formats" begin
-        short_all = read_linelist("data/linelists/short-extract-all.vald")
-        long_all_cm_air = read_linelist("data/linelists/long-extract-all-air-wavenumber.vald")
-        long_all_cm_air_noquotes = read_linelist("data/linelists/long-extract-all-air-wavenumber-noquotes.vald")
-        short_stellar = read_linelist("data/linelists/short-extract-stellar.vald")
-        long_stellar = read_linelist("data/linelists/long-extract-stellar.vald")
+        short_all = Korg.read_linelist("data/linelists/short-extract-all.vald")
+        long_all_cm_air = Korg.read_linelist("data/linelists/long-extract-all-air-wavenumber.vald")
+        long_all_cm_air_noquotes = Korg.read_linelist("data/linelists/long-extract-all-air-wavenumber-noquotes.vald")
+        short_stellar = Korg.read_linelist("data/linelists/short-extract-stellar.vald")
+        long_stellar = Korg.read_linelist("data/linelists/long-extract-stellar.vald")
 
         @test (length(short_all) == length(short_stellar) == length(long_all_cm_air) ==
                length(long_all_cm_air_noquotes) == length(long_stellar) == 2)
@@ -163,11 +163,11 @@
     end
 
     @testset "vald isotopic scaling" begin
-        short_all = read_linelist("data/linelists/isotopic_scaling/short-all-unscaled.vald")
-        long_all = read_linelist("data/linelists/isotopic_scaling/long-all-unscaled.vald")
-        short_stellar = read_linelist("data/linelists/isotopic_scaling/short-stellar-unscaled.vald")
-        long_stellar = read_linelist("data/linelists/isotopic_scaling/long-stellar-unscaled.vald")
-        scaled = read_linelist("data/linelists/isotopic_scaling/scaled.vald")
+        short_all = Korg.read_linelist("data/linelists/isotopic_scaling/short-all-unscaled.vald")
+        long_all = Korg.read_linelist("data/linelists/isotopic_scaling/long-all-unscaled.vald")
+        short_stellar = Korg.read_linelist("data/linelists/isotopic_scaling/short-stellar-unscaled.vald")
+        long_stellar = Korg.read_linelist("data/linelists/isotopic_scaling/long-stellar-unscaled.vald")
+        scaled = Korg.read_linelist("data/linelists/isotopic_scaling/scaled.vald")
         unscaled_lists = [short_all, long_all, short_stellar, long_stellar]
 
         for list in unscaled_lists
@@ -185,8 +185,8 @@
         end
     end
 
-    moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
-    moog_linelist_as_air = read_linelist("data/linelists/s5eqw_short.moog"; format="moog_air")
+    moog_linelist = Korg.read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
+    moog_linelist_as_air = Korg.read_linelist("data/linelists/s5eqw_short.moog"; format="moog_air")
     @testset "moog linelist parsing" begin
         @test all(Korg.air_to_vacuum(l1.wl) .≈ l2.wl
                   for (l1, l2) in zip(moog_linelist, moog_linelist_as_air))
