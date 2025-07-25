@@ -1,6 +1,7 @@
-This page documents the Korg API for users of the package. Low-level functions that only people
-digging into the internals of Korg will be interested in can be found in the
-[Developer documentation](@ref).
+This page documents the public, stable Korg API intended for users of the package.
+Starting with the version 1.0 release, the developers commit to maintaining forward compatability for all of these functions (until, at least, the next major release).
+
+If you are interested in contributing to Korg, we provide a more complete list of functions (that includes private functions) in the [Developer documentation](@ref).
 
 # [Top-level functions](@id API)
 If you are trying to synthesize a spectrum with Korg, these are the functions you will call.
