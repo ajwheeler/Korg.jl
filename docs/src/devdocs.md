@@ -58,7 +58,7 @@ between them.
 
 ## Complete API
 
-This is a list of the complete API. Anything not explicitly listed in [Top-level functions](@ref) should be considered a private function (that can/will change between patch releases).
+This is a list of the complete API. Anything not explicitly listed [here](@ref API) should be considered a private function (that can/will change between patch releases).
 
 ```@autodocs
 Modules = [Korg, Korg.Fit, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994, Korg.ContinuumAbsorption.Peach1970, Korg.RadiativeTransfer]
