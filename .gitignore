@@ -16,6 +16,7 @@ misc/c.pdf
 misc/d.pdf
 misc/*.png
 docs/build/
+docs/src/index.md
 *.DS_Store
 results_*.json
 results_*.json.tmp
