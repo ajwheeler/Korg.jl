@@ -20,7 +20,7 @@ makedocs(;
          pages=["Quickstart" => "index.md"
                 "Install" => "install.md"
                 "Tutorials" => "tutorials.md"
-                "High-level API" => "API.md"
+                "Public Functions" => "API.md"
                 "FAQ" => "FAQ.md"
                 "Developer Documentation" => "devdocs.md"],
 
