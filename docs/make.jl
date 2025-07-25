@@ -32,7 +32,6 @@ makedocs(;
 
          authors="Adam Wheeler, Matthew Abruzzo, Andrew Casey, and collaborators",
          format=Documenter.HTML(; assets=["assets/favicon.ico"], size_threshold=500000),
-         checkdocs=:all,
-)
+         checkdocs=:all,)
 
 deploydocs(; repo="github.com/ajwheeler/Korg.jl.git", devbranch="main")
