@@ -131,7 +131,7 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
                     vmic=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
-                    air_wavelengths=false, hydrogen_lines=true,
+                    hydrogen_lines=true,
                     use_MHD_for_hydrogen_lines::Union{Nothing,Bool}=nothing,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=Inf,
@@ -142,10 +142,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
                     verbose=false)::SynthesisResult
-    wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
-    if air_wavelengths
-        @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
-    end
+    wls = Wavelengths(wavelength_params...)
 
     if isnothing(use_MHD_for_hydrogen_lines)
         use_MHD_for_hydrogen_lines = wls[end] < 13_000 * 1e-8
