@@ -53,18 +53,17 @@
                  solar_relative in [true, false]
 
         A_X = format_A_X(metallicity, abundances;
-                         solar_abundances=Korg.asplund_2020_solar_abundances,
                          solar_relative=solar_relative)
 
         #correct absolute abundances?
         if "C" in keys(abundances)
             if solar_relative
-                @test A_X[6] ≈ Korg.asplund_2020_solar_abundances[6] + 1.1
+                @test A_X[6] ≈ Korg.default_solar_abundances[6] + 1.1
             else
                 @test A_X[6] ≈ 1.1
             end
         end
-        @test A_X[7:end] ≈ Korg.asplund_2020_solar_abundances[7:end] .+ metallicity
-        @test A_X[1:2] == Korg.asplund_2020_solar_abundances[1:2]
+        @test A_X[7:end] ≈ Korg.default_solar_abundances[7:end] .+ metallicity
+        @test A_X[1:2] == Korg.default_solar_abundances[1:2]
     end
 end
