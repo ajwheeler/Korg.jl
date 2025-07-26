@@ -34,9 +34,6 @@
     @testset "wavelength handling" begin
         wls = Korg.Wavelengths(5000, 5001)
 
-        msg = "The air_wavelengths keyword argument is deprecated"
-        @test_warn msg synthesize(atm_small, [], format_A_X(), 5000, 5001; air_wavelengths=true)
-
         sol = synthesize(atm_small, [], format_A_X(), wls)
         @testset for wl_params in [
             [5000:0.01:5001],

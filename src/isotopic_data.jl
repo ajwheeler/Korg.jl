@@ -1,7 +1,9 @@
-# these are scraped from NIST
-# maps atomic number to another dict mapping atomic weight to absolute abundance (abundances for an 
-# element sum to 1)
-# this isn't an array, because not every element is present
+"""
+isotopic abundances from
+[NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses).
+Maps atomic number to another dict mapping atomic weight to absolute abundance (abundances for an
+element sum to 1). This is a Dict instead of an array because not all elements are present.
+"""
 const isotopic_abundances = Dict(1 => Dict(1 => 1.0, 2 => 1e-10), #tiny non-zero number to avoid -Inf when you take the log
                                  2 => Dict(3 => 1.34e-6, 4 => 0.99999866),
                                  3 => Dict(6 => 0.0759, 7 => 0.9241),

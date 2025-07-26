@@ -306,7 +306,7 @@ The `format` keyword argument can be used to specify one of these linelist forma
 For VALD and Turbospectrum linelists with isotope information available, Korg will scale log gf
 values by isotopic abundance (unless VALD has already pre-scaled them), using isotopic abundances
 from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses)
-([Korg.isotopic_abundances]).
+([`Korg.isotopic_abundances`](@ref)).
 To use custom isotopic abundances, just pass `isotopic_abundances` with the same structure:
 a dict mapping atomic number to a dict mapping from atomic weight to abundance.
 
