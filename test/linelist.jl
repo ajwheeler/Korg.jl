@@ -227,7 +227,8 @@
 
         @test ll[3].vdW[1] ≈ 8.89802482263476e-7
 
-        vac_ll = Korg.read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
+        vac_ll = Korg.read_linelist("data/linelists/Turbospectrum/goodlist";
+                                    format="turbospectrum_vac")
         for (l_air, l_vac) in zip(ll, vac_ll)
             # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg
             # to read it in as vacuum
