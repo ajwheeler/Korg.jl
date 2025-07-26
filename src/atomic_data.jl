@@ -12,7 +12,7 @@ const atomic_symbols = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
 const MAX_ATOMIC_NUMBER = UInt8(length(atomic_symbols))
 const atomic_numbers = Dict(atomic_symbols .=> UInt8.(1:MAX_ATOMIC_NUMBER))
 
-#in grams
+# in grams
 const atomic_masses = [
     1.008, 4.003, 6.941, 9.012, 10.81, 12.01, 14.01, 16.00, 19.00, 20.18,
     22.99, 24.31, 26.98, 28.08, 30.97, 32.06, 35.45, 39.95, 39.10, 40.08,
@@ -25,7 +25,9 @@ const atomic_masses = [
     204.4, 207.2, 209.0, 210.0, 210.0, 222.0, 223.0, 226.0, 227.0, 232.0,
     231.0, 238.0] .* amu_cgs #,237.0,244.0,243.0]
 
-#solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
+"""
+solar/meteoritic abundances per Asplund et al. (2009, Ann. Rev. Ast. Ap., 47, 481).
+"""
 const asplund_2009_solar_abundances = [
     12.00, 10.93, 1.05, 1.38, 2.70, 8.43, 7.83, 8.69, 4.56, 7.93,
     6.24, 7.60, 6.45, 7.51, 5.41, 7.12, 5.50, 6.40, 5.03, 6.34,
@@ -38,7 +40,9 @@ const asplund_2009_solar_abundances = [
     0.90, 1.75, 0.65, -5.00, -5.00, -5.00, -5.00, -5.00, -5.00, 0.02,
     -5.00, -0.54]#,-5.00,-5.00,-5.00]
 
-#solar/meteoritic abundances per Asplund et al. A&A 653, A141 (2021)
+"""
+solar/meteoritic abundances per Asplund et al. A&A 653, A141 (2021)
+"""
 const asplund_2020_solar_abundances = [
     12.00, 10.91, 0.96, 1.38, 2.70, 8.46, 7.83, 8.69, 4.40, 8.06,
     6.22, 7.55, 6.43, 7.51, 5.41, 7.12, 5.31, 6.38, 5.07, 6.30,
@@ -51,7 +55,9 @@ const asplund_2020_solar_abundances = [
     0.92, 1.95, 0.65, -5.00, -5.00, -5.00, -5.00, -5.00, -5.00, 0.03,
     -5.00, -0.54]
 
-#solar abundances per Grevesse et al. Space Sci Rev (2007) 130: 105–114
+"""
+solar abundances per Grevesse et al. Space Sci Rev (2007) 130: 105–114
+"""
 const grevesse_2007_solar_abundances = [
     12.00, 10.93, 1.05, 1.38, 2.70, 8.39, 7.78, 8.66, 4.56, 7.84,
     6.17, 7.53, 6.37, 7.51, 5.36, 7.14, 5.50, 6.18, 5.08, 6.31,
@@ -64,19 +70,64 @@ const grevesse_2007_solar_abundances = [
     0.90, 2.00, 0.65, -5.00, -5.00, -5.00, -5.00, -5.00, -5.00, 0.06,
     -05.00, -0.52]
 
-#solar abundances per Magg et al. A&A 661, A140 (2022)
-const magg_2022_solar_abundances = [12.0, 10.94, 3.31, 1.44, 2.8, 8.56, 7.98, 8.77, 4.4, 8.15, 6.29,
-    7.55, 6.43, 7.59, 5.41, 7.16, 5.25, 6.5,
-    5.14, 6.37, 3.07, 4.94, 3.89, 5.74, 5.52, 7.5, 4.95, 6.24, 4.292, 4.658, 3.126, 3.651, 2.355,
-    3.388,
-    2.624, 3.312, 2.388, 2.944, 2.234, 2.624, 1.448, 1.985, -5.0, 1.849, 1.139, 1.727, 1.261, 1.77,
-    0.828, 2.142,
-    1.087, 2.253, 1.569, 2.302, 1.135, 2.209, 1.214, 1.638, 0.81, 1.492, -5.0, 0.975, 0.548, 1.091,
-    0.341, 1.157,
-    0.524, 0.977, 0.138, 0.965, 0.123, 0.8, -0.108, 0.676, 0.29, 1.399, 1.379, 1.703, 0.861, 1.186,
-    0.836,
-    2.083, 0.712, -5.0, -5.0, -5.0, -5.0, -5.0, -5.0, 0.116, -5.0, -0.461]
 """
-Korg's default solar abundances (Asplund 2020, for now).
+    Solar abundances from Bergemann, Lodders, and Palme (2025)
+    https://zenodo.org/records/14988840
+    Solar convective-zone abundances are used when available, chondritic abundance are used otherwise.
+    Elements without long-lived isotopes have be set to -5.
 """
-const default_solar_abundances = asplund_2020_solar_abundances
+const bergemann_2025_solar_abundances = [
+    12.0, 10.922, 1.04, 1.21, 2.7, 8.51, 7.94, 8.76, 4.4, 8.15,
+    6.29, 7.58, 6.43, 7.56, 5.44, 7.16, 5.43, 6.5, 5.09, 6.35,
+    3.13, 4.97, 3.89, 5.74, 5.52, 7.51, 4.95, 6.24, 4.24, 4.55,
+    3.02, 3.62, 2.34, 3.41, 2.65, 3.31, 2.35, 2.93, 2.3, 2.68,
+    1.47, 1.88, -5.0, 1.75, 0.78, 1.57, 0.96, 1.77, 0.8, 2.02,
+    1.08, 2.23, 1.76, 2.3, 1.12, 2.27, 1.1, 1.58, 0.75, 1.42,
+    -5.0, 0.95, 0.57, 1.08, 0.31, 1.1, 0.48, 0.93, 0.11, 0.85,
+    0.1, 0.86, -0.11, 0.79, 0.3, 1.36, 1.42, 1.64, 0.91, 1.14,
+    0.95, 1.95, 0.7, -5.0, -5.0, -5.0, -5.0, -5.0, -5.0, 0.09,
+    -5.0, -0.5]
+
+"""
+    Solar abundances per Magg et al. A&A 661, A140 (2022)
+    doi:10.1051/0004-6361/202140401
+    those not specified in Magg et al. are taken from Bergemann et al. (2025)
+"""
+const magg_2022_solar_abundances = let
+    # these are the photospheric abundances measured in the Magg paper
+    abunds = Dict([
+                      "C" => 8.56,
+                      "N" => 7.98,
+                      "O" => 8.77,
+                      "F" => 4.40,
+                      "Ne" => 8.15,
+                      "Na" => 6.29,
+                      "Mg" => 7.55,
+                      "Al" => 6.43,
+                      "Si" => 7.59,
+                      "P" => 5.41,
+                      "S" => 7.16,
+                      "Cl" => 5.25,
+                      "Ar" => 6.50,
+                      "K" => 5.14,
+                      "Ca" => 6.37,
+                      "Sc" => 3.07,
+                      "Ti" => 4.94,
+                      "V" => 3.89,
+                      "Cr" => 5.74,
+                      "Mn" => 5.52,
+                      "Fe" => 7.50,
+                      "Co" => 4.95,
+                      "Ni" => 6.24
+                  ])
+    # fall back on Bergemann et al. numbers
+    map(atomic_symbols, bergemann_2025_solar_abundances) do symbol, bergemann_abundance
+        get(abunds, symbol, bergemann_abundance)
+    end
+end
+
+"""
+Korg's default solar abundances: the Bergemann, Lodders, and Palme (2025) abundances,
+([`bergemann_2025_solar_abundances`](@ref)).
+"""
+const default_solar_abundances = bergemann_2025_solar_abundances
