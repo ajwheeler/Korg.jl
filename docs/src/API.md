@@ -11,15 +11,15 @@ These functions are exported, so if you do `using Korg`, you can call them unqua
 ```@docs
 synth
 synthesize
-read_linelist
-load_ExoMol_linelist
-read_model_atmosphere
-interpolate_marcs
 format_A_X
+interpolate_marcs
+Korg.read_model_atmosphere
 ```
 
-## Built-in linelists
+## Linelists
 ```@docs
+Korg.read_linelist
+Korg.load_ExoMol_linelist
 Korg.get_APOGEE_DR17_linelist
 Korg.get_GALAH_DR3_linelist
 Korg.get_GES_linelist

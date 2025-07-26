@@ -1,6 +1,6 @@
 @testset "synthesize" begin
     # use this for everything
-    atm_small = let atm = read_model_atmosphere("data/sun.mod")
+    atm_small = let atm = Korg.read_model_atmosphere("data/sun.mod")
         Korg.PlanarAtmosphere(atm.layers[40:43]) # just a few layers for fast tests
     end
 
