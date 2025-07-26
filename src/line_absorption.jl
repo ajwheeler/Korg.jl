@@ -25,10 +25,9 @@ other arguments:
   - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
   - `tasks_per_thread` (default: 1): the number of tasks to run per Julia thread. This function
     is multithreaded over the lines in `linelist`.
-  - `verbose` (deprecated): no longer used.
 """
 function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
-                          α_cntm; cutoff_threshold=3e-4, verbose=false, tasks_per_thread=1)
+                          α_cntm; cutoff_threshold=3e-4, tasks_per_thread=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end
