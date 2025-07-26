@@ -9,8 +9,9 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
 
 # Fields
 
-  - `flux`: the output spectrum
-  - `cntm`: the continuum at each wavelength
+  - `flux`: the output spectrum, in units of erg/s/cm^4/Å
+  - `cntm`: the continuum at each wavelength, in the same units as `flux`. This is the same as the
+    spectrum obtained with an empty linelist and with H lines turned off.
   - `intensity`: the intensity at each wavelength and mu value, and possibly each layer in the model
     atmosphere, depending on the radiative transfer scheme.
   - `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer a Matrix of
@@ -274,9 +275,12 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               mu_values; α_ref=α5,
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
+    # convert from erg/s/cm^5 to erg/s/cm^4/Å.
+    flux .*= 1e-8
+    cntm .*= 1e-8
 
-    SynthesisResult(; flux=flux, cntm=cntm, intensity=intensity, alpha=α,
-                    mu_grid=collect(zip(μ_grid, μ_weights)), number_densities=number_densities,
+    SynthesisResult(; flux, cntm, intensity, alpha=α,
+                    mu_grid=collect(zip(μ_grid, μ_weights)), number_densities,
                     electron_number_density=nₑs, wavelengths=wls .* 1e8,
                     subspectra=subspectrum_indices(wls))
 end
