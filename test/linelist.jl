@@ -40,7 +40,7 @@
             # test saving and loading
             filename = tempname() * ".h5"
             Korg.save_linelist(filename, linelist[1:1000])
-            linelist2 = read_linelist(filename)
+            linelist2 = Korg.read_linelist(filename)
             @test linelist[1:1000] == linelist2
         end
     end
@@ -94,7 +94,7 @@
 
         @testset "kurucz molecular " begin
             fname = "kurucz_cn.txt"
-            @test_throws ArgumentError kurucz_ll=read_linelist("data/linelists/" * fname;
+            @test_throws ArgumentError kurucz_ll=Korg.read_linelist("data/linelists/" * fname;
                                                                format="kurucz")
             #@test issorted(kurucz_ll, by=l->l.wl)
             #@test length(kurucz_ll) == 10
@@ -209,7 +209,7 @@
     end
 
     @testset "turbospectrum linelists" begin
-        ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum")
+        ll = Korg.read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum")
         @test ll[1].species == ll[3].species
         @test ll[1].log_gf != ll[3].log_gf
         @test ll[1].E_lower == ll[3].E_lower
@@ -227,14 +227,14 @@
 
         @test ll[3].vdW[1] ≈ 8.89802482263476e-7
 
-        vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
+        vac_ll = Korg.read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
         for (l_air, l_vac) in zip(ll, vac_ll)
             # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg
             # to read it in as vacuum
             @test l_air.wl≈Korg.air_to_vacuum(l_vac.wl) rtol=1e-8
         end
 
-        @test_throws ErrorException read_linelist("data/linelists/Turbospectrum/badlines";
+        @test_throws ErrorException Korg.read_linelist("data/linelists/Turbospectrum/badlines";
                                                   format="turbospectrum")
     end
 end

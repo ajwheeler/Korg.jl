@@ -21,7 +21,7 @@
     end
 
     @testset "autodiff just one abundance" begin
-        atm = read_model_atmosphere("data/sun.mod")
+        atm = Korg.read_model_atmosphere("data/sun.mod")
         linelist = [Korg.Line(6000e-8, 0.0, Korg.species"C I", 0.0)]
         # If this line is super weak (or removed), the test will fail due to numerics in the
         # abundances and continuum opacities. It used to be a fake line at 5000, but the fact that
@@ -34,7 +34,7 @@
     end
 
     @testset "line params" begin
-        atm = read_model_atmosphere("data/sun.mod")
+        atm = Korg.read_model_atmosphere("data/sun.mod")
         function f(loggf)
             linelist = [Korg.Line(6000e-8, loggf, Korg.species"Na I", 0.0)]
             # This used to be a fake line at 5000, but the fact that that's the reference wavelength
