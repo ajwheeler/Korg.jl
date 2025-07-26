@@ -126,7 +126,6 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
     intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
     calculation, but stores the intensity at every layer. `"bezier"` is for testing and not
     recommended.
-  - `verbose` (default: `false`): Whether or not to print information about progress, etc.
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
@@ -140,8 +139,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     ionization_energies=ionization_energies,
                     partition_funcs=default_partition_funcs,
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
-                    verbose=false)::SynthesisResult
+                    molecular_cross_sections=[],
+                    use_chemical_equilibrium_from=nothing,)::SynthesisResult
     wls = Wavelengths(wavelength_params...)
 
     if isnothing(use_MHD_for_hydrogen_lines)
