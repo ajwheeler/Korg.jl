@@ -19,7 +19,7 @@ After [installing Korg](https://ajwheeler.github.io/Korg.jl/stable/install), get
 ## Example
 (Python version below)
 ```julia
-using Korg, PyPlot
+using Korg, PythonPlot
 
 wls, flux, continuum = synth(
     Teff=5000, # effective temperature of 5000 Kelvin
@@ -34,11 +34,11 @@ wls, flux, continuum = synth(
 figure(figsize=(12, 4))
 plot(wls, flux, "k-")
 xlabel(L"$\lambda$ [Å]")
-ylabel(L"$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-4} \AA^{-1}$]");
+ylabel("continuum-normalized flux");
 ```
-See the [documentation for `synth`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth), or [the documentation for `synthesize`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth) for advanced usage.
+<img width="1001" height="375" alt="image" src="https://github.com/user-attachments/assets/df8553a0-7979-4a35-ad00-4bd9107e0c67" />
 
-![image](https://github.com/ajwheeler/Korg.jl/assets/711963/70a13b45-4db2-472c-9121-fdd818a47105)
+See the [documentation for `synth`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth), or [the documentation for `synthesize`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth) for advanced usage.
 
 # Code papers (please cite these if you use Korg):
 - [Korg: A Modern 1D LTE Spectral Synthesis Package](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract). This is also a good overview of how spectral synthesis works, the inputs and outputs, etc.
