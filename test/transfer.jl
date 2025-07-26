@@ -32,7 +32,7 @@
             else
                 "spherical"
             end
-            @test assert_allclose_grid(sol.flux, flux,
+            @test assert_allclose_grid(sol.flux, flux * 1e-8,
                                        [("λ [$I_scheme $τ_scheme $atmtype]", sol.wavelengths, "Å")];
                                        rtol=0.05, print_rachet_info=false)
         end

@@ -34,7 +34,7 @@ wls, flux, continuum = synth(
 figure(figsize=(12, 4))
 plot(wls, flux, "k-")
 xlabel(L"$\lambda$ [Å]")
-ylabel(L"$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-5}$]");
+ylabel(L"$F_\lambda/R_\mathrm{star}^2$ [erg s$^{-1}$ cm$^{-4} \AA^{-1}$]");
 ```
 See the [documentation for `synth`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth), or [the documentation for `synthesize`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth) for advanced usage.
 
