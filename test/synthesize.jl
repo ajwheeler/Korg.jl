@@ -48,15 +48,6 @@
         end
     end
 
-    @testset "MHD for H lines in APOGEE warning" begin
-        msg = "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
-
-        @test_warn msg synthesize(atm_small, [], format_A_X(), 15000, 15001)
-        @test_nowarn synthesize(atm_small, [], format_A_X(), 15000, 15001;
-                                use_MHD_for_hydrogen_lines=false)
-        @test_nowarn synthesize(atm_small, [], format_A_X(), 5000, 5001)
-    end
-
     @testset "precomputed chemical equilibrium" begin
         # test that the precomputed chemical equilibrium works
         A_X = format_A_X()

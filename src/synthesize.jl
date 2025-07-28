@@ -9,8 +9,9 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
 
 # Fields
 
-  - `flux`: the output spectrum
-  - `cntm`: the continuum at each wavelength
+  - `flux`: the output spectrum, in units of erg/s/cm^4/Å
+  - `cntm`: the continuum at each wavelength, in the same units as `flux`. This is the same as the
+    spectrum obtained with an empty linelist and with H lines turned off.
   - `intensity`: the intensity at each wavelength and mu value, and possibly each layer in the model
     atmosphere, depending on the radiative transfer scheme.
   - `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer a Matrix of
@@ -79,8 +80,10 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
   - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is
     calculated.
   - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
-  - `use_MHD_for_hydrogen_lines` (default: `true`): whether or not to use the MHD occupation
+  - `use_MHD_for_hydrogen_lines`: whether or not to use the MHD occupation
     probability formalism for hydrogen lines. (MHD is always used for hydrogen bound-free absorption.)
+    This is false by default when your last wavelength is > 13,000 Å, true otherwise (discussed in
+    [Wheeler+ 2024](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract)).
   - `hydrogen_line_window_size` (default: 150): the maximum distance (in Å) from each hydrogen line
     center at which to calculate its contribution to the total absorption coefficient.
   - `mu_values` (default: 20): the number of μ values at which to calculate the surface flux, or a
@@ -129,7 +132,8 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
                     vmic=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
-                    air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
+                    air_wavelengths=false, hydrogen_lines=true,
+                    use_MHD_for_hydrogen_lines::Union{Nothing,Bool}=nothing,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=Inf,
                     electron_number_density_warn_min_value=1e-4, return_cntm=true,
@@ -144,8 +148,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
     end
 
-    if hydrogen_lines && use_MHD_for_hydrogen_lines && (wls[end] > 13_000 * 1e-8)
-        @warn "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
+    if isnothing(use_MHD_for_hydrogen_lines)
+        use_MHD_for_hydrogen_lines = wls[end] < 13_000 * 1e-8
     end
 
     # Add wavelength bounds check (Rayleigh scattering limitation)
@@ -271,9 +275,12 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               mu_values; α_ref=α5,
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
+    # convert from erg/s/cm^5 to erg/s/cm^4/Å.
+    flux .*= 1e-8
+    cntm .*= 1e-8
 
-    SynthesisResult(; flux=flux, cntm=cntm, intensity=intensity, alpha=α,
-                    mu_grid=collect(zip(μ_grid, μ_weights)), number_densities=number_densities,
+    SynthesisResult(; flux, cntm, intensity, alpha=α,
+                    mu_grid=collect(zip(μ_grid, μ_weights)), number_densities,
                     electron_number_density=nₑs, wavelengths=wls .* 1e8,
                     subspectra=subspectrum_indices(wls))
 end

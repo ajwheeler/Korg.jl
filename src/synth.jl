@@ -4,7 +4,7 @@
 This function creates a synthetic spectrum. It's easier to use than [`synthesize`](@ref), but it
 gives you less control. Unlike [`synthesize`](@ref), it **returns a tuple of
 `(wavelengths, rectified_flux, cntm)`** (Wavelength in Å, rectified flux as a unitless number
-between 0 and 1, and continuum in erg/s/cm^5).  `Korg.synth` also provides shortcuts for some ways
+between 0 and 1, and continuum in erg/s/cm^4/Å).  `Korg.synth` also provides shortcuts for some ways
 you might want to post-process the spectrum (applying a LSF, rotation, etc).
 
 # Keyword arguments
