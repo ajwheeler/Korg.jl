@@ -303,12 +303,14 @@ The `format` keyword argument can be used to specify one of these linelist forma
   - "korg" for a Korg linelist (saved with hdf5). If the filename ends in `.h5`, this will be used
     by default.
 
-For VALD and Turbospectrum linelists with isotope information available, Korg will scale log gf
-values by isotopic abundance (unless VALD has already pre-scaled them), using isotopic abundances
-from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses)
+For VALD, Turbospectrum, and Kurucz linelists with isotope information available, Korg will scale
+log gf values by isotopic abundance (unless VALD has already pre-scaled them), using isotopic
+abundances from
+[NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses)
 ([`Korg.isotopic_abundances`](@ref)).
 To use custom isotopic abundances, just pass `isotopic_abundances` with the same structure:
-a dict mapping atomic number to a dict mapping from atomic weight to abundance.
+a dict mapping atomic number to a dict mapping from atomic weight to abundance.  To use the isotopic
+abundances embedded in a Kurucz-formatted linelist, pass `isotopic_abundances=nothing`.
 
 Be warned that for linelists which are pre-scaled for isotopic abundance, the estimation of
 radiative broadening from log(gf) is not accurate.
