@@ -1,30 +1,36 @@
-module Photometry
+module PhotometryExt
 
 public compute_magnitude
 
-using ...Korg: _data_dir
-
 import Interpolations: linear_interpolation
-using Trapz, DelimitedFiles
+using Trapz
+import PhotometricFilters
 
 """
-    compute_magnitude(spec, filter_name)
-    compute_magnitude(flux, wavelengths, filter_name, filter_wave)
+    compute_magnitude(spec, photometric_filter)
+    compute_magnitude(flux, wavelengths, photometric_filter)
+    compute_magnitude(spec, filter_trans, filter_wave)
+    compute_magnitude(flux, wavelengths, filter_trans, filter_wave)
 
-Compute a photometric magnitude from a synthetic spectrum.
+Compute a photometric magnitude from a synthetic spectrum. This should only be used to create colors or magnitude differences (e.g. relative to Vega).
 
 # Arguments
-- `spec`, an object returned by `Korg.synthesize`. You can pass `flux` and `wavelengths` directly instead.
-- `filter_name`: the name of the filter to use. Currently the supported filters are
-  `"DECam_g"`, `"DECam_i"`, `"DECam_r"`, `"DECcam_Y"`, and `"DECcam_z"`.
+- `spec`, an object returned by `Korg.synthesize`. You can pass `flux` and `wavelengths` (in Å) directly instead (which are in Korg's default units).
+- `photometric_filter`, a photometric filter object from `PhotometricFilters.jl`. You can pass `filter_trans` (the throughput) and `filter_wave` (in Å) directly instead.
 
 Adapted from Eddie Schlafly.
 """
-function compute_magnitude(sol, filter_name)
-    compute_magnitude(sol.flux, sol.wavelengths, filter_name)
+function compute_magnitude(spec, photometric_filter::PhotometricFilters.PhotometricFilter)
+    compute_magnitude_core(spec.flux, spec.wavelengths, photometric_filter.throughput, photometric_filter.wave)
 end
-function compute_magnitude(spec_flux, spec_wave, filter_name)
-    filter_trans, filter_wave = get_filter(filter_name)
+function compute_magnitude(spec_flux, spec_wave, photometric_filter::PhotometricFilters.PhotometricFilter)
+    compute_magnitude_core(spec_flux, spec_wave, photometric_filter.throughput, photometric_filter.wave)
+end
+function compute_magnitude(spec, filter_trans, filter_wave)
+    compute_magnitude_core(spec.flux, spec.wavelengths, filter_trans, filter_wave)
+end
+function compute_magnitude(spec_flux, spec_wave, filter_trans, filter_wave)
+    compute_magnitude_core(spec_flux, spec_wave, filter_trans, filter_wave)
 end
 
 """
@@ -64,6 +70,7 @@ end
 
 # returns radius in cm given logg base 10 of cm/s^2
 # assumes 1 solar mass
+# conceptually use this as compute_magnitude(sol.flux.*(get_radius(4.43775056282).^2)./(1e8),sol.wavelengths,t.throughput,t.wave)
 function get_radius(logg)
     # Constants
     G = 6.67430e-8  # gravitational constant in cgs
@@ -74,30 +81,6 @@ function get_radius(logg)
     # R = sqrt(GM/g)
     radius = sqrt((G * M_sun) / g)  # in cm
     return radius
-end
-
-"""
-Returns a filter transmission curve and wavelength array given a filter name.
-"""
-function get_filter(filter_name)
-    if filter_name in ["DECam_g", "DECam_i", "DECam_r", "DECcam_Y", "DECcam_z"]
-        parse_DECam_filter(filter_name)
-    else
-        throw(ArgumentError("Filter $(filter_name) is not a supported filter." *
-            " Please open an issue if you would like it to be supported."))
-
-    end
-end
-
-"""
-parse DECam filter file.
-"""
-function parse_DECam_filter(filter_name)
-    path = joinpath(_data_dir, "filter_curves", "DECam", filter_name*".txt")
-    data = readdlm(path; comments=true)
-    # msk rows where data[:,2] is zero (no transmission)
-    msk = data[:, 2] .!= 0
-    return data[msk, 1], data[msk, 2]
 end
 
 end # module
