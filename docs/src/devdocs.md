@@ -57,6 +57,9 @@ If you are adding data to Korg, `data/README` provides an overview of the option
 between them.
 
 ## Complete API
+
+This is a list of the complete API. Anything not explicitly listed [here](@ref API) should be considered a private function (that can/will change between patch releases).
+
 ```@autodocs
 Modules = [Korg, Korg.Fit, Korg.CubicSplines, Korg.ContinuumAbsorption, Korg.ContinuumAbsorption.Stancil1994, Korg.ContinuumAbsorption.Peach1970, Korg.RadiativeTransfer]
 ```

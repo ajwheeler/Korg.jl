@@ -1,13 +1,32 @@
 @testset "linelists" begin
-    @testset "built-in linelists" begin
+    @testset "copy constructor" begin
+        l1 = Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0)
+        @test l1 == Korg.Line(l1)
+        @test Korg.Line(l1; wl=5001.0) != l1
 
+        @test Korg.Line(l1; wl=5001.0).wl == 5001.0 * 1e-8
+        @test Korg.Line(l1; log_gf=-0.5).log_gf == -0.5
+        @test Korg.Line(l1; species=Korg.species"Fe II").species == Korg.species"Fe II"
+        @test Korg.Line(l1; E_lower=2.0).E_lower == 2.0
+        @test Korg.Line(l1; gamma_rad=1e-8).gamma_rad == 1e-8
+        @test Korg.Line(l1; gamma_stark=1e-8).gamma_stark == 1e-8
+        @test Korg.Line(l1; vdW=-8.0).vdW[1] == 1e-8
+    end
+
+    @testset "built-in linelists" begin
         # iterate over fns, not lists, because they make the output of the test suite way too long
+
+        sol = nothing # cache chemical equilib
         @testset for linelist_fn in [Korg.get_VALD_solar_linelist,
             Korg.get_APOGEE_DR17_linelist,
             Korg.get_GALAH_DR3_linelist,
             Korg.get_GES_linelist
         ]
             linelist = linelist_fn()
+
+            # test copy constructor
+            @test linelist == Korg.Line.(linelist)
+
             @test issorted(linelist, by=l -> l.wl)
 
             # truncate model atmosphere for speed
@@ -16,7 +35,13 @@
 
             # make sure things run (types have caused problems in the past)
             λ = linelist[1].wl * 1e8
-            synthesize(atm, linelist, format_A_X(), λ, λ)
+            synthesize(atm, linelist, format_A_X(), λ, λ; use_chemical_equilibrium_from=sol)
+
+            # test saving and loading
+            filename = tempname() * ".h5"
+            Korg.save_linelist(filename, linelist[1:1000])
+            linelist2 = read_linelist(filename)
+            @test linelist[1:1000] == linelist2
         end
     end
 
@@ -26,6 +51,31 @@
     @testset "wls in either cm or Å" begin
         @test Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0) ==
               Korg.Line(5e-5, 0.0, Korg.species"Fe I", 1.0)
+    end
+
+    @testset "ExoMol linelist parsing" begin
+        # whole thing
+        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
+                                             6800, 6810)
+        @test length(linelist) == 284
+        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6810)
+
+        # no lines in this range
+        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
+                                             5500, 6000)
+        @test length(linelist) == 0
+
+        # restrict to 5000-5025 Å
+        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
+                                             6800, 6804)
+        @test 0 < length(linelist) < 284 # some lines
+        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6804) # right wavelengths
     end
 
     @testset "kurucz linelist parsing" begin
@@ -39,7 +89,7 @@
             @test kurucz_ll[1].E_lower ≈ 17.360339371573698
             @test kurucz_ll[1].gamma_rad ≈ 8.511380382023759e7
             @test kurucz_ll[1].gamma_stark ≈ 0.003890451449942805
-            @test kurucz_ll[1].vdW ≈ 1.2302687708123812e-7
+            @test kurucz_ll[1].vdW[1] ≈ 1.2302687708123812e-7
         end
 
         @testset "kurucz molecular " begin
@@ -64,7 +114,7 @@
         @test linelist[1].E_lower ≈ 3.3014
         @test linelist[1].gamma_rad ≈ 1.905460717963248e7
         @test linelist[1].gamma_stark ≈ 0.0001230268770812381
-        @test linelist[1].vdW ≈ 4.6773514128719815e-8
+        @test linelist[1].vdW[1] ≈ 4.6773514128719815e-8
 
         #test imputation of missing broadening parameters
         @test linelist[2].gamma_rad ≈ 818252.5391161365
@@ -77,7 +127,7 @@
 
         @test linelist[4].gamma_rad == linelist[1].gamma_rad
         @test linelist[4].gamma_stark == linelist[3].gamma_stark
-        @test linelist[4].vdW == 9.953360714197118e-8
+        @test linelist[4].vdW[1] == 9.953360714197118e-8
 
         @test linelist[5].gamma_rad == linelist[1].gamma_rad
         @test linelist[5].gamma_stark == linelist[1].gamma_stark
@@ -166,7 +216,8 @@
         @test ll[1].gamma_rad == ll[3].gamma_rad
         @test ll[1].gamma_stark == ll[3].gamma_stark
 
-        @test ll[1].vdW ≈ ll[2].vdW
+        @test ll[1].vdW[1] ≈ ll[2].vdW[1]
+        @test ll[1].vdW[2] ≈ ll[2].vdW[2]
 
         @test ll[2].species == ll[3].species
         @test ll[2].log_gf ≈ ll[3].log_gf
@@ -174,11 +225,11 @@
         @test ll[2].gamma_rad == ll[3].gamma_rad
         @test ll[2].gamma_stark == ll[3].gamma_stark
 
-        @test ll[3].vdW ≈ 8.89802482263476e-7
+        @test ll[3].vdW[1] ≈ 8.89802482263476e-7
 
         vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
         for (l_air, l_vac) in zip(ll, vac_ll)
-            # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg 
+            # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg
             # to read it in as vacuum
             @test l_air.wl≈Korg.air_to_vacuum(l_vac.wl) rtol=1e-8
         end

@@ -1,4 +1,5 @@
-using CSV, HDF5, LazyArtifacts
+using CSV, HDF5, LazyArtifacts, TableOperations
+using DataFrames: DataFrame, leftjoin, leftjoin!, rename!
 using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
@@ -9,11 +10,13 @@ struct Line{F1,F2,F3,F4,F5,F6}
     E_lower::F3                  #eV (also called the excitation potential)
     gamma_rad::F4                #s^-1
     gamma_stark::F5              #s^-1
-    vdW::Union{F6,Tuple{F6,F6}} #either γ_vdW [s^-1] per electron or (σ, α) from ABO theory
+    # either γ_vdW [s^-1] per electron (as the first element, with -1 as the second) or (σ, α) from
+    # ABO theory
+    vdW::Tuple{F6,F6}
 
     @doc """
-        Line(wl::F, log_gf::F, species::Species, E_lower::F, 
-             gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing, 
+        Line(wl::F, log_gf::F, species::Species, E_lower::F,
+             gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing,
              vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
 
     Arguments:
@@ -25,7 +28,7 @@ struct Line{F1,F2,F3,F4,F5,F6}
     Optional Arguments (these override default recipes):
      - `gamma_rad`: Fundemental width
      - `gamma_stark`: per-perturber Stark broadening width at 10,000 K (s⁻¹).
-     - `vdW`: If this is present, it may may be 
+     - `vdW`: If this is present, it may may be
          - `log10(γ_vdW)`, assumed if negative
          - 0, corresponding to no vdW broadening
          - A fudge factor for the Unsoeld approximation, assumed if between 0 and 20
@@ -34,11 +37,17 @@ struct Line{F1,F2,F3,F4,F5,F6}
 
         This behavior is intended to mirror that of Turbospectrum as closely as possible.
 
-    See [`approximate_gammas`](@ref) for more information on the default recipes for `gamma_stark` 
+    See [`approximate_gammas`](@ref) for more information on the default recipes for `gamma_stark`
     and `vdW`.
 
-    Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line 
+    Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line
     profile, and are in units of s⁻¹.
+
+
+        Line(line::line; kwargs...)
+
+    Construct a new `Line` by copying the values from an existing `Line`.  Any of the values can be
+    modified with keyword arguments, e.g. `Line(line, log_gf=0.0)`.
     """
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3,
                   gamma_rad::Union{F4,Missing}=missing, gamma_stark::Union{F5,Missing}=missing,
@@ -47,6 +56,7 @@ struct Line{F1,F2,F3,F4,F5,F6}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
+        # if one or both of stark or vdW are missing, approximate them
         if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) ||
            (!(vdW isa Tuple) && isnan(vdW))
             gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
@@ -54,24 +64,27 @@ struct Line{F1,F2,F3,F4,F5,F6}
                 gamma_stark = gamma_stark_approx
             end
             if ismissing(vdW) || isnan(vdW)
+                # this is log10(γ_vdW), not γ_vdW. It is converted to (γ_vdW, -1) below
                 vdW = vdW_approx
             end
         end
+        # if gamma_rad is missing, approximate it
         if ismissing(gamma_rad) || isnan(gamma_rad)
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
 
         # if vdW is a tuple, assume it's (σ, α) from ABO theory
-        # if it's a float, there are four possibilities
-        if !ismissing(vdW) && !(vdW isa Tuple)
-            !isnan(vdW) #F6 will not be defined if vdW is missing
+        # if it's a float, there are four possibilities (one of which is a packed tuple)
+        # this assert is for my sanity.
+        @assert !ismissing(vdW) && !(!(vdW isa Tuple) && isnan(vdW))
+        if !(vdW isa Tuple)
             if vdW < 0
-                vdW = 10^vdW  # if vdW is negative, assume it's log(γ_vdW) 
+                vdW = (10^vdW, -1.0)  # if vdW is negative, assume it's log(γ_vdW)
             elseif vdW == 0
-                vdW = 0.0  # if it's exactly 0, leave it as 0 (no vdW broadening)
+                vdW = (0.0, -1.0)  # if it's exactly 0, leave it as 0 (no vdW broadening)
             elseif 0 < vdW < 20
                 # if it's between 0 and 20, assume it's a fudge factor for the Unsoeld approximation
-                vdW *= 10^(approximate_gammas(wl, species, E_lower)[2])
+                vdW = (vdW * 10^(approximate_gammas(wl, species, E_lower)[2]), -1.0)
             else #if it's >= 20 assume it's packed ABO params
                 vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
             end
@@ -81,6 +94,12 @@ struct Line{F1,F2,F3,F4,F5,F6}
                                                                         E_lower, gamma_rad,
                                                                         gamma_stark, vdW)
     end
+end
+# constructor to allow for copying a line and modifying some values (see docstring)
+function Line(line::Line; wl=line.wl, log_gf=line.log_gf, species=line.species,
+              E_lower=line.E_lower, gamma_rad=line.gamma_rad, gamma_stark=line.gamma_stark,
+              vdW=line.vdW)
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
@@ -137,7 +156,7 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     #It's not obvious to me which Rydberg constant to use here, and below in Δrbar2.  The sources
     #are not entirely clear. It doesn't make a big difference.
     nstar4_upper = (Z^2 * RydbergH_eV / (χ - E_upper))^2
-    #I'm not actually able to reproduce Crowley 1971 equation 7 (his simplified form) from equation 
+    #I'm not actually able to reproduce Crowley 1971 equation 7 (his simplified form) from equation
     #5, but these match the values in the Turbospectrum source, so they are probably correct.
     #The constants here were calculated assuming that "v" is the mean (not modal) electron speed
     if Z == 1
@@ -151,12 +170,107 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
     log_γvdW = if χ < E_upper
         0.0 # this will be interpretted as γ, rather than log γ, i.e. no vdW for autoionizing lines
     else
-        # (log) γ_vdW From R J Rutten's course notes. 
-        # Equations 11.29 and 11.30 from Gray 2005 are equivalent 
+        # (log) γ_vdW From R J Rutten's course notes.
+        # Equations 11.29 and 11.30 from Gray 2005 are equivalent
         6.33 + 0.4log10(Δrbar2) + 0.3log10(10_000) + log10(k)
     end
 
     γstark, log_γvdW
+end
+
+"""
+    load_ExoMol_linelist(specs, states_file, transitions_file, upper_wavelength, lower_wavelength)
+
+Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`read_linelist`](@ref).
+
+# Arguments
+
+  - `spec`: the species, i.e. the molecule that the linelist is for
+  - `states_file`: the path to the ExoMol states file
+  - `transitions_file`: the path to the ExoMol, transitions file
+  - `upper_wavelength`: the upper limit of the wavelength range to load (Å)
+  - `lower_wavelength`: the lower limit of the wavelength range to load (Å)
+
+# Keyword Arguments
+
+  - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
+    linelist. See [`approximate_line_strength`](@ref) for more information.
+  - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
+
+!!! warning
+
+    This functionality is in beta.
+"""
+function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
+                              line_strength_cutoff=-15, T_line_strength=3500.0)
+    if spec isa AbstractString
+        spec = Species(spec)
+    end
+    @info "Loading ExoMol linelist from $states_file and $transitions_file. This functionality is experimental. Please report any issues."
+
+    if !occursin("states", states_file) || !occursin("trans", transitions_file)
+        @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
+    end
+
+    # These contortions allow us to read only the first N columns, without parsing the rest.
+    # This is (probably) faster, and more memory efficient. But also the ExoMol files sometimes
+    # have various extra columns. Hopefully we can cound on the first three being consistent.
+    raw_transitions = CSV.File(transitions_file; delim=" ", ignorerepeated=true, header=false) |>
+                      TableOperations.select(:Column1, :Column2, :Column3) |>
+                      DataFrame
+    rename!(raw_transitions, :Column1 => :id_upper, :Column2 => :id_lower, :Column3 => :A)
+    states = CSV.File(states_file; delim=" ", ignorerepeated=true, header=false) |>
+             TableOperations.select(:Column1, :Column2, :Column3) |>
+             DataFrame
+    rename!(states, :Column1 => :id, :Column2 => :E_wavenumber, :Column3 => :g)
+
+    # join the transitions and states tables on the id column to get the upper and lower level info
+    transitions = leftjoin(raw_transitions, states; on=:id_upper => :id)
+    rename!(transitions, :E_wavenumber => :wavenumber_upper, :g => :g_upper)
+    leftjoin!(transitions, states; on=:id_lower => :id)
+    rename!(transitions, :E_wavenumber => :wavenumber_lower, :g => :g_lower)
+
+    # if the column is missing, the join didn't find a matching state
+    if any(ismissing.(transitions.g_lower)) || any(ismissing.(transitions.g_upper))
+        throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
+    end
+
+    # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere
+    # difference of 1e16 is due to Å vs cm
+    prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (8π^2 * Korg.electron_charge_cgs^2)
+
+    transitions.wavenumber = transitions.wavenumber_upper .- transitions.wavenumber_lower
+    transitions.f = @. transitions.A * prefactor * transitions.g_upper /
+                       (transitions.g_lower * transitions.wavenumber^2)
+    transitions.log_gf = log10.(transitions.g_lower .* transitions.f)
+
+    isotopic_correction = log10(prod(maximum(last.(collect(values(Korg.isotopic_abundances[Z]))))
+                                     for Z in get_atoms(spec.formula)))
+    @info "Applying isotopic correction of $isotopic_correction to all log gf values. (Assuming most abundant isotope for all atoms.)"
+    transitions.log_gf .+= isotopic_correction
+
+    transitions.E_lower = @. Korg.hplanck_eV * transitions.wavenumber_lower * Korg.c_cgs
+    transitions.wavelength = 1.0 ./ transitions.wavenumber
+
+    region = transitions[ll.<transitions.wavelength.*1e8.<ul, :]
+
+    lines = map(eachrow(region)) do row
+        Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
+    end |> reverse
+    lines = lines[approximate_line_strength.(lines, T_line_strength).>line_strength_cutoff]
+    sort!(lines; by=l -> l.wl)
+    lines
+end
+
+"""
+    approximate_line_strength(line::Line, T)
+
+Approximate the line strength (`log10(gfλ) - θχ`, in arbitrary units) of a line at temperature
+`T` (K).  This can be used to very quickly filter a linelist, and is used to filter very large
+molecular linelists from ExoMol (see [`load_ExoMol_linelist`](@ref)).
+"""
+function approximate_line_strength(line::Line, T)
+    line.log_gf + log10(line.wl) - log10(ℯ) * line.E_lower / (Korg.kboltz_eV * T)
 end
 
 """
@@ -186,19 +300,30 @@ The `format` keyword argument can be used to specify one of these linelist forma
     See the documentation of the `vdW` parameter of [`Line`](@ref) for details.  Korg will error if
     encounters an Unsoeld fudge factor, which it does not support.
   - "turbospectrum_vac" for a Turbospectrum linelist in vacuum wavelengths.
+  - "korg" for a Korg linelist (saved with hdf5). If the filename ends in `.h5`, this will be used
+    by default.
 
 For VALD and Turbospectrum linelists with isotope information available, Korg will scale log gf
 values by isotopic abundance (unless VALD has already pre-scaled them), using isotopic abundances
 from [NIST](https://www.nist.gov/pml/atomic-weights-and-isotopic-compositions-relative-atomic-masses)
-([Korg.isotopic_abundances]).
+([`Korg.isotopic_abundances`](@ref)).
 To use custom isotopic abundances, just pass `isotopic_abundances` with the same structure:
 a dict mapping atomic number to a dict mapping from atomic weight to abundance.
 
 Be warned that for linelists which are pre-scaled for isotopic abundance, the estimation of
 radiative broadening from log(gf) is not accurate.
+
+See also: [`load_ExoMol_linelist`](@ref), [`save_linelist`](@ref).
 """
-function read_linelist(fname::String; format="vald", isotopic_abundances=isotopic_abundances)
+function read_linelist(fname::String;
+                       format=endswith(fname, ".h5") ? "korg" : "vald",
+                       isotopic_abundances=isotopic_abundances)
     format = lowercase(format)
+    # special case for Korg linelists because it's an hdf5 file
+    if format == "korg"
+        return read_korg_linelist(fname)
+    end
+    # otherwise it's plain text
     linelist = open(fname) do f
         if startswith(format, "kurucz")
             vac = endswith(format, "_vac")
@@ -258,7 +383,7 @@ function parse_kurucz_linelist(f; vacuum=false)
             row = " " * row
         end
 
-        #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
+        #kurucz provides wavenumbers for "level 1" and "level 2", which is which is
         #determined by parity
         E_levels = map((row[25:36], row[53:64])) do s
             #abs because Kurucz multiplies predicted values by -1
@@ -285,7 +410,7 @@ function parse_kurucz_molecular_linelist(f; vacuum=false)
     for row in eachline(f)
         row == "" && continue #skip empty lines
 
-        #kurucz provides wavenumbers for "level 1" and "level 2", which is which is 
+        #kurucz provides wavenumbers for "level 1" and "level 2", which is which is
         #determined by parity
         E_levels = map((row[23:32], row[39:48])) do s
             #abs because Kurucz multiplies predicted values by -1
@@ -326,8 +451,8 @@ function parse_vald_linelist(f, isotopic_abundances)
                             "isotopic abundance."))
     end
 
-    #we take the linelist to be long-format when the second line after the header starts with a 
-    #space or a quote followed a space.  In some linelists the quotes are there, but in others 
+    #we take the linelist to be long-format when the second line after the header starts with a
+    #space or a quote followed a space.  In some linelists the quotes are there, but in others
     #they are not.
     shortformat = !(occursin(r"^\"? ", lines[firstline+1]))
     body = lines[firstline:(shortformat ? 1 : 4):end]
@@ -364,7 +489,7 @@ function parse_vald_linelist(f, isotopic_abundances)
 
     Δlog_gf = if scale_isotopes
         refs = if !shortformat #the references are on different lines
-            # this line breaks the code formatter. 
+            # this line breaks the code formatter.
             # https://github.com/domluna/JuliaFormatter.jl/issues/860
             #! format: off
             lines[firstline+3 .+ ((0:length(body)-1) .* 4)]
@@ -413,7 +538,7 @@ function parse_moog_linelist(f, isotopic_abundances, vacuum_wavelengths)
         spec = Species(toks[2][1:dotind+1])
 
         isostring = toks[2][dotind+2:end]
-        #Note: this will fail if the atoms species code are not in order of atomic number.  This is always 
+        #Note: this will fail if the atoms species code are not in order of atomic number.  This is always
         #the case in the linelists I've seen.
         Δ_log_gf = if isostring == "" || !isnothing(match(r"^0+$", isostring)) #if all 0s
             0.0
@@ -464,7 +589,7 @@ function parse_turbospectrum_linelist(fn, isotopic_abundances, vacuum)
         # species line might look like this (carrot is beginning of line):
         # ^'  26.000            '    1       2342
         # here, the 26 refers to Fe (works as everything else does for molecules).  The decimal part
-        # is the isotope information, NOT THE CHARGE.  The "1" is the ionization starge, i.e. the 
+        # is the isotope information, NOT THE CHARGE.  The "1" is the ionization starge, i.e. the
         # charge + 1. 2341 is the number of lines.
 
         species_line = lines[first_line_ind]
@@ -498,9 +623,9 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
     # from the Turbospectrum docs (In practice linelists may have as few at 6 columns:
     #
     # For each line that follows:
-    # col 1: lambda(A)  
-    # col 2: Elow(eV) 
-    # col 3: loggf 
+    # col 1: lambda(A)
+    # col 2: Elow(eV)
+    # col 3: loggf
     # col 4: fdamp (see below)
     # col 5: gup
     # col 6: gamma_rad (if =0, gf-value is used to compute gamma_rad)
@@ -544,13 +669,77 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
 end
 
 """
+    save_linelist(path, linelist)
+
+Save a Korg linelist (a `Vector{Line}`) to an HDF5 file which can be read by `read_linelist`.
+"""
+function save_linelist(path, linelist)
+    vdW = [l.vdW for l in linelist]
+    h5open(path, "w") do f
+        attributes(f)["version"] = "2024-12-18"
+
+        f["wl"] = [l.wl for l in linelist]
+        attributes(f["wl"])["description"] = "Wavelength in cm"
+
+        f["log_gf"] = [l.log_gf for l in linelist]
+        attributes(f["log_gf"])["description"] = "Log of oscillator strength times statistical weight"
+
+        f["formula"] = reduce(hcat, [l.species.formula.atoms for l in linelist])
+        attributes(f["formula"])["description"] = "Array of atomic numbers representing molecular formula"
+
+        f["charge"] = [l.species.charge for l in linelist]
+        attributes(f["charge"])["description"] = "Ionization state (0=neutral, 1=singly ionized, etc)"
+
+        f["species"] = [string(l.species) for l in linelist]
+        attributes(f["species"])["description"] = "String representation of atomic/molecular species"
+
+        f["E_lower"] = [l.E_lower for l in linelist]
+        attributes(f["E_lower"])["description"] = "Lower energy level in eV"
+
+        f["gamma_rad"] = [l.gamma_rad for l in linelist]
+        attributes(f["gamma_rad"])["description"] = "Radiative damping parameter in rad/s"
+
+        f["gamma_stark"] = [l.gamma_stark for l in linelist]
+        attributes(f["gamma_stark"])["description"] = "Stark broadening parameter"
+
+        f["vdW_1"] = first.(vdW)
+        attributes(f["vdW_1"])["description"] = "First van der Waals broadening parameter"
+
+        f["vdW_2"] = last.(vdW)
+        attributes(f["vdW_2"])["description"] = "Second van der Waals broadening parameter"
+    end
+end
+
+function read_korg_linelist(path)
+    h5open(path, "r") do f
+        species = map(eachcol(read(f["formula"])), read(f["charge"])) do atoms, charge
+            i = findfirst(atoms .!= 0x0)
+            @assert !isnothing(i)
+            formula = Formula(atoms[i:end])
+            Species(formula, charge)
+        end
+        vdW = tuple.(read(f["vdW_1"]), read(f["vdW_2"]))
+        Line.(read(f["wl"]),
+              read(f["log_gf"]),
+              species,
+              read(f["E_lower"]),
+              read(f["gamma_rad"]),
+              read(f["gamma_stark"]),
+              vdW)
+    end
+end
+
+"""
     get_VALD_solar_linelist()
 
 Get a VALD "extract stellar" linelist produced at solar parameters, with the "threshold" value
 set to 0.01.  It was downloaded on 2021-05-20. It is intended to be used for quick tests only.
+
+If you use this in a paper, please [cite VALD appropriately](https://www.astro.uu.se/valdwiki/Acknowledgement).
 """
 get_VALD_solar_linelist() = read_linelist(joinpath(_data_dir, "linelists",
                                                    "vald_extract_stellar_solar_threshold001.vald"))
+# this should be rewritten to use save_linelist and read_linelist
 
 """
     get_APOGEE_DR17_linelist(; include_water=true)
@@ -560,6 +749,7 @@ nearly the same at the DR 16 linelist described in
 [Smith+ 2021](https://ui.adsabs.harvard.edu/abs/2021AJ....161..254S/abstract).
 """
 function get_APOGEE_DR17_linelist(; include_water=true)
+    # this should be rewritten to use save_linelist and read_linelist
     dir = joinpath(_data_dir, "linelists", "APOGEE_DR17")
 
     atoms = read_linelist(joinpath(dir, "turbospec.20180901t20.atoms_no_ba");
@@ -593,6 +783,7 @@ See [Buder et al. 2021](https://ui.adsabs.harvard.edu/abs/2021MNRAS.506..150B%2F
 details.
 """
 function get_GALAH_DR3_linelist()
+    # this should be rewritten to use save_linelist and read_linelist
     path = joinpath(_data_dir, "linelists", "GALAH_DR3", "galah_dr3_linelist.h5")
     h5open(path, "r") do f
         species = map(eachcol(read(f["formula"])), read(f["ionization"])) do atoms, ion
@@ -632,12 +823,14 @@ don't need molecular lines, you can set `include_molecules=false` to speed thing
   - `include_molecules` (default: `true`): whether to include molecular lines.
 """
 function get_GES_linelist(; include_molecules=true)
+    # this should be rewritten to use save_linelist and read_linelist
     path = joinpath(artifact"Heiter_2021_GES_linelist",
                     "Heiter_et_al_2021_2022_06_17",
                     "Heiter_et_al_2021.h5")
-    h5open(path, "r") do f
+    linelist = h5open(path, "r") do f
         each_species = [Species(s) for s in read(f["species"])]
         filter = ones(Bool, length(each_species))
+
         if !include_molecules
             filter .= [!ismolecule(s) for s in each_species]
         end
@@ -650,6 +843,10 @@ function get_GES_linelist(; include_molecules=true)
               tentotheOrMissing.(Float64.(read(f["gamma_stark"])[filter])),
               read(f["vdW"])[filter])
     end
+
+    # see https://github.com/ajwheeler/Korg.jl/issues/356
+    # there seem to be errors in the CH lines.  Many have very large log(gf) values.
+    linelist = linelist[[!(l.species == Korg.species"CH" && l.log_gf > -1.9) for l in linelist]]
 end
 
 """
@@ -663,6 +860,7 @@ This linelist loaded into `Korg._alpha_5000_default_linelist` when Korg is impor
 """
 function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_5000",
                                                  "alpha_5000_lines.csv"))
+    # this should be rewritten to use save_linelist and read_linelist
     csv = CSV.File(path)
     map(csv) do row
         vdW = if ',' in row.vdW

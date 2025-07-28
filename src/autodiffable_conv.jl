@@ -33,11 +33,9 @@ end
 # handle cases where only one array contains duals
 function autodiffable_conv(f::Vector{ForwardDiff.Dual{T,V,P}},
                            g::AbstractVector{<:AbstractFloat}) where {T,V,P}
-    @show typeof(promote(f, g))
     autodiffable_conv(promote(f, g)...)
 end
 function autodiffable_conv(f::AbstractVector{<:AbstractFloat},
                            g::Vector{ForwardDiff.Dual{T,V,P}}) where {T,V,P}
-    @show typeof(promote(f, g))
     autodiffable_conv(promote(f, g)...)
 end

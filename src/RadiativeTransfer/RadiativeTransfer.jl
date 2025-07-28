@@ -17,6 +17,10 @@ function generate_mu_grid(n_points::Integer)
     μ_grid, μ_weights
 end
 function generate_mu_grid(μ_grid::AbstractVector{<:Real})
+    if length(μ_grid) == 1
+        return μ_grid, [1.0]
+    end
+
     if !issorted(μ_grid) || μ_grid[1] < 0 || μ_grid[end] > 1
         throw(ArgumentError("μ_grid must be sorted and bounded between 0 and 1"))
     end
@@ -307,7 +311,11 @@ function compute_I_linear_flux_only(τ, S)
     I = 0.0
     next_exp_negτ = exp(-τ[1])
     for i in 1:length(τ)-1
-        @inbounds m = (S[i+1] - S[i]) / (τ[i+1] - τ[i])
+        @inbounds Δτ = τ[i+1] - τ[i]
+        # fix the case where large τ causes numerically 0 Δτ
+        Δτ += (Δτ == 0) # if it's 0, make it 1
+        @inbounds m = (S[i+1] - S[i]) / Δτ
+
         cur_exp_negτ = next_exp_negτ
         @inbounds next_exp_negτ = exp(-τ[i+1])
         @inbounds I += (-next_exp_negτ * (S[i+1] + m) + cur_exp_negτ * (S[i] + m))
@@ -399,7 +407,7 @@ expansions to get an approximation which is accurate within 1% for all `x`
 """
 function exponential_integral_2(x)  # this implementation could definitely be improved
     if x == 0
-        0.0
+        1.0
     elseif x < 1.1
         _expint_small(x)
     elseif x < 2.5

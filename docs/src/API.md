@@ -1,15 +1,18 @@
-This page documents the Korg API for users of the package. Low-level functions that only people 
-digging into the internals of Korg will be interested in can be found in the 
-[Developer documentation](@ref).
+This page documents the public, stable Korg API intended for users of the package.
+Starting with the version 1.0 release, the developers commit to maintaining forward compatability for all of these functions (until, at least, the next major release).
+
+If you are interested in contributing to Korg, we provide a more complete list of functions (that includes private functions) in the [Developer documentation](@ref).
 
 # [Top-level functions](@id API)
-If you are synthesize a spectrum Korg, these are the functions you will call.  
+If you are trying to synthesize a spectrum with Korg, these are the functions you will call.
 These functions are exported, so if you do `using Korg`, you can call them unqualified (i.e.
-`synthesize` instead of `Korg.synthesize`).  
+`synthesize` instead of `Korg.synthesize`).
 
 ```@docs
+synth
 synthesize
 read_linelist
+load_ExoMol_linelist
 read_model_atmosphere
 interpolate_marcs
 format_A_X
@@ -20,17 +23,18 @@ format_A_X
 Korg.get_APOGEE_DR17_linelist
 Korg.get_GALAH_DR3_linelist
 Korg.get_GES_linelist
+Korg.get_VALD_solar_linelist
 ```
 
 # Fitting
 ```@docs
+Korg.Fit.fit_spectrum
 Korg.Fit.ews_to_abundances
 Korg.Fit.ews_to_stellar_parameters
-Korg.Fit.fit_spectrum
 ```
 
 # Secondary functions
-You don't need use these to synthesize spectra, but they might be relevant depending on what you are 
+You don't need use these to synthesize spectra, but they might be relevant depending on what you are
 doing.
 
 ## Postprocessing

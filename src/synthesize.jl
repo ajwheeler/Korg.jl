@@ -3,27 +3,11 @@ import .ContinuumAbsorption: total_continuum_absorption
 using .RadiativeTransfer
 
 """
-    synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
-    synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
+    SynthesisResult
 
-Compute a synthetic spectrum.
+The result of a synthesis. Returned by [`synthesize`](@ref).
 
-# Arguments
-
-  - `atm`: the model atmosphere (see [`read_model_atmosphere`](@ref))
-  - `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref),
-    [`get_APOGEE_DR17_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
-  - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
-    uranium.  (see [`format_A_X`](@ref))
-  - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
-    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`.
-  - `λ_start`: the lower bound (in Å) of the region you wish to synthesize.
-  - `λ_stop`: the upper bound (in Å) of the region you wish to synthesize.
-  - `λ_step` (default: 0.01): the (approximate) step size to take (in Å).
-
-# Returns
-
-A named tuple with keys:
+# Fields
 
   - `flux`: the output spectrum (in units of erg/s/cm^5)
   - `cntm`: the continuum at each wavelength (in units of erg/s/cm^5)
@@ -41,22 +25,54 @@ A named tuple with keys:
   - `subspectra`: A vector of ranges which can be used to index into `flux` to extract the spectrum
     for each range provided in `wavelength_ranges`.  If you use the standard `λ_start`, `λ_stop`,
     `λ_step` arguments, this will be a vector containing only one range.
+"""
+@kwdef struct SynthesisResult
+    # specify container types to make debugging easier, but more precise typing would be better
+    flux::Vector
+    cntm::Union{Vector,Nothing}
+    intensity::Array # can be either matrix or 3-tensor
+    alpha::Matrix
+    mu_grid::Vector{Tuple}
+    number_densities::Dict{Species,Vector}
+    electron_number_density::Vector
+    wavelengths::Vector
+    subspectra::Vector
+end
+
+"""
+    synthesize(atm, linelist, A_X, λ_start, λ_stop; kwargs... )
+    synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
+
+Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
+
+# Arguments
+
+  - `atm`: the model atmosphere (see [`interpolate_marcs`](@ref) and [`read_model_atmosphere`](@ref))
+  - `linelist`: A vector of [`Line`](@ref)s (see [`read_linelist`](@ref),
+    [`get_APOGEE_DR17_linelist`](@ref), [`get_GES_linelist`](@ref),
+    [`get_GALAH_DR3_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
+  - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
+    uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
+  - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
+    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`
+    (or as an valid arugments to the [`Wavelengths`](@ref) constructor).
 
 # Example
 
-to synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to
-0.5 dex less than the solar value except carbon, except carbon, which we set to [C/H]=-0.25:
+To synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances set to
+0.5 dex less than the solar value except carbon, which we set to [C/H]=-0.25:
 
 ```
 atm = read_model_atmosphere("path/to/atmosphere.mod")
 linelist = read_linelist("path/to/linelist.vald")
 A_X = format_A_X(-0.5, Dict("C" => -0.25))
-solution = synthesize(atm, linelist, A_X, 5000, 5100)
+result = synthesize(atm, linelist, A_X, 5000, 5100)
 ```
 
 # Optional arguments:
 
-  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.
+  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
+    value or a vector of values, one for each atmospheric layer.
   - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
     before it is discarded.  If the edge of your window is near a strong line, you may have to turn
     this up.
@@ -112,7 +128,7 @@ solution = synthesize(atm, linelist, A_X, 5000, 5100)
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
-                    vmic::Real=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
+                    vmic=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
                     air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
                     hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=Inf,
@@ -122,11 +138,25 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     partition_funcs=default_partition_funcs,
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
-                    verbose=false)
+                    verbose=false)::SynthesisResult
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
     if air_wavelengths
         @warn "The air_wavelengths keyword argument is deprecated and will be removed in a future release. Korg.air_to_vacuum can be used to do the convertion, or you can create a Korg.Wavelengths with air_wavelengths=true and pass that to synthesize."
     end
+
+    if hydrogen_lines && use_MHD_for_hydrogen_lines && (wls[end] > 13_000 * 1e-8)
+        @warn "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
+    end
+
+    # Add wavelength bounds check (Rayleigh scattering limitation)
+    # we should really have an upper bound as well
+    min_allowed_wavelength = 1300.0 * 1e-8  # cm
+    if first(wls) < min_allowed_wavelength
+        # this restruction comes from the Rayleigh scattering calculations
+        throw(ArgumentError("Requested wavelength range ($(wls)) " *
+                            " extends blue-ward of 1300 Å, the lowerest allowed wavelength."))
+    end
+
     # work in cm
     cntm_step *= 1e-8
     line_buffer *= 1e-8
@@ -138,6 +168,11 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     cntm_windows, _ = merge_bounds(cntm_windows)
     cntm_wls = Wavelengths([w[1]:cntm_step:w[2] for w in cntm_windows])
 
+    #sort the lines if necessary
+    if !issorted(linelist; by=l -> l.wl)
+        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
+        linelist = sort(linelist; by=l -> l.wl)
+    end
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
     if tau_scheme == "anchored"
@@ -155,7 +190,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     #float-like type general to handle dual numbers
     α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
-                          eltype(wls), typeof(vmic), typeof.(abs_abundances)...)
+                          eltype(wls), eltype(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(wls))
     # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
@@ -220,9 +255,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             nH_I = n_dict[species"H_I"]
             nHe_I = n_dict[species"He_I"]
             U_H_I = partition_funcs[species"H_I"](log(layer.temp))
+            ξ = (isa(vmic, Number) ? vmic : vmic[i]) * 1e5
             hydrogen_line_absorption!(view(α, i, :), wls, layer.temp, nₑ, nH_I, nHe_I,
-                                      U_H_I, vmic * 1e5,
-                                      hydrogen_line_window_size * 1e-8;
+                                      U_H_I, ξ, hydrogen_line_window_size * 1e-8;
                                       use_MHD=use_MHD_for_hydrogen_lines)
         end
     end
@@ -237,9 +272,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               I_scheme=I_scheme,
                                                                               τ_scheme=tau_scheme)
 
-    (flux=flux, cntm=cntm, intensity=intensity, alpha=α, mu_grid=collect(zip(μ_grid, μ_weights)),
-     number_densities=number_densities, electron_number_density=nₑs,
-     wavelengths=wls .* 1e8, subspectra=subspectrum_indices(wls))
+    SynthesisResult(; flux=flux, cntm=cntm, intensity=intensity, alpha=α,
+                    mu_grid=collect(zip(μ_grid, μ_weights)), number_densities=number_densities,
+                    electron_number_density=nₑs, wavelengths=wls .* 1e8,
+                    subspectra=subspectrum_indices(wls))
 end
 
 """
@@ -248,23 +284,19 @@ end
 Return a new linelist containing only lines within the provided wavelength ranges.
 """
 function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
-    # this could be made faster by using a binary search (e.g. searchsortedfirst/last)
-
-    #sort the lines if necessary
-    if !issorted(linelist; by=l -> l.wl)
-        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
-        linelist = sort(linelist; by=l -> l.wl)
-    end
     nlines_before = length(linelist)
 
-    linelist = filter(linelist) do line
-        for (λstart, λstop) in eachwindow(wls)
-            if (λstart - line_buffer) <= line.wl <= (λstop + line_buffer)
-                return true
-            end
-        end
-        return false
+    last_line_index = 0 # we need to keep track of this across iterations to avoid double-counting lines.
+    sub_ranges = map(eachwindow(wls)) do (λstart, λstop)
+        first_line_index = searchsortedfirst(linelist, (; wl=λstart - line_buffer); by=l -> l.wl)
+        # ensure we don't double-count lines.
+        first_line_index = max(first_line_index, last_line_index + 1)
+
+        last_line_index = searchsortedlast(linelist, (; wl=λstop + line_buffer); by=l -> l.wl)
+
+        first_line_index:last_line_index
     end
+    linelist = vcat((linelist[r] for r in sub_ranges)...)
 
     if nlines_before != 0 && length(linelist) == 0 && warn_empty
         @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
@@ -290,7 +322,7 @@ function get_alpha_5000_linelist(linelist)
     # if there aren't any, use the built-in one
     if length(linelist5) == 0
         _alpha_5000_default_linelist
-        # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they 
+        # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they
         # aren't present
     elseif linelist5[1].wl > 5e-5
         ll = filter(_alpha_5000_default_linelist) do line

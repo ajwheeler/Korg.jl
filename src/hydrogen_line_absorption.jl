@@ -97,7 +97,7 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
 
     β = 1 / (kboltz_eV * T)
 
-    #This is the Holtsmark field, by which the frequency-unit-detunings are divided for the 
+    #This is the Holtsmark field, by which the frequency-unit-detunings are divided for the
     #interpolated stark profiles
     F0 = 1.25e-9 * nₑ^(2 / 3)
     for line in stark_profiles
@@ -136,14 +136,14 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
 
             σ = doppler_width(λ₀, T, Hmass, ξ)
 
-            @inbounds view(αs, lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude, view(λs, lb:ub))
+            view(αs, lb:ub) .+= line_profile.(λ₀, σ, γ, amplitude, view(λs, lb:ub))
         end
 
         # Stehle+ 1999 Stark-broadened profiles
         ν₀ = c_cgs / (λ₀)
         scaled_Δν = _zero2epsilon.(abs.(view(νs, lb:ub) .- ν₀) ./ F0)
         dIdν = exp.(line.profile.(T, nₑ, log.(scaled_Δν)))
-        @inbounds view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
+        view(αs, lb:ub) .+= dIdν .* view(dνdλ, lb:ub) .* amplitude
     end
 
     # now do the Brackett series
@@ -161,6 +161,7 @@ function hydrogen_line_absorption!(αs, λs::Wavelengths, T, nₑ, nH_I, nHe_I, 
         ub = searchsortedlast(λs, λ0 + stark_window)
 
         view(αs, lb:ub) .+= stark_profile_itp.(view(λs, lb:ub)) .* amplitude
+        #Main.@infiltrate any(isnan, view(αs, lb:ub))
     end
 end
 
@@ -201,7 +202,7 @@ containing the interpolator and the distance from the line center at which it is
   - `ξ`: the microturbulence [cm/s]
   - `λmin`: the minimum wavelength at which the profile should be computed (used to avoid calculations
     outside the required region)
-  - `λmax`: the mxinimum wavelength at which the profile should be computed
+  - `λmax`: the maximum wavelength at which the profile should be computed
 
 # Keyword Arguments
 
@@ -300,9 +301,9 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     # Griem 1960 eqn 23.  This is the argument of the Holtsmark profile.
     βs = @. abs(λs - λ₀) / F0 / Knm * 1e8 # convert factor of cm to Å, for the calculations below
 
-    # y, introduced in Griem 1967 EQ 5, is the ratio of particle kinetic energy to average kinetic 
+    # y, introduced in Griem 1967 EQ 5, is the ratio of particle kinetic energy to average kinetic
     # energy: (1/2 mv^2) / (kT)
-    # y1 corresponds to velocity where the minimum impact parameter and the Lewis cutoff are equal. 
+    # y1 corresponds to velocity where the minimum impact parameter and the Lewis cutoff are equal.
     #   - second order perturbation theory breaks down at the minimum impact parameter
     #   - the impact approximation breaks down at the Lewis cutoff
     # y2 is the where the Lewis cutoff is equal to the Debye length
@@ -336,15 +337,16 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
     shielding_parameter = ne_1_6 * 0.08989 / sqrt(T) # the shielding parameter. Called PP in Kurucz
     quasistatic_ion_contribution = holtsmark_profile.(βs, shielding_parameter) # called PRQS in Kurucz
 
-    # quasistatic_e_contrib is a fit to (sqrt(π) - 2*gamma(3/2, y1))/sqrt(π) (taken from HLINOP/Kurucz), 
-    # the second term in eqn 8 of Griem (1967, ApJ 147, 1092). The sum in Greim is an expansion of 
-    # the gamma function. 
+    # quasistatic_e_contrib is a fit to (sqrt(π) - 2*gamma(3/2, y1))/sqrt(π) (taken from HLINOP/Kurucz),
+    # the second term in eqn 8 of Griem (1967, ApJ 147, 1092). The sum in Greim is an expansion of
+    # the gamma function.
     ps = (0.9 * y1) .^ 2
     quasistatic_e_contrib = @. (ps + 0.03 * sqrt(y1)) / (ps + 1.0)
-    quasistatic_e_contrib[quasistatic_e_contrib.==0] .= 0 # fix autodiff NaNs from 0/0
+    # fix autodiff NaNs from 0/0
+    quasistatic_e_contrib[ForwardDiff.value.(quasistatic_e_contrib).==0] .= 0
 
     total_quasistatic_profile = @. quasistatic_ion_contribution * (1 + quasistatic_e_contrib)
-    # this correction makes the profile not normalized.  It's unclear to me that we should be 
+    # this correction makes the profile not normalized.  It's unclear to me that we should be
     # scaling the profile and not the number of perturbers used to calculate it.
 
     dβ_dλ = 1e8 / (Knm * F0)
@@ -355,7 +357,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
         @. profile .*= sqrt(λs / λ₀)
 
         # The red wing is multiplied by the Boltzmann factor to roughly account
-        # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume 
+        # for quantum effects (Stehle 1994, A&AS 104, 509 eqn 7). Assume
         # absorption case. If emission do for Δν > 0.
         @assert issorted(νs, rev=true)
         i = findlast(νs .< ν₀)
@@ -388,13 +390,13 @@ greim_1960_Knm(n, m) =
         _greim_Kmn_table[m-n, n]
     else
         # Greim 1960 equation 33 (a=n, b=m, Z=1)
-        # 1 / (1 + 0.13(m-n)) is probably a Kurucz addition.  In Barklem's HLINOP, comment 
+        # 1 / (1 + 0.13(m-n)) is probably a Kurucz addition.  In Barklem's HLINOP, comment
         # speculates that it was added to better match the tables.
         5.5e-5 * n^4 * m^4 / (m^2 - n^2) / (1 + 0.13 / (m - n))
     end
 
 """
-    holtsmark_profile(β, P)    
+    holtsmark_profile(β, P)
 
 Calculates the Holtsmark profile for broadening of hydrogen lines by quasistatic charged particles.
 Adapted from SOFBET in HLINOP by Peterson and Kurucz. Draws heavily from
