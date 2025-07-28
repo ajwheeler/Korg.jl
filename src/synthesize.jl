@@ -103,6 +103,10 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
     the electron number density to the total number density at which a warning is printed.
   - `return_cntm` (default: `true`): whether or not to return the continuum at each wavelength.  If
     this is false, `solution.cntm` will be `nothing`.
+  - `use_internal_reference_linelist` (default: `true`): whether or not to use the internal linelist
+    for computing the opacity at the reference wavelength, which is used for radiative transfer when
+    `tau_scheme` is "anchored". If this is false, `linelist` will be used instead if it overlaps with
+    the reference wavelength (5000 Å for MARCS model atmospheres).
   - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies,
     defaults to `Korg.ionization_energies`.
   - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults
@@ -128,16 +132,26 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
-                    vmic=1.0, line_buffer::Real=10.0, cntm_step::Real=1.0,
-                    air_wavelengths=false, hydrogen_lines=true, use_MHD_for_hydrogen_lines=true,
-                    hydrogen_line_window_size=150, mu_values=20, line_cutoff_threshold=3e-4,
+                    vmic=1.0,
+                    line_buffer::Real=10.0,
+                    cntm_step::Real=1.0,
+                    air_wavelengths=false,
+                    hydrogen_lines=true,
+                    use_MHD_for_hydrogen_lines=true,
+                    hydrogen_line_window_size=150,
+                    mu_values=20,
+                    line_cutoff_threshold=3e-4,
                     electron_number_density_warn_threshold=Inf,
-                    electron_number_density_warn_min_value=1e-4, return_cntm=true,
-                    I_scheme="linear_flux_only", tau_scheme="anchored",
+                    electron_number_density_warn_min_value=1e-4,
+                    return_cntm=true,
+                    use_internal_reference_linelist=true,
+                    I_scheme="linear_flux_only",
+                    tau_scheme="anchored",
                     ionization_energies=ionization_energies,
                     partition_funcs=default_partition_funcs,
                     log_equilibrium_constants=default_log_equilibrium_constants,
-                    molecular_cross_sections=[], use_chemical_equilibrium_from=nothing,
+                    molecular_cross_sections=[],
+                    use_chemical_equilibrium_from=nothing,
                     verbose=false)::SynthesisResult
     wls = Wavelengths(wavelength_params...; air_wavelengths=air_wavelengths)
     if air_wavelengths
@@ -176,7 +190,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
     if tau_scheme == "anchored"
-        linelist5 = get_alpha_5000_linelist(linelist)
+        linelist5 = get_reference_wavelength_linelist(linelist; use_internal_reference_linelist)
     end
     # now the ones for the synthesis
     linelist = filter_linelist(linelist, wls, line_buffer)
@@ -194,7 +208,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(wls))
     # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
-    α5 = Vector{α_type}(undef, length(atm.layers))
+    α_ref = Vector{α_type}(undef, length(atm.layers))
     triples = map(enumerate(atm.layers)) do (i, layer)
         nₑ, n_dict = if isnothing(use_chemical_equilibrium_from)
             chemical_equilibrium(layer.temp, layer.number_density,
@@ -216,8 +230,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         α[i, :] .= α_cntm_layer(wls)
 
         if tau_scheme == "anchored"
-            α5[i] = total_continuum_absorption([c_cgs / 5e-5], layer.temp, nₑ, n_dict,
-                                               partition_funcs)[1]
+            α_ref[i] = total_continuum_absorption([c_cgs / 5e-5], layer.temp, nₑ, n_dict,
+                                                  partition_funcs)[1]
         end
 
         nₑ, n_dict, α_cntm_layer
@@ -233,12 +247,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # line contributions to α5
     if tau_scheme == "anchored"
-        α_cntm_5 = [_ -> a for a in copy(α5)] # lambda per layer
-        line_absorption!(view(α5, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm), nₑs,
+        α_cntm_5 = [_ -> a for a in copy(α_ref)] # lambda per layer
+        line_absorption!(view(α_ref, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm),
+                         nₑs,
                          number_densities,
                          partition_funcs, vmic * 1e5, α_cntm_5;
                          cutoff_threshold=line_cutoff_threshold)
-        interpolate_molecular_cross_sections!(view(α5, :, 1), molecular_cross_sections,
+        interpolate_molecular_cross_sections!(view(α_ref, :, 1), molecular_cross_sections,
                                               Korg.Wavelengths([5000]),
                                               get_temps(atm), vmic, number_densities)
     end
@@ -246,7 +261,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     source_fn = blackbody.((l -> l.temp).(atm.layers), wls')
     cntm = nothing
     if return_cntm
-        cntm, _, _, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, mu_values; α_ref=α5,
+        cntm, _, _, _ = RadiativeTransfer.radiative_transfer(atm, α, source_fn, mu_values;
+                                                             α_ref=α_ref,
                                                              I_scheme=I_scheme, τ_scheme=tau_scheme)
     end
 
@@ -268,8 +284,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                           number_densities)
 
     flux, intensity, μ_grid, μ_weights = RadiativeTransfer.radiative_transfer(atm, α, source_fn,
-                                                                              mu_values; α_ref=α5,
-                                                                              I_scheme=I_scheme,
+                                                                              mu_values;
+                                                                              α_ref, I_scheme,
                                                                               τ_scheme=tau_scheme)
 
     SynthesisResult(; flux=flux, cntm=cntm, intensity=intensity, alpha=α,
@@ -305,17 +321,20 @@ function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
 end
 
 """
-    get_alpha_5000_linelist(linelist)
+    get_reference_wavelength_linelist(linelist)
 
 Arguments:
 
-  - `linelist`: the synthesis linelist, which will be used if it covers the 5000 Å region.
+  - `linelist`: the user-specified linelist.
 
 Return a linelist which can be used to calculate the absorption at 5000 Å, which is required for
 the standard radiative transfer scheme.  If the provided linelist doesn't contain lines near 5000 Å,
 use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
 """
-function get_alpha_5000_linelist(linelist)
+function get_reference_wavelength_linelist(linelist; use_internal_reference_linelist)
+    if use_internal_reference_linelist
+        return _alpha_5000_default_linelist
+    end
     # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
     # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
     linelist5 = filter_linelist(linelist, Korg.Wavelengths(5000, 5000), 21e-8; warn_empty=false)
