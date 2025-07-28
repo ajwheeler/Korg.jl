@@ -117,17 +117,18 @@
             4980 < line.wl * 1e8 < 5100
         end
 
+        kw = (; use_internal_reference_linelist=false) # don't default to internal linelist
         # if there's full coverage, don't insert anything
-        @test issubset(Korg.get_alpha_5000_linelist(ll), ll)
+        @test issubset(Korg.get_reference_wavelength_linelist(ll; kw...), ll)
 
         #if there's no coverage, use the fallback linelist
-        @test Korg.get_alpha_5000_linelist([]) == Korg._alpha_5000_default_linelist
+        @test Korg.get_reference_wavelength_linelist([]; kw...) == Korg._alpha_5000_default_linelist
 
         # if there's partial coverage, insert the fallback linelist where needed
         small_ll = filter(ll) do line
             line.wl * 1e8 > 5000
         end
-        ll5 = Korg.get_alpha_5000_linelist(small_ll)
+        ll5 = Korg.get_reference_wavelength_linelist(small_ll; kw...)
         @test issorted([line.wl for line in ll5])
         # test that it transitions between the two linelists correctly
         i = findfirst(ll5 .== small_ll[1])
@@ -137,7 +138,7 @@
         small_ll = filter(ll) do line
             line.wl * 1e8 < 4995
         end
-        ll5 = Korg.get_alpha_5000_linelist(small_ll)
+        ll5 = Korg.get_reference_wavelength_linelist(small_ll; kw...)
         @test issorted([line.wl for line in ll5])
         # test that it transitions between the two linelists correctly'
         i = findfirst(ll5 .== small_ll[end])
