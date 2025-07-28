@@ -286,8 +286,8 @@ The `format` keyword argument can be used to specify one of these linelist forma
     "extract all" or "extract stellar".  Air wavelengths will automatically be converted into vacuum
     wavelengths, and energy levels will be automatically converted from cm``^{-1}`` to eV.
   - `"kurucz"` for an atomic or molecular [Kurucz linelist](http://kurucz.harvard.edu/linelists.html)
-    (format=kurucz_vac if it uses vacuum wavelengths; be warned that Korg will not assume that
-    wavelengths are vacuum below 2000 Å),
+    `format="kurucz_vac"` is to be used if the linelist is formatted in vacuum wavelengths, which is
+    for linelists below 2000 Å. Be warned that Korg will not do this automatically.
   - `"moog"` for a [MOOG linelist](http://www.as.utexas.edu/%7Echris/moog.html)
     (doesn't support broadening parameters or dissociation energies, assumed to be in vacuum wavelengths).
   - `"moog_air"` for a MOOG linelist in air wavelengths.
@@ -330,9 +330,9 @@ function read_linelist(fname::String;
             # open a new reader so we dont chomp the first line
             firstline = open(first_nonempty_line, fname)
             if length(firstline) > 100
-                parse_kurucz_linelist(f; vacuum=vac)
+                parse_kurucz_linelist(f; vacuum=vac, isotopic_abundances)
             else
-                parse_kurucz_molecular_linelist(f; vacuum=vac)
+                parse_kurucz_molecular_linelist(f; vacuum=vac, isotopic_abundances)
             end
         elseif format == "vald"
             parse_vald_linelist(f, isotopic_abundances)
@@ -373,7 +373,7 @@ first_nonempty_line(io) =
 tentotheOrMissing(x) = x == 0 ? missing : 10^x
 idOrMissing(x) = x == 0 ? missing : x
 
-function parse_kurucz_linelist(f; vacuum=false)
+function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false)
     lines = Line{Float64,Float64,Float64,Float64,Float64,Float64}[]
     for row in eachline(f)
         row == "" && continue #skip empty lines
@@ -390,12 +390,32 @@ function parse_kurucz_linelist(f; vacuum=false)
             abs(parse(Float64, s)) * c_cgs * hplanck_eV
         end
 
+        species = Species(row[19:24])
+
+        # log(gf) + adjustment for hyperfine structure
+        loggf = parse(Float64, row[12:18]) + parse(Float64, row[110:115])
+
+        # isotopic abundance adjustments
+        if isnothing(isotopic_abundances)
+            loggf += parse(Float64, row[119:124])
+        else
+            iso_number = parse(Int, row[107:109])
+            if iso_number == 0
+                iso_number = parse(Int, row[116:118])
+            end
+            if !(iso_number in keys(isotopic_abundances[get_atom(species)]))
+                @info "Isotope $iso_number not in isoabunds for $(species)"
+            else
+                loggf += log10(isotopic_abundances[get_atom(species)][iso_number])
+            end
+        end
+
         wl_transform = vacuum ? identity : air_to_vacuum
 
         push!(lines,
               Line(wl_transform(parse(Float64, row[1:11]) * 1e-7), #convert from nm to cm
-                   parse(Float64, row[12:18]),
-                   Species(row[19:24]),
+                   loggf,
+                   species,
                    min(E_levels...),
                    tentotheOrMissing(parse(Float64, row[81:86])),
                    tentotheOrMissing(parse(Float64, row[87:92])),
