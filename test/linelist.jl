@@ -185,6 +185,20 @@
         end
     end
 
+    @testset "Kurucz isotopic scaling (#463)" begin
+        # this linelist contains the HFS components of one line for a few different isotopes
+        my_iso = Korg.read_linelist("data/linelists/gfallvac08oct17_ba";
+                                    format="kurucz") # use my isotopic abundances
+        his_iso = Korg.read_linelist("data/linelists/gfallvac08oct17_ba"; format="kurucz",
+                                     isotopic_abundances=nothing) # pull from linelist
+
+        # the components should sum to the log(gf) of the line with no HFS or isotopic splitting
+        # this one recovers the right log(gf)
+        @test log10(sum(10^l.log_gf for l in my_iso))≈-0.03 atol=0.01
+        # this one is slightly off because Kurucz doesn't unclude many digits
+        @test log10(sum(10^l.log_gf for l in his_iso))≈-0.01 atol=0.01
+    end
+
     moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
     moog_linelist_as_air = read_linelist("data/linelists/s5eqw_short.moog"; format="moog_air")
     @testset "moog linelist parsing" begin
