@@ -405,10 +405,12 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false)
             if iso_number == 0
                 iso_number = parse(Int, row[116:118])
             end
-            if !(iso_number in keys(isotopic_abundances[get_atom(species)]))
-                @info "Isotope $iso_number not in isoabunds for $(species)"
-            else
-                loggf += log10(isotopic_abundances[get_atom(species)][iso_number])
+            if iso_number != 0 # if there's no isotope number, don't adjust
+                if !(iso_number in keys(isotopic_abundances[get_atom(species)]))
+                    @info "Isotope $iso_number not in isoabunds for $(species)"
+                else
+                    loggf += log10(isotopic_abundances[get_atom(species)][iso_number])
+                end
             end
         end
 
@@ -426,8 +428,10 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false)
     lines
 end
 
-function parse_kurucz_molecular_linelist(f; vacuum=false)
-    throw(ArgumentError("Kurucz linelists are not yet supported for molecules"))
+function parse_kurucz_molecular_linelist(f; vacuum=false,
+                                         isotopic_abundances=Korg.isotopic_abundances)
+    throw(ArgumentError("Kurucz linelists are not yet supported for molecules. Please open an issue " *
+                        "at https://github.com/ajwheeler/Korg.jl/issues if this is a problem for you."))
     lines = Line[]
     for row in eachline(f)
         row == "" && continue #skip empty lines
