@@ -9,8 +9,8 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
 
 # Keyword arguments
 
-  - `Teff`: effective temperature in K (default: 5000)
-  - `logg`: surface gravity in cgs units (default: 4.5)
+  - `Teff`: effective temperature in K (no default, must be provided)
+  - `logg`: surface gravity in cgs units (no default, must be provided)
   - `m_H`: metallicity, [metals/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
     how this is interpreted.)
   - `alpha_H`: alpha enhancement, [α/H], (default: `m_H`) (See [`format_A_X`](@ref) for precisely
@@ -35,8 +35,8 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
   - `format_A_X_kwargs`: additional keyword arguments pass to [`format_A_X`](@ref).
 """
 function synth(;
-               Teff=5000,
-               logg=4.5,
+               Teff=nothing,
+               logg=nothing,
                m_H=0.0,
                alpha_H=m_H,
                linelist=get_VALD_solar_linelist(),
@@ -48,6 +48,9 @@ function synth(;
                synthesize_kwargs=Dict(),
                format_A_X_kwargs=Dict(),
                abundances...,)
+    if isnothing(Teff) || isnothing(logg)
+        throw(ArgumentError("Teff and logg must be passed to synth as keyword arguments"))
+    end
     A_X = format_A_X(m_H, alpha_H, abundances; format_A_X_kwargs...)
     atm = interpolate_marcs(Teff, logg, A_X)
 
@@ -60,9 +63,7 @@ function synth(;
     else
         spectrum.flux
     end
-    if isfinite(R)
-        flux = apply_LSF(flux, spectrum.wavelengths, R)
-    end
+    flux = apply_LSF(flux, spectrum.wavelengths, R)
     if vsini > 0
         flux = apply_rotation(flux, wavelengths, vsini)
     end
