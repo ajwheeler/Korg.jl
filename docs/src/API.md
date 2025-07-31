@@ -11,6 +11,7 @@ These functions are exported, so if you do `using Korg`, you can call them unqua
 ```@docs
 synth
 synthesize
+SynthsisResult
 format_A_X
 interpolate_marcs
 Korg.read_model_atmosphere
@@ -24,6 +25,8 @@ Korg.get_APOGEE_DR17_linelist
 Korg.get_GALAH_DR3_linelist
 Korg.get_GES_linelist
 Korg.get_VALD_solar_linelist
+Korg.save_linelist
+Korg.Line
 ```
 
 # Fitting
@@ -31,6 +34,7 @@ Korg.get_VALD_solar_linelist
 Korg.Fit.fit_spectrum
 Korg.Fit.ews_to_abundances
 Korg.Fit.ews_to_stellar_parameters
+Korg.Fit.ews_to_stellar_parameters_direct
 ```
 
 # Secondary functions
