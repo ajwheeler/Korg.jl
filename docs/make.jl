@@ -1,16 +1,27 @@
-using Documenter, Korg
+using Documenter, Literate, Suppressor, Korg
+
+# Check if we're in docs/ directory or root directory and set this path appropriately
+# Locally, I often build from docs, but the CI builds from root
+docs_base = basename(pwd()) == "docs" ? "." : "./docs"
 
 # Use the README.md as index.md in the docs.
-# Check if we're in docs/ directory or root directory and set paths appropriately
-# Locally, I often build from docs, but the CI builds from root
-if basename(pwd()) == "docs"
-    readme_path = "../README.md"
-    target_path = "./src/index.md"
-else
-    readme_path = "./README.md"
-    target_path = "./docs/src/index.md"
-end
+readme_path = joinpath(docs_base, "..", "README.md")
+target_path = joinpath(docs_base, "src", "index.md")
 cp(readme_path, target_path; force=true)
+
+# Generate the mardown pages with Literate.jl
+# TODO notebooks
+tutorial_dir = joinpath(docs_base, "src", "tutorials")
+tutorial_output_dir = joinpath(docs_base, "src", "generated", "tutorials")
+literate_config = Dict("credit" => false)
+tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
+    Literate.markdown(joinpath(tutorial_dir, literate_source_file), tutorial_output_dir;
+                      config=literate_config)
+
+    name = literate_source_file[1:end-3]
+    path = joinpath("generated", "tutorials", literate_source_file[1:end-3] * ".md")
+    name => path
+end
 
 makedocs(;
          modules=[Korg],
@@ -18,7 +29,10 @@ makedocs(;
          sitename="Korg",
          pages=["Quickstart" => "index.md"
                 "Install" => "install.md"
-                "Tutorials" => "tutorials.md"
+                "Tutorials" => [
+                    "tutorials.md",
+                    tutorial_pages...
+                ]
                 "Public Functions" => "API.md"
                 "FAQ" => "FAQ.md"
                 "Developer Documentation" => "devdocs.md"],
