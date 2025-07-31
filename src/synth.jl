@@ -11,13 +11,13 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
 
   - `Teff`: effective temperature in K (no default, must be provided)
   - `logg`: surface gravity in cgs units (no default, must be provided)
-  - `m_H`: metallicity, [metals/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
+  - `M_H`: metallicity, [metals/H], (default: 0.0) (See [`format_A_X`](@ref) for precisely
     how this is interpreted.)
-  - `alpha_H`: alpha enhancement, [α/H], (default: `m_H`) (See [`format_A_X`](@ref) for precisely
+  - `alpha_H`: alpha enhancement, [α/H], (default: `M_H`) (See [`format_A_X`](@ref) for precisely
     how this is interpreted.)
   - _Any atomic symbol_ (e.g. `Fe` or `C`) can be used to to specify a (solar relative, [_X_/H])
-    abundance. These override `m_H` and `alpha_H`. Specifying an individual abundance means
-    that the true metallicity and alpha will not correspond precisely to the values of `m_H`
+    abundance. These override `M_H` and `alpha_H`. Specifying an individual abundance means
+    that the true metallicity and alpha will not correspond precisely to the values of `M_H`
     and `alpha_H`. See [`format_A_X`](@ref) for details.
   - `linelist`: a linelist, (default: [`get_VALD_solar_linelist()`](@ref)). See also
     [`read_linelist`](@ref).
@@ -37,8 +37,8 @@ you might want to post-process the spectrum (applying a LSF, rotation, etc).
 function synth(;
                Teff=nothing,
                logg=nothing,
-               m_H=0.0,
-               alpha_H=m_H,
+               M_H=0.0,
+               alpha_H=M_H,
                linelist=get_VALD_solar_linelist(),
                wavelengths=(5000, 6000),
                rectify=true,
@@ -51,7 +51,7 @@ function synth(;
     if isnothing(Teff) || isnothing(logg)
         throw(ArgumentError("Teff and logg must be passed to synth as keyword arguments"))
     end
-    A_X = format_A_X(m_H, alpha_H, abundances; format_A_X_kwargs...)
+    A_X = format_A_X(M_H, alpha_H, abundances; format_A_X_kwargs...)
     atm = interpolate_marcs(Teff, logg, A_X)
 
     wavelengths = Korg.Wavelengths(wavelengths)

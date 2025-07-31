@@ -19,7 +19,7 @@ const tan_scale_params = Dict("epsilon" => (0, 1),
                               # Korg.interpolate_marcs.
                               "Teff" => (2800, 8000),
                               "logg" => (-0.5, 5.5),
-                              "m_H" => (-5, 1),
+                              "M_H" => (-5, 1),
                               # this allows all the atmospheres supported by the grid, but also many that are not.
                               # alpha will be clamped to the nearest supported value.
                               "alpha_H" => (-3.5, 2),
@@ -62,8 +62,8 @@ See [`Korg.synthesize`](@ref) to synthesize spectra as a Korg user.
 """
 function synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params, synthesis_kwargs)
     specified_abundances = Dict([p for p in pairs(params) if p.first in Korg.atomic_symbols])
-    alpha_H = "alpha_H" in keys(params) ? params["alpha_H"] : params["m_H"]
-    A_X::Vector{valtype(params)} = Korg.format_A_X(params["m_H"], alpha_H, specified_abundances;
+    alpha_H = "alpha_H" in keys(params) ? params["alpha_H"] : params["M_H"]
+    A_X::Vector{valtype(params)} = Korg.format_A_X(params["M_H"], alpha_H, specified_abundances;
                                                    solar_relative=true)
 
     # clamp_abundances clamps M_H, alpha_M, and C_M to be within the atm grid
@@ -134,7 +134,7 @@ are inserted into fixed_params
 """
 function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDict;
                          required_params=["Teff", "logg"],
-                         default_params=Dict("m_H" => 0.0, "vsini" => 0.0, "vmic" => 1.0,
+                         default_params=Dict("M_H" => 0.0, "vsini" => 0.0, "vmic" => 1.0,
                                              "epsilon" => 0.6, "cntm_offset" => 0.0,
                                              "cntm_slope" => 0.0),
                          allowed_params=Set(["alpha_H"; required_params; keys(default_params)...;
@@ -233,7 +233,7 @@ more convenient when calling Korg from python.
 # Specifying parameters
 
 Parameters are specified as named tuples or dictionaries. Named tuples look like this:
-`(Teff=5000, logg=4.5, m_H=0.0)`.  Single-element named tuples require a semicolon: `(; Teff=5000)`.
+`(Teff=5000, logg=4.5, M_H=0.0)`.  Single-element named tuples require a semicolon: `(; Teff=5000)`.
 
 ### Required parameters
 
@@ -244,9 +244,9 @@ Parameters are specified as named tuples or dictionaries. Named tuples look like
 These can be specified in either `initial_guesses` or `fixed_params`, but if they are not default
 values are used.
 
-  - `m_H`: the metallicity of the star, in dex. Default: `0.0`
-  - `alpha_H`: the alpha enhancement of the star, in dex. Default: `m_H`.  Note that, because of the
-    parameter range supported by [`Korg.interpolate_marcs`](@ref), only values within ±1 of `m_H`
+  - `M_H`: the metallicity of the star, in dex. Default: `0.0`
+  - `alpha_H`: the alpha enhancement of the star, in dex. Default: `M_H`.  Note that, because of the
+    parameter range supported by [`Korg.interpolate_marcs`](@ref), only values within ±1 of `M_H`
     are supported.
   - `vmic`: the microturbulence velocity, in km/s. Default: `1.0`
   - `vsini`: the projected rotational velocity of the star, in km/s. Default: `0.0`.
@@ -272,7 +272,7 @@ values are used.
   - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
     transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
     the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`,
-    0.0002 in `logg`, 0.0001 in `m_H`, and 0.0004 in detailed abundances. In practice the precision
+    0.0002 in `logg`, 0.0001 in `M_H`, and 0.0004 in detailed abundances. In practice the precision
     achieved by the optimizer is about 10x bigger than this.
   - `postprocess` can be used to arbitrarilly transform the synthesized (and LSF-convolved) spectrum
     before calculating the chi2.  It should take the form `postprocess(flux, data, err)` and write
