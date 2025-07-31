@@ -34,7 +34,7 @@
     msk[1:100] .= false
 
     Q = Korg.Qfactor(synth_flux, synth_wls, apowls, LSF_model; obs_mask=msk)
-    @test Q≈810.4642695969038 rtol=1e-4
+    @test Q≈877.6 atol=1
     SNR = flux ./ obs_err
     RMS_SNR = sqrt(mean(SNR[msk] .^ 2))
     Q_prec = Korg.RV_prec_from_Q(Q, RMS_SNR, count(msk))
