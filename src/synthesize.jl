@@ -71,7 +71,7 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 
 # Optional arguments:
 
-  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
+  - `vmic` (default: 1) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
     value or a vector of values, one for each atmospheric layer.
   - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
     before it is discarded.  If the edge of your window is near a strong line, you may have to turn
