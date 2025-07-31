@@ -37,7 +37,7 @@
 
     @testset "abundances" begin
         # Test that abundance changes match direct synthesize calls
-        wls, flux, _ = synth(; default_ps..., wavelengths=(5000, 5001), m_H=-0.5, alpha_H=0.4,
+        wls, flux, _ = synth(; default_ps..., wavelengths=(5000, 5001), M_H=-0.5, alpha_H=0.4,
                              C=-0.3)
 
         atm = interpolate_marcs(5000, 4.5, format_A_X(-0.5, 0.4, Dict("C" => -0.3)))
@@ -81,5 +81,19 @@
 
         @test wls == sol.wavelengths
         @test flux ≈ sol.flux ./ sol.cntm
+    end
+
+    @testset "m_H deprecation error" begin
+        msg = "m_H is no longer a supported keyword argument"
+        @test_throws msg synth(; default_ps..., wavelengths=(5000, 5001), m_H=0.0)
+    end
+
+    @testset "invalid arguments" begin
+        msg = "invalid_arg was passed as a keyword argument to synth, but it is not a valid keyword argument."
+        @test_throws msg synth(; default_ps..., wavelengths=(5000, 5001), invalid_arg=0.0)
+
+        # be helpful if user is trying to specify an elemental abundance but using the wrong notation
+        msg = "Ca instead of Ca_H"
+        @test_throws msg synth(; default_ps..., wavelengths=(5000, 5001), Ca_H=0.0)
     end
 end

@@ -266,11 +266,11 @@ end
 
 """
     interpolate_marcs(Teff, logg, A_X; kwargs...)
-    interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; kwargs...)
+    interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; kwargs...)
 
 Returns a model atmosphere computed by interpolating models from [MARCS](https://marcs.astro.uu.se/)
 ((Gustafsson+ 2008)[https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract]).
-Along with `Teff` and `logg`, the atmosphere is specified by `m_H`, `alpha_m`, and `C_m`, which can
+Along with `Teff` and `logg`, the atmosphere is specified by `M_H`, `alpha_m`, and `C_m`, which can
 be automatically determined from an `A_X` abundance vector (the recommended method,
 see [`format_A_X`](@ref)). Note that the MARCS atmosphere models were constructed with the
 Grevesse+ 2007 solar abundances (`Korg.grevesse_2007_solar_abundances`). This is handled
@@ -281,7 +281,7 @@ regimes. In the standard case the model atmosphere grid is [the one generated fo
 SDSS](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt),
 transformed and linearly interpolated. For cool dwarfs (`Teff` ≤ 4000 K, `logg` ≥ 3.5), the grid is
 resampled onto unchanging `tau_5000` values and interpolated with a cubic spline. For
-low-metallicity models (-5 ≤ `m_H` < -2.5), a grid of standard composition (i.e. fixed alpha and C)
+low-metallicity models (-5 ≤ `M_H` < -2.5), a grid of standard composition (i.e. fixed alpha and C)
 atmospheres is used.  (The microturbulence is 1km/s for dwarfs and 2km/s for giants and the mass for
 spherical models is 1 solar mass.) The interpolation method is the same as in the standard case. See
 [Wheeler+ 2024](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract) for more details and
@@ -303,43 +303,43 @@ cool dwarfs is referred to as not-yet-implemented in the paper but is now availa
   - `resampled_cubic_for_cool_dwarfs` (default: `true`): whether or not to used specialized method for cool dwarfs.
   - `archives`: A tuple containing the atmosphere grids to use.  For testing purposes.
 """
-function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real};
+function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; M_H=0,
                            solar_abundances=grevesse_2007_solar_abundances,
                            clamp_abundances=false,
                            archives=(_sdss_marcs_atmospheres, _get_cool_dwarfs_atm_itp(),
                                      _low_Z_marcs_atmospheres),
                            kwargs...)
-    m_H = get_metals_H(A_X; solar_abundances=solar_abundances,
+    M_H = get_metals_H(A_X; solar_abundances=solar_abundances,
                        alpha_elements=[6; default_alpha_elements]) # ignore C in addition to alphas
     alpha_H = get_alpha_H(A_X; solar_abundances=solar_abundances)
-    alpha_m = alpha_H - m_H
+    alpha_m = alpha_H - M_H
     C_H = A_X[6] - solar_abundances[6]
-    C_m = C_H - m_H
+    C_m = C_H - M_H
 
     if clamp_abundances
         standard_nodes = archives[1][1]
         low_Z_nodes = archives[3][1]
-        m_H = clamp(m_H, low_Z_nodes[3][1], standard_nodes[3][end])
+        M_H = clamp(M_H, low_Z_nodes[3][1], standard_nodes[3][end])
         alpha_m = clamp(alpha_m, standard_nodes[4][1], standard_nodes[4][end])
         C_m = clamp(C_m, standard_nodes[5][1], standard_nodes[5][end])
     end
 
-    if m_H < -2.5
+    if M_H < -2.5
         # these are the only values allowed for low-metallicity models
         alpha_m = 0.4
         C_m = 0
     end
 
-    interpolate_marcs(Teff, logg, m_H, alpha_m, C_m; archives=archives, kwargs...)
+    interpolate_marcs(Teff, logg, M_H, alpha_m, C_m; archives=archives, kwargs...)
 end
-function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5,
+function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5,
                            perturb_at_grid_values=true, resampled_cubic_for_cool_dwarfs=true,
                            archives=(_sdss_marcs_atmospheres, _get_cool_dwarfs_atm_itp(),
                                      _low_Z_marcs_atmospheres))
     # cool dwarfs
-    atm = if Teff <= 4000 && logg >= 3.5 && m_H >= -2.5 && resampled_cubic_for_cool_dwarfs
+    atm = if Teff <= 4000 && logg >= 3.5 && M_H >= -2.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]
-        atm_quants = itp(1:nlayers, 1:5, Teff, logg, m_H, alpha_m, C_m)
+        atm_quants = itp(1:nlayers, 1:5, Teff, logg, M_H, alpha_m, C_m)
         PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[:, 4],
                                                 sinh.(atm_quants[:, 5]),
                                                 atm_quants[:, 1],
@@ -347,17 +347,17 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
                                                 exp.(atm_quants[:, 3])))
     else
         # low metallicity
-        if m_H < -2.5
+        if M_H < -2.5
             nodes, grid = archives[3]
             if alpha_m != 0.4 || C_m != 0
-                throw(ArgumentError("For low metallicities ([m_H < -2.5]), it is required that alpha_M = 0.4 and C_M = 0"))
+                throw(ArgumentError("For low metallicities ([M_H < -2.5]), it is required that alpha_M = 0.4 and C_M = 0"))
             end
-            params = [Teff, logg, m_H]
+            params = [Teff, logg, M_H]
             param_names = ["Teff", "log(g)", "[M/H]"]
             # standard
         else
             nodes, grid = archives[1]
-            params = [Teff, logg, m_H, alpha_m, C_m]
+            params = [Teff, logg, M_H, alpha_m, C_m]
             param_names = ["Teff", "log(g)", "[M/H]", "[alpha/M]", "[C/metals]"]
         end
 
@@ -390,6 +390,6 @@ function interpolate_marcs(Teff, logg, m_H=0, alpha_m=0, C_m=0; spherical=logg <
 end
 # handle the case where Teff, logg, and [m/H] are integers. As long as not all (interpolated) params
 # are passed in as integers, there's no problem.
-function interpolate_marcs(Teff::Int, logg::Int, m_H::Int, args...; kwargs...)
+function interpolate_marcs(Teff::Int, logg::Int, M_H::Int, args...; kwargs...)
     interpolate_marcs(Float64(Teff), args...; kwargs...)
 end
