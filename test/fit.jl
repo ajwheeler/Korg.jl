@@ -16,6 +16,11 @@ using Random
             @test_throws ArgumentError Korg.Fit.validate_params((Teff=4500, logg=3200, M_H=0.1),
                                                                 (; M_H=0.1))
 
+            @test_throws "Use M_H instead" Korg.Fit.validate_params((; m_H=0.1, Teff=5000,
+                                                                     logg=4.5), (;))
+            @test_throws "Use M_H instead" Korg.Fit.validate_params((; Teff=5000, logg=4.5),
+                                                                    (; m_H=0.1))
+
             # alpha may be specified, but it has no default, making it a special case
             p0, _ = Korg.Fit.validate_params((Teff=4500, logg=4.5, alpha_H=0.2), (;))
             @test p0["alpha_H"] == 0.2

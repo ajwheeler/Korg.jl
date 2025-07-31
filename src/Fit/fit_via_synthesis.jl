@@ -153,6 +153,9 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
 
     # check that all the params are recognized
     unknown_params = filter!(all_params) do param
+        if param == "m_H"
+            throw(ArgumentError("m_H is no longer a supported keyword argument of fit_spectrum (starting in Korg 1.0). Use M_H instead."))
+        end
         param ∉ allowed_params
     end
     if length(unknown_params) > 0
