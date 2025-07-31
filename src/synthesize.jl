@@ -262,7 +262,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     end
 
     line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
-                     vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
+                     vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 
