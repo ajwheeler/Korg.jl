@@ -12,12 +12,11 @@ end # hide #md
 # # Synthesizing a spectrum the easy way: `synth`
 # Synthesizing a spectrum is easy!
 
-# synthesize a solar spectrum
-λs, flux, cntm = synth(; Teff=5777, logg=4.44)
-
+λs, flux, cntm = synth(; Teff=5777, logg=4.44, wavelengths=(5000, 5050))
 plot(λs, flux)
 xlabel("λ [Å]")
 ylabel("Flux")
+gcf() # hide #md
 
 # # Choose a linelist
 # 
