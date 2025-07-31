@@ -8,7 +8,7 @@ struct MolecularCrossSection
 end
 
 """
-    MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-30, log_temp_vals=3:0.025:5, verbose=true)
+    MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-30, log_temp_vals=3:0.025:5)
 
 Precompute the molecular absorption cross section for a given linelist and set of wavelengths. The
 `MolecularCrossSection` object can be passed to [`synthesize`](@ref) and potentially speed up the
@@ -29,7 +29,6 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     which to truncate the profile.
   - `log_temp_vals` (default: 3:0.025:5): The log10 of the temperatures at which to precompute the
     cross-section.
-  - `verbose` (default: true): Whether to print progress information.
 
 !!! tip
 
@@ -40,7 +39,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
 """
 function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
                                vmic_vals=[(0.0:1/3:1.0)...; 1.5; (2:2/3:(5+1/3))...],
-                               log_temp_vals=3:0.04:5, verbose=true)
+                               log_temp_vals=3:0.04:5)
     wls = Wavelengths(wl_params...)
     all_specs = [l.species for l in linelist]
     if !all(Ref(all_specs[1]) .== all_specs)
@@ -62,8 +61,7 @@ function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
     for (i, vmic) in enumerate(vmic_vals)
         ξ = vmic * 1e5 #km/s to cm/s
         Korg.line_absorption!(view(α, i, :, :), linelist, wls, Ts, nₑ, n_dict,
-                              Korg.default_partition_funcs, ξ, cntm;
-                              verbose=verbose, cutoff_threshold=1.0)
+                              Korg.default_partition_funcs, ξ, cntm; cutoff_threshold=1.0)
     end
 
     species = all_specs[1]
