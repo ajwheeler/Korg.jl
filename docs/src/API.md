@@ -11,7 +11,6 @@ These functions are exported, so if you do `using Korg`, you can call them unqua
 ```@docs
 synth
 synthesize
-Korg.SynthesisResult
 format_A_X
 interpolate_marcs
 Korg.read_model_atmosphere
