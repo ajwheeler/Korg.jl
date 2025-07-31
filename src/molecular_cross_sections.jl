@@ -8,7 +8,7 @@ struct MolecularCrossSection
 end
 
 """
-    MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-30, log_temp_vals=3:0.025:5, verbose=true)
+    MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-30, log_temp_vals=3:0.025:5)
 
 Precompute the molecular absorption cross section for a given linelist and set of wavelengths. The
 `MolecularCrossSection` object can be passed to [`synthesize`](@ref) and potentially speed up the
