@@ -201,10 +201,6 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
   - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
     linelist. See [`approximate_line_strength`](@ref) for more information.
   - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
-
-!!! warning
-
-    This functionality is in beta.
 """
 function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
                               line_strength_cutoff=-15, T_line_strength=3500.0)
