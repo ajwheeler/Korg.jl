@@ -48,6 +48,11 @@ struct Line{F1,F2,F3,F4,F5,F6}
 
     Construct a new `Line` by copying the values from an existing `Line`.  Any of the values can be
     modified with keyword arguments, e.g. `Line(line, log_gf=0.0)`.
+
+
+    !!! note
+        While the Korg.Line constructors are considered public and stable, the fields of the `Line`
+        type are not, and may change in the future without a major version bump.
     """
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3,
                   gamma_rad::Union{F4,Missing}=missing, gamma_stark::Union{F5,Missing}=missing,
