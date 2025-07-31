@@ -28,7 +28,7 @@ include("Fit/Fit.jl")                  # routines to infer stellar params from d
 include("qfactors.jl")                 # formalism to compute theoretical RV precision
 
 @compat public get_APOGEE_DR17_linelist, get_GALAH_DR3_linelist, get_GES_linelist,
-               get_VALD_linelist, save_linelist, load_ExoMol_linelist, read_linelist, Line,
+               get_VALD_solar_linelist, save_linelist, load_ExoMol_linelist, read_linelist, Line,
                read_model_atmosphere,
                MolecularCrossSection, save_molecular_cross_section, read_molecular_cross_section,
                SynthesisResult, Species,
