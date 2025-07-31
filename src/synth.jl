@@ -48,6 +48,22 @@ function synth(;
                synthesize_kwargs=Dict(),
                format_A_X_kwargs=Dict(),
                abundances...,)
+    if :m_H in keys(abundances)
+        throw(ArgumentError("m_H is no longer a supported keyword argument of synth (starting in Korg 1.0). Use M_H instead."))
+    end
+
+    # Check for invalid arguments.  Because we catch all in abundances, the default error message is 
+    # confusing.
+    for key in keys(abundances)
+        if !(String(key) in Korg.atomic_symbols)
+            msg = "$key was passed as a keyword argument to synth, but it is not a valid keyword argument."
+            if endswith(String(key), "_H")
+                msg *= " To specify an elemental abundance, use the bare atomic symbol (e.g. Ca instead of Ca_H)."
+            end
+            throw(ArgumentError(msg))
+        end
+    end
+
     if isnothing(Teff) || isnothing(logg)
         throw(ArgumentError("Teff and logg must be passed to synth as keyword arguments"))
     end

@@ -82,4 +82,18 @@
         @test wls == sol.wavelengths
         @test flux ≈ sol.flux ./ sol.cntm
     end
+
+    @testset "m_H deprecation error" begin
+        msg = "m_H is no longer a supported keyword argument"
+        @test_throws msg synth(; default_ps..., wavelengths=(5000, 5001), m_H=0.0)
+    end
+
+    @testset "invalid arguments" begin
+        msg = "invalid_arg was passed as a keyword argument to synth, but it is not a valid keyword argument."
+        @test_throws msg synth(; default_ps..., wavelengths=(5000, 5001), invalid_arg=0.0)
+
+        # be helpful if user is trying to specify an elemental abundance but using the wrong notation
+        msg = "Ca instead of Ca_H"
+        @test_throws msg synth(; default_ps..., wavelengths=(5000, 5001), Ca_H=0.0)
+    end
 end
