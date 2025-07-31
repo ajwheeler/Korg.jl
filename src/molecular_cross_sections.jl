@@ -30,9 +30,15 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
   - `log_temp_vals` (default: 3:0.025:5): The log10 of the temperatures at which to precompute the
     cross-section.
 
+!!! warning
+
+    While this is part of the public API, it is not considered stable and may change in the future
+    without a major version bump.
+
 !!! tip
 
-    The default values of `vmic_vals`, `log_temp_vals`, and ` `cutoff_alpha` were chosen to ensure that lines in the APOGEE linelist ([`get_APOGEE_DR17_linelist`](@ref)) could be accurately
+    The default values of `vmic_vals`, `log_temp_vals`, and `cutoff_alpha` were chosen to ensure
+    that lines in the APOGEE linelist ([`get_APOGEE_DR17_linelist`](@ref)) could be accurately
     reproduced (better than 10^-3 everywhere). You should verify that they yield acceptable accuracy
     for other applications by comparing spectra synthesize with and without precomputing the
     molecular cross-section.
@@ -106,6 +112,11 @@ end
 
 Save a precomputed molecular cross-section to a file.
 See also [`MolecularCrossSection`](@ref), [`read_molecular_cross_section`](@ref).
+
+!!! warning
+
+    While this is part of the public API, it is not considered stable and may change in the future
+    without a major version bump.
 """
 function save_molecular_cross_section(filename, cross_section)
     wls = cross_section.wls
@@ -127,6 +138,11 @@ end
 Read a precomputed molecular cross-section from a file created by
 [`save_molecular_cross_section`](@ref).
 See also [`MolecularCrossSection`](@ref).
+
+!!! warning
+
+    While this is part of the public API, it is not considered stable and may change in the future
+    without a major version bump.
 """
 function read_molecular_cross_section(filename)
     HDF5.h5open(filename, "r") do file

@@ -1,9 +1,8 @@
 using Documenter, Korg
 
-# Use the README.md as index.md in the docs. These should really have the same contents.
-
+# Use the README.md as index.md in the docs.
 # Check if we're in docs/ directory or root directory and set paths appropriately
-# locally, it's easier to build from docs, but the CI builds from root
+# Locally, I often build from docs, but the CI builds from root
 if basename(pwd()) == "docs"
     readme_path = "../README.md"
     target_path = "./src/index.md"
@@ -31,6 +30,7 @@ makedocs(;
          linkcheck_ignore=["https://marcs.astro.uu.se/"],
          authors="Adam Wheeler, Matthew Abruzzo, Andrew Casey, and collaborators",
          format=Documenter.HTML(; assets=["assets/favicon.ico"], size_threshold=500000),
+         # check that every function that has a docstring is in the docs
          checkdocs=:all,)
 
 deploydocs(; repo="github.com/ajwheeler/Korg.jl.git", devbranch="main")

@@ -64,15 +64,15 @@ To synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances 
 0.5 dex less than the solar value except carbon, which we set to [C/H]=-0.25:
 
 ```
-atm = read_model_atmosphere("path/to/atmosphere.mod")
-linelist = read_linelist("path/to/linelist.vald")
+linelist = Korg.read_linelist("path/to/linelist.vald")
 A_X = format_A_X(-0.5, Dict("C" => -0.25))
+atm = Korg.interpolate_marcs(5777, 4.44, A_X)
 result = synthesize(atm, linelist, A_X, 5000, 5100)
 ```
 
 # Optional arguments:
 
-  - `vmic` (default: 0) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
+  - `vmic` (default: 1) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
     value or a vector of values, one for each atmospheric layer.
   - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
     before it is discarded.  If the edge of your window is near a strong line, you may have to turn
