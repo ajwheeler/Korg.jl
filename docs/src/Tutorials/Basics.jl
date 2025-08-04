@@ -13,7 +13,7 @@ end # hide #md
 # Synthesizing a spectrum is easy!
 
 λs, flux, cntm = synth(; Teff=5777, logg=4.44, wavelengths=(5000, 5050))
-plot(λs, flux)
+plot(λs, flux, "k-")
 xlabel("λ [Å]")
 ylabel("Flux")
 gcf() # hide #md
@@ -61,9 +61,37 @@ vald_lines = Korg.get_VALD_solar_linelist() # lines for the Sun from 3000 to 900
                        R=20000, # Simulate and LSF with resolving power, R = λ/Δλ of 20,000
                        vsini=7, # projected rotational velocity of 7 km/s
                        vmic=2) # microturbulence of 2 km/s
-plot(λs, flux)
+plot(λs, flux, "k-")
 xlabel("λ [Å]")
 ylabel("Flux")
 gcf() # hide #md
 
-# Going deeper: using `synthesize`
+# # Going deeper: using `synthesize`
+#
+# The [`synth`](@ref) function provides a convenient interface that aims to cover most use cases,
+# but in some circumstances you might want more control. The [`synthesize`](@ref) function is the
+# more low-level function upon which [`synth`](@ref) is built. [`synthesize`](@ref) has a few
+# required arguments.  Its signature is:
+#
+#     synthesize(atm, linelist, A_X, wavelenths...; kwargs...)
+#
+# [`synthesize`](@ref) takes a model atmosphere, a linelist, a vector of abundances, and parameter
+# specifying the wavelengths to use as required arguments. We've covered linelists above, so let's
+# take the rest in turn.
+#
+# ## Abundances
+#
+# For the sake of unambiguousness, [`synthesize`](@ref) takes a vector of abundances, `A_X`, as an
+# for all elements from H to U. Note that unlike the [`synth`](@ref) function (by default), these
+# are _not_ solar relative. They are in "standard" ``A(X)`` format,
+# ``A(X) = \log_{10} \left( \frac{n_X}{n_H} \right)``.
+# You can of course construct this vector yourself, but it's often easier to use the
+# [`format_A_X`](@ref) function to do it for you.
+# The interface for [`format_A_X`](@ref) is similar to that of [`synth`](@ref), but a tiny bit more
+# explicit.  Instead of specifying abundances of individual elements with keyword arguments,
+# we pass a dictionary of element symbols and abundances.
+
+metal_poor_A_X = format_A_X(-0.5) # [M/H] = -1/2
+alpha_rich_A_X = format_A_X(0, 0.5) # all [M/H] = 0, but [alpha/H] = 0.5]
+Ni_enriched_A_X = format_A_X(Dict("Ni" => 1.0)) # all [M/H] = 0, except [Ni/H] = 1.0
+display(Ni_enriched_A_X)
