@@ -311,6 +311,8 @@ abundances from
 To use custom isotopic abundances, just pass `isotopic_abundances` with the same structure:
 a dict mapping atomic number to a dict mapping from atomic weight to abundance.  To use the isotopic
 abundances embedded in a Kurucz-formatted linelist, pass `isotopic_abundances=nothing`.
+Kurucz-formatted linelists will fall back on the isotopic adjustments embedded in the linelist when
+the isotope numbers are not in the `isotopic_abundances` dict.
 
 Be warned that for linelists which are pre-scaled for isotopic abundance, the estimation of
 radiative broadening from log(gf) is not accurate.
@@ -375,7 +377,7 @@ first_nonempty_line(io) =
 tentotheOrMissing(x) = x == 0 ? missing : 10^x
 idOrMissing(x) = x == 0 ? missing : x
 
-function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false)
+function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, verbose=false)
     lines = Line{Float64,Float64,Float64,Float64,Float64,Float64}[]
     for row in eachline(f)
         row == "" && continue #skip empty lines
@@ -398,8 +400,9 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false)
         loggf = parse(Float64, row[12:18]) + parse(Float64, row[110:115])
 
         # isotopic abundance adjustments
+        kurucz_iso_adjust = parse(Float64, row[119:124])
         if isnothing(isotopic_abundances)
-            loggf += parse(Float64, row[119:124])
+            loggf += kurucz_iso_adjust
         else
             iso_number = parse(Int, row[107:109])
             if iso_number == 0
@@ -407,7 +410,9 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false)
             end
             if iso_number != 0 # if there's no isotope number, don't adjust
                 if !(iso_number in keys(isotopic_abundances[get_atom(species)]))
-                    @info "Isotope $iso_number not in isoabunds for $(species)"
+                    if verbose
+                        println("Isotope $iso_number not in isoabunds for $(species). Using Kurucz's value of $kurucz_iso_adjust.")
+                    end
                 else
                     loggf += log10(isotopic_abundances[get_atom(species)][iso_number])
                 end
