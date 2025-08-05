@@ -173,10 +173,12 @@ gcf() # hide #md
 # Another peices of information in a [`Korg.SynthesisResult`](@ref) is the absorption coefficient,
 # α, in units of cm^-1.
 
-plot(res.wavelengths, res.alpha'); # sol.alpha' is the adjoint of sol.alpha.
+figure(; figsize=(12, 4)) # hide #md
+plot(res.wavelengths, res.alpha'); # res.alpha' is the adjoint of res.alpha.
 yscale("log")
 xlabel(L"$\lambda$ [Å]")
 ylabel(L"$\alpha$ [cm$^{-1}$]");
+gcf() # hide #md
 
 # # Post-processing your spectrum
 # TODO LSF
