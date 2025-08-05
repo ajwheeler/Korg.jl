@@ -157,6 +157,7 @@ gcf() # hide #md
 # densities, which are are stored as a dictionary mapping [`Korg.Species`](@ref) objects to arrays
 # with one entry for each layer in the model atmosphere.
 
+figure() # hide #md
 temps = Korg.get_temps(atm)
 #These strings represent different species. Below, we pass them to Korg.Species to construct a Species object.
 for spec in ["H I", "H II", "O I", "OH"]

@@ -16,7 +16,8 @@ cp(readme_path, target_path; force=true)
 tutorial_dir = joinpath(docs_base, "src", "tutorials")
 tutorial_output_dir = joinpath(docs_base, "src", "generated", "tutorials")
 literate_config = Dict("credit" => false)
-tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
+# the "Custom_Linelist" tutorial must be run before the "EWs" tutorial, so we sort the files
+tutorial_pages = map(sort(readdir(tutorial_dir))) do literate_source_file
     inpath = joinpath(tutorial_dir, literate_source_file)
     Literate.markdown(inpath, tutorial_output_dir; config=literate_config)
     Literate.notebook(inpath, tutorial_output_dir; config=literate_config)
