@@ -1,5 +1,8 @@
 using Documenter, Literate, Suppressor, Korg
 
+using Pkg
+Pkg.status()
+
 # Check if we're in docs/ directory or root directory and set this path appropriately
 # Locally, I often build from docs, but the CI builds from root
 docs_base = basename(pwd()) == "docs" ? "." : "./docs"
@@ -17,9 +20,11 @@ literate_config = Dict("credit" => false)
 tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
     Literate.markdown(joinpath(tutorial_dir, literate_source_file), tutorial_output_dir;
                       config=literate_config)
+    Literate.notebook(joinpath(tutorial_dir, literate_source_file), tutorial_output_dir;
+                      config=literate_config)
 
     name = literate_source_file[1:end-3]
-    path = joinpath("generated", "tutorials", literate_source_file[1:end-3] * ".md")
+    path = joinpath(docs_base, "generated", "tutorials", literate_source_file[1:end-3] * ".md")
     name => path
 end
 

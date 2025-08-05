@@ -266,7 +266,7 @@ end
 
 """
     interpolate_marcs(Teff, logg, A_X; kwargs...)
-    interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; kwargs...)
+    interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; kwargs...) # dangerous!
 
 Returns a model atmosphere computed by interpolating models from [MARCS](https://marcs.astro.uu.se/)
 ((Gustafsson+ 2008)[https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract]).

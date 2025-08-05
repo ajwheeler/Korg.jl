@@ -1,18 +1,24 @@
-# When you import with "using", a few functions are imported directly into the namespace (`synth`,
-# `synthesize`, `interpolate_marcs`, `format_A_X`).  All other need to be accessed with the `Korg`
-# prefix, e.g. `Korg.air_to_vacuum`.
-# We are also using the PythonPlot package, which provides a nice Julia interface to Matplotlib,
-# but of course you can plot however you like.
+# [Download this page as a Jupyter notebook](../Basics.ipynb) TODO #src
+# You may have to execute these cells to see the plot outputs TODO #nb
+
+# First, we'll import the necessary packages.
 
 using Suppressor # hide #md
 @suppress begin # hide #md
     using Korg, PyPlot
 end # hide #md
 
+# When you import with `using`, a few functions are imported directly into the namespace
+# ([`synth`](@ref), [`synthesize`](@ref), [`interpolate_marcs`](@ref), [`format_A_X`](@ref)).  All
+# other need to be accessed with the `Korg` prefix, e.g. [`Korg.air_to_vacuum`](@ref).
+# These examples use the PythonPlot package, which provides a nice Julia interface to Matplotlib,
+# but of course you can plot however you like.
+
 # # Synthesizing a spectrum the easy way: `synth`
 # Synthesizing a spectrum is easy!
 
 λs, flux, cntm = synth(; Teff=5777, logg=4.44, wavelengths=(5000, 5050))
+figure(; figsize=(12, 4)) # hide #md
 plot(λs, flux, "k-")
 xlabel("λ [Å]")
 ylabel("Flux")
@@ -23,6 +29,16 @@ gcf() # hide #md
 # (the log surface gravity in cgs units).  Korg will automatically construct the model atmosphere
 # by interpolating from its built-in grid of MARCS model atmospheres (taking abundances, as well as
 # `Teff` and `logg`, into account).
+#
+# Julia is just-in-time compiled, which means that the first time in each session you call a method
+# (e.g. `synth`), the code will be compiled, which can take several seconds.  The time you call a
+# method, it may be slow, with lots of time devoted to compilation. When you call it a second time,
+# it's much faster, because no code needs to be compiled. Note that no data is being cached an
+# re-used here. Try calling `synth` again (changing the parameters if you like) to see the speedup.
+#
+# You probably want to be able to control more than just the effective temperature, surface gravity,
+# and wavelength range. Let's go over some of the other things you can set when calling
+# [`synth`](@ref).
 #
 # ## Choose a linelist
 #
@@ -41,7 +57,7 @@ gcf() # hide #md
 
 vald_lines = Korg.get_VALD_solar_linelist() # lines for the Sun from 3000 to 9000 Å
 
-# ## Specify the abundances
+# ## Specifying abundances
 #
 # To specify the abundances for a synthesis, the `M_H` and `alpha_H` keyword arguments specify the
 # default metallicity and alpha enhancement, respectively.  To specify the hydrogen-relative,
@@ -52,7 +68,7 @@ vald_lines = Korg.get_VALD_solar_linelist() # lines for the Sun from 3000 to 900
 #
 # Let's synthesize another spectrum with the linelist we've selected, and with specific abundances.
 # We'll also demonstrate a few more keyword arguments to [`synth`](@ref), but
-# [`read the docs`](@ref synth) for more.
+# you can [read the docs](@ref synth) for more.
 
 λs, flux, cntm = synth(; Teff=5777, logg=4.44, wavelengths=(5000, 5050), # what we had before
                        linelist=vald_lines, # use the linelist we selected
@@ -61,23 +77,24 @@ vald_lines = Korg.get_VALD_solar_linelist() # lines for the Sun from 3000 to 900
                        R=20000, # Simulate and LSF with resolving power, R = λ/Δλ of 20,000
                        vsini=7, # projected rotational velocity of 7 km/s
                        vmic=2) # microturbulence of 2 km/s
+figure(; figsize=(12, 4)) # hide #md
 plot(λs, flux, "k-")
 xlabel("λ [Å]")
 ylabel("Flux")
 gcf() # hide #md
 
-# # Going deeper: using `synthesize`
+# # Going deeper: `synthesize`
 #
 # The [`synth`](@ref) function provides a convenient interface that aims to cover most use cases,
 # but in some circumstances you might want more control. The [`synthesize`](@ref) function is the
 # more low-level function upon which [`synth`](@ref) is built. [`synthesize`](@ref) has a few
 # required arguments.  Its signature is:
 #
-#     synthesize(atm, linelist, A_X, wavelenths...; kwargs...)
+#     synthesize(atm, linelist, A_X, wavelengths...; kwargs...)
 #
 # [`synthesize`](@ref) takes a model atmosphere, a linelist, a vector of abundances, and parameter
 # specifying the wavelengths to use as required arguments. We've covered linelists above, so let's
-# take the rest in turn.
+# take abundances and model atmospheres in turn.
 #
 # ## Abundances
 #
@@ -94,4 +111,73 @@ gcf() # hide #md
 metal_poor_A_X = format_A_X(-0.5) # [M/H] = -1/2
 alpha_rich_A_X = format_A_X(0, 0.5) # all [M/H] = 0, but [alpha/H] = 0.5]
 Ni_enriched_A_X = format_A_X(Dict("Ni" => 1.0)) # all [M/H] = 0, except [Ni/H] = 1.0
-display(Ni_enriched_A_X)
+
+# ## Model Atmosphere
+#
+# As mentioned above, Korg can interpolate from a grid of MARCS model atmospheres that it is shipped
+# with using the [`interpolate_marcs`](@ref) function. These are primarilly
+# [those generated for the Sloan Digital Sky Survey (SDSS)](https://www.sdss4.org/dr17/irspec/apogee-libraries/),
+# but they grid has been augmented with more atmospheres at lower metallicities.
+# See [the docs](@ref interpolate_marcs) for more details on the models and how they get
+# interpolated. We can create a model atmosphere object to pass to [`synthesize`](@ref) like this:
+
+atm = interpolate_marcs(5777, 4.44, Ni_enriched_A_X) # solar Teff and logg, Ni-enriched abundances
+
+# Korg will look at your abundance vector and translate it into the approriate parameters for the
+# atmosphere grid.  It's possible to bypass this and specify the abundance parameters directly, but
+# it's easy to mess up and not recommended.
+#
+# If you have a model atmosphere file you want to use instead of Korg's internal grid, you can read
+# it in with [`Korg.read_model_atmosphere`](@ref).
+
+# ## Putting it all together
+#
+# Now we can synthesize a stellar spectrum, by passing the linelist and atmosphere to
+# [`synthesize`](@ref), along with upper and lower wavelengths (in Å). Korg uses wavelengths *in
+# vacuo*, but you can use [`Korg.air_to_vacuum`](@ref) and [`Korg.vacuum_to_air`](@ref) to convert
+# back and forth.
+
+res = synthesize(atm, vald_lines, format_A_X(0), 4000, 4030);
+
+# The object returned by [`synthesize`](@ref) is a [`Korg.SynthesisResult`](@ref), which contains
+# lots of information. As for [`synth`](@ref), the wavelengths, flux, and continuum are available,
+#  though note that in a
+# [`Korg.SynthesisResult`](@ref), the flux has not had the continuum divided out (i.e. the spectrum
+# has not been continuum normalized, or rectified).
+
+figure(; figsize=(12, 4)) # hide #md
+plot(res.wavelengths, res.flux, "k-") # "./" is how you do element-wise division in Julia
+xlabel(L"$\lambda$ [Å]")
+ylabel("flux [erg/s/cm^4/Å]")
+gcf() # hide #md
+
+# ## per-species number densities
+#
+# One of the peices of information in a [`Korg.SynthesisResult`](@ref) is the per-species number
+# densities, which are are stored as a dictionary mapping [`Korg.Species`](@ref) objects to arrays
+# with one entry for each layer in the model atmosphere.
+
+temps = Korg.get_temps(atm)
+#These strings represent different species. Below, we pass them to Korg.Species to construct a Species object.
+for spec in ["H I", "H II", "O I", "OH"]
+    plot(temps, res.number_densities[Korg.Species(spec)]; label=spec)
+end
+
+legend()
+yscale("log")
+xlabel(L"$T$ [K]")
+ylabel(L"$n$ [cm$^{-3}$]")
+gcf() # hide #md
+
+# ## the absorption coefficient
+# Another peices of information in a [`Korg.SynthesisResult`](@ref) is the absorption coefficient,
+# α, in units of cm^-1.
+
+plot(res.wavelengths, res.alpha'); # sol.alpha' is the adjoint of sol.alpha.
+yscale("log")
+xlabel(L"$\lambda$ [Å]")
+ylabel(L"$\alpha$ [cm$^{-1}$]");
+
+# # Post-processing your spectrum
+# TODO LSF
+# TODO rotation
