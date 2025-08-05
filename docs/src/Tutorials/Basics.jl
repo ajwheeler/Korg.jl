@@ -1,4 +1,4 @@
-# [Download this page as a Jupyter notebook](../Basics.ipynb) TODO #src
+# [Download this page as a Jupyter notebook](./Basics.ipynb) #md
 # You may have to execute these cells to see the plot outputs TODO #nb
 
 # First, we'll import the necessary packages.
