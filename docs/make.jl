@@ -13,15 +13,13 @@ target_path = joinpath(docs_base, "src", "index.md")
 cp(readme_path, target_path; force=true)
 
 # Generate the mardown pages with Literate.jl
-# TODO notebooks
 tutorial_dir = joinpath(docs_base, "src", "tutorials")
 tutorial_output_dir = joinpath(docs_base, "src", "generated", "tutorials")
 literate_config = Dict("credit" => false)
 tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
-    Literate.markdown(joinpath(tutorial_dir, literate_source_file), tutorial_output_dir;
-                      config=literate_config)
-    Literate.notebook(joinpath(tutorial_dir, literate_source_file), tutorial_output_dir;
-                      config=literate_config)
+    inpath = joinpath(tutorial_dir, literate_source_file)
+    Literate.markdown(inpath, tutorial_output_dir; config=literate_config)
+    Literate.notebook(inpath, tutorial_output_dir; config=literate_config)
 
     name = literate_source_file[1:end-3]
     path = joinpath(docs_base, "generated", "tutorials", literate_source_file[1:end-3] * ".md")
