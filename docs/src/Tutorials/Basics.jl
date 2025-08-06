@@ -5,7 +5,7 @@
 
 using Suppressor # hide #md
 @suppress begin # hide #md
-    using Korg, PyPlot
+    using Korg, PythonPlot
 end # hide #md
 
 # When you import with `using`, a few functions are imported directly into the namespace

@@ -14,7 +14,7 @@
 
 using Suppressor # hide #md
 @suppress begin # hide #md
-    using Korg, PyPlot, CSV, DataFrames
+    using Korg, PythonPlot, CSV, DataFrames
 end # hide #md
 
 # ## Creating a custom linelist

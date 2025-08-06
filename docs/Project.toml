@@ -4,6 +4,7 @@ DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Korg = "acafc109-a718-429c-b0e5-afd7f8c7ae46"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+PythonPlot = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9"
 Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 
 [compat]
