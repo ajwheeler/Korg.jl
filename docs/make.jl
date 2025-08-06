@@ -3,6 +3,8 @@ using Documenter, Literate, Suppressor, Korg
 using Pkg
 Pkg.status()
 
+@show pwd()
+
 # Check if we're in docs/ directory or root directory and set this path appropriately
 # Locally, I often build from docs, but the CI builds from root
 docs_base = basename(pwd()) == "docs" ? "." : "./docs"
