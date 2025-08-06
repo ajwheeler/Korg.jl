@@ -13,7 +13,7 @@ target_path = joinpath(docs_base, "src", "index.md")
 cp(readme_path, target_path; force=true)
 
 # paths for tutorial generation
-tutorial_dir = joinpath(docs_base, "src", "tutorials")
+tutorial_dir = joinpath(docs_base, "src", "Tutorials")
 tutorial_output_dir = joinpath(docs_base, "src", "generated", "tutorials")
 # delete everything in tutorial_output_dir
 rm(tutorial_output_dir; force=true, recursive=true)
