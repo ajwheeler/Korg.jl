@@ -17,44 +17,82 @@ using Suppressor # hide #md
     using Korg, PyPlot, CSV, DataFrames
 end # hide #md
 
-# First, read in the data from the paper.
+# ## Creating a custom linelist
+#
+# Korg can read in linelists in a variety of formats, including the VALD, MOOG, Kurucz, and ExoMol
+# formats, but sometimes you'll want to use one in another format, e.g. from a table in a paper.
+# We'll use the data from Table 1 of
+# [Melendez 2014](https://ui.adsabs.harvard.edu/abs/2014ApJ...791...14M/abstract),
+# which are available in the
+# [`Table 1.dat` file](https://cdsarc.cds.unistra.fr/viz-bin/cat/J/ApJ/791/14#/browse).
+#
+# First, we read the data into a DataFrame called `lines`. This is a convienient way to work with
+# tabular data.
 
 lines = CSV.read("../../assets/Table 1.dat", DataFrame; skipto=25, delim=' ', ignorerepeated=true,
-                 header=["wl", "species", "ExPot", "log_gf", "C6", "EW_18Sco", "EW_Sun"])
+                 header=["wl", "species", "ExPot", "log_gf", "C6", "EW_18Sco", "EW_Sun"]);
 
-# The [Custom linelists](@ref custom_linelists) example shows how to turn the line data in this
-# table into a linelist that Korg can use. Let's skip that step for now, and just read in the
-# linelist from the hdf5 file we wrote in the [Custom linelists](@ref custom_linelists) example.
+# Next, we convert the numbers in the species column to [`Korg.Species`](@ref) objects.
+# The `Korg.Species` constructor takes a string, and returns a `Korg.Species` object, and supports
+# nearly all of the formats for specifying species found in the wild.
+#
+# The `.` applies the function to each element of the series. This is called "broadcasting".
 
-linelist = Korg.read_linelist("Fe_lines.h5"; format="korg")
+lines.species = Korg.Species.(lines.species)
 
-# TODO
+# Let's look at Fe lines only, and sort them by wavelength.
 
-# solar params
+filter!(lines) do row
+    #careful, get_atom throws an error when applied to a molecular species
+    Korg.get_atom(row.species) == 26 # atomic number of Fe
+end
+
+sort!(lines, :wl)
+lines[1:4, :] # look at the first few rows
+
+# To pass the lines to Korg, we need to turn each row of the `lines` DataFrame into a
+# [`Korg.Line`](@ref) object.  Korg will # use reasonable defaults for the broadening parameters,
+# but see the [`Korg.Line` documentation](@ref Korg.Line) details on how to specify them if you need
+# to do that.
+
+linelist = Korg.Line.(lines.wl, # can be in either cm or Å (like these), but NOT nm
+                      lines.log_gf,
+                      lines.species, # needs to be a Korg.Species, which we handled in the cell above
+                      lines.ExPot) # excitation potential, i.e. lower level energy (must be in eV)
+
+# We can use `lines` directly with Korg at this point, but if we want to save it for later use,
+# we can save it to an hdf5 file.
+
+#read this back in with Korg.read_linelist("Fe_lines.h5"; format="korg")
+Korg.save_linelist("Fe_lines.h5", linelist);
+
+# ## Equivalent width fitting
+
+# Now that we have our linelist, let's perform equivalent width fitting to determine abundances.
+# We'll compare the Sun and 18 Sco using the equivalent widths from the paper.
+#
+# First, we'll define the parameters for the Sun and 18 Sco.
+
+#solar params
 sun_Teff, sun_logg, sun_Fe_H, sun_vmic = 5777, 4.44, 0.0, 1.0
-
-# vector of abundances for the sun
+#vector of abundances for the sun
 sun_A_X = Korg.format_A_X(sun_Fe_H)
-
-# interpolate a model atmosphere for the sun
+#model atmosphere for the sun
 sun_atm = Korg.interpolate_marcs(sun_Teff, sun_logg, sun_A_X)
-
 # and likewise for 18 Sco
 sco_teff, sco_logg, sco_fe_h, sco_vmic = (5823, 4.45, 0.054, sun_vmic + 0.02)
 sco_A_X = Korg.format_A_X(sco_fe_h)
 sco_atm = Korg.interpolate_marcs(sco_teff, sco_logg, sco_A_X)
 
-# calculate abundances from the EWs for each star
-# TODO
+# Now we can calculate abundances from the EWs for each star.
 
-@time A_sun = Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, lines.EW_Sun;
-                                         vmic=sun_vmic)
-@time A_18Sco = Korg.Fit.ews_to_abundances(sco_atm, linelist, sco_A_X, lines.EW_18Sco;
-                                           vmic=sco_vmic)
+A_sun = Korg.Fit.ews_to_abundances(sun_atm, linelist, sun_A_X, lines.EW_Sun; vmic=sun_vmic)
+A_18Sco = Korg.Fit.ews_to_abundances(sco_atm, linelist, sco_A_X, lines.EW_18Sco; vmic=sco_vmic);
 
-# TODO
-# get a bitmask for the lines of Fe I vs Fe II
-neutrals = [spec.charge == 0 for spec in lines.species]
+# Let's plot the abundance differences as a function of excitation potential to check for
+# non-LTE effects or other systematic issues.
+
+neutrals = [spec.charge == 0 for spec in lines.species] #bitmask for the lines of Fe I vs Fe II
 χ = [l.E_lower for l in linelist] # the excitation potential for each line
 
 figure(; figsize=(8, 2)) # hide #md
@@ -64,4 +102,3 @@ ylabel(L"A(Fe)_\mathrm{18 Sco} - A(Fe)_\mathrm{sun}")
 xlabel("χ [eV]")
 legend()
 gcf() # hide #md
-;

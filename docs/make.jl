@@ -12,12 +12,16 @@ readme_path = joinpath(docs_base, "..", "README.md")
 target_path = joinpath(docs_base, "src", "index.md")
 cp(readme_path, target_path; force=true)
 
-# Generate the mardown pages with Literate.jl
+# paths for tutorial generation
 tutorial_dir = joinpath(docs_base, "src", "tutorials")
 tutorial_output_dir = joinpath(docs_base, "src", "generated", "tutorials")
+# delete everything in tutorial_output_dir
+rm(tutorial_output_dir; force=true, recursive=true)
+mkpath(tutorial_output_dir)
+
+# process the tutorials into markdown and jupyter notebooks with Literate.jl
 literate_config = Dict("credit" => false)
-# the "Custom_Linelist" tutorial must be run before the "EWs" tutorial, so we sort the files
-tutorial_pages = map(sort(readdir(tutorial_dir))) do literate_source_file
+tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
     inpath = joinpath(tutorial_dir, literate_source_file)
     Literate.markdown(inpath, tutorial_output_dir; config=literate_config)
     Literate.notebook(inpath, tutorial_output_dir; config=literate_config)
