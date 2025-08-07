@@ -1,7 +1,16 @@
-using Documenter, Literate, Suppressor, Korg # Korg is Pkg.dev'ed in the docs environment
+using Documenter, Literate, Suppressor, ArgParse, Korg # Korg is Pkg.dev'ed in the docs environment
 
-using Pkg
-Pkg.status()
+# Set up command line arguments
+s = ArgParseSettings()
+#! format: off
+@add_arg_table! s begin
+    "--no-execute"
+    help = "Don't execute code blocks or run tutorial notebooks"
+    action = :store_true
+    default = false
+end
+#! format: on
+parsed_args = parse_args(s)
 
 # Check if we're in docs/ directory or root directory and set this path appropriately
 # Locally, I often build from docs, but the CI builds from root
@@ -21,6 +30,10 @@ mkpath(tutorial_output_dir)
 
 # process the tutorials into markdown and jupyter notebooks with Literate.jl
 literate_config = Dict("credit" => false)
+if parsed_args["no-execute"]
+    # don't change if --no-execute is not passed, because the defaults for md and nb are different
+    literate_config["execute"] = false
+end
 tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
     inpath = joinpath(tutorial_dir, literate_source_file)
 
@@ -37,6 +50,7 @@ end
 
 makedocs(;
          modules=[Korg],
+         doctest=!parsed_args["no-execute"],
          repo=Documenter.Remotes.GitHub("ajwheeler", "Korg.jl"),
          sitename="Korg",
          pages=["Quickstart" => "index.md"
