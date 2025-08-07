@@ -7,7 +7,7 @@ This page explains the changes in Korg v1.0 that might trip you up if you are co
   look less like it means "hydrogen mass". This effects [`synth`](@ref),
   [`Korg.Fit.ews_to_stellar_parameters`](@ref), and [`Korg.Fit.fit_spectrum`](@ref)
 - The default solar abundances ([`Korg.default_solar_abundances`](@ref) are now
-  [`Korg.bergemann_2025_solar_abundances`](ref), not [`Korg.asplund_2020_solar_abundances`](@ref).
+  _Bergemann et al. 2025_.
 - The output units of flux are now `erg/s/cm^4/Å`, not `erg/s/cm^5`, which is more consistent with
   Korg's wavelength units.
 - [`synth`](@ref) now requires that you specify at least `Teff` and `logg`.  All other arguments are
