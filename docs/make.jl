@@ -1,9 +1,7 @@
-using Documenter, Literate, Suppressor, Korg
+using Documenter, Literate, Suppressor, Korg # Korg is Pkg.dev'ed in the docs environment
 
 using Pkg
 Pkg.status()
-
-@show pwd()
 
 # Check if we're in docs/ directory or root directory and set this path appropriately
 # Locally, I often build from docs, but the CI builds from root
@@ -25,12 +23,16 @@ mkpath(tutorial_output_dir)
 literate_config = Dict("credit" => false)
 tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
     inpath = joinpath(tutorial_dir, literate_source_file)
-    Literate.markdown(inpath, tutorial_output_dir; config=literate_config)
+
+    # generate markdown and notebook files
+    markdown_path = Literate.markdown(inpath, tutorial_output_dir; config=literate_config)
     Literate.notebook(inpath, tutorial_output_dir; config=literate_config)
 
-    name = literate_source_file[1:end-3]
-    path = joinpath(docs_base, "generated", "tutorials", literate_source_file[1:end-3] * ".md")
-    name => path
+    # Make path relative to docs/src/. This is what Documenter.makedocs wants.
+    rel_markdown_path = replace(markdown_path, r"^.*?docs/src/" => "")
+
+    # page name => path
+    literate_source_file[1:end-3] => rel_markdown_path
 end
 
 makedocs(;
@@ -57,4 +59,6 @@ makedocs(;
          # check that every function that has a docstring is in the docs
          checkdocs=:all,)
 
-deploydocs(; repo="github.com/ajwheeler/Korg.jl.git", devbranch="main")
+deploydocs(; repo="github.com/ajwheeler/Korg.jl.git",
+           devbranch="main",
+           push_preview=true) # https://ajwheeler.github.io/Korg.jl/previews/PR##
