@@ -41,6 +41,7 @@ makedocs(;
          sitename="Korg",
          pages=["Quickstart" => "index.md"
                 "Install" => "install.md"
+                "Upgrading to v1.0" => "Upgrading.md"
                 "Tutorials" => [
                     "tutorials.md",
                     tutorial_pages...
