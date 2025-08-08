@@ -46,7 +46,7 @@ gcf() # hide #md
 # spectrum.  Korg supports the VALD, MOOG, Kurucz, and ExoMol format linelists (see
 # [`Korg.read_linelist`](@ref), [`Korg.load_ExoMol_linelist`](@ref)).
 # It also has several built-in for convenience:
-#    - [`Korg.get_VALD_solar_linelist`](@ref) for the Sun from 3000 to 9000 Å
+#    - [`Korg.get_VALD_solar_linelist`](@ref) for the Sun from 3000 to 9000 Å.
 #    - [`Korg.get_APOGEE_DR17_linelist`](@ref) for latest APOGEE linelist
 #    - [`Korg.get_GALAH_DR3_linelist`](@ref) for the GALAH DR3 and DR4 linelist
 #    - [`Korg.get_GES_linelist`](@ref) for the Gaia ESO survey linelist
@@ -65,6 +65,9 @@ vald_lines = Korg.get_VALD_solar_linelist() # lines for the Sun from 3000 to 900
 # There are unavoidable subtleties in abundance notation, so see section TODO for the messy details.
 # For now, just know that the "metallicity" of a given mixture is not necessarily the same as the
 # input `M_H` keyword argument, depending on how "metallicity" is defined.
+#
+# ##  A more complex example #nb
+# ## [A more complex example](@id synth-example) #md
 #
 # Let's synthesize another spectrum with the linelist we've selected, and with specific abundances.
 # We'll also demonstrate a few more keyword arguments to [`synth`](@ref), but
@@ -137,7 +140,7 @@ atm = interpolate_marcs(5777, 4.44, Ni_enriched_A_X) # solar Teff and logg, Ni-e
 # vacuo*, but you can use [`Korg.air_to_vacuum`](@ref) and [`Korg.vacuum_to_air`](@ref) to convert
 # back and forth.
 
-res = synthesize(atm, vald_lines, format_A_X(0), 4000, 4030);
+res = synthesize(atm, vald_lines, format_A_X(0), 4000, 4015);
 
 # The object returned by [`synthesize`](@ref) is a [`Korg.SynthesisResult`](@ref), which contains
 # lots of information. As for [`synth`](@ref), the wavelengths, flux, and continuum are available,
@@ -182,5 +185,78 @@ ylabel(L"$\alpha$ [cm$^{-1}$]");
 gcf() # hide #md
 
 # # Post-processing your spectrum
-# TODO LSF
-# TODO rotation
+#
+# Given a synthesized spectrum, you may want to manipulate it further to make it look more
+# like real data. Korg provides functions for applying a line-spread function (LSF) and rotational
+# broadening to a spectrum. Note that [the example above](@ref synth-example) demonstrates shortcuts
+# to do this with [`synth`](@ref).
+#
+# ## Line-spread function (LSF)
+# Korg provides two ways of applying a LSF to a spectrum. The first, [`Korg.apply_LSF`](@ref),
+# is simpler (this is what [`synth`](@ref) does). It returns a new flux vector, and does not modify
+# the wavelength sampling.
+
+R = 10_000 # the resolving power, R = λ/Δλ
+low_res_flux = Korg.apply_LSF(res.flux, res.wavelengths, R)
+
+figure(; figsize=(12, 4)) # hide #md
+plot(res.wavelengths, res.flux, "k-"; label="high-res")
+plot(res.wavelengths, low_res_flux, "C1-"; label="low-res")
+legend()
+xlabel(L"$\lambda$ [Å]")
+ylabel("flux [erg/s/cm^4/Å]")
+gcf() # hide #md
+
+# The second way of applying an LSF is slightly more powerful: [`Korg.compute_LSF_matrix`](@ref).
+# This function computes an efficiently-represented sparse matrix that transforms an
+# infinite-resolution flux vector to a low-resolution flux vector, simultaneously resampling the
+# wavelengths. This saves a lot of computing time if you need to apply the same LSF to many spectra.
+
+new_wavelengths = 4000:0.1:4015
+LSF = Korg.compute_LSF_matrix(res.wavelengths, new_wavelengths, R)
+
+# The `LSF` object is a sparse matrix that we can use to transform the high-resolution flux vector
+# (or any other computed on the same wavelength grid)
+
+resampled_low_res_flux = LSF * res.flux
+
+figure(; figsize=(12, 4)) # hide #md
+plot(res.wavelengths, low_res_flux, "C1-"; label="low-res")
+plot(new_wavelengths, resampled_low_res_flux, "C2-"; label="low-res (resampled wavelengths)")
+legend()
+xlabel(L"$\lambda$ [Å]")
+ylabel("flux [erg/s/cm^4/Å]")
+gcf() # hide #md
+
+# ### Varying LSFs
+#
+# If you LSF has a Gaussian width that varies with wavelength, that's no problem!  Just pass a
+# function the maps from wavelength (in Å) to R.
+
+resolution(λ) = 10_000 + 2000 * sin(λ) # R varying with wavelength
+crazy_lsf_flux = Korg.apply_LSF(res.flux, res.wavelengths, resolution)
+
+figure(; figsize=(12, 4)) # hide #md
+plot(res.wavelengths, res.flux, "k-"; label="high-res")
+plot(res.wavelengths, low_res_flux, "C1-"; label="low-res (constant LSF)")
+plot(res.wavelengths, crazy_lsf_flux, "C3-"; label="low-res (varying LSF)")
+legend()
+xlabel(L"$\lambda$ [Å]")
+ylabel("flux [erg/s/cm^4/Å]")
+gcf() # hide #md
+
+# ## Rotational broadening
+#
+# To apply the broadening resulting from differential line-of-sight velocity across the face of the
+# star due to rotation, you can use [`Korg.apply_rotation`](@ref).
+
+vsini = 30 # km/s
+rot_flux = Korg.apply_rotation(res.flux, res.wavelengths, 15)
+
+figure(; figsize=(12, 4)) # hide #md
+plot(new_wavelengths, LSF * res.flux, "C1-"; label="original")
+plot(new_wavelengths, LSF * rot_flux, "C4-"; label="with rotation")
+legend()
+xlabel(L"$\lambda$ [Å]")
+ylabel("flux [erg/s/cm^4/Å]")
+gcf() # hide #md
