@@ -1,4 +1,4 @@
-# [Download this page as a Jupyter notebook](./EWs.ipynb) #md
+# [Download this page as a Jupyter notebook](./Direct Fitting.ipynb) #md
 # You may have to execute these cells to see the plot outputs #nb
 
 # # Fitting "via synthesis" (direct fitting)
