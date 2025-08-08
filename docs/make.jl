@@ -1,3 +1,7 @@
+# the file is run by CI to build the docs.
+# you can run it locally with `julia --project=docs/Project.toml make.jl` from the docs/ directory
+# add --no-execute to skip executing code blocks and running tutorial notebooks for faster builds
+
 using Documenter, Literate, Suppressor, ArgParse, Korg # Korg is Pkg.dev'ed in the docs environment
 
 # Set up command line arguments
@@ -56,9 +60,11 @@ makedocs(;
          pages=["Quickstart" => "index.md"
                 "Install" => "install.md"
                 "Upgrading to v1.0" => "Upgrading.md"
-                "Tutorials" => [
-                    "tutorials.md",
-                    tutorial_pages...
+                "Guides" => [
+                    "tutorials.md", #TODO
+                    tutorial_pages...,
+                    "Abundances.md",
+                    "Wavelengths.md"
                 ]
                 "Public Functions" => "API.md"
                 "FAQ" => "FAQ.md"
