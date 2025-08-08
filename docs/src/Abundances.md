@@ -1,4 +1,4 @@
-# Abundances
+# [Abundances](@id abundances)
 
 Korg's functions take arguments specifying abundances in two different ways.
 [`Korg.synthesize`](@ref) takes a vector of ``A(X)`` abundances, one for every element from H to U.
