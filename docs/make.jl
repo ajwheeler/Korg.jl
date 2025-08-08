@@ -61,8 +61,8 @@ makedocs(;
                 "Install" => "install.md"
                 "Upgrading to v1.0" => "Upgrading.md"
                 "Guides" => [
-                    "tutorials.md", #TODO
                     tutorial_pages...,
+                    "Other Tutorials" => "tutorials.md",
                     "Abundances.md",
                     "Wavelengths.md"
                 ]

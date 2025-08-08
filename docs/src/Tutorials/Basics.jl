@@ -1,5 +1,5 @@
 # [Download this page as a Jupyter notebook](./Basics.ipynb) #md
-# You may have to execute these cells to see the plot outputs TODO #nb
+# You may have to execute these cells to see the plot outputs #nb
 
 # First, we'll import the necessary packages.
 
@@ -62,7 +62,8 @@ vald_lines = Korg.get_VALD_solar_linelist() # lines for the Sun from 3000 to 900
 # To specify the abundances for a synthesis, the `M_H` and `alpha_H` keyword arguments specify the
 # default metallicity and alpha enhancement, respectively.  To specify the hydrogen-relative
 # abundances of individual elements, pass their atomic symbol as a keyword argument to `synth`.
-# There are unavoidable subtleties in abundance notation, so see section TODO for the messy details.
+# There are unavoidable subtleties in abundance notation, so see [Abundances](@ref) for the messy
+# details.
 # For now, just know that the "metallicity" of a given mixture is not necessarily the same as the
 # input `M_H` keyword argument, depending on how "metallicity" is defined.
 #
