@@ -1,5 +1,5 @@
-# [Download this page as a Jupyter notebook](./EWs.ipynb) #md
-# You may have to execute these cells to see the plot outputs TODO #nb
+# [Download this page as a Jupyter notebook](./Equivalent Widths.ipynb) #md
+# You may have to execute these cells to see the plot outputs #nb
 
 # # Equivalent width fitting
 
