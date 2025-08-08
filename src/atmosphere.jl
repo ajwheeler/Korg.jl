@@ -276,6 +276,13 @@ see [`format_A_X`](@ref)). Note that the MARCS atmosphere models were constructe
 Grevesse+ 2007 solar abundances (`Korg.grevesse_2007_solar_abundances`). This is handled
 automatically when `A_X` is provided.
 
+!!! warning
+
+    While you can pass in `M_H`, `alpha_m`, and `C_m` directly, it is recommended to pass in `A_X`
+    instead. This makes it harder to accidentally do non-self-consistent syntheses (where the
+    atmosphere abundances don't match what you are using), and it takes care of correctly accounting
+    for the solar abundances assumed by MARCS.
+
 `interpolate_marcs` uses three different interpolation schemes for different stellar parameter
 regimes. In the standard case the model atmosphere grid is [the one generated for
 SDSS](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt),
@@ -292,6 +299,9 @@ cool dwarfs is referred to as not-yet-implemented in the paper but is now availa
 
   - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By
     default true when `logg` < 3.5.
+  - `warn_about_dangerous_method`: (default: `true`) Whether or not to warn about using the
+    non-recommended method of passing in `M_H`, `alpha_M`, and `C_M` in directly. This warning will
+    also not be throw for solar abundances.
   - `solar_abundances`: (default: `grevesse_2007_solar_abundances`) The solar abundances to use when
     `A_X` is provided instead of `M_H`, `alpha_M`, and `C_M`. The default is chosen to match that of
     the atmosphere grid, and if you change it you are likely trying to do something else.
@@ -330,12 +340,19 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; M_H=0,
         C_m = 0
     end
 
-    interpolate_marcs(Teff, logg, M_H, alpha_m, C_m; archives=archives, kwargs...)
+    interpolate_marcs(Teff, logg, M_H, alpha_m, C_m;
+                      archives=archives,
+                      warn_about_dangerous_method=false,
+                      kwargs...)
 end
 function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5,
+                           warn_about_dangerous_method=true,
                            perturb_at_grid_values=true, resampled_cubic_for_cool_dwarfs=true,
                            archives=(_sdss_marcs_atmospheres, _get_cool_dwarfs_atm_itp(),
                                      _low_Z_marcs_atmospheres))
+    if warn_about_dangerous_method && !(M_H == alpha_m == C_m == 0) # don't warn for solar abundances
+        @warn "Warning: passing in M_H, alpha_m, and C_m directly into `interpolate_marcs` is not recommended.  Try passing in A_X instead: interpolate_marcs(Teff, logg, A_X; kwargs...). This warning can be turned off by setting the  `warn_about_dangerous_method` keyword argument to `false`."
+    end
     # cool dwarfs
     atm = if Teff <= 4000 && logg >= 3.5 && M_H >= -2.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]

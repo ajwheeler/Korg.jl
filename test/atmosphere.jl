@@ -67,13 +67,21 @@
     end
 
     @testset "model atmosphere interpolation" begin
+        @testset "warn about dangerous method" begin
+            @test_warn "Warning: passing in M_H" interpolate_marcs(5000, 4.0, 1.0, 0, 0)
+
+            @test_nowarn interpolate_marcs(5000, 4.0, 0, 0, 0; warn_about_dangerous_method=false)
+            @test_nowarn Korg.interpolate_marcs(5000, 4.0)
+        end
+
         @testset "methods are equivalent" begin
             teff = 5000.0
             logg = 4.0
             M_H = 0.1
             alpha_H = 0.2
             C_H = 0.3
-            atm1 = interpolate_marcs(teff, logg, M_H, alpha_H - M_H, C_H - M_H)
+            atm1 = interpolate_marcs(teff, logg, M_H, alpha_H - M_H, C_H - M_H;
+                                     warn_about_dangerous_method=false)
             A_X = format_A_X(M_H, alpha_H, Dict("C" => C_H);
                              solar_abundances=Korg.grevesse_2007_solar_abundances)
             atm2 = interpolate_marcs(teff, logg, A_X)
@@ -84,7 +92,7 @@
         @testset "clamping abundances" begin
             M_H_nodes = Korg._sdss_marcs_atmospheres[1][3]
 
-            atm1 = interpolate_marcs(5000.0, 3.0, 0, -1.0)
+            atm1 = interpolate_marcs(5000.0, 3.0, 0, -1.0; warn_about_dangerous_method=false)
 
             A_X = format_A_X(0, -5; solar_abundances=Korg.grevesse_2007_solar_abundances)
             @test_throws Korg.LazyMultilinearInterpError interpolate_marcs(5000.0, 3.0, A_X;
@@ -119,8 +127,8 @@
 
         @testset "low-metallicity" begin
             δ = 1e-3
-            atm1 = interpolate_marcs(5000, 4.5, -2.5 + δ, 0.4)
-            atm2 = interpolate_marcs(5000, 4.5, -2.5 - δ, 0.4)
+            atm1 = interpolate_marcs(5000, 4.5, -2.5 + δ, 0.4; warn_about_dangerous_method=false)
+            atm2 = interpolate_marcs(5000, 4.5, -2.5 - δ, 0.4; warn_about_dangerous_method=false)
             @test assert_atmospheres_close(atm1, atm2; tol=1e-2)
 
             # set up A_X with abundances that don't match the MARCS standard comp
@@ -132,18 +140,22 @@
 
             @test_throws ArgumentError interpolate_marcs(5000, 4.5, -3, 0)
 
-            @test_throws Korg.AtmosphereInterpolationError interpolate_marcs(4100, 5.25, -4, 0.4, 0)
+            @test_throws Korg.AtmosphereInterpolationError interpolate_marcs(4100, 5.25, -4, 0.4, 0;
+                                                                             warn_about_dangerous_method=false)
         end
 
         @testset "integer arguments" begin
             # make sure it doesn't crash when it's all integers
 
             # low metallicity
-            @test interpolate_marcs(5000, 1, -3, 0.4, 0) isa Korg.ModelAtmosphere
+            @test interpolate_marcs(5000, 1, -3, 0.4, 0; warn_about_dangerous_method=false) isa
+                  Korg.ModelAtmosphere
             # standard
-            @test interpolate_marcs(5000, 1, -1, 0, 0) isa Korg.ModelAtmosphere
+            @test interpolate_marcs(5000, 1, -1, 0, 0; warn_about_dangerous_method=false) isa
+                  Korg.ModelAtmosphere
             # cool dwarf
-            @test interpolate_marcs(5000, 1, -3, 0.4, 0) isa Korg.ModelAtmosphere
+            @test interpolate_marcs(5000, 1, -3, 0.4, 0; warn_about_dangerous_method=false) isa
+                  Korg.ModelAtmosphere
         end
     end
 end
