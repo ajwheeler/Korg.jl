@@ -1,7 +1,10 @@
 name = "Korg"
 uuid = "acafc109-a718-429c-b0e5-afd7f8c7ae46"
-authors = ["Adam Wheeler <adamwhlr@gmail.com>", "Matthew Abruzzo <matthewabruzzo@gmail.com>"]
-version = "0.47.1"
+authors = [
+    "Adam Wheeler <adamwhlr@gmail.com>",
+    "Matthew Abruzzo <matthewabruzzo@gmail.com>",
+]
+version = "1.0.0"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
@@ -50,4 +53,4 @@ StaticArrays = "1"
 Statistics = "1"
 TableOperations = "1.2.0"
 Trapz = "2"
-julia = "1.7 - 1"
+julia = "1.10 - 1"

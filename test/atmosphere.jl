@@ -70,11 +70,11 @@
         @testset "methods are equivalent" begin
             teff = 5000.0
             logg = 4.0
-            m_H = 0.1
+            M_H = 0.1
             alpha_H = 0.2
             C_H = 0.3
-            atm1 = interpolate_marcs(teff, logg, m_H, alpha_H - m_H, C_H - m_H)
-            A_X = format_A_X(m_H, alpha_H, Dict("C" => C_H);
+            atm1 = interpolate_marcs(teff, logg, M_H, alpha_H - M_H, C_H - M_H)
+            A_X = format_A_X(M_H, alpha_H, Dict("C" => C_H);
                              solar_abundances=Korg.grevesse_2007_solar_abundances)
             atm2 = interpolate_marcs(teff, logg, A_X)
 
@@ -82,7 +82,7 @@
         end
 
         @testset "clamping abundances" begin
-            m_H_nodes = Korg._sdss_marcs_atmospheres[1][3]
+            M_H_nodes = Korg._sdss_marcs_atmospheres[1][3]
 
             atm1 = interpolate_marcs(5000.0, 3.0, 0, -1.0)
 

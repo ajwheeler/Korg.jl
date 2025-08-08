@@ -1,6 +1,6 @@
 @testset "synthesize" begin
     # use this for everything
-    atm_small = let atm = read_model_atmosphere("data/sun.mod")
+    atm_small = let atm = Korg.read_model_atmosphere("data/sun.mod")
         Korg.PlanarAtmosphere(atm.layers[40:43]) # just a few layers for fast tests
     end
 
@@ -34,9 +34,6 @@
     @testset "wavelength handling" begin
         wls = Korg.Wavelengths(5000, 5001)
 
-        msg = "The air_wavelengths keyword argument is deprecated"
-        @test_warn msg synthesize(atm_small, [], format_A_X(), 5000, 5001; air_wavelengths=true)
-
         sol = synthesize(atm_small, [], format_A_X(), wls)
         @testset for wl_params in [
             [5000:0.01:5001],
@@ -46,15 +43,6 @@
             sol2 = synthesize(atm_small, [], format_A_X(), wl_params...)
             @test sol.flux ≈ sol2.flux
         end
-    end
-
-    @testset "MHD for H lines in APOGEE warning" begin
-        msg = "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
-
-        @test_warn msg synthesize(atm_small, [], format_A_X(), 15000, 15001)
-        @test_nowarn synthesize(atm_small, [], format_A_X(), 15000, 15001;
-                                use_MHD_for_hydrogen_lines=false)
-        @test_nowarn synthesize(atm_small, [], format_A_X(), 5000, 5001)
     end
 
     @testset "precomputed chemical equilibrium" begin
