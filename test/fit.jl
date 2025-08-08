@@ -384,4 +384,29 @@ using Random
             @test_throws m Korg.Fit.ews_to_stellar_parameters(linelist, erroneous_EWs)
         end
     end
+
+    @testset "MultiMethod" begin
+        # synthesize a spectrum and get the answer back.
+        # Use synthesize to make this a better integration test,
+        # because multi_method_abundaces is based on synth
+
+        linelist = Korg.get_VALD_solar_linelist()
+        A_X = format_A_X(-0.3, -0.2, Dict("N" => -0.1))
+        atm = interpolate_marcs(5777, 4.44, A_X)
+        sol = synthesize(atm, linelist, A_X, 5000, 5500)
+
+        fe_lines = Korg.air_to_vacuum.([5044.211 5054.642 5127.359 5127.679 5198.711 5225.525 5242.491 5247.05 5250.208 5295.312 5322.041 5373.709 5379.574 5386.334 5466.396 5466.987][:])
+
+        obs_wl = sol.wavelengths
+        obs_flux = Korg.apply_LSF(sol.flux ./ sol.cntm, sol.wavelengths, 100_000)
+
+        out = Korg.Fit.multimethod_abundances(linelist, "m_H", 0.0, fe_lines, obs_flux, obs_wl,
+                                              100_000;
+                                              abundance_perturbations, alpha_H=-0.2, N=-0.1,
+                                              Teff=5777, logg=4.44)
+
+        @test all(out.EW_As ≈ -0.3) atol=0.001
+        @test all(out.depth_As ≈ -0.3) atol=0.001
+        @test all(out.chi2_As ≈ -0.3) atol=0.001
+    end
 end
