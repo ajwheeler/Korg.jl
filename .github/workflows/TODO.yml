@@ -31,7 +31,7 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const todoList = process.env.TODO_LIST;
-            const body = `## TODOs and `@show` instances found in this PR:\n\n\`\`\`\n${todoList}\n\`\`\``;
+            const body = `## TODOs and \`@show\` instances found in this PR:\n\n\`\`\`\n${todoList}\n\`\`\``;
 
             const { data: comments } = await github.rest.issues.listComments({
               issue_number: context.issue.number,

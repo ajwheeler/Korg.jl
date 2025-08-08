@@ -36,7 +36,7 @@ plot(wls, flux, "k-")
 xlabel(L"$\lambda$ [Å]")
 ylabel("continuum-normalized flux");
 ```
-<img width="1001" height="375" alt="image" src="https://github.com/user-attachments/assets/df8553a0-7979-4a35-ad00-4bd9107e0c67" />
+![spectrum](https://github.com/ajwheeler/Korg.jl/assets/711963/70a13b45-4db2-472c-9121-fdd818a47105)
 
 See the [documentation for `synth`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth), or [the documentation for `synthesize`](https://ajwheeler.github.io/Korg.jl/stable/API/#Korg.synth) for advanced usage.
 
@@ -52,7 +52,7 @@ See the [documentation for `synth`](https://ajwheeler.github.io/Korg.jl/stable/A
 # Getting help
 If you are having trouble using or installing Korg, please get in touch by [opening a GitHub issue](https://github.com/ajwheeler/Korg.jl/issues) (preferred), or [sending Adam an email](mailto:adamwhlr@gmail.com).
 
-## You can also call Korg from python
+# You can also call Korg from python
 See [the documentation](https://ajwheeler.github.io/Korg.jl/stable/install/) for setup instructions.
 ```python
 from juliacall import Main as jl
