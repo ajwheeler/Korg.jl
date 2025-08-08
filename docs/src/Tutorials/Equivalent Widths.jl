@@ -26,14 +26,14 @@ end # hide #md
 # which are available in the
 # [`Table 1.dat` file](https://cdsarc.cds.unistra.fr/viz-bin/cat/J/ApJ/791/14#/browse).
 #
-# First, we read the data into a DataFrame called `lines`. This is a convienient way to work with
+# First, we read the data into a DataFrame called `lines`. This is a convenient way to work with
 # tabular data.
 
 lines = CSV.read("../../assets/Table 1.dat", DataFrame; skipto=25, delim=' ', ignorerepeated=true,
                  header=["wl", "species", "ExPot", "log_gf", "C6", "EW_18Sco", "EW_Sun"]);
 
 # Next, we convert the numbers in the species column to [`Korg.Species`](@ref) objects.
-# The `Korg.Species` constructor takes a string, and returns a `Korg.Species` object, and supports
+# The `Korg.Species` constructor takes a string and returns a `Korg.Species` object, and supports
 # nearly all of the formats for specifying species found in the wild.
 #
 # The `.` applies the function to each element of the series. This is called "broadcasting".
@@ -51,8 +51,8 @@ sort!(lines, :wl)
 lines[1:4, :] # look at the first few rows
 
 # To pass the lines to Korg, we need to turn each row of the `lines` DataFrame into a
-# [`Korg.Line`](@ref) object.  Korg will # use reasonable defaults for the broadening parameters,
-# but see the [`Korg.Line` documentation](@ref Korg.Line) details on how to specify them if you need
+# [`Korg.Line`](@ref) object. Korg will use reasonable defaults for the broadening parameters,
+# but see the [`Korg.Line` documentation](@ref Korg.Line) for details on how to specify them if you need
 # to do that.
 
 linelist = Korg.Line.(lines.wl, # can be in either cm or Å (like these), but NOT nm
