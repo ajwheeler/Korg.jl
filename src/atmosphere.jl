@@ -97,43 +97,48 @@ end
 """
     get_tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
 
-This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a
+This is a convenience function for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
 """
 get_tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
-"""
-get_zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
 
-This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a
+"""
+    get_zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
+
+This is a convenience function for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
 """
 get_zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
-"""
-get_temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
 
-This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a
+"""
+    get_temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
+
+This is a convenience function for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
 """
 get_temps(atm::ModelAtmosphere) = [l.temp for l in atm.layers]
-"""
-get_electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density for l in atm.layers]
 
-This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a
+"""
+    get_electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density for l in atm.layers]
+
+This is a convenience function for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
 """
 get_electron_number_densities(atm::ModelAtmosphere) = [l.electron_number_density
                                                        for l in atm.layers]
+
 """
     get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
 
-This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a
+This is a convenience function for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
 """
 get_number_densities(atm::ModelAtmosphere) = [l.number_density for l in atm.layers]
+
 """
     get_gas_pressures(atm::ModelAtmosphere)
 
-This is a convienince functions for making plots, etc.  Note that it doesn't access quantities in a
+This is a convenience function for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
 """
 get_gas_pressures(atm) = [l.number_density * kboltz_cgs * l.temp for l in atm.layers]
@@ -208,12 +213,14 @@ function _prepare_linear_atmosphere_archive(path)
         nodes, grid
     end
 end
+
 _sdss_marcs_atmospheres = let
     # note to self: don't put files in a directory before you tarball it next time.  It's redundant!
     path = joinpath(artifact"SDSS_MARCS_atmospheres_v2", "SDSS_MARCS_atmospheres",
                     "SDSS_MARCS_atmospheres.h5")
     _prepare_linear_atmosphere_archive(path)
 end
+
 _low_Z_marcs_atmospheres = let
     path = joinpath(artifact"MARCS_metal_poor_atmospheres", "MARCS_metal_poor_atmospheres",
                     "MARCS_metal_poor_atmospheres.h5")
@@ -229,7 +236,7 @@ function _prepare_cool_dwarf_atm_archive(grid, nodes)
     nlayers = size(grid, 1)
     knots = tuple(1.0f0:nlayers, 1.0f0:5.0f0, nodes_ranges...)
 
-    # This currently add a lot of time to package precompile time if not done lazily.
+    # This currently adds a lot of time to package precompile time if not done lazily.
     # Ideally it would be faster.
     itp = Interpolations.scale(Interpolations.interpolate(grid,
                                                           (Interpolations.NoInterp(),
@@ -242,6 +249,7 @@ function _prepare_cool_dwarf_atm_archive(grid, nodes)
                                knots)
     itp, nlayers
 end
+
 _cool_dwarfs_atm_itp = nothing
 function _get_cool_dwarfs_atm_itp()
     if isnothing(_cool_dwarfs_atm_itp)
@@ -260,8 +268,9 @@ end
 struct AtmosphereInterpolationError <: Exception
     msg::String
 end
+
 function Base.showerror(io::IO, e::AtmosphereInterpolationError)
-    print(io, "Chemical equilibrium failed: ", e.msg)
+    print(io, "Atmosphere interpolation failed: ", e.msg)
 end
 
 """
@@ -269,7 +278,7 @@ end
     interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; kwargs...) # dangerous!
 
 Returns a model atmosphere computed by interpolating models from [MARCS](https://marcs.astro.uu.se/)
-((Gustafsson+ 2008)[https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract]).
+([Gustafsson+ 2008](https://ui.adsabs.harvard.edu/abs/2008A&A...486..951G/abstract)).
 Along with `Teff` and `logg`, the atmosphere is specified by `M_H`, `alpha_m`, and `C_m`, which can
 be automatically determined from an `A_X` abundance vector (the recommended method,
 see [`format_A_X`](@ref)). Note that the MARCS atmosphere models were constructed with the
@@ -284,24 +293,24 @@ automatically when `A_X` is provided.
     for the solar abundances assumed by MARCS.
 
 `interpolate_marcs` uses three different interpolation schemes for different stellar parameter
-regimes. In the standard case the model atmosphere grid is [the one generated for
+regimes. In the standard case, the model atmosphere grid is [the one generated for
 SDSS](https://dr17.sdss.org/sas/dr17/apogee/spectro/speclib/atmos/marcs/MARCS_v3_2016/Readme_MARCS_v3_2016.txt),
 transformed and linearly interpolated. For cool dwarfs (`Teff` ≤ 4000 K, `logg` ≥ 3.5), the grid is
 resampled onto unchanging `tau_5000` values and interpolated with a cubic spline. For
 low-metallicity models (-5 ≤ `M_H` < -2.5), a grid of standard composition (i.e. fixed alpha and C)
-atmospheres is used.  (The microturbulence is 1km/s for dwarfs and 2km/s for giants and the mass for
+atmospheres is used. (The microturbulence is 1 km/s for dwarfs and 2 km/s for giants, and the mass for
 spherical models is 1 solar mass.) The interpolation method is the same as in the standard case. See
 [Wheeler+ 2024](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract) for more details and
 a discussion of errors introduced by model atmosphere interpolation. (Note that the cubic scheme for
 cool dwarfs is referred to as not-yet-implemented in the paper but is now available.)
 
-# keyword arguments
+# Keyword Arguments
 
   - `spherical`: whether or not to return a ShellAtmosphere (as opposed to a PlanarAtmosphere).  By
     default true when `logg` < 3.5.
   - `warn_about_dangerous_method`: (default: `true`) Whether or not to warn about using the
-    non-recommended method of passing in `M_H`, `alpha_M`, and `C_M` in directly. This warning will
-    also not be throw for solar abundances.
+    non-recommended method of passing in `M_H`, `alpha_M`, and `C_M` directly. This warning will
+    not be thrown for solar abundances.
   - `solar_abundances`: (default: `grevesse_2007_solar_abundances`) The solar abundances to use when
     `A_X` is provided instead of `M_H`, `alpha_M`, and `C_M`. The default is chosen to match that of
     the atmosphere grid, and if you change it you are likely trying to do something else.
@@ -345,14 +354,16 @@ function interpolate_marcs(Teff, logg, A_X::AbstractVector{<:Real}; M_H=0,
                       warn_about_dangerous_method=false,
                       kwargs...)
 end
+
 function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg < 3.5,
                            warn_about_dangerous_method=true,
                            perturb_at_grid_values=true, resampled_cubic_for_cool_dwarfs=true,
                            archives=(_sdss_marcs_atmospheres, _get_cool_dwarfs_atm_itp(),
                                      _low_Z_marcs_atmospheres))
     if warn_about_dangerous_method && !(M_H == alpha_m == C_m == 0) # don't warn for solar abundances
-        @warn "Warning: passing in M_H, alpha_m, and C_m directly into `interpolate_marcs` is not recommended.  Try passing in A_X instead: interpolate_marcs(Teff, logg, A_X; kwargs...). This warning can be turned off by setting the  `warn_about_dangerous_method` keyword argument to `false`."
+        @warn "Warning: passing in M_H, alpha_m, and C_m directly into `interpolate_marcs` is not recommended.  Try passing in A_X instead: interpolate_marcs(Teff, logg, A_X; kwargs...). This warning can be turned off by setting the `warn_about_dangerous_method` keyword argument to `false`."
     end
+
     # cool dwarfs
     atm = if Teff <= 4000 && logg >= 3.5 && M_H >= -2.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]
@@ -381,7 +392,7 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg <
         atm_quants = lazy_multilinear_interpolation(params, nodes, grid; param_names=param_names,
                                                     perturb_at_grid_values=perturb_at_grid_values)
 
-        # grid atmospheres are allowed to have to NaNs to represent layers that should be dropped.
+        # grid atmospheres are allowed to have NaNs to represent layers that should be dropped.
         nanmask = .!isnan.(atm_quants[:, 4]) # any column will do. This is τ_5000.
 
         if spherical
@@ -405,6 +416,7 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg <
     end
     atm
 end
+
 # handle the case where Teff, logg, and [m/H] are integers. As long as not all (interpolated) params
 # are passed in as integers, there's no problem.
 function interpolate_marcs(Teff::Int, logg::Int, M_H::Int, args...; kwargs...)
