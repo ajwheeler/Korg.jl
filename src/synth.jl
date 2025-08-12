@@ -2,8 +2,8 @@
     synth(kwargs...)
 
 This function creates a synthetic spectrum. It's easier to use than [`synthesize`](@ref), but it
-gives you less control.  `Korg.synth` also provides shortcuts for some ways
-you might want to post-process the spectrum (applying a LSF, rotation, etc).
+gives you less control. `Korg.synth` also provides shortcuts for some ways
+you might want to post-process the spectrum (applying a LSF, rotation, etc.).
 
 # Returns
 
@@ -19,11 +19,11 @@ from the return type of [`synthesize`](@ref), which is [`SynthesisResult`](@ref)
     how this is interpreted.)
   - `alpha_H`: alpha enhancement, [α/H], (default: `M_H`) (See [`format_A_X`](@ref) for precisely
     how this is interpreted.)
-  - _Any atomic symbol_ (e.g. `Fe` or `C`) can be used to to specify a (solar relative, [_X_/H])
+  - _Any atomic symbol_ (e.g. `Fe` or `C`) can be used to specify a (solar relative, [_X_/H])
     abundance. These override `M_H` and `alpha_H`. Specifying an individual abundance means
     that the true metallicity and alpha will not correspond precisely to the values of `M_H`
     and `alpha_H`. See [`format_A_X`](@ref) for details.
-  - `linelist`: a linelist, (default: [`get_VALD_solar_linelist()`](@ref)). See also
+  - `linelist`: a linelist (default: [`get_VALD_solar_linelist()`](@ref)). See also
     [`read_linelist`](@ref).
   - `wavelengths`: a tuple of the start and end wavelengths (default: (5000, 6000)), or a vector
     of `(λstart, λstop)` pairs. See [`Wavelengths`](@ref) for all the ways the wavelengths can
@@ -35,8 +35,8 @@ from the return type of [`synthesize`](@ref), which is [`SynthesisResult`](@ref)
   - `vsini`: projected rotational velocity in km/s (default: 0). This calls [`apply_rotation`](@ref)
     under the hood.
   - `vmic`: microturbulent velocity in km/s (default: 1.0).
-  - `synthesize_kwargs`: additional keyword arguments pass to [`synthesize`](@ref).
-  - `format_A_X_kwargs`: additional keyword arguments pass to [`format_A_X`](@ref).
+  - `synthesize_kwargs`: additional keyword arguments passed to [`synthesize`](@ref).
+  - `format_A_X_kwargs`: additional keyword arguments passed to [`format_A_X`](@ref).
 """
 function synth(;
                Teff=nothing,
@@ -56,7 +56,7 @@ function synth(;
         throw(ArgumentError("m_H is no longer a supported keyword argument of synth (starting in Korg 1.0). Use M_H instead."))
     end
 
-    # Check for invalid arguments.  Because we catch all in abundances, the default error message is 
+    # Check for invalid arguments.  Because we catch all in abundances, the default error message is
     # confusing.
     for key in keys(abundances)
         if !(String(key) in Korg.atomic_symbols)

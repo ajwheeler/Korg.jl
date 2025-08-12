@@ -17,7 +17,7 @@ Returns a pair containing:
 function merge_bounds(bounds, merge_distance=0.0)
     bound_indices = 1:length(bounds)
 
-    # short by lower bound
+    # sort by lower bound
     s = sortperm(bounds; by=first)
     bounds = bounds[s]
     bound_indices = bound_indices[s]

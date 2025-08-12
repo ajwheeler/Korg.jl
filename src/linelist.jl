@@ -17,21 +17,21 @@ struct Line{F1,F2,F3,F4,F5,F6}
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F,
              gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing,
-             vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
+             vdW::Union{F, Tuple{F, F}, Missing}=missing) where F <: Real
 
     Arguments:
      - `wl`: wavelength (Assumed to be in cm if < 1, otherwise in Å)
      - `log_gf`: (log base 10) oscillator strength (unitless)
      - `species`: the `Species` associated with the line
-     - `E_lower`: The energy (excitiation potential) of the lower energy level (eV)
+     - `E_lower`: The energy (excitation potential) of the lower energy level (eV)
 
     Optional Arguments (these override default recipes):
-     - `gamma_rad`: Fundemental width
+     - `gamma_rad`: Fundamental width
      - `gamma_stark`: per-perturber Stark broadening width at 10,000 K (s⁻¹).
-     - `vdW`: If this is present, it may may be
+     - `vdW`: If this is present, it may be
          - `log10(γ_vdW)`, assumed if negative
          - 0, corresponding to no vdW broadening
-         - A fudge factor for the Unsoeld approximation, assumed if between 0 and 20
+         - A fudge factor for the Unsöld approximation, assumed if between 0 and 20
          - The [ABO parameters](https://github.com/barklem/public-data/tree/master/broadening-howto)
            as packed float (assumed if >= 20) or a `Tuple`, `(σ, α)`.
 
@@ -40,11 +40,11 @@ struct Line{F1,F2,F3,F4,F5,F6}
     See [`approximate_gammas`](@ref) for more information on the default recipes for `gamma_stark`
     and `vdW`.
 
-    Note the the "gamma" values here are FWHM, not HWHM, of the Lorenztian component of the line
+    Note that the "gamma" values here are FWHM, not HWHM, of the Lorentzian component of the line
     profile, and are in units of s⁻¹.
 
 
-        Line(line::line; kwargs...)
+        Line(line::Line; kwargs...)
 
     Construct a new `Line` by copying the values from an existing `Line`.  Any of the values can be
     modified with keyword arguments, e.g. `Line(line, log_gf=0.0)`.
@@ -132,20 +132,20 @@ end
 """
     approximate_gammas(wl, species, E_lower; ionization_energies=Korg.ionization_energies)
 
-A simplified form of the Unsoeld (1955) approximation for van der Waals broadening and the
+A simplified form of the Unsöld (1955) approximation for van der Waals broadening and the
 [Cowley 1971](https://ui.adsabs.harvard.edu/abs/1971Obs....91..139C/abstract) approximation for
 Stark broadening, evaluated at 10,000 K.
-Used for atomic lines with no vdW and stark broadening info in the linelist.
+Used for atomic lines with no vdW and Stark broadening info in the linelist.
 
 Returns `(γ_stark`, `log10(γ_vdW))` in Hz, where these are the per-perturber quantities.
-For autoionizing lines (those for which E_upper > χ), Returns 0.0 for γ_vdW. Note the the "gamma"
-values here are FWHM, not HWHM, of the Lorenztian component of the line profile.
+For autoionizing lines (those for which E_upper > χ), returns 0.0 for γ_vdW. Note that the "gamma"
+values here are FWHM, not HWHM, of the Lorentzian component of the line profile.
 
 In the calculation of `n*²`, uses the approximation that
 ``\\overbar{r^2} = 5/2 {n^*}^4 / Z^2``
-which neglects the dependence on the angular momentum quantum number, l, in the the form given by
-[Warner 1967](https://ui.adsabs.harvard.edu/abs/1967MNRAS.136..381W/abstract) (the earliest english
-work reporting the Unsoeld result).
+which neglects the dependence on the angular momentum quantum number, l, in the form given by
+[Warner 1967](https://ui.adsabs.harvard.edu/abs/1967MNRAS.136..381W/abstract) (the earliest English
+work reporting the Unsöld result).
 """
 function approximate_gammas(wl, species, E_lower; ionization_energies=ionization_energies)
     Z = species.charge + 1 #Z is ionization stage, not atomic number
@@ -192,7 +192,7 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
 
   - `spec`: the species, i.e. the molecule that the linelist is for
   - `states_file`: the path to the ExoMol states file
-  - `transitions_file`: the path to the ExoMol, transitions file
+  - `transitions_file`: the path to the ExoMol transitions file
   - `upper_wavelength`: the upper limit of the wavelength range to load (Å)
   - `lower_wavelength`: the lower limit of the wavelength range to load (Å)
 
@@ -298,8 +298,8 @@ The `format` keyword argument can be used to specify one of these linelist forma
     for the upper or lower levels, so it won't fall back on generic ABO recipes when the ABO
     parameters are not available.
     Korg's interpretation of the `fdamp` parameter is also slightly different from Turbospectrum's.
-    See the documentation of the `vdW` parameter of [`Line`](@ref) for details.  Korg will error if
-    encounters an Unsoeld fudge factor, which it does not support.
+    See the documentation of the `vdW` parameter of [`Line`](@ref) for details.  Korg will error if it
+    encounters an Unsöld fudge factor, which it does not support.
   - "turbospectrum_vac" for a Turbospectrum linelist in vacuum wavelengths.
   - "korg" for a Korg linelist (saved with hdf5). If the filename ends in `.h5`, this will be used
     by default.
@@ -383,7 +383,7 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, ver
     for row in eachline(f)
         row == "" && continue #skip empty lines
 
-        #some linelists have a missing column in the wavelenth region
+        #some linelists have a missing column in the wavelength region
         if length(row) == 159
             row = " " * row
         end
@@ -484,7 +484,7 @@ function parse_vald_linelist(f, isotopic_abundances)
     end
 
     #we take the linelist to be long-format when the second line after the header starts with a
-    #space or a quote followed a space.  In some linelists the quotes are there, but in others
+    #space or a quote followed by a space.  In some linelists the quotes are there, but in others
     #they are not.
     shortformat = !(occursin(r"^\"? ", lines[firstline+1]))
     body = lines[firstline:(shortformat ? 1 : 4):end]
@@ -564,7 +564,7 @@ function parse_moog_linelist(f, isotopic_abundances, vacuum_wavelengths)
     linelist = map(lines[2:end]) do line
         toks = split(line)
 
-        # special hanlding for the decimal part of species strings.  MOOG uses the first digit only
+        # special handling for the decimal part of species strings.  MOOG uses the first digit only
         # to represent the charge.  The rest contains isotopic info.
         dotind = findfirst('.', toks[2])
         spec = Species(toks[2][1:dotind+1])
@@ -583,7 +583,7 @@ function parse_moog_linelist(f, isotopic_abundances, vacuum_wavelengths)
                 if m in keys(isotopic_abundances[el])
                     log10(isotopic_abundances[el][m])
                 else
-                    @info "No isotopic abundance for $(atomic_symbols[el]) $m. Leaving the log(gf) unchanged. (Occured when parsing $line)"
+                    @info "No isotopic abundance for $(atomic_symbols[el]) $m. Leaving the log(gf) unchanged. (Occurred when parsing $line)"
                     0.0
                 end
             end |> sum
@@ -632,7 +632,7 @@ function parse_turbospectrum_linelist(fn, isotopic_abundances, vacuum)
         spec = Korg.Species(formula, charge)
         n_lines = parse(Int, m["n_lines"])
         if last_line_ind - first_line_ind - 1 != n_lines
-            error("Can't parse this line list.  The file says there are $n_lines lines for $spec, but I see $(last_line_ind - first_line_ind - 2) lines.")
+            error("Can't parse this linelist.  The file says there are $n_lines lines for $spec, but I see $(last_line_ind - first_line_ind - 2) lines.")
         end
 
         isostring = m["isostring"]
@@ -652,7 +652,7 @@ function parse_turbospectrum_linelist(fn, isotopic_abundances, vacuum)
 end
 
 function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
-    # from the Turbospectrum docs (In practice linelists may have as few at 6 columns:
+    # from the Turbospectrum docs (In practice linelists may have as few as 6 columns):
     #
     # For each line that follows:
     # col 1: lambda(A)
@@ -777,7 +777,7 @@ get_VALD_solar_linelist() = read_linelist(joinpath(_data_dir, "linelists",
     get_APOGEE_DR17_linelist(; include_water=true)
 
 The APOGEE DR 17 linelist.  It ranges from roughly 15,000 Å to 17,000 Å.  It is
-nearly the same at the DR 16 linelist described in
+nearly the same as the DR 16 linelist described in
 [Smith+ 2021](https://ui.adsabs.harvard.edu/abs/2021AJ....161..254S/abstract).
 """
 function get_APOGEE_DR17_linelist(; include_water=true)
@@ -884,11 +884,13 @@ end
 """
     _load_alpha_5000_linelist([path])
 
+
 Load the default linelist for calculating the absorption coefficient at 5000 Å.  This for internal
 use when the provided linelist doesn't cover the region and a radiative transfer scheme τ_ref for
 λ_ref = 5000 Å is used.
 
-This linelist loaded into `Korg._alpha_5000_default_linelist` when Korg is imported.
+
+This linelist is loaded into `Korg._alpha_5000_default_linelist` when Korg is imported.
 """
 function _load_alpha_5000_linelist(path=joinpath(_data_dir, "linelists", "alpha_5000",
                                                  "alpha_5000_lines.csv"))
