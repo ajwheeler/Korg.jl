@@ -31,7 +31,7 @@
 
             # truncate model atmosphere for speed
             atm = Korg.read_model_atmosphere("data/sun.mod")
-            atm = Korg.PlanarAtmosphere(atm.layers[1:3])
+            atm = Korg.PlanarAtmosphere(atm.layers[1:3], atm.reference_wavelength)
 
             # make sure things run (types have caused problems in the past)
             λ = linelist[1].wl * 1e8
