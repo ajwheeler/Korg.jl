@@ -30,7 +30,7 @@ struct Formula
     """
         Formula(code::String)
 
-    Construct a Formula from an encoded string form.  This can be a MOOG-style numeric code,
+    Construct a Formula from an encoded string form. This can be a MOOG-style numeric code,
     i.e. "0801" for OH, or an atomic or molecular symbol, i.e. "FeH", "Li", or "C2".
     """
     function Formula(code::AbstractString)
@@ -47,7 +47,7 @@ struct Formula
                 el2 = parse(Int, code[end-1:end]) #second digit
                 new([zeros(UInt8, MAX_ATOMS_PER_MOLECULE - 2); min(el1, el2); max(el1, el2)])
             elseif length(code) / 2 <= MAX_ATOMS_PER_MOLECULE
-                # if there are an odd number of digits, pad the front with a zero
+                # If there are an odd number of digits, pad the front with a zero
                 if length(code) % 2 == 1
                     code = "0" * code
                 end
@@ -59,7 +59,7 @@ struct Formula
                 throw(ArgumentError("Korg only supports atoms with up to $MAX_ATOMS_PER_MOLECULE nuclei. (Trying to parse $code)"))
             end
         else
-            #otherwise, code should be "OH", "FeH", "Li", "C2", etc.
+            # Otherwise, code should be "OH", "FeH", "Li", "C2", etc.
             inds::Vector{Int} = findall(code) do c
                 isdigit(c) || isuppercase(c)
             end
@@ -87,14 +87,14 @@ struct Formula
     end
 end
 
-# make it broadcast like a scalar
+# Make it broadcast like a scalar
 Base.broadcastable(f::Formula) = Ref(f)
 
 """
     get_atoms(x)
 
 Returns an array view containing the atomic number of each atom that makes up the formula or species
-x.  E.g. `get_atoms(Korg.species"H2O")` yields [1, 1, 8].
+x. E.g. `get_atoms(Korg.species"H2O")` yields [1, 1, 8].
 """
 function get_atoms(f::Formula)
     i = findlast(f.atoms .== 0)
@@ -112,7 +112,7 @@ Returns the atomic number of an atomic Korg.Species or Korg.Formula.
 """
 function get_atom(f::Formula)
     if ismolecule(f)
-        throw(ArgumentError("Can't get the atomic number of a molecule.  Use `Korg.get_atoms` instead."))
+        throw(ArgumentError("Can't get the atomic number of a molecule. Use `Korg.get_atoms` instead."))
     end
     get_atoms(f)[1]
 end
@@ -131,10 +131,10 @@ function n_atoms(f::Formula)
     end
 end
 
-# it's important that this produces something parsable by the constructor
+# It's important that this produces something parsable by the constructor
 function Base.show(io::IO, f::Formula)
     i = findfirst(f.atoms .!= 0)
-    @assert !isnothing(i) # formula with no atoms should be allowed by the constructor
+    @assert !isnothing(i) # Formula with no atoms should be allowed by the constructor
 
     a = f.atoms[i]
     n_of_this_atom = 1
@@ -213,18 +213,18 @@ representing the species. `code` can be either a string or a float.
 
 !!! note
 
-    To parse at compile time, use the `species` string macro, i.e. `species"H I"`.  This is
+    To parse at compile time, use the `species` string macro, i.e. `species"H I"`. This is
     important in hot inner loops.
 
 !!! warning
 
     MOOG codes which include isotopic information will not be parsed correctly by this function,
-    though [`read_linelist`](@ref) handles them correctly. # leading 0s are safe to remove
+    though [`read_linelist`](@ref) handles them correctly.
 """
 function Species(code::AbstractString)
-    code = strip(code, ['0', ' ']) # leading 0s are safe to remove
+    code = strip(code, ['0', ' ']) # Leading 0s are safe to remove
 
-    # if the species ends in "+" or "-", convert it to a numerical charge. Remember, the ionization
+    # If the species ends in "+" or "-", convert it to a numerical charge. Remember, the ionization
     # number is the charge+1, so for us "H 0" is H⁻ and "H 2" in H⁺.
     if code[end] == '+'
         code = code[1:end-1] * " 2"
@@ -232,26 +232,26 @@ function Species(code::AbstractString)
         code = code[1:end-1] * " 0"
     end
 
-    # these are the valid separators between the atomic number part of a species code and the
-    # charge-containing part.  For example, "01.01" parses the same as "01 01", but "01,01" fails.
-    # Or, "C 2" parses the same at "C.2".  "-"s can't be separators as they can be minus signs.
+    # These are the valid separators between the atomic number part of a species code and the
+    # charge-containing part. For example, "01.01" parses the same as "01 01", but "01,01" fails.
+    # Or, "C 2" parses the same at "C.2". "-"s can't be separators as they can be minus signs.
     toks = split(code, [' ', '.', '_'])
-    # this allows for leading, trailing, and repeat separators.  "01.01" parses the same as
+    # This allows for leading, trailing, and repeat separators. "01.01" parses the same as
     # ".01..01.".
     filter!(!=(""), toks)
 
     if length(toks) > 2
         throw(ArgumentError(code * " isn't a valid species code"))
     end
-    #convert toks[1] from Substring to String.  Better for type stability in Formula
+    # Convert toks[1] from Substring to String. Better for type stability in Formula
     formula = Formula(String(toks[1]))
     charge = if length(toks) == 1 || length(toks[2]) == 0
-        0 #no charge specified -> assume neutral
+        0 # No charge specified -> assume neutral
     else
-        # first check if the "charge tag" is a roman numeral.  If it's not, parse it as an Int.
+        # First check if the "charge tag" is a roman numeral. If it's not, parse it as an Int.
         charge = findfirst(toks[2] .== roman_numerals)
         charge = (charge isa Int ? charge : parse(Int, toks[2]))
-        # if this is a Kurucz-style numeric code, the charge is correct, otherwise subtract 1
+        # If this is a Kurucz-style numeric code, the charge is correct, otherwise subtract 1
         if tryparse(Float64, code) === nothing
             charge -= 1
         end
@@ -261,10 +261,10 @@ function Species(code::AbstractString)
 end
 Species(code::AbstractFloat) = Species(string(code))
 
-# make it broadcast like a scalar
+# Make it broadcast like a scalar
 Base.broadcastable(s::Species) = Ref(s)
 
-#used to contruct Species at compile time and avoid parsing in hot loops
+# Used to construct Species at compile time and avoid parsing in hot loops
 macro species_str(s)
     Species(s)
 end
