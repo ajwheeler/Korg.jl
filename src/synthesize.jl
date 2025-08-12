@@ -14,8 +14,8 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
     spectrum obtained with an empty linelist and with H lines turned off.
   - `intensity`: the intensity at each wavelength and mu value, and possibly each layer in the model
     atmosphere, depending on the radiative transfer scheme.
-  - `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer a Matrix of
-    size (layers x wavelengths)
+  - `alpha`: the linear absorption coefficient at each wavelength and atmospheric layer, a Matrix of
+    size (layers × wavelengths)
   - `mu_grid`: a vector of tuples containing the μ values and weights used in the radiative transfer
     calculation. Can be controlled with the `mu_values` keyword argument.
   - `number_densities`: A dictionary mapping `Species` to vectors of number densities at each
@@ -56,7 +56,7 @@ Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
     uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
   - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
     pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`
-    (or as an valid arugments to the [`Wavelengths`](@ref) constructor).
+    (or as valid arguments to the [`Wavelengths`](@ref) constructor).
 
 # Example
 
@@ -72,12 +72,12 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 
 # Optional arguments:
 
-  - `vmic` (default: 1) is the microturbulent velocity, ``\\xi``, in km/s.  This can be either a scalar
+  - `vmic` (default: 1): the microturbulent velocity, ``\\xi``, in km/s. This can be either a scalar
     value or a vector of values, one for each atmospheric layer.
-  - `line_buffer` (default: 10): the farthest (in Å) any line can be from the provided wavelength range
-    before it is discarded.  If the edge of your window is near a strong line, you may have to turn
+  - `line_buffer` (default: 10): the farthest distance (in Å) any line can be from the provided wavelength range
+    before it is discarded. If the edge of your window is near a strong line, you may have to turn
     this up.
-  - `cntm_step` (default 1): the distance (in Å) between point at which the continuum opacity is
+  - `cntm_step` (default: 1): the distance (in Å) between points at which the continuum opacity is
     calculated.
   - `hydrogen_lines` (default: `true`): whether or not to include H lines in the synthesis.
   - `use_MHD_for_hydrogen_lines`: whether or not to use the MHD occupation
@@ -89,17 +89,17 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
   - `mu_values` (default: 20): the number of μ values at which to calculate the surface flux, or a
     vector of the specific values to use when doing transfer in spherical geometry. If `mu_points` is
     an integer, the values are chosen per Gauss-Legendre integration. If they are specified directly,
-    the trapezoid rule is used for the astrophysical flux. The default values is sufficient for
-    accuracy at the 10^-3 level. Note that if you are using the default radiative transfer scheme,
+    the trapezoid rule is used for the astrophysical flux. The default value is sufficient for
+    accuracy at the 10^-3 level. Note that if you are using the default radiative transfer scheme
     with a plane-parallel model atmosphere, the integral over μ is exact, so this parameter has no
     effect. The points and weights are returned in the `mu_grid` field of the output.
   - `line_cutoff_threshold` (default: `3e-4`): the fraction of the continuum absorption coefficient
-    at which line profiles are truncated.  This has major performance impacts, since line absorption
-    calculations dominate more syntheses.  Turn it down for more precision at the expense of runtime.
-    The default value should effect final spectra below the 10^-3 level.
+    at which line profiles are truncated. This has major performance impacts, since line absorption
+    calculations dominate most syntheses. Turn it down for more precision at the expense of runtime.
+    The default value should affect final spectra at by a factor of 10^-3 or less compared to no cutoff.
   - `electron_number_density_warn_threshold` (default: `Inf`): if the relative difference between the
     calculated electron number density and the input electron number density is greater than this value,
-    a warning is printed.  By default, this warning is suppress (threshold is `Inf`) because it is
+    a warning is printed. By default, this warning is suppressed (threshold is `Inf`) because it is
     very easily raised in cases where it is of no observable consequence.
     See also `electron_number_density_warn_min_value`, below.
   - `electron_number_density_warn_min_value` (default: `1e-4`): The minimum value of the ratio of
@@ -110,12 +110,12 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
     for computing the opacity at the reference wavelength, which is used for radiative transfer when
     `tau_scheme` is "anchored". If this is false, `linelist` will be used instead if it overlaps with
     the reference wavelength (5000 Å for MARCS model atmospheres).
-  - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies,
+  - `ionization_energies`: a `Dict` mapping `Species` to their first three ionization energies,
     defaults to `Korg.ionization_energies`.
-  - `partition_funcs`, a `Dict` mapping `Species` to partition functions (in terms of ln(T)). Defaults
-    to data from Barklem & Collet 2016, `Korg.default_partition_funcs`.
-  - `equilibrium_constants`, a `Dict` mapping `Species` representing diatomic molecules to the base-10
-    log of their molecular equilibrium constants in partial pressure form.  Defaults to data from
+  - `partition_funcs`: a `Dict` mapping `Species` to partition functions (as functions of ln(T)).
+    Defaults to data from Barklem & Collet 2016, `Korg.default_partition_funcs`.
+  - `equilibrium_constants`: a `Dict` mapping `Species` representing diatomic molecules to the base-10
+    log of their molecular equilibrium constants in partial pressure form. Defaults to data from
     Barklem and Collet 2016, `Korg.default_log_equilibrium_constants`.
   - `use_chemical_equilibrium_from` (default: `nothing`): Takes another solution returned by
     `synthesize`. When provided, the chemical equilibrium solution will be taken from this object,
@@ -124,11 +124,12 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
   - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See
     [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
     transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
-  - `tau_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and
-    "bezier" (testing only--not recommended).
-  - `I_scheme` (default: `"linear_flux_only"`): how to compute the intensity.  Options are `"linear"`,
-    `"linear_flux_only"`, and `"bezier"`.  `"linear_flux_only"` is the fastest, but does not return the
-    intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
+  - `tau_scheme` (default: "linear"): how to compute the optical depth. Options are "linear" and
+    "bezier" (this is slower and probably less accurate, but it does not require the model
+    atmosphere to have optical depth at a reference wavelength).
+  - `I_scheme` (default: `"linear_flux_only"`): how to compute the intensity. Options are `"linear"`,
+    `"linear_flux_only"`, and `"bezier"`. `"linear_flux_only"` is the fastest, but does not return the
+    intensity values anywhere except at the top of the atmosphere. "linear" performs an equivalent
     calculation, but stores the intensity at every layer. `"bezier"` is for testing and not
     recommended.
 """
@@ -163,7 +164,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # we should really have an upper bound as well
     min_allowed_wavelength = 1300.0 * 1e-8  # cm
     if first(wls) < min_allowed_wavelength
-        # this restruction comes from the Rayleigh scattering calculations
+        # this restriction comes from the Rayleigh scattering calculations
         throw(ArgumentError("Requested wavelength range ($(wls)) " *
                             " extends blue-ward of 1300 Å, the lowerest allowed wavelength."))
     end
@@ -172,7 +173,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     cntm_step *= 1e-8
     line_buffer *= 1e-8
 
-    # wavelenths at which to calculate the continuum
+    # wavelengths at which to calculate the continuum
     cntm_windows = map(eachwindow(wls)) do (λstart, λstop)
         (λstart - line_buffer - cntm_step, λstop + line_buffer + cntm_step)
     end
@@ -181,7 +182,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     #sort the lines if necessary
     if !issorted(linelist; by=l -> l.wl)
-        @warn "Linelist isn't sorted.  Sorting it, which may cause a significant delay."
+        @warn "Linelist isn't sorted. Sorting it, which may cause a significant delay."
         linelist = sort(linelist; by=l -> l.wl)
     end
     # sort linelist and remove lines far from the synthesis region
@@ -321,15 +322,16 @@ function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
 end
 
 """
-    get_reference_wavelength_linelist(linelist)
+    get_reference_wavelength_linelist(linelist; use_internal_reference_linelist=true)
 
 Arguments:
 
   - `linelist`: the user-specified linelist.
 
 Return a linelist which can be used to calculate the absorption at 5000 Å, which is required for
-the standard radiative transfer scheme.  If the provided linelist doesn't contain lines near 5000 Å,
-use the built-in one. (see [`_load_alpha_5000_linelist`](@ref))
+the standard radiative transfer scheme.  If `use_internal_reference_linelist` is true (the default)
+or the provided linelist doesn't contain lines near 5000 Å, use the built-in one.
+(See [`_load_alpha_5000_linelist`](@ref).)
 """
 function get_reference_wavelength_linelist(linelist; use_internal_reference_linelist)
     if use_internal_reference_linelist

@@ -2,7 +2,7 @@
     Korg.Wavelengths(wl_params...; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
 
 Construct a `Wavelengths` object which represents the (possibly non-contiguous) wavelengths for
-which to compute a spectrum.  The wavelengths can be specified with an upper and lower bound, or
+which to compute a spectrum. The wavelengths can be specified with an upper and lower bound, or
 a vector of upper and lower bounds. For example,
 
     Korg.Wavelengths(5000, 5500)
@@ -15,15 +15,15 @@ are assumed to be in cm.
 # Keyword Arguments
 
   - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
-    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
-    wavelength range can internally be represented by an evenly-spaced range.  If the approximation
+    be converted to vacuum wavelengths by Korg. The conversion will not be exact, so that the
+    wavelength range can internally be represented by an evenly-spaced range. If the approximation
     error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
     wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
   - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
 """
 struct Wavelengths{F,R} <: AbstractArray{F,1}
     wl_ranges::Vector{R} # in cm, not Å
-    # precomputed arrays.  It may(?) be faster to lazily compute these.
+    # Precomputed arrays. It may(?) be faster to lazily compute these.
     all_wls::Vector{F}
     all_freqs::Vector{F}
 
@@ -36,7 +36,7 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
         end
 
         if !isconcretetype(eltype(wl_ranges))
-            @warn "Korg.Wavelengths is begin constructed with an abstract range type, which will hurt performance."
+            @warn "Korg.Wavelengths is being constructed with an abstract range type, which will hurt performance."
         end
 
         # this could be more efficient
@@ -55,7 +55,7 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
                     throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
                                         *
                                         "linear vacuum wavelength range. This solution differs by up to " *
-                                        "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you " *
+                                        "$max_diff Å. Adjust wavelength_conversion_warn_threshold if you " *
                                         "want to suppress this error."))
                 end
                 vac_wls
@@ -108,7 +108,7 @@ Wavelengths(wls::Tuple{<:Real,<:Real}; kwargs...) = Wavelengths([wls]; kwargs...
 # implement the AbstractArray interface
 # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array
 Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear()
-Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitely defines Base.length
+Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitly defines Base.length
 Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
 
 function Base.show(io::IO, wl::Wavelengths)
