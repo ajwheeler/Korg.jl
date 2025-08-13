@@ -1,7 +1,8 @@
 @testset "synthesize" begin
     # use this for everything
     atm_small = let atm = Korg.read_model_atmosphere("data/sun.mod")
-        Korg.PlanarAtmosphere(atm.layers[40:43]) # just a few layers for fast tests
+        # just a few layers for fast tests
+        Korg.PlanarAtmosphere(atm.layers[40:43], atm.reference_wavelength)
     end
 
     @testset "vmic specification" begin
