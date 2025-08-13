@@ -6,8 +6,6 @@ import Interpolations
 
 abstract type ModelAtmosphere end
 
-# TODO audit for all "5000"s and replace with "reference_wavelength"
-
 """
     PlanarAtmosphereLayer(tau_ref, z, temp, nₑ, n)
 
