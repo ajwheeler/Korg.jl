@@ -333,7 +333,6 @@ function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
 end
 
 """
-
     get_reference_wavelength_linelist(linelist, reference_wavelength)
 
 Arguments:
