@@ -58,17 +58,17 @@ rng = MersenneTwister(368) # n.b. this is not guaranteed to be stable across Jul
 # Note that many of these Teff/logg combinations will be unphysical.
 Teff = rand(rng, Uniform(2800, 8000), nspec)
 logg = rand(rng, Uniform(-0.5, 5.5), nspec)
-m_H = rand(rng, Uniform(-2.5, 0.5), nspec)
+M_H = rand(rng, Uniform(-2.5, 0.5), nspec)
 
 # turn those metallicities into full abundance vectors
 A_X = Matrix{Float64}(undef, Korg.MAX_ATOMIC_NUMBER, nspec)
 for i in 1:nspec
-    A_X[:, i] .= format_A_X(m_H[i])
+    A_X[:, i] .= format_A_X(M_H[i])
 end
 
 h5write("$(runName)/korg_grid_params.h5", "Teff", Teff)
 h5write("$(runName)/korg_grid_params.h5", "logg", logg)
-h5write("$(runName)/korg_grid_params.h5", "m_H", m_H)
+h5write("$(runName)/korg_grid_params.h5", "M_H", M_H)
 h5write("$(runName)/korg_grid_params.h5", "abundances", A_X)
 
 # iterate over each combination of parameters, producing a spectrum
