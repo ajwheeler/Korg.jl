@@ -43,7 +43,7 @@ tutorial_pages = map(readdir(tutorial_dir)) do literate_source_file
 
     # generate markdown and notebook files
     markdown_path = Literate.markdown(inpath, tutorial_output_dir; config=literate_config)
-    Literate.notebook(inpath, tutorial_output_dir; config=literate_config)
+    @time Literate.notebook(inpath, tutorial_output_dir; config=literate_config)
 
     # Make path relative to docs/src/. This is what Documenter.makedocs wants.
     rel_markdown_path = replace(markdown_path, r"^.*?docs/src/" => "")
