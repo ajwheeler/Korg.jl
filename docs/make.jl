@@ -8,8 +8,8 @@ using Documenter, Literate, Suppressor, ArgParse, Korg # Korg is Pkg.dev'ed in t
 s = ArgParseSettings()
 #! format: off
 @add_arg_table! s begin
-    "--no-execute"
-    help = "Don't execute code blocks or run tutorial notebooks"
+    "--draft"
+    help = "Don't execute code blocks or run tutorial notebooks. Run makedocs in draft mode."
     action = :store_true
     default = false
 end
@@ -34,7 +34,7 @@ mkpath(tutorial_output_dir)
 
 # process the tutorials into markdown and jupyter notebooks with Literate.jl
 literate_config = Dict("credit" => false)
-if parsed_args["no-execute"]
+if parsed_args["draft"]
     # don't change if --no-execute is not passed, because the defaults for md and nb are different
     literate_config["execute"] = false
 end
@@ -54,7 +54,8 @@ end
 
 makedocs(;
          modules=[Korg],
-         doctest=!parsed_args["no-execute"],
+         doctest=!parsed_args["draft"],
+         draft=parsed_args["draft"],
          repo=Documenter.Remotes.GitHub("ajwheeler", "Korg.jl"),
          sitename="Korg",
          pages=["Quickstart" => "index.md"
