@@ -73,6 +73,7 @@ Compute the best achievable RV precision given a spectrum with uncertainties.
 See also: [`RV_prec_from_Q`](@ref) and [`Qfactor`](@ref)
 """
 function RV_prec_from_noise(synth_flux, synth_wl, obs_wl, LSF_mat, obs_err; obs_mask=nothing)
+    synth_wl = Wavelengths(synth_wl...)
     nvecLSF = dropdims(sum(LSF_mat; dims=2); dims=2)
 
     dspec_dlam = zeros(length(synth_flux))
