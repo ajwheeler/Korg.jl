@@ -17,7 +17,7 @@ using Suppressor # hide #md
     using Korg, PythonPlot, CSV, DataFrames
 end # hide #md
 
-# ## Creating a custom linelist
+# ## [Creating a custom linelist](@id EW_linelist)
 #
 # Korg can read in linelists in a variety of formats, including the VALD, MOOG, Kurucz, and ExoMol
 # formats, but sometimes you'll want to use one in another format, e.g. from a table in a paper.
