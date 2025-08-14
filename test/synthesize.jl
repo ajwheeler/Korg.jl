@@ -1,7 +1,8 @@
 @testset "synthesize" begin
     # use this for everything
     atm_small = let atm = Korg.read_model_atmosphere("data/sun.mod")
-        Korg.PlanarAtmosphere(atm.layers[40:43]) # just a few layers for fast tests
+        # just a few layers for fast tests
+        Korg.PlanarAtmosphere(atm.layers[40:43], atm.reference_wavelength)
     end
 
     @testset "vmic specification" begin
@@ -96,7 +97,7 @@
         end
     end
 
-    @testset "α(5000 Å) linelist" begin
+    @testset "reference wavelength linelist" begin
         # test automatic construction of a linelist at 5000 Å for the calculation of α(5000 Å),
         # which is used by the default RT scheme
 
@@ -107,16 +108,17 @@
 
         kw = (; use_internal_reference_linelist=false) # don't default to internal linelist
         # if there's full coverage, don't insert anything
-        @test issubset(Korg.get_reference_wavelength_linelist(ll; kw...), ll)
+        @test issubset(Korg.get_reference_wavelength_linelist(ll, 5e-5; kw...), ll)
 
         #if there's no coverage, use the fallback linelist
-        @test Korg.get_reference_wavelength_linelist([]; kw...) == Korg._alpha_5000_default_linelist
+        @test Korg.get_reference_wavelength_linelist([], 5e-5; kw...) ==
+              Korg._alpha_5000_default_linelist
 
         # if there's partial coverage, insert the fallback linelist where needed
         small_ll = filter(ll) do line
             line.wl * 1e8 > 5000
         end
-        ll5 = Korg.get_reference_wavelength_linelist(small_ll; kw...)
+        ll5 = Korg.get_reference_wavelength_linelist(small_ll, 5e-5; kw...)
         @test issorted([line.wl for line in ll5])
         # test that it transitions between the two linelists correctly
         i = findfirst(ll5 .== small_ll[1])
@@ -126,7 +128,7 @@
         small_ll = filter(ll) do line
             line.wl * 1e8 < 4995
         end
-        ll5 = Korg.get_reference_wavelength_linelist(small_ll; kw...)
+        ll5 = Korg.get_reference_wavelength_linelist(small_ll, 5e-5; kw...)
         @test issorted([line.wl for line in ll5])
         # test that it transitions between the two linelists correctly'
         i = findfirst(ll5 .== small_ll[end])

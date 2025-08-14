@@ -109,8 +109,9 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
   - `use_internal_reference_linelist` (default: `true`): whether or not to use the internal linelist
     for computing the opacity at the reference wavelength, which is used for radiative transfer when
     `tau_scheme` is "anchored". If this is false, `linelist` will be used instead if it overlaps with
-    the reference wavelength (5000 Å for MARCS model atmospheres).
-  - `ionization_energies`: a `Dict` mapping `Species` to their first three ionization energies,
+    the reference wavelength (5000 Å for MARCS model atmospheres). This does not apply when Korg
+    does not have a built-in reference linelist for the reference wavelength.
+  - `ionization_energies`, a `Dict` mapping `Species` to their first three ionization energies,
     defaults to `Korg.ionization_energies`.
   - `partition_funcs`: a `Dict` mapping `Species` to partition functions (as functions of ln(T)).
     Defaults to data from Barklem & Collet 2016, `Korg.default_partition_funcs`.
@@ -123,13 +124,13 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
     and model atmosphere, `atm`, are unchanged.
   - `molecular_cross_sections` (default: `[]`): A vector of precomputed molecular cross-sections. See
     [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
-    transfer scheme, your molecular cross-sections should cover 5000 Å only if your linelist does.
-  - `tau_scheme` (default: "linear"): how to compute the optical depth. Options are "linear" and
-    "bezier" (this is slower and probably less accurate, but it does not require the model
-    atmosphere to have optical depth at a reference wavelength).
-  - `I_scheme` (default: `"linear_flux_only"`): how to compute the intensity. Options are `"linear"`,
-    `"linear_flux_only"`, and `"bezier"`. `"linear_flux_only"` is the fastest, but does not return the
-    intensity values anywhere except at the top of the atmosphere. "linear" performs an equivalent
+    transfer scheme and set `use_internal_reference_linelist=false`, your molecular cross-sections
+    should cover the reference wavelength only if your linelist does.
+  - `tau_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and
+    "bezier" (testing only--not recommended).
+  - `I_scheme` (default: `"linear_flux_only"`): how to compute the intensity.  Options are `"linear"`,
+    `"linear_flux_only"`, and `"bezier"`.  `"linear_flux_only"` is the fastest, but does not return the
+    intensity values anywhere except at the top of the atmosphere.  "linear" performs an equivalent
     calculation, but stores the intensity at every layer. `"bezier"` is for testing and not
     recommended.
 """
@@ -188,7 +189,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # sort linelist and remove lines far from the synthesis region
     # first just the ones needed for α5 (fall back to default if they aren't provided)
     if tau_scheme == "anchored"
-        linelist5 = get_reference_wavelength_linelist(linelist; use_internal_reference_linelist)
+        linelist5 = get_reference_wavelength_linelist(linelist, atm.reference_wavelength;
+                                                      use_internal_reference_linelist)
     end
     # now the ones for the synthesis
     linelist = filter_linelist(linelist, wls, line_buffer)
@@ -205,7 +207,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                           eltype(wls), eltype(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(wls))
-    # each layer's absorption at reference λ (5000 Å). This isn't used with the "anchored" τ scheme.
+    # each layer's absorption at reference λ. This isn't used with the "anchored" τ scheme.
     α_ref = Vector{α_type}(undef, length(atm.layers))
     triples = map(enumerate(atm.layers)) do (i, layer)
         nₑ, n_dict = if isnothing(use_chemical_equilibrium_from)
@@ -228,7 +230,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         α[i, :] .= α_cntm_layer(wls)
 
         if tau_scheme == "anchored"
-            α_ref[i] = total_continuum_absorption([c_cgs / 5e-5], layer.temp, nₑ, n_dict,
+            α_ref[i] = total_continuum_absorption([c_cgs / atm.reference_wavelength], layer.temp,
+                                                  nₑ, n_dict,
                                                   partition_funcs)[1]
         end
 
@@ -245,15 +248,23 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     # line contributions to α5
     if tau_scheme == "anchored"
-        α_cntm_5 = [_ -> a for a in copy(α_ref)] # lambda per layer
-        line_absorption!(view(α_ref, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm),
+        α_cntm_ref = [_ -> a for a in copy(α_ref)] # lambda per layer
+        line_absorption!(view(α_ref, :, 1),
+                         linelist5,
+                         Korg.Wavelengths([atm.reference_wavelength * 1e8]),
+                         get_temps(atm),
                          nₑs,
                          number_densities,
-                         partition_funcs, vmic * 1e5, α_cntm_5;
+                         partition_funcs,
+                         vmic * 1e5,
+                         α_cntm_ref;
                          cutoff_threshold=line_cutoff_threshold)
-        interpolate_molecular_cross_sections!(view(α_ref, :, 1), molecular_cross_sections,
-                                              Korg.Wavelengths([5000]),
-                                              get_temps(atm), vmic, number_densities)
+        interpolate_molecular_cross_sections!(view(α_ref, :, 1),
+                                              molecular_cross_sections,
+                                              Korg.Wavelengths([atm.reference_wavelength * 1e8]),
+                                              get_temps(atm),
+                                              vmic,
+                                              number_densities)
     end
 
     source_fn = blackbody.((l -> l.temp).(atm.layers), wls')
@@ -322,41 +333,57 @@ function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
 end
 
 """
-    get_reference_wavelength_linelist(linelist; use_internal_reference_linelist=true)
+    get_reference_wavelength_linelist(linelist, reference_wavelength)
 
 Arguments:
 
   - `linelist`: the user-specified linelist.
+  - `reference_wavelength`: the reference wavelength of the model atmosphere.
 
-Return a linelist which can be used to calculate the absorption at 5000 Å, which is required for
-the standard radiative transfer scheme.  If `use_internal_reference_linelist` is true (the default)
-or the provided linelist doesn't contain lines near 5000 Å, use the built-in one.
-(See [`_load_alpha_5000_linelist`](@ref).)
+Return a linelist which can be used to calculate the absorption at `reference_wavelength`, which is
+required for the standard radiative transfer scheme.  If the provided linelist doesn't contain lines
+near `reference_wavelength`, use a built-in one. (see [`_load_alpha_5000_linelist`](@ref))
+
+At present the only built-in fallback is for 5000 Å, which is what MARCS uses. For all other
+reference wavelengths, the user-provided linelist must contain lines near the reference wavelength.
 """
-function get_reference_wavelength_linelist(linelist; use_internal_reference_linelist)
-    if use_internal_reference_linelist
+function get_reference_wavelength_linelist(linelist, reference_wavelength;
+                                           use_internal_reference_linelist)
+    if reference_wavelength == 5e-5 && use_internal_reference_linelist
         return _alpha_5000_default_linelist
     end
+
     # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
     # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
-    linelist5 = filter_linelist(linelist, Korg.Wavelengths(5000, 5000), 21e-8; warn_empty=false)
+    filtered_linelist = filter_linelist(linelist, Korg.Wavelengths(5000, 5000), 21e-8;
+                                        warn_empty=false)
+
+    # handle non-5000 Å reference wavelengths. There's no built-in fallback for these.
+    if reference_wavelength != 5e-5
+        if length(filtered_linelist) == 0
+            throw(ArgumentError("The provided linelist does not contain any lines near the reference wavelength of $reference_wavelength Å. Korg has an internal reference linelist for 5000 Å (the MARCS default), but not for other values."))
+        else
+            filtered_linelist
+        end
+    end
+
     # if there aren't any, use the built-in one
-    if length(linelist5) == 0
+    if length(filtered_linelist) == 0
         _alpha_5000_default_linelist
         # if there are some, but they don't actually cross over 5000 Å, use the built-in one where they
         # aren't present
-    elseif linelist5[1].wl > 5e-5
+    elseif filtered_linelist[1].wl > 5e-5
         ll = filter(_alpha_5000_default_linelist) do line
-            line.wl < linelist5[1].wl
+            line.wl < filtered_linelist[1].wl
         end
-        [ll; linelist5]
-    elseif linelist5[end].wl < 5e-5
+        [ll; filtered_linelist]
+    elseif filtered_linelist[end].wl < 5e-5
         ll = filter(_alpha_5000_default_linelist) do line
-            line.wl > linelist5[end].wl
+            line.wl > filtered_linelist[end].wl
         end
-        [linelist5; ll]
+        [filtered_linelist; ll]
     else # if the built-in lines span 5000 Å, use them
-        linelist5
+        filtered_linelist
     end
 end
 

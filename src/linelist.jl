@@ -884,9 +884,9 @@ end
 """
     _load_alpha_5000_linelist([path])
 
-Load the default linelist for calculating the absorption coefficient at 5000 Å.  This is for internal
-use when the provided linelist doesn't cover the region and a radiative transfer scheme using
-τ_5000 is used.
+Load the default linelist for calculating the absorption coefficient at 5000 Å.  This for internal
+use when the provided linelist doesn't cover the region and a radiative transfer scheme τ_ref for
+λ_ref = 5000 Å is used.
 
 This linelist is loaded into `Korg._alpha_5000_default_linelist` when Korg is imported.
 """

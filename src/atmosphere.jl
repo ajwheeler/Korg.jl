@@ -1,25 +1,26 @@
 # used when downloading model atmosphere archive
 using ProgressMeter: Progress, update!, finish!
 using Pkg.Artifacts: @artifact_str
+using FITSIO: FITS, read, read_header
 import Interpolations
 
 abstract type ModelAtmosphere end
 
 """
-    PlanarAtmosphereLayer(tau_5000, z, temp, nₑ, n)
+    PlanarAtmosphereLayer(tau_ref, z, temp, nₑ, n)
 
 A layer of a planar atmosphere.
 
 # Arguments
 
-  - `tau_5000`: the optical depth at 5000 Å.  This is useful for radiative transfer.
+  - `tau_ref`: the optical depth at the reference wavelength.
   - `z`: the height (cm) of the layer relative to the photosphere.
   - `temp`: the temperature (K) of the layer.
   - `nₑ`: the electron number density (cm⁻³) of the layer.
   - `n`: the total number density (cm⁻³) of the layer.
 """
 struct PlanarAtmosphereLayer{F1,F2,F3,F4,F5}
-    tau_5000::F1                #dimensionless (used for legacy radiative transfer)
+    tau_ref::F1                 #dimensionless (used for legacy radiative transfer)
     z::F2                       #cm
     temp::F3                    #K
     electron_number_density::F4 #cm^-3
@@ -27,30 +28,31 @@ struct PlanarAtmosphereLayer{F1,F2,F3,F4,F5}
 end
 
 """
-    PlanarAtmosphere(layers)
+    PlanarAtmosphere(layers, reference_wavelength)
 
 A planar atmosphere is a flat atmosphere with its photosphere at `z = 0`.  The atmosphere is
 specified by a vector of [`PlanarAtmosphereLayer`](@ref)s.
 """
 struct PlanarAtmosphere{F1,F2,F3,F4,F5} <: ModelAtmosphere
     layers::Vector{PlanarAtmosphereLayer{F1,F2,F3,F4,F5}}
+    reference_wavelength::Float64 # cm
 end
 
 """
-    ShellAtmosphereLayer(tau_5000, z, temp, nₑ, n)
+    ShellAtmosphereLayer(tau_ref, z, temp, nₑ, n)
 
 A layer of a shell atmosphere.
 
 # Arguments
 
-  - `tau_5000`: the optical depth at 5000 Å.  This is useful for radiative transfer.
+  - `tau_ref`: the optical depth at the reference wavelength.
   - `z`: the height (cm) of the layer relative to the photosphere.
   - `temp`: the temperature (K) of the layer.
   - `nₑ`: the electron number density (cm⁻³) of the layer.
   - `n`: the total number density (cm⁻³) of the layer.
 """
 struct ShellAtmosphereLayer{F1,F2,F3,F4,F5}
-    tau_5000::F1                #dimensionless (used for legacy radiative transfer)
+    tau_ref::F1                 #dimensionless (used for legacy radiative transfer)
     z::F2                       #cm
     temp::F3                    #K
     electron_number_density::F4 #cm^-3
@@ -66,6 +68,7 @@ end
 struct ShellAtmosphere{F1,F2,F3,F4,F5,F6} <: ModelAtmosphere
     layers::Vector{ShellAtmosphereLayer{F1,F2,F3,F4,F5}}
     R::F6 #the radius of the star where τ_ros == 1, i.e. the photosphere (not the top)
+    reference_wavelength::Float64 # cm
 end
 
 """
@@ -74,8 +77,9 @@ end
 Construct a planar atmosphere with the data from a shell atmosphere.  Mostly useful for testing.
 """
 function PlanarAtmosphere(atm::ShellAtmosphere)
-    PlanarAtmosphere([PlanarAtmosphereLayer(l.tau_5000, l.z, l.temp, l.electron_number_density,
-                                            l.number_density) for l in atm.layers])
+    PlanarAtmosphere([PlanarAtmosphereLayer(l.tau_ref, l.z, l.temp, l.electron_number_density,
+                                            l.number_density) for l in atm.layers],
+                     atm.reference_wavelength)
 end
 
 """
@@ -85,8 +89,10 @@ Construct a shell atmosphere with the data from a planar atmosphere and an outer
 useful for testing.
 """
 function ShellAtmosphere(atm::PlanarAtmosphere, R)
-    ShellAtmosphere([ShellAtmosphereLayer(l.tau_5000, l.z, l.temp, l.electron_number_density,
-                                          l.number_density) for l in atm.layers], R)
+    ShellAtmosphere([ShellAtmosphereLayer(l.tau_ref, l.z, l.temp, l.electron_number_density,
+                                          l.number_density) for l in atm.layers],
+                    R,
+                    atm.reference_wavelength)
 end
 
 #pretty-printing
@@ -95,12 +101,12 @@ function Base.show(io::IO, m::MIME"text/plain", atm::A) where A<:ModelAtmosphere
 end
 
 """
-    get_tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
+    get_tau_refs(atm::ModelAtmosphere) = [l.tau_ref for l in atm.layers]
 
 This is a convenience function for making plots, etc.  Note that it doesn't access quantities in a
 memory-efficient order.
 """
-get_tau_5000s(atm::ModelAtmosphere) = [l.tau_5000 for l in atm.layers]
+get_tau_refs(atm::ModelAtmosphere) = [l.tau_ref for l in atm.layers]
 
 """
     get_zs(atm::ModelAtmosphere) = [l.z for l in atm.layers]
@@ -144,12 +150,38 @@ memory-efficient order.
 get_gas_pressures(atm) = [l.number_density * kboltz_cgs * l.temp for l in atm.layers]
 
 """
-    read_model_atmosphere(filename)
+    read_model_atmosphere(filename; format="marcs")
 
 Parse the provided model atmosphere file in MARCS ".mod" format.  Returns either a
 `PlanarAtmosphere` or a `ShellAtmosphere`.
+
+# Keyword Arguments:
+
+  - `format`: the format of the model atmosphere file.  Currently only "marcs" and "phoenix"
+    (experimental) are supported.
 """
-function read_model_atmosphere(fname::AbstractString)::ModelAtmosphere
+function read_model_atmosphere(fname::AbstractString; format="marcs",
+                               reference_wavelength=nothing)::ModelAtmosphere
+    if format != "marcs" && format != "phoenix"
+        throw(ArgumentError("Invalid format: $format.  Must be either 'marcs' or 'phoenix'."))
+    end
+
+    if format != "marcs" && endswith(fname, ".mod")
+        @info "Assuming format is 'marcs' because the file extension is '.mod'."
+        format = "marcs"
+    elseif format != "phoenix" && endswith(fname, ".fits")
+        @info "Assuming format is 'phoenix' because the file extension is '.fits'."
+        format = "phoenix"
+    end
+
+    if lowercase(format) == "marcs"
+        _read_marcs_model_atmosphere(fname)
+    elseif lowercase(format) == "phoenix"
+        _read_phoenix_model_atmosphere(fname)
+    end
+end
+
+function _read_marcs_model_atmosphere(fname::AbstractString)
     open(fname) do f
         #these files are small, so it's not a big deal to load them entirely into memory
         lines = collect(eachline(f))
@@ -194,12 +226,43 @@ function read_model_atmosphere(fname::AbstractString)::ModelAtmosphere
             end
         end
 
+        # 5000 Å is the reference wavelength for the MARCS models
         if planar
-            PlanarAtmosphere(layers)
+            PlanarAtmosphere(layers, 5e-5)
         else
-            ShellAtmosphere(layers, R)
+            ShellAtmosphere(layers, R, 5e-5)
         end
     end
+end
+
+function _read_phoenix_model_atmosphere(fname)
+    (Teff, tau_reff, T, Pgas, Pe) = FITS(fname) do f
+        (read_header(f[1])["PHXTEFF"],
+         read(f[2], "tau"),
+         read(f[2], "temp"),
+         read(f[2], "pgas"),
+         #read(f[2], "rho"), # this is in there but we don't use it
+         read(f[2], "pe"))
+    end
+
+    number_density = @. Pgas / (kboltz_cgs * T)
+    electron_number_density = @. Pe / (kboltz_cgs * T)
+
+    layers = PlanarAtmosphereLayer.(tau_reff,
+                                    NaN, # no "z" data. Will only work with "anchored" radiative transfer.
+                                    T,
+                                    electron_number_density,
+                                    number_density)
+
+    # https://ui.adsabs.harvard.edu/abs/2013A%26A...553A...6H/abstract page 3
+    reference_wavelength = if Teff < 5000
+        12e-5 # 12,000 Å
+    else
+        5e-5 # 5000 Å
+    end
+
+    # the first layer is at optical depth 0, which Korg doesn't know how to handle
+    PlanarAtmosphere(layers[2:end], reference_wavelength)
 end
 
 # used for the standard and low-metallicity grids.  Lazy linear interp is used for these, so it's
@@ -364,6 +427,9 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg <
         @warn "Warning: passing in M_H, alpha_m, and C_m directly into `interpolate_marcs` is not recommended.  Try passing in A_X instead: interpolate_marcs(Teff, logg, A_X; kwargs...). This warning can be turned off by setting the `warn_about_dangerous_method` keyword argument to `false`."
     end
 
+    # 5000 Å = 5e-5 cm is the reference wavelength for the MARCS models
+    reference_wavelength = 5e-5
+
     # cool dwarfs
     atm = if Teff <= 4000 && logg >= 3.5 && M_H >= -2.5 && resampled_cubic_for_cool_dwarfs
         itp, nlayers = archives[2]
@@ -372,7 +438,7 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg <
                                                 sinh.(atm_quants[:, 5]),
                                                 atm_quants[:, 1],
                                                 exp.(atm_quants[:, 2]),
-                                                exp.(atm_quants[:, 3])))
+                                                exp.(atm_quants[:, 3])), reference_wavelength)
     else
         # low metallicity
         if M_H < -2.5
@@ -393,25 +459,28 @@ function interpolate_marcs(Teff, logg, M_H=0, alpha_m=0, C_m=0; spherical=logg <
                                                     perturb_at_grid_values=perturb_at_grid_values)
 
         # grid atmospheres are allowed to have NaNs to represent layers that should be dropped.
-        nanmask = .!isnan.(atm_quants[:, 4]) # any column will do. This is τ_5000.
+        nanmask = .!isnan.(atm_quants[:, 4]) # any column will do. This is τ_ref.
 
+        # 5000 Å = 5e-5 cm is the reference wavelength for the MARCS models
         if spherical
             R = sqrt(G_cgs * solar_mass_cgs / 10^(logg))
             ShellAtmosphere(ShellAtmosphereLayer.(atm_quants[nanmask, 4],
                                                   sinh.(atm_quants[nanmask, 5]),
                                                   atm_quants[nanmask, 1],
                                                   exp.(atm_quants[nanmask, 2]),
-                                                  exp.(atm_quants[nanmask, 3])), R)
+                                                  exp.(atm_quants[nanmask, 3])), R,
+                            reference_wavelength)
         else
             PlanarAtmosphere(PlanarAtmosphereLayer.(atm_quants[nanmask, 4],
                                                     sinh.(atm_quants[nanmask, 5]),
                                                     atm_quants[nanmask, 1],
                                                     exp.(atm_quants[nanmask, 2]),
-                                                    exp.(atm_quants[nanmask, 3])))
+                                                    exp.(atm_quants[nanmask, 3])),
+                             reference_wavelength)
         end
     end
 
-    if any(get_tau_5000s(atm) .< 0)
+    if any(get_tau_refs(atm) .< 0)
         throw(AtmosphereInterpolationError("Interpolated atmosphere has negative optical depths and is not reliable.  See https://github.com/ajwheeler/Korg.jl/issues/378 for details."))
     end
     atm
