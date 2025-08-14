@@ -25,8 +25,8 @@ end # hide #md
 # [https://github.com/ajwheeler/Korg.jl/tree/v1.0.0/docs/src/assets/Griffith_2022](https://github.com/ajwheeler/Korg.jl/tree/v1.0.0/docs/src/assets/Griffith_2022).
 #
 # ## Linelist
-# As in [`the Equivalent Widths Example`](@ref EWs), we want to reproduce the results of a specific
-# paper, so we'll use the linelist from that paper.
+# As in [the Equivalent Widths Example](@ref EW_linelist), we want to reproduce the results of a
+# specific paper, so we'll use the linelist from that paper.
 
 linetable = CSV.read("../../assets/Griffith_2022/lines.csv", DataFrame);
 linelist = Korg.Line.(Korg.air_to_vacuum.(linetable.wave_A),
