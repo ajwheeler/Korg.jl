@@ -31,14 +31,15 @@ wls, flux, _ = Korg.synth(; linelist=apolines,
                           Teff=5777,
                           logg=4.44,
                           M_H=-1.1,)
-flux = LSF * flux
 
 SNR = 50.0
-obs_err = flux ./ SNR;
+obs_err = (LSF * flux) ./ SNR;
 
 # # Exact radial velocity precision
 #
-# This function provides the exact RV precision bound (in the small redshift limit) in m/s.
+# This function provides the exact RV precision bound (in the small redshift limit) in m/s. Note
+# that we are using the unconvolved flux here (`flux`), not the values with the LSF applied
+# (`LSF * flux`).
 
 noise_prec = Korg.RV_prec_from_noise(flux, (15_000, 17_000), apowls, LSF, obs_err)
 
@@ -46,7 +47,7 @@ noise_prec = Korg.RV_prec_from_noise(flux, (15_000, 17_000), apowls, LSF, obs_er
 # We can also calculate the ``Q``-factor, which provides an approximately ``S/N``-independent notion
 # of the radial velocity "information" in the spectrum.
 
-Q = Korg.Q_factor(flux, (15_000, 17_000), apowls, LSF, obs_err)
+Q = Korg.Qfactor(flux, (15_000, 17_000), apowls, LSF)
 
 # We can calculate the appriximate RV precision bound from ``Q``.  Technically,
 # the precision depends on the root-mean-squared per-pixel ``S/N`` value, but for non-line-blanket
@@ -69,8 +70,7 @@ M_Hs = -5:1.0:0 #metallicity ([M/H]) values
 Qs = map(M_Hs) do M_H
     _, flux, _ = Korg.synth(; linelist=apolines, wavelengths=(15_000, 17_000), Teff=5777, logg=4.44,
                             M_H=M_H,)
-    flux = LSF * flux
-    Korg.Q_factor(flux, (15_000, 17_000), apowls, LSF)
+    Korg.Qfactor(flux, (15_000, 17_000), apowls, LSF)
 end
 
 figure(; figsize=(12, 4)) # hide #md
