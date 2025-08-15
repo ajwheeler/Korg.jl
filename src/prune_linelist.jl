@@ -9,8 +9,8 @@ equivalent width.
   - `atm`: the atmosphere model
   - `linelist`: the linelist (a vector of `Line` objects)
   - `A_X`: the abundance of each element (see [`format_A_X`](@ref))
-  - `wls...`: the wavelength ranges to synthesize over. These are specified the same way as the
-    `wls` for [`synthesize`](@ref).
+  - `wls...`: the wavelengths to synthesize over, in any format accepted by [`Korg.Wavelengths`](@ref).
+    See [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/) for more information.
 
 # Keyword Arguments
 

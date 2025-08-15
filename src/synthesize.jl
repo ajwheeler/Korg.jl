@@ -55,8 +55,10 @@ Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
   - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
     uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
   - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
-    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`
-    (or as valid arguments to the [`Wavelengths`](@ref) constructor).
+    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`, or
+    as any other valid arguments to the [`Korg.Wavelengths`](@ref) constructor.
+    [See the "Wavelengths" documentation](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/)
+    for more details.
 
 # Example
 
