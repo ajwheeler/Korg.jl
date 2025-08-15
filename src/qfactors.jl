@@ -39,6 +39,7 @@ Note that the Q factor is an approximation when the flux uncertainty is not phot
 See also: [`RV_prec_from_Q`](@ref) and [`RV_prec_from_noise`](@ref)
 """
 function Qfactor(synth_flux, synth_wl, obs_wl, LSF_mat; obs_mask=nothing)
+    synth_wl = Wavelengths(synth_wl...)
     nvecLSF = dropdims(sum(LSF_mat; dims=2); dims=2) # normalisation for the LSF
     spec_lres = LSF_mat * synth_flux ./ nvecLSF
 
