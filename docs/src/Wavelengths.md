@@ -21,7 +21,7 @@ a pair, pass a vector of pairs.
 
 ```@example 1
 wls, flux, _ = synth(Teff=5777, logg=4.44,
-                     wavelengths=[(5050, 5580), (5090, 5100)])
+                     wavelengths=[(5050, 5080), (5090, 5100)])
 scatter(wls, flux)
 ylabel("flux")
 xlabel(L"$\lambda$ [\AA]")
@@ -29,12 +29,13 @@ gcf() # hide
 ```
 
 By default, Korg uses samples wavelength every 0.01 Å, but you can configure this by specifying a
-different value as the last wavelength parameter. Let's sample every 5 Å (you should not do this for
-if you want accurate spectra, but it makes it easy to see what's going on).
+different value as the last wavelength parameter. Let's sample every 5 Å in the first window and
+every 3 Å in the second (this is too coarse for accurate spectra, but it makes it easy to see what's
+going on).
 
 ```@example 1
 wls, flux, _ = synth(Teff=5777, logg=4.44,
-                     wavelengths=([(5050, 5580), (5090, 5100)], 5))
+                     wavelengths=[(5050, 5080, 5), (5090, 5100, 3)])
 scatter(wls, flux)
 ylabel("flux")
 xlabel(L"$\lambda$ [\AA]")
