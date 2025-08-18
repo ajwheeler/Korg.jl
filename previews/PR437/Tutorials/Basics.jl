@@ -1,8 +1,6 @@
 # [Download this page as a Jupyter notebook](./Basics.ipynb) #md
 # You may have to execute these cells to see the plot outputs #nb
 
-# First, we'll import the necessary packages.
-
 using Suppressor # hide #md
 @suppress begin # hide #md
     using Korg, PythonPlot
@@ -192,7 +190,7 @@ gcf() # hide #md
 # broadening to a spectrum. Note that [the example above](@ref synth-example) demonstrates shortcuts
 # to do this with [`synth`](@ref).
 #
-# ## Line-spread function (LSF)
+# ## [Line-spread function (LSF)](@id LSF)
 # Korg provides two ways of applying an LSF to a spectrum. The first, [`Korg.apply_LSF`](@ref),
 # is simpler (this is what [`synth`](@ref) does). It returns a new flux vector and does not modify
 # the wavelength sampling.
