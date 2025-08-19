@@ -112,7 +112,7 @@ end
 """
     save_molecular_cross_section(filename, cross_section)
 
-Save a precomputed molecular cross-section to a file.
+Save a precomputed molecular cross-section to an HDF5 file.
 See also [`MolecularCrossSection`](@ref), [`read_molecular_cross_section`](@ref).
 
 !!! warning
