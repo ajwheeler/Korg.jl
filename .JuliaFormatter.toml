@@ -1,4 +1,4 @@
-# https://domluna.github.io/JuliaFormatter.jl/stable/#remove_extra_newlines
+# https://domluna.github.io/JuliaFormatter.jl/stable/
 
 style = "sciml"
 

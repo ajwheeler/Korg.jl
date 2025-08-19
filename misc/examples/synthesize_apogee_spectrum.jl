@@ -10,12 +10,12 @@ logg = 4.44
 vmic = 1.2
 
 # abundances
-m_H = -0.1
+M_H = -0.1
 alpha_H = 0.2
 C_H = -0.3
 
 # constract length-92 vector of A(X)-format abundances
-A_X = format_A_X(m_H, alpha_H, Dict("C" => C_H))
+A_X = format_A_X(M_H, alpha_H, Dict("C" => C_H))
 
 # create model atmosphere by interpolating from one of a few grid
 # (RGB will be normal SDSS MARCS grid)

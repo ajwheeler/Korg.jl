@@ -17,7 +17,7 @@ Returns a pair containing:
 function merge_bounds(bounds, merge_distance=0.0)
     bound_indices = 1:length(bounds)
 
-    # short by lower bound
+    # sort by lower bound
     s = sortperm(bounds; by=first)
     bounds = bounds[s]
     bound_indices = bound_indices[s]
@@ -86,6 +86,9 @@ will get much better performance using [`compute_LSF_matrix`](@ref).
         otherwise desired) grid.
 """
 function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4) where F<:Real
+    if R == Inf
+        return copy(flux)
+    end
     wls = Wavelengths(wls)
     convF = zeros(F, length(flux))
     for i in eachindex(wls)

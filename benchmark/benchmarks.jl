@@ -6,8 +6,8 @@ const SUITE = BenchmarkGroup()
 
 # Stellar parameters for benchmarks
 const BENCHMARK_PARAMS = [
-    ("sun", (Teff=5777, logg=4.44, m_H=0.0)),
-    ("M dwarf", (Teff=3500, logg=4.6, m_H=0.0))
+    ("sun", (Teff=5777, logg=4.44, M_H=0.0)),
+    ("M dwarf", (Teff=3500, logg=4.6, M_H=0.0))
 ]
 
 const WAVELENGTH_RANGES_AND_LINELISTS = [
@@ -26,7 +26,7 @@ for (i, (param_name, params)) in enumerate(BENCHMARK_PARAMS)
         try
             SUITE["synthesis"][param_name][range_name] = @benchmarkable synth(Teff=$(params.Teff),
                                                                               logg=$(params.logg),
-                                                                              m_H=$(params.m_H),
+                                                                              M_H=$(params.M_H),
                                                                               linelist=$linelist,
                                                                               wavelengths=$wl_range) setup=(GC.gc()) seconds=30
         catch e

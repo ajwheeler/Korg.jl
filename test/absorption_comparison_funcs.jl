@@ -76,7 +76,7 @@ end
 
 # compute the ratio of the nₑ to n_H (the number density of all H I and H II)
 # this function could be reused in the future for testing solutions to coupled Saha equations
-function free_electrons_per_Hydrogen_particle(nₑ, T, abundances=Korg.asplund_2020_solar_abundances)
+function free_electrons_per_Hydrogen_particle(nₑ, T, abundances=Korg.default_solar_abundances)
     out = 0.0
     for element in 1:Korg.MAX_ATOMIC_NUMBER
         wII, wIII = Korg.saha_ion_weights(T, nₑ, element, Korg.ionization_energies,
@@ -236,7 +236,7 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     # their book. They record that there is 8.51e-2 He particles per H particle in table 16.3
     nHe = nH * 8.51e-2
     # Gray accounts for only neutral and singly ionized helium in his calculation.
-    # We use the ionization energy tabulated in table D.1 (χ(He I) = 24.587). 
+    # We use the ionization energy tabulated in table D.1 (χ(He I) = 24.587).
     # Table D.2 of Gray (2005) records the partion function of He II to be
     # as 10^0.301, the closest value at the table's precision to 2.0
     UI, UII = (1.0, 10^-0.301)
@@ -301,7 +301,7 @@ function calc_hydrogenic_bf_absorption_coef(λ_vals, T, ndens_species, spec; use
     νs = Korg.c_cgs ./ (λ_vals * 1e-8)
     if use_OP_data || spec == Korg.species"He II"
         σ_itp = Korg.ContinuumAbsorption.metal_bf_cross_sections[spec]
-        exp.(log(ndens_species) .+ σ_itp.(νs, log10(T))) * 1e-18 #convert to cm^2 
+        exp.(log(ndens_species) .+ σ_itp.(νs, log10(T))) * 1e-18 #convert to cm^2
     else # spec is H I
         invU = 1 / Korg.default_partition_funcs[spec](log(T))
         # assume nHe = ne = 0 for the purposed of MHD
@@ -311,7 +311,7 @@ end
 
 _dflt_λ_vals(spec) =
     if spec == Korg.species"H I"
-        # skip the breaks because that's where MHD make a difference.  Don't go to far red because 
+        # skip the breaks because that's where MHD make a difference.  Don't go to far red because
         # those levels get dissolved.
         [500:1.0:600; 3000:1.0:3100; 4000:1.0:4100; 10_000:1.0:10_100]
     else # He II
