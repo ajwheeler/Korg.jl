@@ -8,7 +8,7 @@ struct MolecularCrossSection
 end
 
 """
-    MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-30, log_temp_vals=3:0.025:5)
+    MolecularCrossSection(linelist, wl_params...; kwargs...)
 
 Precompute the molecular absorption cross section for a given linelist and set of wavelengths. The
 `MolecularCrossSection` object can be passed to [`synthesize`](@ref) and potentially speed up the
@@ -27,6 +27,8 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
 
   - `cutoff_alpha` (default: 1e-30): The value of the single-line absorption coefficient (in cm^-1) at
     which to truncate the profile.
+  - `vmic_vals` (default: [(0.0:1/3:1.0)...; 1.5; (2:2/3:(5+1/3))...]): The microturbulence velocities
+    at which to precompute the cross-section.
   - `log_temp_vals` (default: 3:0.025:5): The log10 of the temperatures at which to precompute the
     cross-section.
 
