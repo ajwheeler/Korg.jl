@@ -61,7 +61,7 @@ end
     apply_LSF(flux, wls, R; window_size=4)
 
 Applies a gaussian line spread function the the spectrum with flux vector `flux` and wavelengths
-`wls` in any format accepted by synthesize, e.g. as a pair `(λstart, λstop)`) with constant spectral
+`wls` with constant spectral
 resolution (, ``R = \\lambda/\\Delta\\lambda``, where ``\\Delta\\lambda`` is the LSF FWHM.  The
 `window_size` argument specifies how far out to extend the convolution kernel in standard deviations.
 
@@ -70,6 +70,13 @@ the region you are going to compare.
 
 If you are convolving many spectra defined on the same wavelenths to observational resolution, you
 will get much better performance using [`compute_LSF_matrix`](@ref).
+
+# Arguments
+
+  - `flux`: the flux vector to convolve
+  - `wls`: wavelengths in any format accepted by [`Korg.Wavelengths`](@ref)
+    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
+  - `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
 
 # Keyword Arguments
 
@@ -108,8 +115,9 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 
 # Arguments
 
-  - `synth_wls`: the synthesis wavelengths in any form recognized by `synthesize`, e.g. a pair
-    containing a lower and upper bound in Å, a vector of pairs, or a vector of Julia range objects.
+  - `synth_wls`: the synthesis wavelengths in any form recognized by [`Korg.Wavelengths`](@ref).
+    See [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/) for
+    all the ways wavelengths can be specified.
   - `obs_wls`: the wavelengths of the observed spectrum
   - `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
 
@@ -155,6 +163,14 @@ Given a spectrum `flux` sampled at wavelengths `wls` for a non-rotating star, co
 that would emerge given projected rotational velocity `vsini` (in km/s) and linear limb-darkening
 coefficient `ε`: ``I(\\mu) = I(1) (1 - \\varepsilon + \varepsilon \\mu))``.  See, for example,
 Gray equation 18.14.
+
+# Arguments
+
+  - `flux`: the flux vector to rotate
+  - `wls`: wavelengths in any format accepted by [`Korg.Wavelengths`](@ref)
+    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
+  - `vsini`: projected rotational velocity in km/s
+  - `ε`: linear limb-darkening coefficient (default: 0.6)
 """
 function apply_rotation(flux, wls, vsini, ε=0.6)
     wls = Wavelengths(wls)

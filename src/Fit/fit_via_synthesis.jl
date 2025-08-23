@@ -221,14 +221,15 @@ Find the parameters and abundances that best match a rectified observed spectrum
 
 # Arguments:
 
-  - `obs_wls`: the wavelengths of the observed spectrum in Å.  These must be vacuum wavelengths.
-  - `obs_flux`: the rectified flux of the observed spectrum
-  - `obs_err`: uncertainty in `flux`
-  - `linelist`: a linelist to use for the synthesis
-  - `initial_guesses`: a NamedTuple specifying initial guesses for the parameters to be fit.  See
+  - `obs_wls`: the wavelengths of the observed spectrum in any format accepted by synthesize
+    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
+  - `obs_flux`: the observed flux
+  - `obs_err`: the uncertainty in the observed flux
+  - `linelist`: the linelist to use for synthesis
+  - `initial_guesses`: a NamedTuple containing initial guesses for the parameters to fit.  See
     "Specifying parameters" below.
-  - `fixed_params`: a NamedTuple specifying parameters to be held fixed. See "Specifying parameters"
-    below.
+  - `fixed_params`: a NamedTuple containing parameters to hold fixed during fitting (default: empty).
+    See "Specifying parameters" below.
 
 `initial_guesses` and `fixed_params` can also be specified as Dicts instead of NamedTuples, which is
 more convenient when calling Korg from python.
@@ -283,7 +284,9 @@ values are used.
   - `LSF_matrix`: this can be provedided along with `synthesis_wls` in place of specifying `R` if
     you have a precomputed custom LSF matrix.
   - `synthesis_wls`: see `LSF_matrix` above. This can be a Korg.Wavelengths object or any arguments
-    that can be passed to its constructor, e.g. a range or vector of ranges. Wavelengths are in Å.
+    that can be passed to its constructor, e.g. a range or vector of ranges. See
+    [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/) for all the ways
+    wavelengths can be specified. Wavelengths are in Å.
   - Any additional keyword arguments will be passed to [`Korg.synthesize`](@ref) when synthesizing the
     spectra for the fit.
 
