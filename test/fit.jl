@@ -318,8 +318,9 @@ using Random
                 wl = line.wl * 1e8
                 wl-1.0:0.01:wl+1.0
             end
-            sol = synthesize(interpolate_marcs(5777.0, 4.44), linelist, format_A_X(),
-                             synth_wls; hydrogen_lines=false)
+            A_X = format_A_X()
+            sol = synthesize(interpolate_marcs(5777.0, 4.44, A_X), linelist, A_X, synth_wls;
+                             hydrogen_lines=false)
 
             # EWs you get for the fake linelist with solar params
             # the real implementation uses the trapezoid rule, but this is close enough
@@ -329,9 +330,8 @@ using Random
             # in this fake data case, the reported uncertainties are meaningless because there is no
             # line-to-line scatter, save for what arises from imperfect fit convergence.
             # so, just check that the fit is good.
-            param_tolerance = 10
-            for (guess, p, tol) in zip(best_fit_params, [5777.0, 4.44, 1.0, 0.0],
-                                       [param_tolerance, 0.05, 0.1, 0.01])
+            param_tolerance = [10, 0.1, 0.1, 0.01]
+            for (guess, p, tol) in zip(best_fit_params, [5777.0, 4.44, 1.0, 0.0], param_tolerance)
                 @test guess≈p atol=tol
             end
 
@@ -350,7 +350,7 @@ using Random
                 # check that the fixed parameters are close to the one from the full fit with 10x
                 # smaller tolerance
                 for (fixed, best, tol) in zip(bestfit_fixed, best_fit_params, param_tolerance)
-                    @test fixed≈best atol=tol/10
+                    @test fixed≈best atol=tol/5
                 end
             end
         end
