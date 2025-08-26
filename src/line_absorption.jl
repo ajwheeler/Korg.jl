@@ -100,24 +100,21 @@ function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wa
                 lorentz_line_window = maximum(inverse_densities)
 
                 # calculate using LS approximation
-                d = line.J_even * (line.J_even + 1) - line.J_odd * (line.J_odd + 1)
-                LS_g_eff = (line.lande_g_even + line.lande_g_odd) / 2 +
-                           (line.lande_g_even - line.lande_g_odd) / 4 * d
-                if line.wl * 1e8 ≈ 6303.242774
-                    @show LS_g_eff
-                    @show line.lande_g_even
-                    @show line.lande_g_odd
-                    @show line.J_even
-                    @show line.J_odd
-                end
-                if LS_g_eff == 0.0
-                    Δλ_zeeman .= 0.0
+                if !ismissing(line.J_even) && !ismissing(line.J_odd)
+                    d = line.J_even * (line.J_even + 1) - line.J_odd * (line.J_odd + 1)
+                    LS_g_eff = (line.lande_g_even + line.lande_g_odd) / 2 +
+                               (line.lande_g_even - line.lande_g_odd) / 4 * d
+                    if LS_g_eff == 0.0
+                        Δλ_zeeman .= 0.0
+                    else
+                        ΔE_zeeman .= bohr_magneton_cgs * LS_g_eff * magnetic_field
+                        # TODO upper or lower E
+                        Δλ_zeeman .= @. line.wl^2 / (c_cgs * hplanck_cgs) * ΔE_zeeman
+                        ∂λ_∂E = -line.wl^2 / (c_cgs * hplanck_cgs)
+                        Δλ_zeeman = ∂λ_∂E .* ΔE_zeeman
+                    end
                 else
-                    ΔE_zeeman .= bohr_magneton_cgs * LS_g_eff * magnetic_field
-                    # TODO upper or lower E
-                    Δλ_zeeman .= @. line.wl^2 / (c_cgs * hplanck_cgs) * ΔE_zeeman
-                    ∂λ_∂E = -line.wl^2 / (c_cgs * hplanck_cgs)
-                    Δλ_zeeman = ∂λ_∂E .* ΔE_zeeman
+                    Δλ_zeeman .= 0.0
                 end
 
                 window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
