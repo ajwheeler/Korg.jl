@@ -27,8 +27,9 @@ other arguments:
     is multithreaded over the lines in `linelist`.
   - `verbose` (deprecated): no longer used.
 """
-function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
-                          α_cntm; cutoff_threshold=3e-4, verbose=false, tasks_per_thread=1)
+function line_absorption!(α, linelist, lande_g_factors, magnetic_field, λs::Wavelengths, temps,
+                          nₑ, n_densities, partition_fns, ξ, α_cntm; cutoff_threshold=3e-4,
+                          verbose=false, tasks_per_thread=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end
@@ -46,6 +47,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
     n_chunks = tasks_per_thread * Threads.nthreads()
     chunk_size = max(1, length(linelist) ÷ n_chunks + (length(linelist) % n_chunks > 0))
     linelist_chunks = partition(linelist, chunk_size)
+
     tasks = map(linelist_chunks) do linelist_chunk
         # Each chunk of your data gets its own spawned task that does its own local, sequential work
         # and then returns the result
@@ -62,6 +64,8 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
             levels_factor = Vector{eltype(α)}(undef, size(temps))
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
             inverse_densities = Vector{eltype(α)}(undef, size(temps))
+            ΔE_zeeman = Vector{eltype(α)}(undef, size(temps))
+            Δλ_zeeman = Vector{eltype(α)}(undef, size(temps))
 
             for line in linelist_chunk
                 m = get_mass(line.species)
@@ -94,15 +98,43 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 doppler_line_window = maximum(inverse_densities)
                 inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
                 lorentz_line_window = maximum(inverse_densities)
-                window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2)
-                lb = searchsortedfirst(λs, line.wl - window_size)
-                ub = searchsortedlast(λs, line.wl + window_size)
-                # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
-                if lb > ub
-                    continue
+
+                # calculate using LS approximation
+                if !ismissing(line.J_even) && !ismissing(line.J_odd)
+                    d = line.J_even * (line.J_even + 1) - line.J_odd * (line.J_odd + 1)
+                    LS_g_eff = (line.lande_g_even + line.lande_g_odd) / 2 +
+                               (line.lande_g_even - line.lande_g_odd) / 4 * d
+                    if LS_g_eff == 0.0
+                        Δλ_zeeman .= 0.0
+                    else
+                        ΔE_zeeman .= bohr_magneton_cgs * LS_g_eff * magnetic_field
+                        # TODO upper or lower E
+                        Δλ_zeeman .= @. line.wl^2 / (c_cgs * hplanck_cgs) * ΔE_zeeman
+                        ∂λ_∂E = -line.wl^2 / (c_cgs * hplanck_cgs)
+                        Δλ_zeeman = ∂λ_∂E .* ΔE_zeeman
+                    end
+                else
+                    Δλ_zeeman .= 0.0
                 end
 
-                α_task[:, lb:ub] .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+                window_size = sqrt(lorentz_line_window^2 + doppler_line_window^2) +
+                              maximum(Δλ_zeeman) - minimum(Δλ_zeeman) # make sure it's big enough to include all Zeeman shifts
+                for shift in (-Δλ_zeeman, 0, Δλ_zeeman) # TODO selection rules
+                    λ = @. line.wl + shift
+
+                    # calculate the window center from the nominal line center, not the shifted line
+                    # centers
+                    # at present, this line is allocating. Would be good to fix that.
+                    lb = searchsortedfirst(λs, line.wl - window_size)
+                    ub = searchsortedlast(λs, line.wl + window_size)
+                    # not necessary, but is faster as of 8f979cc2c28f45cd7230d9ee31fbfb5a5164eb1d
+                    if lb > ub
+                        continue
+                    end
+
+                    # TODO selection rules scaling
+                    α_task[:, lb:ub] .+= line_profile.(λ, σ, γ, amplitude, view(λs, lb:ub)')
+                end
             end
             return α_task
         end

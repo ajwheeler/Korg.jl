@@ -132,6 +132,8 @@ result = synthesize(atm, linelist, A_X, 5000, 5100)
 """
 function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     wavelength_params...;
+                    lande_g_factors=nothing,
+                    magnetic_field=nothing,
                     vmic=1.0,
                     line_buffer::Real=10.0,
                     cntm_step::Real=1.0,
@@ -160,6 +162,10 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     if hydrogen_lines && use_MHD_for_hydrogen_lines && (wls[end] > 13_000 * 1e-8)
         @warn "if you are synthesizing at wavelengths longer than 15000 Å (e.g. for APOGEE), setting use_MHD_for_hydrogen_lines=false is recommended for the most accurate synthetic spectra. This behavior may become the default in Korg 1.0."
+    end
+
+    if I_scheme == "linear_flux_only" && mu_values != 20
+        @warn "mu_values was set to a non-default value ($mu_values), which will have no effect when I_scheme is set to \"linear_flux_only\"."
     end
 
     # Add wavelength bounds check (Rayleigh scattering limitation)
@@ -248,9 +254,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     # line contributions to α5
     if tau_scheme == "anchored"
         α_cntm_5 = [_ -> a for a in copy(α_ref)] # lambda per layer
-        line_absorption!(view(α_ref, :, 1), linelist5, Korg.Wavelengths([5000]), get_temps(atm),
-                         nₑs,
-                         number_densities,
+        line_absorption!(view(α_ref, :, 1), linelist5, lande_g_factors, magnetic_field,
+                         Wavelengths([5000]), get_temps(atm), nₑs, number_densities,
                          partition_funcs, vmic * 1e5, α_cntm_5;
                          cutoff_threshold=line_cutoff_threshold)
         interpolate_molecular_cross_sections!(view(α_ref, :, 1), molecular_cross_sections,
@@ -278,8 +283,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         end
     end
 
-    line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
-                     vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold, verbose=verbose)
+    line_absorption!(α, linelist, lande_g_factors, magnetic_field, wls, get_temps(atm), nₑs,
+                     number_densities, partition_funcs, vmic * 1e5, α_cntm;
+                     cutoff_threshold=line_cutoff_threshold, verbose=verbose)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 
