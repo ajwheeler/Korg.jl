@@ -99,8 +99,6 @@ using Random
                                                R=R,
                                                windows=windows,)
 
-                @show result.trace
-
                 params, Σ = result.covariance
 
                 Teff_index = findfirst(params .== "Teff")
