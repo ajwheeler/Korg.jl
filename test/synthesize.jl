@@ -8,11 +8,13 @@
     @testset "vmic specification" begin
         linelist = [Korg.Line(6000e-8, -1.0, Korg.species"Fe I", 0.3)]
 
-        sol1 = synthesize(atm_small, linelist, format_A_X(), 6000, 6000; vmic=1.0)
-        sol2 = synthesize(atm_small, linelist, format_A_X(), 6000, 6000; vmic=[1.0, 1.0, 1.0, 1.0])
+        sol1 = synthesize(atm_small, linelist, format_A_X(), (6000, 6000); vmic=1.0)
+        sol2 = synthesize(atm_small, linelist, format_A_X(), (6000, 6000);
+                          vmic=[1.0, 1.0, 1.0, 1.0])
         @test sol1.flux == sol2.flux
 
-        sol3 = synthesize(atm_small, linelist, format_A_X(), 6000, 6000; vmic=[1.0, 2.0, 3.0, 4.0])
+        sol3 = synthesize(atm_small, linelist, format_A_X(), (6000, 6000);
+                          vmic=[1.0, 2.0, 3.0, 4.0])
         @test sol1.flux != sol3.flux
     end
 
@@ -23,9 +25,9 @@
         line2 = Korg.Line(5997e-8, 1.0, Korg.species"Na I", 0.0)
 
         # use a 1 Å line buffer so only line1 in included
-        sol_no_lines = synthesize(atm_small, [], format_A_X(), 6000, 6000; line_buffer=1.0) #synthesize at 6000 Å only
-        sol_one_lines = synthesize(atm_small, [line1], format_A_X(), 6000, 6000; line_buffer=1.0)
-        sol_two_lines = synthesize(atm_small, [line1, line2], format_A_X(), 6000, 6000;
+        sol_no_lines = synthesize(atm_small, [], format_A_X(), (6000, 6000); line_buffer=1.0) #synthesize at 6000 Å only
+        sol_one_lines = synthesize(atm_small, [line1], format_A_X(), (6000, 6000); line_buffer=1.0)
+        sol_two_lines = synthesize(atm_small, [line1, line2], format_A_X(), (6000, 6000);
                                    line_buffer=1.0)
 
         @test sol_no_lines.flux != sol_one_lines.flux
@@ -33,15 +35,19 @@
     end
 
     @testset "wavelength handling" begin
-        wls = Korg.Wavelengths(5000, 5001)
+        # must use test_logs for warning from @warn
+        # use regex to partial match of the warning message
+        msg = (:warn, r"Passing multiple wavelength parameters")
+        @test_logs msg synthesize(atm_small, [], format_A_X(), 5000, 5001)
 
+        wls = Korg.Wavelengths((5000, 5001))
         sol = synthesize(atm_small, [], format_A_X(), wls)
         @testset for wl_params in [
+            5000:0.01:5001,
             [5000:0.01:5001],
-            [[5000:0.01:5001]],
-            [collect(5000:0.01:5001)]
+            collect(5000:0.01:5001)
         ]
-            sol2 = synthesize(atm_small, [], format_A_X(), wl_params...)
+            sol2 = synthesize(atm_small, [], format_A_X(), wl_params)
             @test sol.flux ≈ sol2.flux
         end
     end
@@ -49,21 +55,21 @@
     @testset "precomputed chemical equilibrium" begin
         # test that the precomputed chemical equilibrium works
         A_X = format_A_X()
-        sol = synthesize(atm_small, [], A_X, 5000, 5000)
-        sol_eq = synthesize(atm_small, [], A_X, 5000, 5000; use_chemical_equilibrium_from=sol)
+        sol = synthesize(atm_small, [], A_X, (5000, 5000))
+        sol_eq = synthesize(atm_small, [], A_X, (5000, 5000); use_chemical_equilibrium_from=sol)
         @test sol.flux == sol_eq.flux
     end
 
     @testset "mu specification" begin
-        sol = synthesize(atm_small, [], format_A_X(), 5000, 5000; mu_values=5,
+        sol = synthesize(atm_small, [], format_A_X(), (5000, 5000); mu_values=5,
                          I_scheme="linear")
         @test length(sol.mu_grid) == 5
 
-        sol = synthesize(atm_small, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0,
+        sol = synthesize(atm_small, [], format_A_X(), (5000, 5000); mu_values=0:0.5:1.0,
                          I_scheme="linear")
         @test length(sol.mu_grid) == 3
 
-        sol = synthesize(atm_small, [], format_A_X(), 5000, 5000; mu_values=0:0.5:1.0,
+        sol = synthesize(atm_small, [], format_A_X(), (5000, 5000); mu_values=0:0.5:1.0,
                          I_scheme="linear_flux_only")
         @test sol.mu_grid == [(1, 1)]
     end
@@ -71,7 +77,7 @@
     @testset "linelist checking" begin
         msg = "The provided linelist was not empty"
         linelist = [Korg.Line(5000e-8, 1.0, Korg.species"Na I", 0.0)]
-        @test_warn msg synthesize(atm_small, linelist, format_A_X(), 6000, 6000)
+        @test_warn msg synthesize(atm_small, linelist, format_A_X(), (6000, 6000))
     end
 
     @testset "linelist filtering" begin
@@ -138,6 +144,6 @@
 
     @testset "wavelength bounds" begin
         # Test wavelength below minimum
-        @test_throws ArgumentError synthesize(atm_small, [], format_A_X(), 1200, 1400)
+        @test_throws ArgumentError synthesize(atm_small, [], format_A_X(), (1200, 1400))
     end
 end

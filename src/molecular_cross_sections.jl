@@ -20,7 +20,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
 
   - `linelist`: A vector of `Line` objects representing the molecular linelist.  These must be of the
     same species.
-  - `wl_params...`: Parameters specifying the wavelengths in the same format that [`synthesize`](@ref)
+  - `wl_param`: Parameters specifying the wavelengths in the same format that [`synthesize`](@ref)
     expects.
 
 # Keyword Arguments
@@ -45,10 +45,10 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     for other applications by comparing spectra synthesize with and without precomputing the
     molecular cross-section.
 """
-function MolecularCrossSection(linelist, wl_params...; cutoff_alpha=1e-32,
+function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32,
                                vmic_vals=[(0.0:1/3:1.0)...; 1.5; (2:2/3:(5+1/3))...],
                                log_temp_vals=3:0.04:5)
-    wls = Wavelengths(wl_params...)
+    wls = Wavelengths(wl_params)
     all_specs = [l.species for l in linelist]
     if !all(Ref(all_specs[1]) .== all_specs)
         throw(ArgumentError("All lines must be of the same species"))
@@ -149,7 +149,7 @@ See also [`MolecularCrossSection`](@ref).
 function read_molecular_cross_section(filename)
     HDF5.h5open(filename, "r") do file
         wls = map(HDF5.read(file, "wls")) do (start, step, stop)
-            start:step:stop
+            start*1e8:step*1e8:stop*1e8
         end |> Wavelengths
         vmic_vals = HDF5.read(file, "vmic_vals")
         logT_vals = HDF5.read(file, "T_vals")

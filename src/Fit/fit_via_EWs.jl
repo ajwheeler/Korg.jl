@@ -133,7 +133,7 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
     ews_to_abundances_parameter_validation(linelist, measured_EWs)
 
     # do a single synthesis to get the chemical equilibrium once
-    sol = synthesize(atm, [], A_X, 5000, 5000)
+    sol = synthesize(atm, [], A_X, (5000, 5000))
 
     A_X = copy(A_X)
     # fiducial abundance for each line is taked from the A_X vector

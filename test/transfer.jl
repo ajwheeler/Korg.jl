@@ -11,7 +11,7 @@
         atm = interpolate_marcs(5000.0, 3.0)
         patm = Korg.PlanarAtmosphere(atm)
 
-        sol = synthesize(atm, [], format_A_X(), 5000, 5001)
+        sol = synthesize(atm, [], format_A_X(), (5000, 5001))
         ref_ind = 1
 
         wl_cm = sol.wavelengths * 1e-8

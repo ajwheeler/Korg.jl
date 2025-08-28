@@ -36,10 +36,10 @@ equivalent width.
 
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
-function prune_linelist(atm, linelist, A_X, wl_params...;
+function prune_linelist(atm, linelist, A_X, wl_params;
                         threshold=0.1, sort_by_EW=true, verbose=true, max_distance=0.0,
                         synthesis_kwargs...)
-    wls = Wavelengths(wl_params...)
+    wls = Wavelengths(wl_params)
     # linelist will be sorted after call to synthesize
     sol = synthesize(atm, linelist, A_X, wls; synthesis_kwargs...)
     cntm_sol = synthesize(atm, [], A_X, wls; synthesis_kwargs...)
@@ -96,8 +96,8 @@ function prune_linelist(atm, linelist, A_X, wl_params...;
         label = "measuring $(length(strong_lines)) lines"
         approx_EWs = @showprogress desc=label enabled=verbose map(strong_lines) do line
             line_center = line.wl * 1e8
-            wls = line_center / 1.0003, line_center * 1.0003 # ± 90 km/s (~1.5 Å @ 5000 Å)
-            sol = synthesize(atm, [line], A_X, wls...;
+            wls = (line_center / 1.0003, line_center * 1.0003) # ± 90 km/s (~1.5 Å @ 5000 Å)
+            sol = synthesize(atm, [line], A_X, wls;
                              hydrogen_lines=false, use_chemical_equilibrium_from=sol,
                              synthesis_kwargs...)
             sum(1 .- sol.flux ./ sol.cntm) / line_center # units don't matter
