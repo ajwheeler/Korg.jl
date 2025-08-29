@@ -3,7 +3,7 @@
 
 This page explains the changes in Korg v1.0 that might trip you up if you are coming from an earlier version.
 
-- [`synthesize`](@ref), [`MolecularCrossSection`](@ref), and [`prune_linelist`](@ref) now always
+- [`synthesize`](@ref), [`Korg.MolecularCrossSection`](@ref), and [`Korg.prune_linelist`](@ref) now always
   take only a single argument for wavelength specification.
   Bounds can be passed as tuple, e.g. `synthesize(atm, linelist, A_X, (λ_lower, λ_upper))`.
   For `synthesize`, passing more than one argument will trigger a deprecation warning for now.

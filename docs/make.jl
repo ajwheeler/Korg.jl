@@ -1,6 +1,6 @@
 # the file is run by CI to build the docs.
 # you can run it locally with `julia --project=docs/Project.toml make.jl` from the docs/ directory
-# add --no-execute to skip executing code blocks and running tutorial notebooks for faster builds
+# add --draft to skip executing code blocks and running tutorial notebooks for faster builds
 
 using Documenter, Literate, Suppressor, ArgParse, Korg # Korg is Pkg.dev'ed in the docs environment
 
