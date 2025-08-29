@@ -101,7 +101,7 @@ list of lines with equivalent widths.
 
 Alternatively, you can pass a vector of parameters like the one returned by
 [`ews_to_stellar_parameters`](@ref) instead of a model atmosphere and abundances vector. These
-should be in the order `[Teff, logg, vmic, m_H]`.
+should be in the order `[Teff, logg, vmic, M_H]`.
 
 # Returns
 
@@ -133,7 +133,7 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
     ews_to_abundances_parameter_validation(linelist, measured_EWs)
 
     # do a single synthesis to get the chemical equilibrium once
-    sol = synthesize(atm, [], A_X, 5000, 5000)
+    sol = synthesize(atm, [], A_X, (5000, 5000))
 
     A_X = copy(A_X)
     # fiducial abundance for each line is taked from the A_X vector
@@ -190,8 +190,8 @@ function ews_to_abundances(atm, linelist, A_X, measured_EWs; ew_window_size::Rea
 end
 function ews_to_abundances(params, linelist, measured_EWs;
                            solar_abundaces=Korg.default_solar_abundances, kwargs...)
-    Teff, logg, vmic, m_H = params
-    A_X = Korg.format_A_X(m_H; solar_abundances=solar_abundaces)
+    Teff, logg, vmic, M_H = params
+    A_X = Korg.format_A_X(M_H; solar_abundances=solar_abundaces)
     atm = Korg.interpolate_marcs(Teff, logg, A_X; perturb_at_grid_values=true,
                                  clamp_abundances=true)
     ews_to_abundances(atm, linelist, A_X, measured_EWs; vmic=vmic, kwargs...)
@@ -216,8 +216,8 @@ function ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; ew_window_si
 end
 function ews_to_abundances_approx(params, linelist, measured_EWs;
                                   solar_abundances=Korg.default_solar_abundances, kwargs...)
-    Teff, logg, vmic, m_H = params
-    A_X = Korg.format_A_X(m_H; solar_abundances=solar_abundances)
+    Teff, logg, vmic, M_H = params
+    A_X = Korg.format_A_X(M_H; solar_abundances=solar_abundances)
     atm = Korg.interpolate_marcs(Teff, logg, A_X; perturb_at_grid_values=true,
                                  clamp_abundances=true)
     ews_to_abundances_approx(atm, linelist, A_X, measured_EWs; vmic=vmic, kwargs...)
@@ -259,9 +259,9 @@ function ews_to_stellar_parameters_direct(linelist, measured_EWs,
                                           verbose=false, p0=[5.0, 3.5, 1.0, 0.0], precision=1e-5,
                                           time_limit=500)
     function cost(params)
-        Teff, logg, vmic, m_H = params
+        Teff, logg, vmic, M_H = params
         Teff = Teff * 1e3
-        A_X = format_A_X(m_H)
+        A_X = format_A_X(M_H)
         atm = interpolate_marcs(Teff, logg, A_X)
         EWs = calculate_EWs(atm, linelist, A_X; vmic=vmic)
         sum(@. ((EWs - measured_EWs) / measured_EW_err)^2)
@@ -333,7 +333,7 @@ A pair, `(params, uncertainties)`, containing:
   - `logg0` (default: 3.5) is the starting guess for logg
   - `vmic0` (default: 1.0) is the starting guess for vmic. Note that this must be nonzero in order to
     avoid null derivatives. Very small values are fine.
-  - `m_H0` (default: 0.0) is the starting guess for [m/H]
+  - `M_H0` (default: 0.0) is the starting guess for [m/H]
   - `tolerances` (default: `[1e-3, 1e-3, 1e-4, 1e-3]`) is the tolerance for the residuals each equation
     listed above. The solver stops when all residuals are less than the corresponding tolerance.
   - `max_step_sizes` (default: `[1000.0, 1.0, 0.3, 0.5]`) is the maximum step size to take in each
@@ -364,7 +364,7 @@ A pair, `(params, uncertainties)`, containing:
 """
 function ews_to_stellar_parameters(linelist, measured_EWs;
                                    abundance_adjustments=zeros(length(measured_EWs)),
-                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, m_H0=0.0,
+                                   Teff0=5000.0, logg0=3.5, vmic0=1.0, M_H0=0.0,
                                    tolerances=[1e-3, 1e-3, 1e-4, 1e-3],
                                    max_step_sizes=[1000.0, 1.0, 0.3, 0.5],
                                    parameter_ranges=[(2800.0, 8000.0),
@@ -387,7 +387,7 @@ function ews_to_stellar_parameters(linelist, measured_EWs;
                             "like to fix microturbulence to a given value."))
     end
 
-    params0 = [Teff0, logg0, vmic0, m_H0]
+    params0 = [Teff0, logg0, vmic0, M_H0]
     params = validate_ews_to_stellar_params_inputs(linelist, measured_EWs, params0,
                                                    parameter_ranges)
 

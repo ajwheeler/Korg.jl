@@ -12,15 +12,13 @@
     apowls = 10 .^ range((start = 4.179 - 125 * delLog); step=delLog, length=8575 + 125)
     apowls = apowls[wl_lo.<apowls.<wl_hi]
 
-    synth_wls = wl_lo:0.01:wl_hi
-
-    LSF_model = Korg.compute_LSF_matrix(synth_wls, apowls, 22_500; verbose=false)
+    LSF_model = Korg.compute_LSF_matrix((wl_lo, wl_hi), apowls, 22_500; verbose=false)
 
     # it's less accurate to not include water lines, but that's fine for this test
     apolines = Korg.get_APOGEE_DR17_linelist(; include_water=false)
     A_X = format_A_X()
     atm = Korg.interpolate_marcs(5777, 4.4, A_X)
-    sol = synthesize(atm, apolines, A_X, synth_wls)
+    sol = synthesize(atm, apolines, A_X, (wl_lo, wl_hi))
 
     synth_flux = (sol.flux) ./ (sol.cntm)
     # this denominator is a normalization factor
@@ -33,13 +31,13 @@
     msk = ones(Bool, length(apowls))
     msk[1:100] .= false
 
-    Q = Korg.Qfactor(synth_flux, synth_wls, apowls, LSF_model; obs_mask=msk)
-    @test Q≈810.4642695969038 rtol=1e-4
+    Q = Korg.Qfactor(synth_flux, (wl_lo, wl_hi), apowls, LSF_model; obs_mask=msk)
+    @test Q≈877.6 atol=1
     SNR = flux ./ obs_err
     RMS_SNR = sqrt(mean(SNR[msk] .^ 2))
     Q_prec = Korg.RV_prec_from_Q(Q, RMS_SNR, count(msk))
 
-    noise_prec = Korg.RV_prec_from_noise(synth_flux, synth_wls, apowls, LSF_model, obs_err;
+    noise_prec = Korg.RV_prec_from_noise(synth_flux, (wl_lo, wl_hi), apowls, LSF_model, obs_err;
                                          obs_mask=msk)
 
     @test Q_prec ≈ noise_prec

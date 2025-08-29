@@ -4,7 +4,7 @@ using Random
 @testset "Fit" verbose=true showtiming=true begin
     @testset "fit_spectrum" begin
         @testset "parameter scaling" begin
-            params = Dict("Teff" => 3200.0, "logg" => 4.5, "m_H" => -2.0, "vmic" => 3.2,
+            params = Dict("Teff" => 3200.0, "logg" => 4.5, "M_H" => -2.0, "vmic" => 3.2,
                           "vsini" => 10.0, "O" => -1.0)
             sparams = Korg.Fit.scale(params)
             uparams = Korg.Fit.unscale(sparams)
@@ -14,8 +14,13 @@ using Random
         @testset "fit param validation" begin
             @test_throws ArgumentError Korg.Fit.validate_params((; Teff=3200), (;))
             @test_throws ArgumentError Korg.Fit.validate_params((; logg=3200), (;))
-            @test_throws ArgumentError Korg.Fit.validate_params((Teff=4500, logg=3200, m_H=0.1),
-                                                                (; m_H=0.1))
+            @test_throws ArgumentError Korg.Fit.validate_params((Teff=4500, logg=3200, M_H=0.1),
+                                                                (; M_H=0.1))
+
+            @test_throws "Use M_H instead" Korg.Fit.validate_params((; m_H=0.1, Teff=5000,
+                                                                     logg=4.5), (;))
+            @test_throws "Use M_H instead" Korg.Fit.validate_params((; Teff=5000, logg=4.5),
+                                                                    (; m_H=0.1))
 
             # alpha may be specified, but it has no default, making it a special case
             p0, _ = Korg.Fit.validate_params((Teff=4500, logg=4.5, alpha_H=0.2), (;))
@@ -28,7 +33,7 @@ using Random
             for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff" => 4500, "logg" => 4.5)]
                 for fixed_params in [(;), Dict()]
                     _, fixed_params = Korg.Fit.validate_params(initial_guess, fixed_params)
-                    @test fixed_params["m_H"] == 0
+                    @test fixed_params["M_H"] == 0
                     @test fixed_params["vmic"] == 1
                 end
             end
@@ -59,14 +64,14 @@ using Random
             fixed_params = (; vmic=0.83, logg=4.52)
             # true parameters
             Teff = 5350.0
-            m_H = 0.11
+            M_H = 0.11
 
             # start slightly off.  It would be a more robust test to start further away, but it
             # would also be more expensive.
-            p0 = (; Teff=5000.0, m_H=0.0)
+            p0 = (; Teff=5000.0, M_H=0.0)
 
             # synthesize a spectrum, to be turned into fake data
-            A_X = Korg.format_A_X(m_H, m_H)
+            A_X = Korg.format_A_X(M_H, M_H)
             atm = interpolate_marcs(Teff, fixed_params.logg, A_X)
             sol = synthesize(atm, linelist, A_X, synth_wls; vmic=fixed_params.vmic)
 
@@ -103,8 +108,8 @@ using Random
 
                 Teff_index = findfirst(params .== "Teff")
                 Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
-                m_H_index = findfirst(params .== "m_H")
-                m_H_sigma = sqrt(Σ[m_H_index, m_H_index])
+                M_H_index = findfirst(params .== "M_H")
+                M_H_sigma = sqrt(Σ[M_H_index, M_H_index])
 
                 # check that inferred parameters are within 1 sigma of the true values
                 @test result.best_fit_params["Teff"]≈Teff atol=Teff_sigma

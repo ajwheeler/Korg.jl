@@ -109,7 +109,7 @@
             newF
         end
 
-        wls = Korg.Wavelengths(4090, 5010)
+        wls = Korg.Wavelengths((4090, 5010))
         flux = zeros(length(wls))
         flux[990:1010] .= 1
 
