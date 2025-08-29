@@ -55,9 +55,7 @@ Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
     uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
   - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
     pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`, or
-    as any other valid arguments to the [`Korg.Wavelengths`](@ref) constructor.
-    [See the "Wavelengths" documentation](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/)
-    for more details.
+    as any other valid arguments [described here](@ref wldocs)
 
 # Example
 
