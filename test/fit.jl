@@ -1,6 +1,7 @@
 using Random
 
-@testset "Fit" begin
+# print the timing info because this is kinda slow
+@testset "Fit" verbose=true showtiming=true begin
     @testset "fit_spectrum" begin
         @testset "parameter scaling" begin
             params = Dict("Teff" => 3200.0, "logg" => 4.5, "M_H" => -2.0, "vmic" => 3.2,
@@ -50,10 +51,14 @@ using Random
         @testset "calls to fit_spectrum" begin
             perturb!(flux, _, _) = (flux .= flux .^ 1.2)
             linelist = Korg.get_VALD_solar_linelist()
-            windows = [(5000, 5010), (5015, 5025), (5030, 5040)]
-            obs_wls = 4990:0.07:5050
-            synth_wls = (4990, 5050)
-            R = 20_000
+
+            obs_wls = 4997:0.07:5010
+            windows = [(5000, 5003), (5008, 5010)]
+
+            # make these a superset of the windows
+            synth_wls = Korg.Wavelengths(4999, 5011)
+
+            R = 50_000
             LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, R)
 
             fixed_params = (; vmic=0.83, logg=4.52)
@@ -85,11 +90,15 @@ using Random
                 fake_data[m] .*= offset .+ slope * obs_wls[m]
             end
 
+            # bad pixels outside the windows should be OK
+            fake_data[1] = NaN
+            fake_data[2] = Inf
+
             err = 0.01 * ones(length(obs_wls)) # don't actually apply error to keep tests deterministic
 
             @testset "fit test" begin
                 result = Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
-                                               precision=1e-4,
+                                               precision=1e-2, # loose tolerances for speed
                                                postprocess=perturb!,
                                                adjust_continuum=true,
                                                R=R,
@@ -102,14 +111,17 @@ using Random
                 M_H_index = findfirst(params .== "M_H")
                 M_H_sigma = sqrt(Σ[M_H_index, M_H_index])
 
-                # check that inferred parameters are within 2 sigma of the true values
-                @test result.best_fit_params["Teff"]≈Teff atol=1Teff_sigma
-                @test result.best_fit_params["M_H"]≈M_H atol=1M_H_sigma
+                # check that inferred parameters are within 1 sigma of the true values
+                @test result.best_fit_params["Teff"]≈Teff atol=Teff_sigma
+                @test result.best_fit_params["m_H"]≈m_H atol=m_H_sigma
 
                 # check that best-fit flux is within 1% of the true flux at all pixels
                 @test assert_allclose(fake_data[result.obs_wl_mask], result.best_fit_flux,
-                                      rtol=0.01)
+                                      rtol=0.001)
             end
+
+            # get rid of the bad pixels to make it easer to test the error messages below
+            fake_data[1:3] .= 0
 
             @testset "argument checks" begin
                 @test_throws "LSF_matrix and synthesis_wls cannot be specified if R is provided" begin
@@ -132,7 +144,7 @@ using Random
                 @test_throws "obs_wls must be sorted in order of increasing wavelength" begin
                     Korg.Fit.fit_spectrum(reverse(obs_wls), fake_data, err, linelist, p0,
                                           fixed_params;
-                                          synthesis_wls=synth_wls, LSF_matrix=LSF,
+                                          synthesis_wls=synth_wls, windows=windows, R=Inf,
                                           time_limit=1)
                 end
 
@@ -145,13 +157,6 @@ using Random
                                               synthesis_wls=synth_wls, LSF_matrix=LSF,
                                               time_limit=1)
                     end
-
-                    # check that it works if the bad val is outside the mask
-                    bad_flux = copy(fake_data)
-                    bad_flux[1] = bad_val
-                    Korg.Fit.fit_spectrum(obs_wls, bad_flux, err, linelist, p0,
-                                          fixed_params;
-                                          R=Inf, time_limit=1, windows=[(5000, 5010)])
                 end
 
                 @testset "err contains zeros" begin
@@ -311,12 +316,15 @@ using Random
                                                                           vmic0=0)
         end
 
-        @testset "basic fit" begin
+        @testset "basic fit" verbose=true showtiming=true begin
             linelist = Korg.get_VALD_solar_linelist()
+            i = 0
             filter!(linelist) do line
-                (Korg.get_atoms(line.species) == [26]) && (line.wl * 1e8 .> 8500)
+                i += 1
+                p = (Korg.get_atoms(line.species) == [26]) && (line.wl * 1e8 .> 8500)
+                # take only every 10th neutral line to make it faster
+                p &= (line.species.charge > 0 || i % 20 == 0)
             end
-            linelist = linelist[1:4:end]
 
             # 2 Å wide window around each line
             synth_wls = map(linelist) do line
@@ -327,6 +335,8 @@ using Random
             sol = synthesize(interpolate_marcs(5777.0, 4.44, A_X), linelist, A_X, synth_wls;
                              hydrogen_lines=false)
 
+            param_tolerance = [10, 0.1, 0.1, 0.01]
+
             # EWs you get for the fake linelist with solar params
             # the real implementation uses the trapezoid rule, but this is close enough
             EWs = [sum((1 .- sol.flux./sol.cntm)[r]) for r in sol.subspectra] * 10 #0.01 Å -> mÅ
@@ -335,13 +345,12 @@ using Random
             # in this fake data case, the reported uncertainties are meaningless because there is no
             # line-to-line scatter, save for what arises from imperfect fit convergence.
             # so, just check that the fit is good.
-            param_tolerance = [10, 0.1, 0.1, 0.01]
             for (guess, p, tol) in zip(best_fit_params, [5777.0, 4.44, 1.0, 0.0], param_tolerance)
                 @test guess≈p atol=tol
             end
 
             # check that fixing parameters works
-            for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :M_H0])
+            @testset "fixed parameters" for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :m_H0])
                 fixed_params = zeros(Bool, 4)
                 fixed_params[i] = true
                 kwargs = Dict(param => best_fit_params[i])
