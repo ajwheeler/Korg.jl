@@ -42,10 +42,21 @@ const _hline_stark_profiles = _load_stark_profiles(joinpath(_data_dir,
 _zero2epsilon(x) = x + (x == 0) * floatmin()
 
 """
-    hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, UH_I, ξ, window_size; kwargs...)
+    hydrogen_line_absorption!(αs, λs, T, nₑ, nH_I, nHe_I, UH_I, ξ, window_size; kwargs...)
 
-Calculate contribution to the the absorption coefficient, αs, from hydrogen lines in units of cm^-1,
-at wavelengths `λs` (a vector of ranges).
+Calculate the opacity coefficient from hydrogen lines, adding to the absorption vector `αs` in-place.
+
+# Arguments
+
+  - `αs`: absorption coefficient array to be filled in-place
+  - `λs`: a [`Korg.Wavelengths`](@ref) object.
+  - `T`: temperature in K
+  - `nₑ`: electron number density in cm^-3
+  - `nH_I`: neutral hydrogen number density in cm^-3
+  - `nHe_I`: neutral helium number density in cm^-3
+  - `UH_I`: neutral hydrogen partition function
+  - `ξ`: microturbulent velocity in cm/s
+  - `window_size`: maximum distance in cm from each hydrogen line center at which to calculate absorption
 
 Uses profiles from [Stehlé & Hutcheon (1999)](https://ui.adsabs.harvard.edu/abs/1999A%26AS..140...93S/abstract),
 which include Stark and Doppler broadening.
@@ -53,20 +64,6 @@ For Halpha, Hbeta, and Hgamma, the p-d approximated profiles from
 [Barklem, Piskunovet, and O'Mara 2000](https://ui.adsabs.harvard.edu/abs/2000A%26A...363.1091B/abstract)
 are added to the absortion coefficient.  This "convolution by summation" is inexact, but true
 convolution is expensive.
-
-Arguments:
-
-  - `αs`: the absorption coefficient [cm^-1] vector into which to add the line absorption
-  - `λs`: the wavelengths at which to calculate the absorption [cm]
-  - `T`: temperature [K]
-  - `nₑ`: electron number density [cm^-3]
-  - `nH_I`: neutral hydrogen number density [cm^-3]
-  - `UH_I`: the value of the neutral hydrogen partition function
-  - `ξ`: microturbulent velocity [cm/s]. This is only applied to Hα-Hγ.  Other hydrogen lines profiles
-    are dominated by stark broadening, and the stark broadened profiles are pre-convolved with a
-    doppler profile.
-  - `window_size`: the max distance from each line center [cm] at which to calculate the Stark and
-    self-broadening profiles absorption for Hα-Hγ (those dominated by self-broadening).
 
 Keyword arguments:
 

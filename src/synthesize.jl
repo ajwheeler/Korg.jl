@@ -41,8 +41,7 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
 end
 
 """
-    synthesize(atm, linelist, A_X, λ_start, λ_stop; kwargs... )
-    synthesize(atm, linelist, A_X, wavelength_ranges; kwargs... )
+    synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
 
 Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
 
@@ -55,8 +54,10 @@ Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
   - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
     uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
   - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
-    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`
-    (or as valid arguments to the [`Wavelengths`](@ref) constructor).
+    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`, or
+    as any other valid arguments to the [`Korg.Wavelengths`](@ref) constructor.
+    [See the "Wavelengths" documentation](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/)
+    for more details.
 
 # Example
 
@@ -67,7 +68,7 @@ To synthesize a spectrum between 5000 Å and 5100 Å, with all metal abundances 
 linelist = Korg.read_linelist("path/to/linelist.vald")
 A_X = format_A_X(-0.5, Dict("C" => -0.25))
 atm = Korg.interpolate_marcs(5777, 4.44, A_X)
-result = synthesize(atm, linelist, A_X, 5000, 5100)
+result = synthesize(atm, linelist, A_X, (5000, 5100))
 ```
 
 # Optional arguments:
@@ -155,7 +156,12 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     log_equilibrium_constants=default_log_equilibrium_constants,
                     molecular_cross_sections=[],
                     use_chemical_equilibrium_from=nothing,)::SynthesisResult
-    wls = Wavelengths(wavelength_params...)
+    wls = if length(wavelength_params) > 1
+        @warn "Passing multiple wavelength parameters to `synthesize` is deprecated.  Package them in a tuple instead: synthesize(atm, linelist, A_X, (λ_start, λ_stop))"
+        Wavelengths(wavelength_params)
+    else
+        Wavelengths(wavelength_params[1])
+    end
 
     if isnothing(use_MHD_for_hydrogen_lines)
         use_MHD_for_hydrogen_lines = wls[end] < 13_000 * 1e-8
@@ -355,7 +361,7 @@ function get_reference_wavelength_linelist(linelist, reference_wavelength;
 
     # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
     # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
-    filtered_linelist = filter_linelist(linelist, Korg.Wavelengths(5000, 5000), 21e-8;
+    filtered_linelist = filter_linelist(linelist, Korg.Wavelengths((5000, 5000)), 21e-8;
                                         warn_empty=false)
 
     # handle non-5000 Å reference wavelengths. There's no built-in fallback for these.

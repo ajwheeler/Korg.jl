@@ -28,7 +28,8 @@ Note that the Q factor is an approximation when the flux uncertainty is not phot
 # Arguments
 
   - `synth_flux`: High-resolution theoretical spectrum
-  - `synth_wl`: High-resolution wavelength grid
+  - `synth_wl`: High-resolution wavelength grid in any format accepted by [`Korg.Wavelengths`](@ref)
+    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
   - `obs_wl`: Low-resolution wavelength grid
   - `LSF_mat`: LSF matrix (see [`compute_LSF_matrix`](@ref))
 
@@ -39,11 +40,12 @@ Note that the Q factor is an approximation when the flux uncertainty is not phot
 See also: [`RV_prec_from_Q`](@ref) and [`RV_prec_from_noise`](@ref)
 """
 function Qfactor(synth_flux, synth_wl, obs_wl, LSF_mat; obs_mask=nothing)
+    synth_wl = Wavelengths(synth_wl)
     nvecLSF = dropdims(sum(LSF_mat; dims=2); dims=2) # normalisation for the LSF
     spec_lres = LSF_mat * synth_flux ./ nvecLSF
 
     dspec_dlam = zeros(length(synth_flux))
-    dspec_dlam[2:end] .= diff(synth_flux) ./ diff(synth_wl)
+    dspec_dlam[2:end] .= diff(synth_flux) ./ diff(synth_wl) * 1e-8 # cm to Å
 
     Wvec = ((obs_wl .* (LSF_mat * dspec_dlam) ./ nvecLSF) .^ 2) ./ spec_lres
     if isnothing(obs_mask)
@@ -61,7 +63,8 @@ Compute the best achievable RV precision given a spectrum with uncertainties.
 # Arguments
 
   - `synth_flux`: High-resolution theoretical spectrum
-  - `synth_wl`: High-resolution wavelength grid
+  - `synth_wl`: High-resolution wavelength grid in any format accepted by [`Korg.Wavelengths`](@ref)
+    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
   - `obs_wl`: Low-resolution wavelength grid
   - `LSF_mat`: LSF matrix (see [`compute_LSF_matrix`](@ref))
   - `obs_err`: Noise in the continuum-normalized spectrum
@@ -73,10 +76,11 @@ Compute the best achievable RV precision given a spectrum with uncertainties.
 See also: [`RV_prec_from_Q`](@ref) and [`Qfactor`](@ref)
 """
 function RV_prec_from_noise(synth_flux, synth_wl, obs_wl, LSF_mat, obs_err; obs_mask=nothing)
+    synth_wl = Wavelengths(synth_wl)
     nvecLSF = dropdims(sum(LSF_mat; dims=2); dims=2)
 
     dspec_dlam = zeros(length(synth_flux))
-    dspec_dlam[2:end] .= diff(synth_flux) ./ diff(synth_wl)
+    dspec_dlam[2:end] .= diff(synth_flux) ./ diff(synth_wl) * 1e-8 # cm to Å
 
     Wvec = ((obs_wl .* (LSF_mat * dspec_dlam) ./ nvecLSF) .^ 2) ./ (obs_err .^ 2)
     if isnothing(obs_mask)

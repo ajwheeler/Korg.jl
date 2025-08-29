@@ -28,7 +28,7 @@
         # that's the reference wavelength caused instability in the finie differnces calculation.
         function f(A_C)
             A_X = format_A_X(Dict("C" => A_C))
-            synthesize(atm, linelist, A_X, 6000, 6000).flux[1]
+            synthesize(atm, linelist, A_X, (6000, 6000)).flux[1]
         end
         @test FiniteDiff.finite_difference_derivative(f, 0.0)≈ForwardDiff.derivative(f, 0.0) rtol=1e-4
     end
@@ -39,7 +39,7 @@
             linelist = [Korg.Line(6000e-8, loggf, Korg.species"Na I", 0.0)]
             # This used to be a fake line at 5000, but the fact that that's the reference wavelength
             # caused instability in the finie differnces calculation.
-            synthesize(atm, linelist, format_A_X(), 6000, 6000).flux[1]
+            synthesize(atm, linelist, format_A_X(), (6000, 6000)).flux[1]
         end
         @test FiniteDiff.finite_difference_derivative(f, 0.0)≈ForwardDiff.derivative(f, 0.0) rtol=1e-4
     end

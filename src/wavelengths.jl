@@ -1,13 +1,11 @@
 """
-    Korg.Wavelengths(wl_params...; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+    Korg.Wavelengths((5000, 5500))
+    Korg.Wavelengths((5000, 5500, 0.03)) # explicitly specify the spacing (0.01 Å is the default)
+    Korg.Wavelengths([(5000, 5500), (6000, 6500, 0.03)])
 
 Construct a `Wavelengths` object which represents the (possibly non-contiguous) wavelengths for
 which to compute a spectrum. The wavelengths can be specified with an upper and lower bound, or
 a vector of upper and lower bounds. For example,
-
-    Korg.Wavelengths(5000, 5500)
-    Korg.Wavelengths(5000, 5500, 0.01) # explicitly specify the spacing (0.01 Å is the default)
-    Korg.Wavelengths([(5000, 5500), (6000, 6500)])
 
 Wavelengths can be specified in either Å or cm. Values >= 1 are assumed to be in Å and values < 1
 are assumed to be in cm.
@@ -91,19 +89,33 @@ function Wavelengths(wls::AbstractVector; tolerance=1e-6, kwargs...)
         Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
     end
 end
-# this handles the vector-of-bounds case
-function Wavelengths(wls::AbstractVector{<:Tuple{<:Real,<:Real}},
-                     λ_step=(wls[1][1] < 1 ? 0.01e-8 : 0.01); kwargs...)
-    if λ_step isa Integer
-        λ_step = convert(Float64, λ_step)
+# this handles the vector-of-bounds case. Each element can be a tuple of (λ_start, λ_stop) or
+# (λ_start, λ_stop, λ_step).
+function Wavelengths(tuples::AbstractVector{<:Union{<:Tuple{<:Real,<:Real},
+                                                    <:Tuple{<:Real,<:Real,<:Real}}},
+                     ; kwargs...)
+    ranges = map(tuples) do tuple
+        if !(2 .<= length(tuple) .<= 3)
+            throw(ArgumentError("Each wavelength range must be specified as a tuple of (λ_start, λ_stop) or (λ_start, λ_stop, λ_step). Got $tuple."))
+        end
+
+        λ_step = if length(tuple) == 3
+            tuple[3]
+        elseif tuple[1] < 1
+            1e-10 # 0.01 Å in cm
+        else
+            0.01
+        end
+
+        range(; start=tuple[1], stop=tuple[2], step=λ_step)
     end
-    Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step)
-                 for (λ_start, λ_stop) in wls]; kwargs...)
+    Wavelengths(ranges; kwargs...)
 end
-function Wavelengths(λ_start, λ_stop, args...; kwargs...)
-    Wavelengths([(λ_start, λ_stop)], args...; kwargs...)
+function Wavelengths(tuple::T;
+                     kwargs...) where T<:Union{Tuple{<:Real,<:Real},
+                                               Tuple{<:Real,<:Real,<:Real}}
+    Wavelengths([tuple]; kwargs...)
 end
-Wavelengths(wls::Tuple{<:Real,<:Real}; kwargs...) = Wavelengths([wls]; kwargs...)
 
 # implement the AbstractArray interface
 # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array

@@ -6,7 +6,7 @@
     @testset "basic functionality" begin
         # Compare with direct Korg.synthesize call
         wls, flux, cntm = synth(; default_ps..., wavelengths=(5000, 5001))
-        sol = synthesize(default_atm, default_linelist, format_A_X(), 5000, 5001)
+        sol = synthesize(default_atm, default_linelist, format_A_X(), (5000, 5001))
         @test wls == sol.wavelengths
         @test flux ≈ sol.flux ./ sol.cntm
         @test cntm ≈ sol.cntm
@@ -41,8 +41,9 @@
                              C=-0.3)
 
         atm = interpolate_marcs(5000, 4.5, format_A_X(-0.5, 0.4, Dict("C" => -0.3)))
-        sol = synthesize(atm, default_linelist, format_A_X(-0.5, 0.4, Dict("C" => -0.3)), 5000,
-                         5001)
+        sol = synthesize(atm, default_linelist, format_A_X(-0.5, 0.4, Dict("C" => -0.3)),
+                         (5000,
+                          5001))
 
         @test wls == sol.wavelengths
         @test flux ≈ sol.flux ./ sol.cntm
@@ -53,7 +54,7 @@
         wls, flux, _ = synth(; default_ps..., wavelengths=(5000, 5001), Teff=4500, logg=2.5)
 
         atm = interpolate_marcs(4500, 2.5, format_A_X())
-        sol = synthesize(atm, default_linelist, format_A_X(), 5000, 5001)
+        sol = synthesize(atm, default_linelist, format_A_X(), (5000, 5001))
 
         @test wls == sol.wavelengths
         @test flux ≈ sol.flux ./ sol.cntm
@@ -61,14 +62,14 @@
 
     @testset "microturbulence" begin
         wls, flux, _ = synth(; default_ps..., wavelengths=(5000, 5001), vmic=2.0)
-        sol = synthesize(default_atm, default_linelist, format_A_X(), 5000, 5001; vmic=2.0)
+        sol = synthesize(default_atm, default_linelist, format_A_X(), (5000, 5001); vmic=2.0)
         @test flux ≈ sol.flux ./ sol.cntm
     end
 
     @testset "linelist" begin
         linelist = []
         wls, flux, _ = synth(; default_ps..., wavelengths=(5000, 5001), linelist=linelist)
-        sol = synthesize(default_atm, linelist, format_A_X(), 5000, 5001)
+        sol = synthesize(default_atm, linelist, format_A_X(), (5000, 5001))
         @test flux ≈ sol.flux ./ sol.cntm
     end
 
@@ -77,7 +78,7 @@
         wls, flux, _ = synth(; default_ps..., wavelengths=(5000, 5001),
                              synthesize_kwargs=Dict(:vmic => 2.0))
 
-        sol = synthesize(default_atm, default_linelist, format_A_X(), 5000, 5001; vmic=2.0)
+        sol = synthesize(default_atm, default_linelist, format_A_X(), (5000, 5001); vmic=2.0)
 
         @test wls == sol.wavelengths
         @test flux ≈ sol.flux ./ sol.cntm
