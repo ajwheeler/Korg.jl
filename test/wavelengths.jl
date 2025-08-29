@@ -35,8 +35,8 @@
         test_spec = [
             15000:0.1:15003,
             [15000:0.1:15003],
-            collect(15000:0.1:15003)
-            # (15000, 15003, 0.1) # TODO is this failing?
+            collect(15000:0.1:15003),
+            (15000, 15003, 0.1)
         ]
         for wls in test_spec
             test_wls = Korg.Wavelengths(wls; air_wavelengths=true).wl_ranges[1] * 1e8
