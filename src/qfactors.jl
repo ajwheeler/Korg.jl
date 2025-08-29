@@ -28,8 +28,7 @@ Note that the Q factor is an approximation when the flux uncertainty is not phot
 # Arguments
 
   - `synth_flux`: High-resolution theoretical spectrum
-  - `synth_wl`: High-resolution wavelength grid in any format accepted by [`Korg.Wavelengths`](@ref)
-    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
+  - `synth_wl`: High-resolution wavelength grid in [any format supported by Korg](@ref wldocs)
   - `obs_wl`: Low-resolution wavelength grid
   - `LSF_mat`: LSF matrix (see [`compute_LSF_matrix`](@ref))
 
@@ -63,8 +62,7 @@ Compute the best achievable RV precision given a spectrum with uncertainties.
 # Arguments
 
   - `synth_flux`: High-resolution theoretical spectrum
-  - `synth_wl`: High-resolution wavelength grid in any format accepted by [`Korg.Wavelengths`](@ref)
-    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
+  - `synth_wl`: High-resolution wavelength grid in [any format supported by Korg](@ref wldocs)
   - `obs_wl`: Low-resolution wavelength grid
   - `LSF_mat`: LSF matrix (see [`compute_LSF_matrix`](@ref))
   - `obs_err`: Noise in the continuum-normalized spectrum

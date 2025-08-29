@@ -21,4 +21,4 @@ This page explains the changes in Korg v1.0 that might trip you up if you are co
   transitions. Previously, this was a warning.
 - `air_wavelengths` is no longer an allowed keywork argument for [`Korg.synthesize`](@ref).  The
    same functionality is still available in [`Korg.Wavelengths`](@ref), which can be passed to
-   [`Korg.synthesize`](@ref).
+   [`Korg.synthesize`](@ref), but this workflow can be confusing and we recommend avoiding it.
