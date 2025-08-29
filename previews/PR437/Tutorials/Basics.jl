@@ -139,7 +139,7 @@ atm = interpolate_marcs(5777, 4.44, Ni_enriched_A_X) # solar Teff and logg, Ni-e
 # vacuo*, but you can use [`Korg.air_to_vacuum`](@ref) and [`Korg.vacuum_to_air`](@ref) to convert
 # back and forth.
 
-res = synthesize(atm, vald_lines, format_A_X(0), 4000, 4015);
+res = synthesize(atm, vald_lines, format_A_X(0), (4000, 4015));
 
 # The object returned by [`synthesize`](@ref) is a [`Korg.SynthesisResult`](@ref), which contains
 # lots of information. As with [`synth`](@ref), the wavelengths, flux, and continuum are available,
