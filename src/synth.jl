@@ -36,7 +36,8 @@ from the return type of [`synthesize`](@ref), which is [`SynthesisResult`](@ref)
   - `vsini`: projected rotational velocity in km/s (default: 0). This calls [`apply_rotation`](@ref)
     under the hood.
   - `vmic`: microturbulent velocity in km/s (default: 1.0).
-  - `synthesize_kwargs`: additional keyword arguments passed to [`synthesize`](@ref).
+  - `synthesize_kwargs`: additional keyword arguments passed to [`synthesize`](@ref). Note that if
+    `vmic` is specified here, it will override the value passed to `synth`.
   - `format_A_X_kwargs`: additional keyword arguments passed to [`format_A_X`](@ref).
 """
 function synth(;
