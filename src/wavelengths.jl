@@ -18,6 +18,13 @@ are assumed to be in cm.
     error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
     wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
   - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
+
+!!! warning
+
+    `Korg.Wavelengths` is part of the public API and it's constructors are considered stable.
+    However, it's internal representation is not, and may change in the future without a major
+    version bump. Furthermore, though it is supported, if you are a user of Korg, you likely have no
+    need to explicitly construct a `Wavelengths` object
 """
 struct Wavelengths{F,R} <: AbstractArray{F,1}
     wl_ranges::Vector{R} # in cm, not Å

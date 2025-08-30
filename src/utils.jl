@@ -74,8 +74,7 @@ will get much better performance using [`compute_LSF_matrix`](@ref).
 # Arguments
 
   - `flux`: the flux vector to convolve
-  - `wls`: wavelengths in any format accepted by [`Korg.Wavelengths`](@ref)
-    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
+  - `wls`: wavelengths in any format [described here](@ref wldocs)
   - `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
 
 # Keyword Arguments
@@ -115,9 +114,7 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 
 # Arguments
 
-  - `synth_wls`: the synthesis wavelengths in any form recognized by [`Korg.Wavelengths`](@ref).
-    See [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/) for
-    all the ways wavelengths can be specified.
+  - `synth_wls`: the synthesis wavelengths in any form [described here](@ref wldocs)
   - `obs_wls`: the wavelengths of the observed spectrum
   - `R`: the resolving power, ``R = \\lambda/\\Delta\\lambda``
 
@@ -167,8 +164,7 @@ Gray equation 18.14.
 # Arguments
 
   - `flux`: the flux vector to rotate
-  - `wls`: wavelengths in any format accepted by [`Korg.Wavelengths`](@ref)
-    (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
+  - `wls`: wavelengths in any format [described here](@ref wldocs)
   - `vsini`: projected rotational velocity in km/s
   - `ε`: linear limb-darkening coefficient (default: 0.6)
 """
