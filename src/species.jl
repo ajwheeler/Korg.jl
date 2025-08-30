@@ -211,7 +211,7 @@ representing the species. `code` can be either a string or a float.
   - "02.1000" → He II
   - "0608" → CO I
 
-To parse at compile time, use the `species` string macro, i.e. `species"H I"`. This is
+To parse at compile time, use the `species` string macro, e.g. `species"H I"`. This is
 important in hot inner loops.
 
 !!! warning
