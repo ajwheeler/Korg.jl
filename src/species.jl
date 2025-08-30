@@ -221,8 +221,13 @@ important in hot inner loops.
 
 !!! note
 
-    Though the `Korg.Species` constructor is part of the public API, it's internal representation
-    is not, and may change in the future without a major version bump.
+    Although the `Korg.Species` constructor is part of the public API, the type's internal
+    representation is considered an unstable implementation detail. The developers
+    reserve the right to change the internal representation at **ANY** time (even in a
+    patch release).
+    
+    With that said, we welcome you to reach out to us if you have an application where
+    you need to access the internal representation.
 """
 function Species(code::AbstractString)
     code = strip(code, ['0', ' ']) # Leading 0s are safe to remove
