@@ -225,7 +225,6 @@ important in hot inner loops.
     representation is considered an unstable implementation detail. The developers
     reserve the right to change the internal representation at **ANY** time (even in a
     patch release).
-    
     With that said, we welcome you to reach out to us if you have an application where
     you need to access the internal representation.
 """
