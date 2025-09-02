@@ -54,28 +54,95 @@
     end
 
     @testset "ExoMol linelist parsing" begin
-        # whole thing
-        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
-                                             6800, 6810)
-        @test length(linelist) == 284
-        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6810)
+        # we pass this to load_ExoMol_linelist many times
+        exomol_args = [
+            Korg.species"CaH",
+            "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+            "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans"
+        ]
 
-        # no lines in this range
-        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
-                                             5500, 6000)
-        @test length(linelist) == 0
+        @testset "region specification" begin
+            # whole thing
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6810; verbose=false)
+            @test length(linelist) == 284
+            @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6810)
 
-        # restrict to 5000-5025 Å
-        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
-                                             6800, 6804)
-        @test 0 < length(linelist) < 284 # some lines
-        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6804) # right wavelengths
+            # no lines in this range
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 5500, 6000; verbose=false)
+            @test length(linelist) == 0
+
+            # restrict to 5000-5025 Å
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804; verbose=false)
+            @test 0 < length(linelist) < 284 # some lines
+            @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6804) # right wavelengths
+        end
+
+        @testset "isotopic corrections" begin
+            # use line_strength_cutoff=-Inf to get all lines to make it easier to compare linelists
+
+            # Test default behavior (most abundant isotopes)
+            linelist_default = Korg.load_ExoMol_linelist(exomol_args..., 3000, 9000; verbose=false,
+                                                         line_strength_cutoff=-Inf)
+            # Test with explicit isotopes parameter (most abundant)
+            isotopes = [(20, 40), (1, 1)]  # 40Ca, 1H
+            linelist_explicit = Korg.load_ExoMol_linelist(exomol_args..., 3000, 9000; isotopes,
+                                                          line_strength_cutoff=-Inf, verbose=false)
+
+            # Should be identical since we're using the same isotopes
+            @test linelist_default == linelist_explicit
+
+            # Test with different isotopes (should have different log_gf values)
+            # D has a spin degeneracy of 3 (H is 2) and a abundance of 1e-10 (by fiat)
+            wrong_isotopes = [(20, 40), (1, 2)]
+            linelist_rare = Korg.load_ExoMol_linelist(exomol_args..., 3000, 9000;
+                                                      line_strength_cutoff=-Inf,
+                                                      isotopes=wrong_isotopes, verbose=false)
+            log_gf_deltas = map(linelist_default, linelist_rare) do l1, l2
+                l2.log_gf - l1.log_gf
+            end
+            @test all(log_gf_deltas .≈ log10(2 / 3 * 1e-10))
+        end
+
+        @testset "ExoMol linelist line strength filtering" begin
+            # Test with different line strength cutoffs
+            linelist_loose = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                       line_strength_cutoff=-20, verbose=false)
+
+            linelist_strict = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                        line_strength_cutoff=-10, verbose=false)
+
+            # Loose cutoff should have more lines
+            @test length(linelist_loose) >= length(linelist_strict)
+
+            # All lines in strict should also be in loose
+            strict_wavelengths = Set([l.wl for l in linelist_strict])
+            loose_wavelengths = Set([l.wl for l in linelist_loose])
+            @test strict_wavelengths ⊆ loose_wavelengths
+
+            # Test with different temperature for line strength evaluation
+            linelist_cold = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                      T_line_strength=2000.0, verbose=false)
+
+            linelist_hot = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                     T_line_strength=5000.0, verbose=false)
+
+            # Different temperatures may result in different numbers of lines
+            # (this is more of a smoke test to ensure the parameter works)
+            @test length(linelist_cold) >= 0
+            @test length(linelist_hot) >= 0
+        end
+
+        @testset "ExoMol linelist error handling" begin
+            # Test error handling for invalid isotopes
+            @test_throws KeyError Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                            isotopes=[(20, 999), (1, 1)],
+                                                            verbose=false)
+
+            # Test error handling for invalid atomic numbers
+            @test_throws KeyError Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                            isotopes=[(999, 40), (1, 1)],
+                                                            verbose=false)
+        end
     end
 
     @testset "kurucz linelist parsing" begin
