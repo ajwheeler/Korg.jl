@@ -56,7 +56,7 @@ using Random
             windows = [(5000, 5003), (5008, 5010)]
 
             # make these a superset of the windows
-            synth_wls = Korg.Wavelengths(4999, 5011)
+            synth_wls = Korg.Wavelengths((4999, 5011))
 
             R = 50_000
             LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, R)
@@ -113,7 +113,7 @@ using Random
 
                 # check that inferred parameters are within 1 sigma of the true values
                 @test result.best_fit_params["Teff"]≈Teff atol=Teff_sigma
-                @test result.best_fit_params["m_H"]≈m_H atol=m_H_sigma
+                @test result.best_fit_params["M_H"]≈M_H atol=M_H_sigma
 
                 # check that best-fit flux is within 1% of the true flux at all pixels
                 @test assert_allclose(fake_data[result.obs_wl_mask], result.best_fit_flux,
@@ -350,7 +350,7 @@ using Random
             end
 
             # check that fixing parameters works
-            @testset "fixed parameters" for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :m_H0])
+            @testset "fixed parameters" for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :M_H0])
                 fixed_params = zeros(Bool, 4)
                 fixed_params[i] = true
                 kwargs = Dict(param => best_fit_params[i])
