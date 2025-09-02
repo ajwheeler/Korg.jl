@@ -57,7 +57,7 @@ gcf() # hide
   will fail, because `5010` is duplicated. Likewise, `[(5000, 5010, 0.02), (5009.9, 5020, 0.2)]`, will
   also fail
 - Wavelenth sub-range must be sorted.  For example, `[(6000, 7000), (3000, 4000)]` will fail.
-- All tuples must satisfy the invariants `1 < λstart < λstop` and `0 < λstep < λstop - λstart`.
+- All tuples must satisfy the invariants `1 < λstart < λstop` and `0 < λstep <= λstop - λstart`.
   Violations of these invariants will produce undefined behavior.
   - Historically, Korg inferred **(in an inconsistent manner)** that wavelengths have units of cm when `λstart<1.0`. You should **not** expect/rely upon this behavior.
   - The Korg developers reserve the right to freely modify the behavior when the invariants are violated, at any time (i.e. in a minor release).
