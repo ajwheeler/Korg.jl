@@ -23,8 +23,8 @@ xlabel(L"$\lambda$ [\AA]")
 gcf() # hide
 ```
 
-In many cases, you want to compute spectra in noncontinuous chunks.  To do that, instead of passing
-a pair, pass a vector of pairs.
+In many cases, you want to compute spectra in noncontinuous chunks.
+We can specify these chunks by passing a vector of pairs.
 
 ```@example 1
 wls, flux, _ = synth(Teff=5777, logg=4.44,
