@@ -1,12 +1,17 @@
 # [Wavelengths](@id wldocs)
 
-Many Korg functions takes wavelengths as one of their parameters.  Because Korg allows for
-flexible wavelength specification, it's helpful to go over the possibilities.
-These examples use [`Korg.synth`](@ref), but apply equally to all functions that take wavelength
-parameters, e.g. [`Korg.synthesize`](@ref), [`Korg.Fit.fit_spectrum`](@ref),
-[`Korg.RV_prec_from_noise`](@ref), and [`Korg.apply_LSF`](@ref).
+Many of Korg's core functions operate on uniformly spaced wavelength sequences (note: all wavelengths have units of Å).
+For every such such function expects the wavelength sequence(s) can be specified in any of the following ways:
+- a pair of values `(λstart, λend)` specifies the bounds of wavelength sequence and a triple `(λstart, λend, λstep)` allows customization over spacing. `(λstart, λend)` is equivalent to `(λstart, λend, 0.01)`
+- a vector of `N` pairs and/or triples, `(λstart1, λstop1[, λstep1]), ..., (λstartN, λstopN[, λstepN])` specifies `N` disjoint wavelength sequences.
 
-First is the simple case: a continuous wavelength range:
+## Examples
+
+It is instructive to consider a few illustrative examples.
+Although these examples use [`Korg.synth`](@ref), but apply equally to all functions that take wavelength
+parameters, e.g. [`Korg.synthesize`](@ref), [`Korg.Fit.fit_spectrum`](@ref), [`Korg.RV_prec_from_noise`](@ref), and [`Korg.apply_LSF`](@ref).
+
+First let's consider a simple continuous wavelength range:
 
 ```@example 1
 using Korg, PythonPlot # hide
