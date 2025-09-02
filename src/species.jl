@@ -211,15 +211,22 @@ representing the species. `code` can be either a string or a float.
   - "02.1000" → He II
   - "0608" → CO I
 
-!!! note
-
-    To parse at compile time, use the `species` string macro, i.e. `species"H I"`. This is
-    important in hot inner loops.
+To parse at compile time, use the `species` string macro, e.g. `species"H I"`. This is
+important in hot inner loops.
 
 !!! warning
 
     MOOG codes which include isotopic information will not be parsed correctly by this function,
     though [`read_linelist`](@ref) handles them correctly.
+
+!!! note
+
+    Although the `Korg.Species` constructor is part of the public API, the type's internal
+    representation is considered an unstable implementation detail. The developers
+    reserve the right to change the internal representation at **ANY** time (even in a
+    patch release).
+    With that said, we welcome you to reach out to us if you have an application where
+    you need to access the internal representation.
 """
 function Species(code::AbstractString)
     code = strip(code, ['0', ' ']) # Leading 0s are safe to remove
