@@ -30,10 +30,9 @@ xlabel(L"$\lambda$ [\AA]")
 gcf() # hide
 ```
 
-By default, Korg uses samples wavelength every 0.01 Å, but you can configure this by specifying a
-different value as the last wavelength parameter. Let's sample every 5 Å in the first window and
-every 3 Å in the second (this is too coarse for accurate spectra, but it makes it easy to see what's
-going on).
+The spacing for any wavelength sequence specified by a pair is 0.01 Å.
+When you specify a sequence with a triple, the third element is used to overwrite the spacing with an arbitrary value.
+Let's sample every 5 Å in the first window and every 3 Å in the second (while this sampling is too coarse for accurate spectra, these choices make it easy to visualize differences from the previous example).
 
 ```@example 1
 wls, flux, _ = synth(Teff=5777, logg=4.44,
