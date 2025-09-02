@@ -54,7 +54,8 @@ gcf() # hide
   For example, if `λstop` - `λstart` is not an integer multiple of `λstep`, the last last wavelength
   produced will be less than `λstop`.
 - Wavelength sub-ranges _must not overlap_.  For example, `[(5000, 5010, 0.01), (5010, 5020, 0.2)]`,
-  will fail, because `5010` is duplicated.
+  will fail, because `5010` is duplicated. Likewise, `[(5000, 5010, 0.02), (5009.9, 5020, 0.2)]`, will
+  also fail
 - Wavelenth sub-range must be sorted.  For example, `[(6000, 7000), (3000, 4000)]` will fail.
 - Anything which violates `1 < λstart < λstop` and `1 < λstep < λstop - λstart` produces undefined
   behavior. The way Korg handles these cases may change without a major version number bump.
