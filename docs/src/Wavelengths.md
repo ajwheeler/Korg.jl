@@ -48,6 +48,18 @@ xlabel(L"$\lambda$ [\AA]")
 gcf() # hide
 ```
 
+## Gotchas and edge cases
+
+- For a given tuple, `(λstart, λstop, λstep)`, `λend` may not always be included.
+  If `λstop` - `λstart` is not an integer multiple of `λstep`, the last last wavelength produced
+  will be less than `λstop`.
+- Wavelength sub-ranges _must not overlap_.  For example, `[(5000, 5010, 0.01), (5010, 5020, 0.2)]`,
+  will fail, because `5010` is duplicated.
+- Wavelenth sub-range must be sorted.  For example, `[(6000, 7000), (3000, 4000)]` will fail.
+- Other edge cases, e.g. `λstart >= λstop`, `λstep > λstop - λstart`, `λstep <= 0` produce undefined
+  behavior. The way Korg handles these may change without a major version number bump.
+- Because Julia's range objects are not guarenteed to produce bitwise identical ranges across Julia
+  versions, Korg's wavelengths also lack this guarentee.
 
 ## Internals: [`Korg.Wavelengths`](@ref)
 
