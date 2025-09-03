@@ -184,14 +184,14 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    load_ExoMol_linelist(spec, states_file, transitions_file, upper_wavelength, lower_wavelength;
+    load_ExoMol_linelist(species, states_file, transitions_file, lower_wavelength, upper_wavelength;
                          isotopes=nothing, other_kwargs...)
 
 Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`read_linelist`](@ref).
 
 # Arguments
 
-  - `spec`: the species, i.e. the molecule that the linelist is for
+  - `species`: the species, i.e. the molecule that the linelist is for
   - `states_file`: the path to the ExoMol states file
   - `transitions_file`: the path to the ExoMol transitions file
   - `upper_wavelength`: the upper limit of the wavelength range to load (Å)
