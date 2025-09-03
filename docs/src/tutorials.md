@@ -3,8 +3,6 @@
 In addition to the examples here, there are a few more resources than may help you get started with
 Korg.
 
-TODO python
-
 ## Slurm example
 [There is an example script](https://github.com/ajwheeler/Korg.jl/tree/main/misc/examples/generate_grid_with_slurm.jl) that shows how you might use Korg to generate many spectra within a Slurm job. Note that this example creates a file for each spectrum, which may not be desireable on your HPC environment.
 
