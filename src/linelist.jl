@@ -14,10 +14,18 @@ struct Line{F1,F2,F3,F4,F5,F6}
     # ABO theory
     vdW::Tuple{F6,F6}
 
+    # TODO
+    lande_g_even # Landé g factor for even level
+    lande_g_odd  # Landé g factor for odd level
+    J_even
+    J_odd
+
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F,
              gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing,
-             vdw::Union{F, Tuple{F, F}, Missing}, missing) where F <: Real
+             vdw::Union{F, Tuple{F, F}, Missing}=missing,
+             lande_g_even::Union{F, Missing}=missing, lande_g_odd::Union{F, Missing}=missing
+        ) where F <: Real
 
     Arguments:
      - `wl`: wavelength (Assumed to be in cm if < 1, otherwise in Å)
@@ -34,6 +42,8 @@ struct Line{F1,F2,F3,F4,F5,F6}
          - A fudge factor for the Unsoeld approximation, assumed if between 0 and 20
          - The [ABO parameters](https://github.com/barklem/public-data/tree/master/broadening-howto)
            as packed float (assumed if >= 20) or a `Tuple`, `(σ, α)`.
+     - `lande_g_even`: Landé g factor for even level (optional)
+     - `lande_g_odd`: Landé g factor for odd level (optional)
 
         This behavior is intended to mirror that of Turbospectrum as closely as possible.
 
@@ -51,8 +61,10 @@ struct Line{F1,F2,F3,F4,F5,F6}
     """
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3,
                   gamma_rad::Union{F4,Missing}=missing, gamma_stark::Union{F5,Missing}=missing,
-                  vdW::Union{F6,Tuple{F6,F6},Missing}=missing) where {F1<:Real,F2<:Real,F3<:Real,
-                                                                      F4<:Real,F5<:Real,F6<:Real}
+                  vdW::Union{F6,Tuple{F6,F6},Missing}=missing, lande_g_even=missing,
+                  lande_g_odd=missing, J_even=missing,
+                  J_odd=missing) where {F1<:Real,F2<:Real,F3<:Real,F4<:Real,F5<:Real,
+                                        F6<:Real}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
@@ -92,14 +104,19 @@ struct Line{F1,F2,F3,F4,F5,F6}
 
         new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),eltype(vdW)}(wl, log_gf, species,
                                                                         E_lower, gamma_rad,
-                                                                        gamma_stark, vdW)
+                                                                        gamma_stark, vdW,
+                                                                        lande_g_even,
+                                                                        lande_g_odd,
+                                                                        J_even, J_odd)
     end
 end
 # constructor to allow for copying a line and modifying some values (see docstring)
 function Line(line::Line; wl=line.wl, log_gf=line.log_gf, species=line.species,
               E_lower=line.E_lower, gamma_rad=line.gamma_rad, gamma_stark=line.gamma_stark,
-              vdW=line.vdW)
-    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+              vdW=line.vdW, lande_g_odd=line.lande_g_odd, lande_g_even=line.lande_g_even,
+              J_even=line.J_even, J_odd=line.J_odd)
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW, lande_g_even, lande_g_odd,
+         J_even, J_odd)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
@@ -410,6 +427,7 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, ver
         row == "" && continue #skip empty lines
 
         #some linelists have a missing column in the wavelenth region
+        # TODO make this more robust!  I think this was the problem!
         if length(row) == 159
             row = " " * row
         end
@@ -421,6 +439,15 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, ver
             abs(parse(Float64, s)) * c_cgs * hplanck_eV
         end
 
+        # TODO I HAD TO EDIT gf0640.10 !!!
+        # I inserted a space at the begining of every line to make it match the spec
+
+        # Parse lande g factors (columns 28 and 29, chars 141:145 and 146:150)
+        lande_g_even = parse(Float64, strip(row[145:149])) / 1000
+        lande_g_odd = parse(Int64, strip(row[150:154])) / 1000
+
+        quantum_g_even = parse(Float64, strip(row[38:41]))
+        quantum_g_odd = parse(Float64, strip(row[66:69]))
         species = Species(row[19:24])
 
         # log(gf) + adjustment for hyperfine structure
@@ -455,7 +482,11 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, ver
                    min(E_levels...),
                    tentotheOrMissing(parse(Float64, row[81:86])),
                    tentotheOrMissing(parse(Float64, row[87:92])),
-                   idOrMissing(parse(Float64, row[93:98]))))
+                   idOrMissing(parse(Float64, row[93:98])),
+                   lande_g_even,
+                   lande_g_odd,
+                   quantum_g_even,
+                   quantum_g_odd))
     end
     lines
 end
@@ -786,6 +817,45 @@ function read_korg_linelist(path)
               vdW)
     end
 end
+
+"""
+    get_lande_g_factor(filename)
+
+Get the Landé g-factors for lines from a VALD long-format file. Returns a vector of tuples
+(`mean`, `lower`, `upper`)  containing the Landé g-factors for each line.
+
+# Arguments
+
+  - `filename`: Path to the VALD long-format file
+
+# Returns
+
+  - Vector of named tuples with fields `lower`, `upper`, and `mean` containing the Landé g-factors
+"""
+function get_lande_g_factor(filename, nlines)
+    lines = filter!(collect(eachline(filename))) do line
+        length(line) > 0 && line[1] != '#' # remove comments and empty lines
+    end
+
+    # Find the header line that contains "Lande factors"
+    header_idx = findfirst(line -> occursin("Lande factors", line), lines)
+    isnothing(header_idx) && error("Could not find Landé factors header in file")
+
+    body = lines[header_idx+2:4:header_idx+2+4*(nlines-1)]
+
+    # Parse each data line to extract Landé g-factors
+    map(body) do line
+        # Split by commas and remove quotes
+        parts = split(strip(line, ['\'', ' ']), ',')
+        # Extract the three Landé g-factors (they are in positions 8, 9, and 10)
+        lower = parse(Float64, strip(parts[8]))
+        upper = parse(Float64, strip(parts[9]))
+        mean = parse(Float64, strip(parts[10]))
+        (mask_99(mean), mask_99(lower), mask_99(upper))
+    end
+end
+
+mask_99(x) = x == 99.0 ? 0.0 : x
 
 """
     get_VALD_solar_linelist()
