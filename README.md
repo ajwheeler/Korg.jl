@@ -14,8 +14,6 @@ Korg is a package for computing stellar spectra from 1D model atmospheres and li
 - Automatic differentiaion (via ForwardDiff.jl)
 - Synthesis with arbitrary abundances/solar abundance scales, with several defaults built-in.
 
-After [installing Korg](https://ajwheeler.github.io/Korg.jl/stable/install), get started by looking at the [top-level functions](https://ajwheeler.github.io/Korg.jl/stable/API) or the [tutorial notebooks](https://ajwheeler.github.io/Korg.jl/stable/tutorials).
-
 ## Example
 (Python version below)
 ```julia
