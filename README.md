@@ -42,11 +42,6 @@ See the [documentation for `synth`](https://ajwheeler.github.io/Korg.jl/stable/A
 - [Korg: A Modern 1D LTE Spectral Synthesis Package](https://ui.adsabs.harvard.edu/abs/2023AJ....165...68W/abstract). This is also a good overview of how spectral synthesis works, the inputs and outputs, etc.
 - [Korg: fitting, model atmosphere interpolation, and Brackett lines](https://ui.adsabs.harvard.edu/abs/2023arXiv231019823W/abstract)
 
-# Tutorials:
-- [Korg basics](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/basics/Basics.ipynb)
-- [Korg basics in python](https://github.com/ajwheeler/Korg.jl/blob/main/misc/Tutorial%20notebooks/basics/Python%20Basics.ipynb)
-- [other tutorial notebooks](https://github.com/ajwheeler/Korg.jl/tree/main/misc/Tutorial%20notebooks)
-
 # Getting help
 If you are having trouble using or installing Korg, please get in touch by [opening a GitHub issue](https://github.com/ajwheeler/Korg.jl/issues) (preferred), or [sending Adam an email](mailto:adamwhlr@gmail.com).
 
