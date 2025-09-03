@@ -26,6 +26,7 @@ include("synth.jl")
 include("prune_linelist.jl")           # select strong lines from a linelist
 include("Fit/Fit.jl")                  # routines to infer stellar params from data
 include("qfactors.jl")                 # formalism to compute theoretical RV precision
+# include("photometry.jl")               # synthetic photometry, moved to extension
 
 @compat public get_APOGEE_DR17_linelist, get_GALAH_DR3_linelist, get_GES_linelist, save_linelist,
                Fit, apply_LSF, compute_LSF_matrix, air_to_vacuum, vacuum_to_air, line_profile,

@@ -27,9 +27,16 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 TableOperations = "ab02a1b2-a7df-11e8-156e-fb1833f50b87"
 Trapz = "592b5752-818d-11e9-1e9a-2b8ca4a44cd1"
 
+[weakdeps]
+PhotometricFilters = "482c37c2-cde1-4201-a412-83b81535d120"
+
+[extensions]
+PhotometryExt = "PhotometricFilters"
+
 [compat]
 CSV = "0.8, 0.9, 0.10"
 Compat = "4.10 - 4"
+edFiles = "1.9.1"
 DSP = "0.7, 0.8"
 DataFrames = "1.7.0"
 DiffResults = "1"
