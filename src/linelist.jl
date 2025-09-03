@@ -179,7 +179,8 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
-    load_ExoMol_linelist(specs, states_file, transitions_file, upper_wavelength, lower_wavelength)
+    load_ExoMol_linelist(spec, states_file, transitions_file, upper_wavelength, lower_wavelength;
+                         isotopes=nothing, other_kwargs...)
 
 Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`read_linelist`](@ref).
 
@@ -193,20 +194,28 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
 
 # Keyword Arguments
 
+  - `isotopes`: a vector of (atomic number, isotope number) pairs for each atom in the species.
+    If not provided, Korg will assume that the molecule is the most abundant isotopologue.
   - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
     linelist. See [`approximate_line_strength`](@ref) for more information.
   - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
+  - `isotopic_abundances`: the table of isotopic abundances to use (default: `Korg.isotopic_abundances`).
+    This is ignored if `isotopic_correction` is provided.
+  - `verbose`: if `true` (default), will print progress information to the console.
 
 !!! warning
 
-    This functionality is in beta.
+    This functionality is in beta. It's behavior may change without a major version number bump.
 """
 function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
-                              line_strength_cutoff=-15, T_line_strength=3500.0)
+                              isotopes=nothing, isotopic_abundances=Korg.isotopic_abundances,
+                              line_strength_cutoff=-15, T_line_strength=3500.0, verbose=true)
     if spec isa AbstractString
         spec = Species(spec)
     end
-    @info "Loading ExoMol linelist from $states_file and $transitions_file. This functionality is experimental. Please report any issues."
+    if verbose
+        println("Loading ExoMol linelist from $states_file and $transitions_file. This functionality is experimental. Please report any issues.")
+    end
 
     if !occursin("states", states_file) || !occursin("trans", transitions_file)
         @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
@@ -235,8 +244,8 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
         throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
     end
 
-    # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere
-    # difference of 1e16 is due to Å vs cm
+    # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere.
+    # Difference of 1e16 is due to Å vs cm
     prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (8π^2 * Korg.electron_charge_cgs^2)
 
     transitions.wavenumber = transitions.wavenumber_upper .- transitions.wavenumber_lower
@@ -244,9 +253,20 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
                        (transitions.g_lower * transitions.wavenumber^2)
     transitions.log_gf = log10.(transitions.g_lower .* transitions.f)
 
-    isotopic_correction = log10(prod(maximum(last.(collect(values(Korg.isotopic_abundances[Z]))))
-                                     for Z in get_atoms(spec.formula)))
-    @info "Applying isotopic correction of $isotopic_correction to all log gf values. (Assuming most abundant isotope for all atoms.)"
+    # perform isotopic correction to log gf values
+    if isnothing(isotopes)
+        verbose && println("Assuming the most abundant isotope for all atoms.")
+        isotopes = map(get_atoms(spec)) do Z
+            (Z, argmax(isotopic_abundances[Z]))
+        end
+    end
+
+    isotopic_correction = log10(prod(isotopic_abundances[Z][iso] for (Z, iso) in isotopes))
+    # factor out the nuclear spin degeneracy, accounting for the difference between
+    # "physics" and "astrophysics" conventions for the partition function
+    isotopic_correction -= log10(prod(isotopic_nuclear_spin_degeneracies[Z][iso]
+                                      for (Z, iso) in isotopes))
+
     transitions.log_gf .+= isotopic_correction
 
     transitions.E_lower = @. Korg.hplanck_eV * transitions.wavenumber_lower * Korg.c_cgs
@@ -257,7 +277,14 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
     lines = map(eachrow(region)) do row
         Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
     end |> reverse
-    lines = lines[approximate_line_strength.(lines, T_line_strength).>line_strength_cutoff]
+
+    # Remove weak lines
+    mask = approximate_line_strength.(lines, T_line_strength) .> line_strength_cutoff
+    if verbose
+        println("Removed $(sum(.!mask)) lines with strength below $line_strength_cutoff at T = $T_line_strength K out of $(length(lines)) total lines ($(round(Int, 100 * sum(.!mask) / length(lines)))%).")
+    end
+    lines = lines[mask]
+
     sort!(lines; by=l -> l.wl)
     lines
 end
