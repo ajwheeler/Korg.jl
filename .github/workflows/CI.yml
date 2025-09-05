@@ -49,6 +49,7 @@ jobs:
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
 
   find-todos:
+    name: Find TODOs and `@show`
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
