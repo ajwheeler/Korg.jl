@@ -77,6 +77,12 @@
             @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6804) # right wavelengths
         end
 
+        @testset "empty linelist" begin
+            # this use to crash when verbose=true
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 3000, 4000; verbose=true)
+            @test isempty(linelist)
+        end
+
         @testset "isotopic corrections" begin
             # use line_strength_cutoff=-Inf to get all lines to make it easier to compare linelists
 
