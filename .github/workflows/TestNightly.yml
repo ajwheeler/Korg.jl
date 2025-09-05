@@ -1,4 +1,7 @@
-name: "Tests (nightly)"
+# This is not part of CI.yml so that failing tests on Julia nightly (which are
+# expected) don't turn our CI badge red. I am not aware of a nicer way to do
+# this.
+name: "Julia nightly"
 
 on:
   push:
