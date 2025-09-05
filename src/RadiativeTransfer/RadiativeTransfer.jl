@@ -1,5 +1,5 @@
 module RadiativeTransfer
-using ...Korg: PlanarAtmosphere, ShellAtmosphere, get_tau_5000s, get_zs
+using ...Korg: PlanarAtmosphere, ShellAtmosphere, get_tau_refs, get_zs
 using FastGaussQuadrature: gausslegendre
 
 """
@@ -60,13 +60,13 @@ end
     calculation, but stores the intensity at every layer.  "bezier" is not recommended.
 """
 function radiative_transfer(atm::PlanarAtmosphere, α, S, μ_points;
-                            α_ref=nothing, τ_ref=isnothing(α_ref) ? nothing : get_tau_5000s(atm),
+                            α_ref=nothing, τ_ref=isnothing(α_ref) ? nothing : get_tau_refs(atm),
                             τ_scheme="anchored", I_scheme="linear_flux_only", kwargs...)
     radiative_transfer(α, S, get_zs(atm), μ_points, false; α_ref=α_ref, τ_ref=τ_ref,
                        I_scheme=I_scheme, τ_scheme=τ_scheme, kwargs...)
 end
 function radiative_transfer(atm::ShellAtmosphere, α, S, μ_points;
-                            α_ref=nothing, τ_ref=isnothing(α_ref) ? nothing : get_tau_5000s(atm),
+                            α_ref=nothing, τ_ref=isnothing(α_ref) ? nothing : get_tau_refs(atm),
                             τ_scheme="anchored", I_scheme="linear", kwargs...)
     radii = [atm.R + l.z for l in atm.layers]
     photosphere_correction = radii[1]^2 / atm.R^2

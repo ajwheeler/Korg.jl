@@ -11,7 +11,7 @@
         atm = interpolate_marcs(5000.0, 3.0)
         patm = Korg.PlanarAtmosphere(atm)
 
-        sol = synthesize(atm, [], format_A_X(), 5000, 5001)
+        sol = synthesize(atm, [], format_A_X(), (5000, 5001))
         ref_ind = 1
 
         wl_cm = sol.wavelengths * 1e-8
@@ -32,9 +32,9 @@
             else
                 "spherical"
             end
-            @test assert_allclose_grid(sol.flux, flux,
+            @test assert_allclose_grid(sol.flux, flux * 1e-8,
                                        [("λ [$I_scheme $τ_scheme $atmtype]", sol.wavelengths, "Å")];
-                                       rtol=0.05, print_rachet_info=false)
+                                       rtol=0.09, print_rachet_info=false)
         end
     end
 

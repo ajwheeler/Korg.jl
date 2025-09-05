@@ -1,7 +1,7 @@
 """
     prune_linelist(atm, linelist, A_X, wls...; threshold=1.0, sort=true, synthesis_kwargs...)
 
-Return the vector containing the strongest lines in  `linelist`, (optionally) sorted by approximate
+Return the vector containing the strongest lines in `linelist`, (optionally) sorted by approximate
 equivalent width.
 
 # Arguments
@@ -9,8 +9,8 @@ equivalent width.
   - `atm`: the atmosphere model
   - `linelist`: the linelist (a vector of `Line` objects)
   - `A_X`: the abundance of each element (see [`format_A_X`](@ref))
-  - `wls...`: the wavelength ranges to synthesize over.  These are specified the same way as the
-    `wls` for [`synthesize`](@ref).
+  - `wls`: the wavelengths to synthesize over, in any format accepted by Korg (see
+    [the documentation](@ref wldocs) for details).
 
 # Keyword Arguments
 
@@ -19,27 +19,27 @@ equivalent width.
     `0.1` is a reasonable default for getting a sense of what might be measurable in a high-res,
     high-quality spectrum, but it should not be used to create a linelist for synthesis.
   - `sort_by_EW=true`: If `true`, the returned linelist will be sorted by approximate reduced equivalent
-    width.  If `false`, the linelist will be in wavelength order. Leaving the list in wavelength
+    width. If `false`, the linelist will be in wavelength order. Leaving the list in wavelength
     order is much faster, but sorting by strength is useful for visualizing the strongest lines.
   - `verbose=true`: If `true`, a progress bar will be displayed while measuring the EWs.
     All other kwargs are passed to internal calls to [`synthesize`](@ref).
-  - `max_distance=0.0`, how far from `wls` lines can be (in Å) before they are excluded from the
+  - `max_distance=0.0`: how far from `wls` lines can be (in Å) before they are excluded from the
     returned list.
 
 !!! caution
 
-    While this function can be used to prune a linelist for synthesis, the default behavior too
-    aggressive for this purpose.  Set a much lower threshold (e.g. `threshold=1e-4`) and use
-    `sort_by_EW=false` if you are pruning the linelist to speedup synthesis.  Note that Korg will
+    While this function can be used to prune a linelist for synthesis, the default behavior is too
+    aggressive for this purpose. Set a much lower threshold (e.g. `threshold=1e-4`) and use
+    `sort_by_EW=false` if you are pruning the linelist to speedup synthesis. Note that Korg will
     dynamically choose which lines to include even if you use a large linelist (see
     the `line_cutoff_threshold` keyword argument to [`synthesize`](@ref)).
 
 See also [`merge_close_lines`](@ref) if you are using this for plotting.
 """
-function prune_linelist(atm, linelist, A_X, wl_params...;
+function prune_linelist(atm, linelist, A_X, wl_params;
                         threshold=0.1, sort_by_EW=true, verbose=true, max_distance=0.0,
                         synthesis_kwargs...)
-    wls = Wavelengths(wl_params...)
+    wls = Wavelengths(wl_params)
     # linelist will be sorted after call to synthesize
     sol = synthesize(atm, linelist, A_X, wls; synthesis_kwargs...)
     cntm_sol = synthesize(atm, [], A_X, wls; synthesis_kwargs...)
@@ -96,8 +96,8 @@ function prune_linelist(atm, linelist, A_X, wl_params...;
         label = "measuring $(length(strong_lines)) lines"
         approx_EWs = @showprogress desc=label enabled=verbose map(strong_lines) do line
             line_center = line.wl * 1e8
-            wls = line_center / 1.0003, line_center * 1.0003 # ± 90 km/s (~1.5 Å @ 5000 Å)
-            sol = synthesize(atm, [line], A_X, wls...;
+            wls = (line_center / 1.0003, line_center * 1.0003) # ± 90 km/s (~1.5 Å @ 5000 Å)
+            sol = synthesize(atm, [line], A_X, wls;
                              hydrogen_lines=false, use_chemical_equilibrium_from=sol,
                              synthesis_kwargs...)
             sum(1 .- sol.flux ./ sol.cntm) / line_center # units don't matter
@@ -112,7 +112,7 @@ end
     merge_close_lines(linelist; merge_distance=0.2)
 
 Produce a list of the species and wavelengths of the lines in `linelist`, merging lines of the same
-species that are within `merge_distance` (default: 0.2 Å).  This is useful for labeling lines in a
+species that are within `merge_distance` (default: 0.2 Å). This is useful for labeling lines in a
 plot after running [`prune_linelist`](@ref).
 
 # Arguments
@@ -126,7 +126,7 @@ plot after running [`prune_linelist`](@ref).
 
 # Returns
 
-A vector of tuples `(wl, wl_low, wl_high, species)` where `wl` is gf-weighted wavelength of each set
+A vector of tuples `(wl, wl_low, wl_high, species)` where `wl` is the gf-weighted wavelength of each set
 of merged lines (Å), `wl_low` and `wl_high` are their highest and lowest wavelength, and
 `species` is a string (not a `Korg.Species`) identifying the species of the line. These will be in
 wavelength order.
