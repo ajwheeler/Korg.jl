@@ -283,6 +283,11 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
         Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
     end |> reverse
 
+    # if there's nothing left, stop processing
+    if isempty(lines)
+        return lines
+    end
+
     # Remove weak lines
     mask = approximate_line_strength.(lines, T_line_strength) .> line_strength_cutoff
     if verbose
