@@ -1,7 +1,7 @@
 # [Wavelengths](@id wldocs)
 
 Many of Korg's core functions operate on uniformly spaced wavelength sequences (note: all wavelengths have units of Å).
-For every such such function expects the wavelength sequence(s) can be specified in any of the following ways:
+For every such such function the wavelength sequence(s) can be specified in any of the following ways:
 - a pair of values `(λstart, λend)` specifies the bounds of wavelength sequence and a triple `(λstart, λend, λstep)` allows customization over spacing. `(λstart, λend)` is equivalent to `(λstart, λend, 0.01)`
 - a vector of `N` pairs and/or triples, `(λstart1, λstop1[, λstep1]), ..., (λstartN, λstopN[, λstepN])` specifies `N` disjoint wavelength sequences.
 
