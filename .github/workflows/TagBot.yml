@@ -1,3 +1,4 @@
+# automatically creates tags, releases, and changelogs
 name: TagBot
 on:
   issue_comment:
@@ -13,4 +14,3 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ssh: ${{ secrets.DOCUMENTER_KEY }}
-
