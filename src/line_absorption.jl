@@ -6,11 +6,14 @@ using Base.Iterators: partition
     line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
                    ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
 
-Calculate the opacity coefficient, α, in units of cm^-1 from all lines in `linelist`, at wavelengths
-`λs` [cm^-1].
+Calculate the opacity coefficient, `α`, in units of cm^-1 from all lines in `linelist`, at
+wavelengths `λs`.
 
-other arguments:
+# Arguments
 
+  - `α`: absorption coefficient matrix to be filled in-place
+  - `linelist`: vector of [`Korg.Line`](@ref)s.
+  - `λs`: a [`Korg.Wavelengths`](@ref) object.
   - `temp` the temerature in K (as a vector, for multiple layers, if you like)
   - `n_densities`, a Dict mapping species to absolute number density in cm^-3 (as a vector, if temp is
     a vector).
@@ -25,10 +28,9 @@ other arguments:
   - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
   - `tasks_per_thread` (default: 1): the number of tasks to run per Julia thread. This function
     is multithreaded over the lines in `linelist`.
-  - `verbose` (deprecated): no longer used.
 """
 function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
-                          α_cntm; cutoff_threshold=3e-4, verbose=false, tasks_per_thread=1)
+                          α_cntm; cutoff_threshold=3e-4, tasks_per_thread=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end

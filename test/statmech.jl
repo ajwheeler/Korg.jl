@@ -48,7 +48,7 @@ end
 
     @testset "molecular equilibrium" begin
         #solar abundances
-        nX_ntot = @. 10^(Korg.asplund_2009_solar_abundances - 12)
+        nX_ntot = @. 10^(Korg.default_solar_abundances - 12)
         nX_ntot ./= sum(nX_ntot)
 
         nₜ = 1e15
@@ -135,6 +135,7 @@ end
                == length(Korg.asplund_2009_solar_abundances)
                == length(Korg.asplund_2020_solar_abundances)
                == length(Korg.grevesse_2007_solar_abundances)
+               == length(Korg.bergemann_2025_solar_abundances)
                == length(Korg.magg_2022_solar_abundances))
 
         @test (Korg.get_mass(Korg.Formula("CO")) ≈

@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - "1"
+        os:
+          - ubuntu-latest
+          - macOS-latest
+          - windows-latest
+        arch:
+          - x64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Set Julia threads
+        run: echo "JULIA_NUM_THREADS=4" >> $GITHUB_ENV
+      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v5
+        with:
+          file: lcov.info
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-docdeploy@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+
+  find-todos:
+    name: Find TODOs and `@show`
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Find TODOs
+        id: find_todos
+        run: |
+          TODO_LIST=$(grep -r -n -A 3 -E "TODO|@show " --include="*.jl" --include="*.ipynb" --include="*.md" || true)
+          echo "todo_list<<EOF" >> $GITHUB_OUTPUT
+          echo "$TODO_LIST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          if [ -n "$TODO_LIST" ]; then
+            echo "has_todos=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_todos=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update or Create Comment
+        if: steps.find_todos.outputs.has_todos == 'true' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const todoList = process.env.TODO_LIST;
+            const body = `## TODOs and \`@show\` instances found in this PR:\n\n\`\`\`\n${todoList}\n\`\`\``;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body.includes('instances found in this PR'));
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+        env:
+          TODO_LIST: ${{ steps.find_todos.outputs.todo_list }}
+
+      - name: Remove Comment if No TODOs
+        if: steps.find_todos.outputs.has_todos == 'false' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body.includes('instances found in this PR'));
+
+            if (botComment) {
+              await github.rest.issues.deleteComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+            }
+
+      - name: TODO Check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const hasTodos = '${{ steps.find_todos.outputs.has_todos }}' === 'true';
+            if (hasTodos) {
+              core.setFailed('TODOs found in this PR');
+            }
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: julia-actions/julia-format@v4
+        with:
+          version: "1"

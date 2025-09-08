@@ -8,13 +8,12 @@
 
         # Single-element vector input
         wls_single = Korg.Wavelengths([12345.6])
-        wls_single_range = Korg.Wavelengths(12345.6, 12345.6)
+        wls_single_range = Korg.Wavelengths((12345.6, 12345.6))
         @test wls_single == wls_single_range
         @test length(wls_single) == 1
         @test wls_single[1] ≈ 12345.6 * 1e-8
 
-        wls = Korg.Wavelengths(15000, 15500)
-        @test wls == Korg.Wavelengths((15000, 15500))
+        wls = Korg.Wavelengths((15000, 15500))
         @test wls == Korg.Wavelengths([(15000, 15500)])
         @test wls == Korg.Wavelengths(15000:0.01:15500)
         @test wls == Korg.Wavelengths([15000:0.01:15500])
@@ -24,28 +23,33 @@
         # ideally these should be the same to the bit
         @test wls ≈ Korg.Wavelengths((15000e-8, 15500e-8))
         @test wls ≈ Korg.Wavelengths([(15000e-8, 15500e-8)])
-        @test wls == Korg.Wavelengths((15000:0.01:15500) * 1e-8)
-        @test wls == Korg.Wavelengths([(15000:0.01:15500) * 1e-8])
-        @test wls == Korg.Wavelengths(collect(15000:0.01:15500) * 1e-8)
+        @test wls ≈ Korg.Wavelengths((15000:0.01:15500) * 1e-8)
+        @test wls ≈ Korg.Wavelengths([(15000:0.01:15500) * 1e-8])
+        @test wls ≈ Korg.Wavelengths(collect(15000:0.01:15500) * 1e-8)
 
-        @test Korg.Wavelengths(15000, 15500, 1.0) == Korg.Wavelengths(15000, 15500, 1)
-        @test Korg.Wavelengths(15000, 15500, 1) == Korg.Wavelengths(15000:1.0:15500)
+        @test Korg.Wavelengths((15000, 15500, 1.0)) ≈ Korg.Wavelengths((15000, 15500, 1))
+        @test Korg.Wavelengths((15000, 15500, 1)) ≈ Korg.Wavelengths(15000:1.0:15500)
 
-        # test automatic air to vacuum conversion
-        vac_wls = 15000:0.01:15500
-        air_wls = Korg.air_to_vacuum.(15000:0.01:15500)
-        for wls in [
-            Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true).wl_ranges[1] * 1e8,
-            Korg.Wavelengths([15000:0.01:15500]; air_wavelengths=true).wl_ranges[1] * 1e8,
-            Korg.Wavelengths(collect(15000:0.01:15500); air_wavelengths=true).wl_ranges[1] * 1e8,
-            Korg.Wavelengths(15000, 15500; air_wavelengths=true).wl_ranges[1] * 1e8,
-            Korg.Wavelengths((15000, 15500); air_wavelengths=true).wl_ranges[1] * 1e8
-        ]
-            @test assert_allclose_grid(wls, air_wls, [vac_wls]; atol=1e-4, print_rachet_info=false)
-        end
+        @test Korg.Wavelengths([(5000, 5010), (6000, 6010, 0.02)]) ==
+              Korg.Wavelengths([5000:0.01:5010, 6000:0.02:6010])
 
         @test_throws ArgumentError Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true,
                                                     wavelength_conversion_warn_threshold=1e-20)
+    end
+
+    @testset "air/vacuum conversion" begin
+        # test automatic air to vacuum conversion
+        air_wls = Korg.air_to_vacuum.(15000:0.1:15003)
+        test_spec = [
+            15000:0.1:15003,
+            [15000:0.1:15003],
+            collect(15000:0.1:15003),
+            (15000, 15003, 0.1)
+        ]
+        for wls in test_spec
+            test_wls = Korg.Wavelengths(wls; air_wavelengths=true).wl_ranges[1] * 1e8
+            @test assert_allclose(test_wls, air_wls; atol=1e-4, print_rachet_info=false)
+        end
     end
 
     @testset "subspectrum_indices" begin
@@ -82,7 +86,7 @@
     end
 
     @testset "array interface" begin
-        wls = Korg.Wavelengths(7000, 7002, 1.0)
+        wls = Korg.Wavelengths((7000, 7002, 1.0))
         @test length(wls) == 3
         @test size(wls) == (3,)
         @test wls[1] ≈ 7000 * 1e-8

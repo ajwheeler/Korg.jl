@@ -1,4 +1,7 @@
-name: "Tests (nightly)"
+# This is not part of CI.yml so that failing tests on Julia nightly (which are
+# expected) don't turn our CI badge red. I am not aware of a nicer way to do
+# this.
+name: "Julia nightly"
 
 on:
   push:
@@ -9,13 +12,11 @@ on:
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    name: Tests - ${{ matrix.os }} - ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        version:
-          - "nightly"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -23,10 +24,10 @@ jobs:
         arch:
           - x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: julia-actions/setup-julia@v2
         with:
-          version: ${{ matrix.version }}
+          version: nightly
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1

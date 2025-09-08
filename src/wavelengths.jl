@@ -1,13 +1,11 @@
 """
-    Korg.Wavelengths(wl_params...; air_wavelengths=false, wavelength_conversion_warn_threshold=1e-4)
+    Korg.Wavelengths((5000, 5500))
+    Korg.Wavelengths((5000, 5500, 0.03)) # explicitly specify the spacing (0.01 Å is the default)
+    Korg.Wavelengths([(5000, 5500), (6000, 6500, 0.03)])
 
 Construct a `Wavelengths` object which represents the (possibly non-contiguous) wavelengths for
-which to compute a spectrum.  The wavelengths can be specified with an upper and lower bound, or
+which to compute a spectrum. The wavelengths can be specified with an upper and lower bound, or
 a vector of upper and lower bounds. For example,
-
-    Korg.Wavelengths(5000, 5500)
-    Korg.Wavelengths(5000, 5500, 0.01) # explicitly specify the spacing (0.01 Å is the default)
-    Korg.Wavelengths([(5000, 5500), (6000, 6500)])
 
 Wavelengths can be specified in either Å or cm. Values >= 1 are assumed to be in Å and values < 1
 are assumed to be in cm.
@@ -15,15 +13,22 @@ are assumed to be in cm.
 # Keyword Arguments
 
   - `air_wavelengths` (default: `false`): Whether or not the input wavelengths are air wavelengths to
-    be converted to vacuum wavelengths by Korg.  The conversion will not be exact, so that the
-    wavelength range can internally be represented by an evenly-spaced range.  If the approximation
+    be converted to vacuum wavelengths by Korg. The conversion will not be exact, so that the
+    wavelength range can internally be represented by an evenly-spaced range. If the approximation
     error is greater than `wavelength_conversion_warn_threshold`, an error will be thrown. (To do
     wavelength conversions yourself, see [`air_to_vacuum`](@ref) and [`vacuum_to_air`](@ref).)
   - `wavelength_conversion_warn_threshold` (default: 1e-4): see `air_wavelengths`. (In Å.)
+
+!!! warning
+
+    `Korg.Wavelengths` is part of the public API and it's constructors are considered stable.
+    However, it's internal representation is not, and may change in the future without a major
+    version bump. Furthermore, though it is supported, if you are a user of Korg, you likely have no
+    need to explicitly construct a `Wavelengths` object
 """
 struct Wavelengths{F,R} <: AbstractArray{F,1}
     wl_ranges::Vector{R} # in cm, not Å
-    # precomputed arrays.  It may(?) be faster to lazily compute these.
+    # Precomputed arrays. It may(?) be faster to lazily compute these.
     all_wls::Vector{F}
     all_freqs::Vector{F}
 
@@ -36,7 +41,7 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
         end
 
         if !isconcretetype(eltype(wl_ranges))
-            @warn "Korg.Wavelengths is begin constructed with an abstract range type, which will hurt performance."
+            @warn "Korg.Wavelengths is being constructed with an abstract range type, which will hurt performance."
         end
 
         # this could be more efficient
@@ -55,7 +60,7 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
                     throw(ArgumentError("A linear air wavelength range can't be approximated exactly with a"
                                         *
                                         "linear vacuum wavelength range. This solution differs by up to " *
-                                        "$max_diff Å.  Adjust wavelength_conversion_warn_threshold if you " *
+                                        "$max_diff Å. Adjust wavelength_conversion_warn_threshold if you " *
                                         "want to suppress this error."))
                 end
                 vac_wls
@@ -91,24 +96,37 @@ function Wavelengths(wls::AbstractVector; tolerance=1e-6, kwargs...)
         Wavelengths([range(first(wls), last(wls); length=length(wls))]; kwargs...)
     end
 end
-# this handles the vector-of-bounds case
-function Wavelengths(wls::AbstractVector{<:Tuple{<:Real,<:Real}},
-                     λ_step=(wls[1][1] < 1 ? 0.01e-8 : 0.01); kwargs...)
-    if λ_step isa Integer
-        λ_step = convert(Float64, λ_step)
+# this handles the vector-of-bounds case. Each element can be a tuple of (λ_start, λ_stop) or
+# (λ_start, λ_stop, λ_step). We don't enforce tuple size here in order to make sure that  literals
+# pass correctly.
+function Wavelengths(tuples::AbstractVector{<:Tuple{Vararg{<:Real}}}, ; kwargs...)
+    ranges = map(tuples) do tuple
+        if !(2 .<= length(tuple) .<= 3)
+            throw(ArgumentError("Each wavelength range must be specified as a tuple of (λ_start, λ_stop) or (λ_start, λ_stop, λ_step). Got $tuple."))
+        end
+
+        λ_step = if length(tuple) == 3
+            tuple[3]
+        elseif tuple[1] < 1
+            1e-10 # 0.01 Å in cm
+        else
+            0.01
+        end
+
+        range(; start=tuple[1], stop=tuple[2], step=λ_step)
     end
-    Wavelengths([range(; start=λ_start, stop=λ_stop, step=λ_step)
-                 for (λ_start, λ_stop) in wls]; kwargs...)
+    Wavelengths(ranges; kwargs...)
 end
-function Wavelengths(λ_start, λ_stop, args...; kwargs...)
-    Wavelengths([(λ_start, λ_stop)], args...; kwargs...)
+function Wavelengths(tuple::T;
+                     kwargs...) where T<:Union{Tuple{<:Real,<:Real},
+                                               Tuple{<:Real,<:Real,<:Real}}
+    Wavelengths([tuple]; kwargs...)
 end
-Wavelengths(wls::Tuple{<:Real,<:Real}; kwargs...) = Wavelengths([wls]; kwargs...)
 
 # implement the AbstractArray interface
 # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-array
 Base.IndexStyle(::Type{<:Wavelengths}) = IndexLinear()
-Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitely defines Base.length
+Base.size(wl::Wavelengths) = (length(wl.all_wls),) # implicitly defines Base.length
 Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
 
 function Base.show(io::IO, wl::Wavelengths)

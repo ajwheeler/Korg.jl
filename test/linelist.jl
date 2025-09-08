@@ -30,23 +30,23 @@
             @test issorted(linelist, by=l -> l.wl)
 
             # truncate model atmosphere for speed
-            atm = read_model_atmosphere("data/sun.mod")
-            atm = Korg.PlanarAtmosphere(atm.layers[1:3])
+            atm = Korg.read_model_atmosphere("data/sun.mod")
+            atm = Korg.PlanarAtmosphere(atm.layers[1:3], atm.reference_wavelength)
 
             # make sure things run (types have caused problems in the past)
             λ = linelist[1].wl * 1e8
-            synthesize(atm, linelist, format_A_X(), λ, λ; use_chemical_equilibrium_from=sol)
+            synthesize(atm, linelist, format_A_X(), (λ, λ); use_chemical_equilibrium_from=sol)
 
             # test saving and loading
             filename = tempname() * ".h5"
             Korg.save_linelist(filename, linelist[1:1000])
-            linelist2 = read_linelist(filename)
+            linelist2 = Korg.read_linelist(filename)
             @test linelist[1:1000] == linelist2
         end
     end
 
-    @test_throws ArgumentError read_linelist("data/linelists/gfallvac08oct17.stub.dat";
-                                             format="abc")
+    @test_throws ArgumentError Korg.read_linelist("data/linelists/gfallvac08oct17.stub.dat";
+                                                  format="abc")
 
     @testset "wls in either cm or Å" begin
         @test Korg.Line(5000.0, 0.0, Korg.species"Fe I", 1.0) ==
@@ -54,33 +54,106 @@
     end
 
     @testset "ExoMol linelist parsing" begin
-        # whole thing
-        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
-                                             6800, 6810)
-        @test length(linelist) == 284
-        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6810)
+        # we pass this to load_ExoMol_linelist many times
+        exomol_args = [
+            Korg.species"CaH",
+            "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
+            "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans"
+        ]
 
-        # no lines in this range
-        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
-                                             5500, 6000)
-        @test length(linelist) == 0
+        @testset "region specification" begin
+            # whole thing
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6810; verbose=false)
+            @test length(linelist) == 284
+            @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6810)
 
-        # restrict to 5000-5025 Å
-        linelist = Korg.load_ExoMol_linelist(Korg.species"CaH",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.states",
-                                             "data/linelists/ExoMol/40Ca-1H__XAB_abridged.trans",
-                                             6800, 6804)
-        @test 0 < length(linelist) < 284 # some lines
-        @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6804) # right wavelengths
+            # no lines in this range
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 5500, 6000; verbose=false)
+            @test length(linelist) == 0
+
+            # restrict to 5000-5025 Å
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804; verbose=false)
+            @test 0 < length(linelist) < 284 # some lines
+            @test all(6800 .<= [l.wl * 1e8 for l in linelist] .<= 6804) # right wavelengths
+        end
+
+        @testset "empty linelist" begin
+            # this use to crash when verbose=true
+            linelist = Korg.load_ExoMol_linelist(exomol_args..., 3000, 4000; verbose=true)
+            @test isempty(linelist)
+        end
+
+        @testset "isotopic corrections" begin
+            # use line_strength_cutoff=-Inf to get all lines to make it easier to compare linelists
+
+            # Test default behavior (most abundant isotopes)
+            linelist_default = Korg.load_ExoMol_linelist(exomol_args..., 3000, 9000; verbose=false,
+                                                         line_strength_cutoff=-Inf)
+            # Test with explicit isotopes parameter (most abundant)
+            isotopes = [(20, 40), (1, 1)]  # 40Ca, 1H
+            linelist_explicit = Korg.load_ExoMol_linelist(exomol_args..., 3000, 9000; isotopes,
+                                                          line_strength_cutoff=-Inf, verbose=false)
+
+            # Should be identical since we're using the same isotopes
+            @test linelist_default == linelist_explicit
+
+            # Test with different isotopes (should have different log_gf values)
+            # D has a spin degeneracy of 3 (H is 2) and a abundance of 1e-10 (by fiat)
+            wrong_isotopes = [(20, 40), (1, 2)]
+            linelist_rare = Korg.load_ExoMol_linelist(exomol_args..., 3000, 9000;
+                                                      line_strength_cutoff=-Inf,
+                                                      isotopes=wrong_isotopes, verbose=false)
+            log_gf_deltas = map(linelist_default, linelist_rare) do l1, l2
+                l2.log_gf - l1.log_gf
+            end
+            @test all(log_gf_deltas .≈ log10(2 / 3 * 1e-10))
+        end
+
+        @testset "ExoMol linelist line strength filtering" begin
+            # Test with different line strength cutoffs
+            linelist_loose = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                       line_strength_cutoff=-20, verbose=false)
+
+            linelist_strict = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                        line_strength_cutoff=-10, verbose=false)
+
+            # Loose cutoff should have more lines
+            @test length(linelist_loose) >= length(linelist_strict)
+
+            # All lines in strict should also be in loose
+            strict_wavelengths = Set([l.wl for l in linelist_strict])
+            loose_wavelengths = Set([l.wl for l in linelist_loose])
+            @test strict_wavelengths ⊆ loose_wavelengths
+
+            # Test with different temperature for line strength evaluation
+            linelist_cold = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                      T_line_strength=2000.0, verbose=false)
+
+            linelist_hot = Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                     T_line_strength=5000.0, verbose=false)
+
+            # Different temperatures may result in different numbers of lines
+            # (this is more of a smoke test to ensure the parameter works)
+            @test length(linelist_cold) >= 0
+            @test length(linelist_hot) >= 0
+        end
+
+        @testset "ExoMol linelist error handling" begin
+            # Test error handling for invalid isotopes
+            @test_throws KeyError Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                            isotopes=[(20, 999), (1, 1)],
+                                                            verbose=false)
+
+            # Test error handling for invalid atomic numbers
+            @test_throws KeyError Korg.load_ExoMol_linelist(exomol_args..., 6800, 6804;
+                                                            isotopes=[(999, 40), (1, 1)],
+                                                            verbose=false)
+        end
     end
 
     @testset "kurucz linelist parsing" begin
         for fname in ["gfallvac08oct17.stub.dat", "gfallvac08oct17-missing-col.stub.dat"]
-            kurucz_ll = read_linelist("data/linelists/" * fname; format="kurucz")
+            kurucz_ll = Korg.read_linelist("data/linelists/" * fname; format="kurucz")
             @test issorted(kurucz_ll, by=l -> l.wl)
             @test length(kurucz_ll) == 987
             @test kurucz_ll[1].wl ≈ 0.0007234041763337705
@@ -94,8 +167,8 @@
 
         @testset "kurucz molecular " begin
             fname = "kurucz_cn.txt"
-            @test_throws ArgumentError kurucz_ll=read_linelist("data/linelists/" * fname;
-                                                               format="kurucz")
+            @test_throws ArgumentError kurucz_ll=Korg.read_linelist("data/linelists/" * fname;
+                                                                    format="kurucz")
             #@test issorted(kurucz_ll, by=l->l.wl)
             #@test length(kurucz_ll) == 10
             #@test kurucz_ll[1].wl ≈ 2.9262621445487408e-5
@@ -106,7 +179,7 @@
     end
 
     @testset "vald short format, ABO, missing params" begin
-        linelist = read_linelist("data/linelists/linelist.vald")
+        linelist = Korg.read_linelist("data/linelists/linelist.vald")
         @test length(linelist) == 6
         @test linelist[1].wl ≈ 3000.0414 * 1e-8
         @test linelist[1].log_gf == -2.957
@@ -139,11 +212,11 @@
     end
 
     @testset "vald various formats" begin
-        short_all = read_linelist("data/linelists/short-extract-all.vald")
-        long_all_cm_air = read_linelist("data/linelists/long-extract-all-air-wavenumber.vald")
-        long_all_cm_air_noquotes = read_linelist("data/linelists/long-extract-all-air-wavenumber-noquotes.vald")
-        short_stellar = read_linelist("data/linelists/short-extract-stellar.vald")
-        long_stellar = read_linelist("data/linelists/long-extract-stellar.vald")
+        short_all = Korg.read_linelist("data/linelists/short-extract-all.vald")
+        long_all_cm_air = Korg.read_linelist("data/linelists/long-extract-all-air-wavenumber.vald")
+        long_all_cm_air_noquotes = Korg.read_linelist("data/linelists/long-extract-all-air-wavenumber-noquotes.vald")
+        short_stellar = Korg.read_linelist("data/linelists/short-extract-stellar.vald")
+        long_stellar = Korg.read_linelist("data/linelists/long-extract-stellar.vald")
 
         @test (length(short_all) == length(short_stellar) == length(long_all_cm_air) ==
                length(long_all_cm_air_noquotes) == length(long_stellar) == 2)
@@ -163,11 +236,11 @@
     end
 
     @testset "vald isotopic scaling" begin
-        short_all = read_linelist("data/linelists/isotopic_scaling/short-all-unscaled.vald")
-        long_all = read_linelist("data/linelists/isotopic_scaling/long-all-unscaled.vald")
-        short_stellar = read_linelist("data/linelists/isotopic_scaling/short-stellar-unscaled.vald")
-        long_stellar = read_linelist("data/linelists/isotopic_scaling/long-stellar-unscaled.vald")
-        scaled = read_linelist("data/linelists/isotopic_scaling/scaled.vald")
+        short_all = Korg.read_linelist("data/linelists/isotopic_scaling/short-all-unscaled.vald")
+        long_all = Korg.read_linelist("data/linelists/isotopic_scaling/long-all-unscaled.vald")
+        short_stellar = Korg.read_linelist("data/linelists/isotopic_scaling/short-stellar-unscaled.vald")
+        long_stellar = Korg.read_linelist("data/linelists/isotopic_scaling/long-stellar-unscaled.vald")
+        scaled = Korg.read_linelist("data/linelists/isotopic_scaling/scaled.vald")
         unscaled_lists = [short_all, long_all, short_stellar, long_stellar]
 
         for list in unscaled_lists
@@ -185,8 +258,22 @@
         end
     end
 
-    moog_linelist = read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
-    moog_linelist_as_air = read_linelist("data/linelists/s5eqw_short.moog"; format="moog_air")
+    @testset "Kurucz isotopic scaling (#463)" begin
+        # this linelist contains the HFS components of one line for a few different isotopes
+        my_iso = Korg.read_linelist("data/linelists/gfallvac08oct17_ba";
+                                    format="kurucz") # use my isotopic abundances
+        his_iso = Korg.read_linelist("data/linelists/gfallvac08oct17_ba"; format="kurucz",
+                                     isotopic_abundances=nothing) # pull from linelist
+
+        # the components should sum to the log(gf) of the line with no HFS or isotopic splitting
+        # this one recovers the right log(gf)
+        @test log10(sum(10^l.log_gf for l in my_iso))≈-0.03 atol=0.01
+        # this one is slightly off because Kurucz doesn't unclude many digits
+        @test log10(sum(10^l.log_gf for l in his_iso))≈-0.01 atol=0.01
+    end
+
+    moog_linelist = Korg.read_linelist("data/linelists/s5eqw_short.moog"; format="moog")
+    moog_linelist_as_air = Korg.read_linelist("data/linelists/s5eqw_short.moog"; format="moog_air")
     @testset "moog linelist parsing" begin
         @test all(Korg.air_to_vacuum(l1.wl) .≈ l2.wl
                   for (l1, l2) in zip(moog_linelist, moog_linelist_as_air))
@@ -209,7 +296,7 @@
     end
 
     @testset "turbospectrum linelists" begin
-        ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum")
+        ll = Korg.read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum")
         @test ll[1].species == ll[3].species
         @test ll[1].log_gf != ll[3].log_gf
         @test ll[1].E_lower == ll[3].E_lower
@@ -227,14 +314,15 @@
 
         @test ll[3].vdW[1] ≈ 8.89802482263476e-7
 
-        vac_ll = read_linelist("data/linelists/Turbospectrum/goodlist"; format="turbospectrum_vac")
+        vac_ll = Korg.read_linelist("data/linelists/Turbospectrum/goodlist";
+                                    format="turbospectrum_vac")
         for (l_air, l_vac) in zip(ll, vac_ll)
             # l_vac.wl is "really" an air wavelength, but it wasn't converted because we told Korg
             # to read it in as vacuum
             @test l_air.wl≈Korg.air_to_vacuum(l_vac.wl) rtol=1e-8
         end
 
-        @test_throws ErrorException read_linelist("data/linelists/Turbospectrum/badlines";
-                                                  format="turbospectrum")
+        @test_throws ErrorException Korg.read_linelist("data/linelists/Turbospectrum/badlines";
+                                                       format="turbospectrum")
     end
 end
