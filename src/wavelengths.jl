@@ -97,10 +97,9 @@ function Wavelengths(wls::AbstractVector; tolerance=1e-6, kwargs...)
     end
 end
 # this handles the vector-of-bounds case. Each element can be a tuple of (λ_start, λ_stop) or
-# (λ_start, λ_stop, λ_step).
-function Wavelengths(tuples::AbstractVector{<:Union{<:Tuple{<:Real,<:Real},
-                                                    <:Tuple{<:Real,<:Real,<:Real}}},
-                     ; kwargs...)
+# (λ_start, λ_stop, λ_step). We don't enforce tuple size here in order to make sure that  literals
+# pass correctly.
+function Wavelengths(tuples::AbstractVector{<:Tuple{Vararg{<:Real}}}, ; kwargs...)
     ranges = map(tuples) do tuple
         if !(2 .<= length(tuple) .<= 3)
             throw(ArgumentError("Each wavelength range must be specified as a tuple of (λ_start, λ_stop) or (λ_start, λ_stop, λ_step). Got $tuple."))

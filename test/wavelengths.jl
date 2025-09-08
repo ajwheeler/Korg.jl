@@ -30,6 +30,14 @@
         @test Korg.Wavelengths((15000, 15500, 1.0)) ≈ Korg.Wavelengths((15000, 15500, 1))
         @test Korg.Wavelengths((15000, 15500, 1)) ≈ Korg.Wavelengths(15000:1.0:15500)
 
+        @test Korg.Wavelengths([(5000, 5010), (6000, 6010, 0.02)]) ==
+              Korg.Wavelengths([5000:0.01:5010, 6000:0.02:6010])
+
+        @test_throws ArgumentError Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true,
+                                                    wavelength_conversion_warn_threshold=1e-20)
+    end
+
+    @testset "air/vacuum conversion" begin
         # test automatic air to vacuum conversion
         air_wls = Korg.air_to_vacuum.(15000:0.1:15003)
         test_spec = [
@@ -42,9 +50,6 @@
             test_wls = Korg.Wavelengths(wls; air_wavelengths=true).wl_ranges[1] * 1e8
             @test assert_allclose(test_wls, air_wls; atol=1e-4, print_rachet_info=false)
         end
-
-        @test_throws ArgumentError Korg.Wavelengths(15000:0.01:15500; air_wavelengths=true,
-                                                    wavelength_conversion_warn_threshold=1e-20)
     end
 
     @testset "subspectrum_indices" begin
