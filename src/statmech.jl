@@ -70,7 +70,7 @@ function Base.showerror(io::IO, e::ChemicalEquilibriumError)
 end
 
 """
-    chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies, 
+    chemical_equilibrium(T, nₜ, nₑ, absolute_abundances, ionization_energies,
                          partition_fns, log_equilibrium_constants; x0=nothing)
 
 Iteratively solve for the number density of each species. Returns a pair containing the electron
@@ -120,7 +120,7 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies,
                               partition_fns, log_equilibrium_constants;
                               electron_number_density_warn_threshold=0.1,
-                              electron_number_density_warn_min_value=1e-4)
+                              electron_number_density_warn_min_value=1e-4, method=:trust_region)
     #compute good first guess by neglecting molecules
     neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
         wII, wIII = saha_ion_weights(temp, model_atm_nₑ, Z, ionization_energies, partition_fns)
@@ -130,7 +130,7 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
     nₑ, neutral_fractions = solve_chemical_equilibrium(temp, nₜ, absolute_abundances,
                                                        neutral_fraction_guess, model_atm_nₑ,
                                                        ionization_energies, partition_fns,
-                                                       log_equilibrium_constants)
+                                                       log_equilibrium_constants, method)
 
     if ((nₑ / nₜ > electron_number_density_warn_min_value) &&
         (abs((nₑ - model_atm_nₑ) / model_atm_nₑ) > electron_number_density_warn_threshold))
@@ -165,19 +165,20 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
 end
 
 function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
-                                    ionization_energies, partition_fns, log_equilibrium_constants)
+                                    ionization_energies, partition_fns, log_equilibrium_constants,
+                                    method)
     zero = _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess,
                                        nₑ_guess,
                                        ionization_energies, partition_fns,
-                                       log_equilibrium_constants)
+                                       log_equilibrium_constants, method)
     nₑ = abs(zero[end]) * nₜ * 1e-5
     neutral_fractions = abs.(zero[1:end-1])
     nₑ, neutral_fractions
 end
 
 function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess,
-                                     nₑ_guess,
-                                     ionization_energies, partition_fns, log_equilibrium_constants)
+                                     nₑ_guess, ionization_energies, partition_fns,
+                                     log_equilibrium_constants, method)
     #numerically solve for equilibrium.
     residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances,
                                                       ionization_energies,
@@ -190,14 +191,15 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
 
     sol = try
-        nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8,
+        nlsolve(residuals!, x0; method=method, iterations=100_000, store_trace=true,
+                ftol=1e-8,
                 autodiff=:forward)
     catch e
         try
             # try again with the nₑ guess set to be very small.  Much smaller than this and we start
             # to get noninvertible matrices in the solver
             x0[end] = 1e-5
-            nlsolve(residuals!, x0; method=:newton, iterations=1_000, store_trace=true, ftol=1e-8,
+            nlsolve(residuals!, x0; method=method, iterations=1_000, store_trace=true, ftol=1e-8,
                     autodiff=:forward)
         catch e
             throw(ChemicalEquilibriumError("solver failed: $e"))
@@ -219,7 +221,7 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
                                      absolute_abundances::Vector{F},  # not duals!
                                      neutral_fraction_guess::Vector{ForwardDiff.Dual{T,V3,P}},
                                      nₑ_guess, # this type doesn't matter if the solver converges
-                                     # Require that the types of the following be the same as the 
+                                     # Require that the types of the following be the same as the
                                      # default, thus containing no duals. This is over-restrictive,
                                      # but I'm not sure how to enforce the more general condition
                                      # via the type system.
@@ -277,7 +279,7 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
     # pressure, unlike those in equilibrium_constants.
     log_nKs = get_log_nK.(molecules, T, Ref(log_equilibrium_constants))
 
-    # precompute the ratio of singly and doubly ionized to neutral atoms with factors of nₑ^-1 and 
+    # precompute the ratio of singly and doubly ionized to neutral atoms with factors of nₑ^-1 and
     # nₑ^-2 divided out
     pairs = map(1:MAX_ATOMIC_NUMBER) do Z
         saha_ion_weights(T, 1, Z, ionization_energies, partition_fns)
@@ -289,12 +291,12 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            # Don't allow negative number densities.  This is a trick to bound the possible values 
+            # Don't allow negative number densities.  This is a trick to bound the possible values
             # of x. Taking the log was less performant in tests.
             nₑ = abs(x[end]) * nₜ * 1e-5
 
             # the first 92 elements of x are the fraction of each element in it's neutral atomic form
-            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to 
+            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to
             # better specify the tolerance for the solver.
             atom_number_densities = absolute_abundances .* (nₜ - nₑ)
             neutral_number_densities = atom_number_densities .* abs.(view(x, 1:MAX_ATOMIC_NUMBER))
@@ -322,7 +324,7 @@ function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ioni
                     n1_II = neutral_number_densities[Z1] + log10(wII)
                     n2_I = neutral_number_densities[Z2]
                     n_mol = 10^(n1_II + n2_I - log_nK)
-                    # RHS 
+                    # RHS
                     F[Z1] -= n_mol
                     F[Z2] -= n_mol
                     F[end] += n_mol
@@ -399,27 +401,27 @@ function hummer_mihalas_w(T, n_eff, nH, nHe, ne; use_hubeny_generalization=false
     exp(-4π / 3 * (neutral_term + charged_term))
 end
 
-# hummer_mihalas_w is based partially on Paul Barklem and Nicolai Piskunov's HBOP routine. The 
-# familly resemblance is limited to the "use_hubeny_generalization" option, which is not on be 
+# hummer_mihalas_w is based partially on Paul Barklem and Nicolai Piskunov's HBOP routine. The
+# familly resemblance is limited to the "use_hubeny_generalization" option, which is not on be
 # defult, but we include license for HBOP here.
 #
 # Copyright (c) 2020, Paul Barklem and Nikolai Piskunov
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice, this
 #    list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
-# 
+#
 # 3. Neither the name of the copyright holder nor the names of its
 #    contributors may be used to endorse or promote products derived from
 #    this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -648,7 +650,7 @@ function hummer_mihalas_U_H(T, nH, nHe, ne; use_hubeny_generalization=false)
     ]
 
     # for each level calculate the correction, w, and add the term to U
-    # the expression for w comes from Hummer and Mihalas 1988 equation 4.71 
+    # the expression for w comes from Hummer and Mihalas 1988 equation 4.71
     U = 0.0
     for (E, g, n) in zip(hydrogen_energy_levels, hydrogen_energy_level_degeneracies,
                          hydrogen_energy_level_n)
