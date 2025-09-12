@@ -314,21 +314,43 @@ end
     filter_linelist(linelist, wls, line_buffer)
 
 Return a new linelist containing only lines within the provided wavelength ranges.
+
+# Arguments:
+
+  - `linelist`: The input linelist to filter.
+  - `wls`: The wavelengths to filter the linelist by. Type: [`Korg.Wavelengths`](@ref)
+  - `line_buffer`: The buffer around each wavelength range to include in the filtered linelist. (Default: 10 Å)
+
+# Keyword Arguments:
+
+  - `warn_empty`: Whether to warn if the filtered linelist is empty.
+  - `warn_about_time`: Whether to warn if the filtering process takes a long time.
 """
-function filter_linelist(linelist, wls, line_buffer; warn_empty=true)
+function filter_linelist(linelist, wls, line_buffer::AbstractFloat=10.0;
+                         warn_empty=true, warn_about_time=true)
+    if line_buffer > 1 # it's in Å
+        line_buffer *= 1e-8
+    end
     nlines_before = length(linelist)
 
     last_line_index = 0 # we need to keep track of this across iterations to avoid double-counting lines.
-    sub_ranges = map(eachwindow(wls)) do (λstart, λstop)
-        first_line_index = searchsortedfirst(linelist, (; wl=λstart - line_buffer); by=l -> l.wl)
-        # ensure we don't double-count lines.
-        first_line_index = max(first_line_index, last_line_index + 1)
+    t = @elapsed begin
+        sub_ranges = map(eachwindow(wls)) do (λstart, λstop)
+            first_line_index = searchsortedfirst(linelist, (; wl=λstart - line_buffer);
+                                                 by=l -> l.wl)
+            # ensure we don't double-count lines.
+            first_line_index = max(first_line_index, last_line_index + 1)
 
-        last_line_index = searchsortedlast(linelist, (; wl=λstop + line_buffer); by=l -> l.wl)
+            last_line_index = searchsortedlast(linelist, (; wl=λstop + line_buffer); by=l -> l.wl)
 
-        first_line_index:last_line_index
+            first_line_index:last_line_index
+        end
+        linelist = vcat((linelist[r] for r in sub_ranges)...)
     end
-    linelist = vcat((linelist[r] for r in sub_ranges)...)
+
+    if t > 0.2 && warn_about_time
+        @warn "Filtering the linelist to the requested wavelength range took $t seconds. Consider prefiltering the linelist with Korg.filter_linelist to avoid duplicating this work many times."
+    end
 
     if nlines_before != 0 && length(linelist) == 0 && warn_empty
         @warn "The provided linelist was not empty, but none of the lines were within the provided wavelength range."
