@@ -13,4 +13,7 @@ Korg spectra should be bitwise reproducible under these conditions:
 - Using identical Korg and dependency versions
 - Providing identical input parameters
 
+## What's the deal with Korg's flux units?
+[`Korg.synthesize`](@ref) and [`Korg.synth`](@ref) (when set to not rectify) return fluxes in units of `erg/s/cm^4/Å`. The "extra" factor of `cm^-2` is included to account for the projected area of the star, which Korg makes no assumptions about.  To get the usual astrophysical flux, multiply by ``R_\mathrm{start}^2``.
+
 When running with multiple threads, small numerical differences may occur due to floating-point operations being performed in different orders.
