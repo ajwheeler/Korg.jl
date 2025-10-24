@@ -401,5 +401,5 @@ function blackbody(T, λ)
     c = c_cgs
     k = kboltz_cgs
 
-    2 * h * c^2 / λ^5 * 1 / (exp(h * c / λ / k / T) - 1)
+    2 * h * c^2 / λ^5 * 1 / expm1(h * c / λ / k / T)
 end
