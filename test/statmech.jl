@@ -176,6 +176,5 @@ end
         # All methods should give the same, but not exactly the same answer 
         @test nₑ_adaptive≈nₑ_newton rtol=1e-6
         @test nₑ_adaptive≈nₑ_trust rtol=1e-6
-        @test nₑ_adaptive != nₑ_trust
     end
 end

@@ -179,9 +179,13 @@ function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fra
     nₑ, neutral_fractions
 end
 
+# I think this ftol might be tighter than it needs to be, since both methods are converging to 
+# identical solutions in tests. Loosening is probably a good avenue to getting convergence more
+# broadly, but it's not clear to me why ftol=1e-8 produces identical solutions, so I'm hesitant to 
+# mess with it.
 function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess,
                                      nₑ_guess, ionization_energies, partition_fns,
-                                     log_equilibrium_constants, method)
+                                     log_equilibrium_constants, method; ftol=1e-8)
     #numerically solve for equilibrium.
     residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances,
                                                       ionization_energies,
@@ -199,7 +203,6 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     else
         [method]
     end
-
     sol = nothing
     last_error = nothing
 
@@ -208,14 +211,14 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
 
         sol = try
             nlsolve(residuals!, x0_attempt; method=current_method, iterations=100_000,
-                    store_trace=true, ftol=1e-8, autodiff=:forward)
+                    store_trace=true, ftol=ftol, autodiff=:forward)
         catch e
             try
                 # try again with the nₑ guess set to be very small.  Much smaller than this and we start
                 # to get noninvertible matrices in the solver
                 x0_attempt[end] = 1e-5
                 nlsolve(residuals!, x0_attempt; method=current_method, iterations=1_000,
-                        store_trace=true, ftol=1e-8, autodiff=:forward)
+                        store_trace=true, ftol=ftol, autodiff=:forward)
             catch e
                 last_error = e
                 nothing
@@ -254,14 +257,7 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
                                      ionization_energies::typeof(Korg.ionization_energies),
                                      partition_fns::typeof(Korg.default_partition_funcs),
                                      log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants),
-                                     method) where {
-                                                    T,
-                                                    V1,
-                                                    V2,
-                                                    V3,
-                                                    P,
-                                                    F<:AbstractFloat
-                                                    }
+                                     method) where {T,V1,V2,V3,P,F<:AbstractFloat}
     vtemp = ForwardDiff.value(temp)
     vnₜ = ForwardDiff.value(nₜ)
     vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
