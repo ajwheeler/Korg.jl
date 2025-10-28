@@ -97,6 +97,9 @@ keyword arguments:
   - `electron_number_density_warn_min_value` (default: `1e-4`) is the minimum value of the electron
     number density at which a warning is issued.  This is to avoid warnings when the electron number
     density is very small.
+  - `method` (default: `:adaptive`) is the solver method to use. Options are `:newton`, `:trust_region`,
+    or `:adaptive`. The `:adaptive` method first attempts to solve with Newton's method (which is faster
+    when it converges), and falls back to the trust region method if Newton fails.
 
 The system of equations is specified with the number densities of the neutral atoms as free
 parameters.  Each equation specifies the conservation of a particular species, e.g. (simplified)
@@ -120,7 +123,7 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies,
                               partition_fns, log_equilibrium_constants;
                               electron_number_density_warn_threshold=0.1,
-                              electron_number_density_warn_min_value=1e-4, method=:trust_region)
+                              electron_number_density_warn_min_value=1e-4, method=:adaptive)
     #compute good first guess by neglecting molecules
     neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
         wII, wIII = saha_ion_weights(temp, model_atm_nₑ, Z, ionization_energies, partition_fns)
@@ -190,20 +193,43 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     # if that is going on.  I'm sure there's a better way...
     x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
 
-    sol = try
-        nlsolve(residuals!, x0; method=method, iterations=100_000, store_trace=true,
-                ftol=1e-8,
-                autodiff=:forward)
-    catch e
-        try
-            # try again with the nₑ guess set to be very small.  Much smaller than this and we start
-            # to get noninvertible matrices in the solver
-            x0[end] = 1e-5
-            nlsolve(residuals!, x0; method=method, iterations=1_000, store_trace=true, ftol=1e-8,
-                    autodiff=:forward)
+    # For adaptive method, try Newton first, then fall back to trust_region
+    methods_to_try = if method == :adaptive
+        [:newton, :trust_region]
+    else
+        [method]
+    end
+
+    sol = nothing
+    last_error = nothing
+
+    for current_method in methods_to_try
+        x0_attempt = copy(x0)
+
+        sol = try
+            nlsolve(residuals!, x0_attempt; method=current_method, iterations=100_000,
+                    store_trace=true, ftol=1e-8, autodiff=:forward)
         catch e
-            throw(ChemicalEquilibriumError("solver failed: $e"))
+            try
+                # try again with the nₑ guess set to be very small.  Much smaller than this and we start
+                # to get noninvertible matrices in the solver
+                x0_attempt[end] = 1e-5
+                nlsolve(residuals!, x0_attempt; method=current_method, iterations=1_000,
+                        store_trace=true, ftol=1e-8, autodiff=:forward)
+            catch e
+                last_error = e
+                nothing
+            end
         end
+
+        # If we got a converged solution, break out of the loop
+        if sol !== nothing && sol.f_converged && all(isfinite, sol.zero)
+            break
+        end
+    end
+
+    if sol === nothing
+        throw(ChemicalEquilibriumError("solver failed: $last_error"))
     end
 
     if !sol.f_converged
@@ -227,14 +253,15 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
                                      # via the type system.
                                      ionization_energies::typeof(Korg.ionization_energies),
                                      partition_fns::typeof(Korg.default_partition_funcs),
-                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)) where {
-                                                                                                                       T,
-                                                                                                                       V1,
-                                                                                                                       V2,
-                                                                                                                       V3,
-                                                                                                                       P,
-                                                                                                                       F<:AbstractFloat
-                                                                                                                       }
+                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants),
+                                     method) where {
+                                                    T,
+                                                    V1,
+                                                    V2,
+                                                    V3,
+                                                    P,
+                                                    F<:AbstractFloat
+                                                    }
     vtemp = ForwardDiff.value(temp)
     vnₜ = ForwardDiff.value(nₜ)
     vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
@@ -247,7 +274,7 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
     zero = _solve_chemical_equilibrium(vtemp, vnₜ, absolute_abundances, vneutral_fraction_guess,
                                        vnₑ_guess,
                                        ionization_energies, partition_fns,
-                                       log_equilibrium_constants)
+                                       log_equilibrium_constants, method)
 
     residuals! = setup_chemical_equilibrium_residuals(vtemp, vnₜ, absolute_abundances,
                                                       ionization_energies,
