@@ -11,7 +11,7 @@ using Suppressor # hide #md
 end # hide #md
 
 # First, specify the wavelengths and line spread function (LSF).
-# We'll use the APOGEE instument's, wavelength coverage and resolution for this example.
+# We'll use the APOGEE instument's wavelength coverage and resolution for this example.
 # Reduced APOGEE spectra are resampled onto wavelengths which are uniform in log-wavelength.
 
 delLog = 6e-6;
