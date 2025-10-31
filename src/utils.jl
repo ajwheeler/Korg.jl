@@ -110,7 +110,7 @@ end
     compute_LSF_matrix(synth_wls, obs_wls, R; kwargs...)
 
 Construct a sparse matrix, which when multiplied with a flux vector defined over wavelenths
-`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
+`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obs_wls`.
 
 # Arguments
 
