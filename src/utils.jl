@@ -130,7 +130,7 @@ For the best match to data, your wavelength range should extend a couple ``\\Del
 the region you are going to compare.
 
 [`Korg.apply_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
-relatively slow, but one the LSF matrix is constructed, convolving spectra to observational
+relatively slow, but once the LSF matrix is constructed, convolving spectra to observational
 resolution via matrix multiplication is fast.
 """
 function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
