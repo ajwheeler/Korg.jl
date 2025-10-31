@@ -110,7 +110,7 @@ end
     compute_LSF_matrix(synth_wls, obs_wls, R; kwargs...)
 
 Construct a sparse matrix, which when multiplied with a flux vector defined over wavelenths
-`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obswls`.
+`synth_wls`, applies a gaussian line spead function (LSF) and resamples to the wavelenths `obs_wls`.
 
 # Arguments
 
@@ -130,7 +130,7 @@ For the best match to data, your wavelength range should extend a couple ``\\Del
 the region you are going to compare.
 
 [`Korg.apply_LSF`](@ref) can apply an LSF to a single flux vector efficiently. This function is
-relatively slow, but one the LSF matrix is constructed, convolving spectra to observational
+relatively slow, but once the LSF matrix is constructed, convolving spectra to observational
 resolution via matrix multiplication is fast.
 """
 function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
