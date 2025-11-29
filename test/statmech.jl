@@ -158,4 +158,23 @@ end
         @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"O_III"].(lnTs))
         @test nearly_monotonic(Korg.default_partition_funcs[Korg.species"CN_I"].(lnTs))
     end
+
+    @testset "all methods converge for standard conditions" begin
+        # Test data: solar abundances
+        nX_ntot = @. 10^(Korg.default_solar_abundances - 12)
+        nX_ntot ./= sum(nX_ntot)
+        nₜ = 1e15
+        nₑ_initial_guess = 1e12
+        T = 5700
+
+        args = (T, nₜ, nₑ_initial_guess, nX_ntot, Korg.ionization_energies,
+                Korg.default_partition_funcs, Korg.default_log_equilibrium_constants)
+        nₑ_adaptive, n_dict_adaptive = Korg.chemical_equilibrium(args...; method=:adaptive)
+        nₑ_newton, n_dict_newton = Korg.chemical_equilibrium(args...; method=:newton)
+        nₑ_trust, n_dict_trust = Korg.chemical_equilibrium(args...; method=:trust_region)
+
+        # All methods should give the same, but not exactly the same answer 
+        @test nₑ_adaptive≈nₑ_newton rtol=1e-6
+        @test nₑ_adaptive≈nₑ_trust rtol=1e-6
+    end
 end
