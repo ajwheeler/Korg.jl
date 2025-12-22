@@ -16,7 +16,7 @@ jobs:
         julia-version: ["1"] # could also add 1.10 (LTS), but not needed
     steps:
       - name: Benchmark PR with AirspeedVelocity
-        uses: MilesCranmer/AirspeedVelocity.jl@action-v1.1.0
+        uses: MilesCranmer/AirspeedVelocity.jl@action-v1.2
         with:
           julia-version: ${{ matrix.julia-version }}
           job-summary: 'false'
