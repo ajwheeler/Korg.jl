@@ -414,6 +414,10 @@ first_nonempty_line(io) =
 tentotheOrMissing(x) = x == 0 ? missing : 10^x
 idOrMissing(x) = x == 0 ? missing : x
 
+# Parse a numeric string, treating blank/whitespace-only strings as zero.
+# This mimics Fortran's behavior of reading blank fields as zero.
+_parse_or_zero(T, s) = (s = strip(s); isempty(s) ? zero(T) : parse(T, s))
+
 function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, verbose=false)
     lines = Line{Float64,Float64,Float64,Float64,Float64,Float64}[]
     for row in eachline(f)
@@ -422,6 +426,11 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, ver
         #some linelists have a missing column in the wavelength region
         if length(row) == 159
             row = " " * row
+        end
+
+        # pad short lines (trailing whitespace may be stripped from file)
+        if length(row) < 160
+            row = rpad(row, 160)
         end
 
         #kurucz provides wavenumbers for "level 1" and "level 2", which is which is
@@ -434,16 +443,16 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, ver
         species = Species(row[19:24])
 
         # log(gf) + adjustment for hyperfine structure
-        loggf = parse(Float64, row[12:18]) + parse(Float64, row[110:115])
+        loggf = parse(Float64, row[12:18]) + _parse_or_zero(Float64, row[110:115])
 
         # isotopic abundance adjustments
-        kurucz_iso_adjust = parse(Float64, row[119:124])
+        kurucz_iso_adjust = _parse_or_zero(Float64, row[119:124])
         if isnothing(isotopic_abundances)
             loggf += kurucz_iso_adjust
         else
-            iso_number = parse(Int, row[107:109])
+            iso_number = _parse_or_zero(Int, row[107:109])
             if iso_number == 0
-                iso_number = parse(Int, row[116:118])
+                iso_number = _parse_or_zero(Int, row[116:118])
             end
             if iso_number != 0 # if there's no isotope number, don't adjust
                 if !(iso_number in keys(isotopic_abundances[get_atom(species)]))
@@ -463,9 +472,9 @@ function parse_kurucz_linelist(f; isotopic_abundances=nothing, vacuum=false, ver
                    loggf,
                    species,
                    min(E_levels...),
-                   tentotheOrMissing(parse(Float64, row[81:86])),
-                   tentotheOrMissing(parse(Float64, row[87:92])),
-                   idOrMissing(parse(Float64, row[93:98]))))
+                   tentotheOrMissing(_parse_or_zero(Float64, row[81:86])),
+                   tentotheOrMissing(_parse_or_zero(Float64, row[87:92])),
+                   idOrMissing(_parse_or_zero(Float64, row[93:98]))))
     end
     lines
 end
