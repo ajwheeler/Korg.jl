@@ -54,7 +54,7 @@
 
     @testset "subspectrum_indices" begin
         ranges = [5000:1.0:5010, 5020:1.0:5031, 5040:1.0:5060]
-        @assert Korg.subspectrum_indices(Korg.Wavelengths(ranges)) == [1:11, 12:23, 24:44]
+        @test Korg.subspectrum_indices(Korg.Wavelengths(ranges)) == [1:11, 12:23, 24:44]
     end
 
     @testset "searchsortedfirst/last" begin

@@ -44,6 +44,6 @@
         Korg.hydrogen_line_absorption!(αs, wls, 9000.0, 1.1e16, 1, 0.0,
                                        Korg.default_partition_funcs[Korg.species"H_I"](log(9000.0)),
                                        0.0, 15e-7)
-        @assert all(.!isnan.(αs))
+        @test all(.!isnan.(αs))
     end
 end
