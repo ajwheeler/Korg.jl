@@ -21,7 +21,7 @@
     @testset "resolution" begin
         wls, flux_lsf, _ = synth(; default_ps..., wavelengths=(5000, 5001), R=50_000)
         wls_raw, flux_raw, _ = synth(; default_ps..., wavelengths=(5000, 5001), R=Inf)
-        @assert wls == wls_raw
+        @test wls == wls_raw
         flux_manual_lsf = Korg.apply_LSF(flux_raw, wls_raw, 50_000)
         @test flux_lsf ≈ flux_manual_lsf
     end
@@ -30,7 +30,7 @@
         wl_spec = [(5000, 5001), (5002, 5003)]
         wls, flux_rot, _ = synth(; default_ps..., wavelengths=wl_spec, vsini=10)
         wls_raw, flux_raw, _ = synth(; default_ps..., wavelengths=wl_spec, vsini=0)
-        @assert wls == wls_raw
+        @test wls == wls_raw
         flux_manual_rot = Korg.apply_rotation(flux_raw, wl_spec, 10)
         @test flux_rot ≈ flux_manual_rot
     end
