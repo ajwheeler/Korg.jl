@@ -29,7 +29,7 @@ jobs:
         with:
           version: nightly
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - name: Set Julia threads
         run: echo "JULIA_NUM_THREADS=4" >> $GITHUB_ENV
