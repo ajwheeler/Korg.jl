@@ -276,7 +276,7 @@ function brackett_line_stark_profiles(m, λs, λ₀, T, nₑ)
 
     ne_1_6 = nₑ^(1 / 6)
     F0 = 1.25e-9 * nₑ^(2 / 3) # the Holtsmark field
-    GCON1 = 0.2 + 0.09 * sqrt(T / 10_0004) / (1 + nₑ / 1.E13)
+    GCON1 = 0.2 + 0.09 * sqrt(T / 10_000) / (1 + nₑ / 1.E13)
     GCON2 = 0.2 / (1 + nₑ / 1.E15)
 
     Knm = greim_1960_Knm(n, m)
