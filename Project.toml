@@ -3,6 +3,9 @@ uuid = "acafc109-a718-429c-b0e5-afd7f8c7ae46"
 authors = ["Adam Wheeler <adamwhlr@gmail.com>", "Matthew Abruzzo <matthewabruzzo@gmail.com>"]
 version = "1.0.1"
 
+[workspace]
+projects = ["test", "benchmark", "docs"]
+
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
