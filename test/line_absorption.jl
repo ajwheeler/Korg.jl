@@ -46,4 +46,29 @@
                                        0.0, 15e-7)
         @test all(.!isnan.(αs))
     end
+
+    @testset "Brackett line profile centered correctly" begin
+        # The Brackett-series Stark profile should peak near the line center.
+        # Bug: off-by-one in convolution extraction shifts the profile by one bin.
+        n_upper = 7  # Brackett γ (transition 4 → 7)
+        n_lower = 4
+        E = Korg.RydbergH_eV * (1 / n_lower^2 - 1 / n_upper^2)
+        λ₀ = Korg.hplanck_eV * Korg.c_cgs / E  # cm
+
+        T = 8000.0
+        nₑ = 1e14
+        ξ = 1e5  # 1 km/s in cm/s
+
+        itp, window = Korg.bracket_line_interpolator(n_upper, λ₀, T, nₑ, ξ)
+
+        # Sample finely around line center to find the peak
+        test_wls = range(λ₀ - window / 10, λ₀ + window / 10; length=10001)
+        vals = [itp(w) for w in test_wls]
+        peak_wl = test_wls[argmax(vals)]
+
+        # The peak should be very close to the line center.
+        # The internal grid spacing is roughly 2*window/201 ≈ window/100.
+        # With the off-by-one bug, the peak is shifted by one full grid step.
+        @test abs(peak_wl - λ₀) < window / 500
+    end
 end

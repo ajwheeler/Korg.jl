@@ -18,4 +18,13 @@
 
     merged_lines = Korg.merge_close_lines(strong_lines_sorted)
     @test issorted(merged_lines; by=first)
+
+    @testset "handles low optical depth without crashing" begin
+        # Use a very thin atmosphere where τ may never reach 1
+        thin_atm = let atm = Korg.read_model_atmosphere("data/sun.mod")
+            Korg.PlanarAtmosphere(atm.layers[1:3], atm.reference_wavelength)
+        end
+        result = Korg.prune_linelist(thin_atm, linelist, A_X, wls; verbose=false)
+        @test result isa Vector
+    end
 end

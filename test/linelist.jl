@@ -325,4 +325,15 @@
         @test_throws ErrorException Korg.read_linelist("data/linelists/Turbospectrum/badlines";
                                                        format="turbospectrum")
     end
+
+    @testset "turbospectrum_vac gamma_rad uses correct wavelength" begin
+        # When parsing with vacuum=true, gamma_rad should be computed from the
+        # stored wavelength (no air_to_vacuum conversion).
+        ll_vac = Korg.read_linelist("data/linelists/Turbospectrum/requires_default_gammas";
+                                    format="turbospectrum_vac")
+        for l in ll_vac
+            expected = Korg.approximate_radiative_gamma(l.wl, l.log_gf)
+            @test l.gamma_rad == expected
+        end
+    end
 end
