@@ -231,7 +231,7 @@ function bracket_line_interpolator(m, λ₀, T, nₑ, ξ, λmin=0, λmax=Inf;
         return linear_interpolation([], []), 0.0
     end
     wls = range(λstart, λend; length=n_wavelength_points)
-    start_ind = (n_wavelength_points - 1) ÷ 2 # used to get indices corresponding to original wls
+    start_ind = (n_wavelength_points + 1) ÷ 2 # used to get indices corresponding to original wls
 
     # compute stark profiles
     ϕ_impact, ϕ_quasistatic = brackett_line_stark_profiles(m, wls, λ₀, T, nₑ)

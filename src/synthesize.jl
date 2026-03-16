@@ -302,7 +302,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                                                               τ_scheme=tau_scheme)
     # convert from erg/s/cm^5 to erg/s/cm^4/Å.
     flux .*= 1e-8
-    cntm .*= 1e-8
+    if !isnothing(cntm)
+        cntm .*= 1e-8
+    end
 
     SynthesisResult(; flux, cntm, intensity, alpha=α,
                     mu_grid=collect(zip(μ_grid, μ_weights)), number_densities,

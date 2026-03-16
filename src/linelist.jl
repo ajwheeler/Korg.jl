@@ -708,7 +708,10 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
     toks = split(line)
 
     log_gf = parse(Float64, toks[3])
-    wl = air_to_vacuum(parse(Float64, toks[1]) * 1e-8)
+
+    wltrans = vacuum ? identity : air_to_vacuum
+    wl = wltrans(parse(Float64, toks[1]) * 1e-8)
+
     gamma_rad = parse(Float64, toks[6])
     if gamma_rad == 0 || gamma_rad == 1
         gamma_rad = Korg.approximate_radiative_gamma(wl, log_gf)
@@ -721,9 +724,6 @@ function parse_turbospectrum_linelist_transition(species, Δloggf, line, vacuum)
         tentotheOrMissing(tryparse(Float64, toks[7]))
     end
     Elower = parse(Float64, toks[2])
-
-    wltrans = vacuum ? identity : air_to_vacuum
-    wl = wltrans(parse(Float64, toks[1]) * 1e-8)
 
     fdamp = parse(Float64, toks[4])
 
