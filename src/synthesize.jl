@@ -53,9 +53,11 @@ Compute a synthetic spectrum. Returns a [`SynthesisResult`](@ref).
     [`get_GALAH_DR3_linelist`](@ref), and [`get_VALD_solar_linelist`](@ref)).
   - `A_X`: a vector containing the A(X) abundances (log(X/H) + 12) for elements from hydrogen to
     uranium.  [`format_A_X`](@ref) can be used to easily create this vector.
-  - The wavelengths at which to synthesize the spectrum.  They can be specified either as a
-    pair `(λstart, λstop)`, or as a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`, or
-    as any other valid arguments [described here](@ref wldocs)
+  - The wavelengths at which to synthesize the spectrum.  They can be specified as a
+    pair `(λstart, λstop)`, a list of pairs `[(λstart1, λstop1), (λstart2, λstop2), ...]`, or
+    as any other valid arguments [described here](@ref wldocs). The default
+    spacing is 0.01 Å (and may change between versions), but see
+    [the wavelength docs](@ref wldocs) for details, including how to override.
 
 # Example
 

@@ -28,7 +28,8 @@ from the return type of [`synthesize`](@ref), which is [`SynthesisResult`](@ref)
   - `wavelengths`: a tuple of the start and end wavelengths (default: (5000, 6000)), or a vector
     of `(λstart, λstop)` pairs. See
     [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/) for all the ways the
-    wavelengths can be specified.
+    wavelengths can be specified, including how to override the default spacing,
+    which may change between versions.
   - `rectify`: whether to rectify (continuum normalize) the spectrum (default: true)
   - `R`: resolution (default: `Inf`, no LSF applied). `R` can be a scalar, or a function from
     wavelength (in Å) to resolving power. See [`apply_LSF`](@ref) for details on how to do this
