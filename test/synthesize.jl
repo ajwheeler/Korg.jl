@@ -146,4 +146,9 @@
         # Test wavelength below minimum
         @test_throws ArgumentError synthesize(atm_small, [], format_A_X(), (1200, 1400))
     end
+
+    @testset "return_cntm=false does not crash" begin
+        sol = synthesize(atm_small, [], format_A_X(), (5000, 5000); return_cntm=false)
+        @test isnothing(sol.cntm)
+    end
 end

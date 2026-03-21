@@ -47,7 +47,11 @@ function prune_linelist(atm, linelist, A_X, wl_params;
     # get the atmosphere layer where τ ≈ 1 for each wavelength
     approximate_τ = cumsum(sol.alpha[1:end-1, :] .* -diff(get_zs(atm)); dims=1)
     photosphere_indices = map(eachcol(approximate_τ)) do τ
-        findfirst(τ .> 1.0)
+        ind = findfirst(τ .> 1.0)
+        if isnothing(ind)
+            throw(ArgumentError("the atm pass to prune_linelist has no photosphere (τ does not exceed 1.0 at all wavelengths)"))
+        end
+        ind
     end
 
     # precompute T, thermo β, n/Z, and Doppler widths at each level

@@ -188,8 +188,7 @@ end
 function validate_params(initial_guesses::AbstractDict, fixed_params::NamedTuple; kwargs...)
     validate_params(initial_guesses, _namedtuple_to_dict(fixed_params); kwargs...)
 end
-function validate_params(initial_guesses::NamedTuple, fixed_params=AbstractDict{String,Float64}();
-                         kwargs...)
+function validate_params(initial_guesses::NamedTuple, fixed_params; kwargs...)
     validate_params(_namedtuple_to_dict(initial_guesses), fixed_params; kwargs...)
 end
 
