@@ -87,6 +87,22 @@
             @test_nowarn Korg.interpolate_marcs(5000, 4.0)
         end
 
+        @testset "integer dispatch forwards logg and M_H" begin
+            # 3 Int args should not crash (logg and M_H must be forwarded)
+            @test interpolate_marcs(5000, 4, 0; warn_about_dangerous_method=false) isa
+                  Korg.ModelAtmosphere
+
+            # 5 Int args should give the same result as 5 Float64 args
+            atm_int = interpolate_marcs(5000, 4, 0, 0, 0; warn_about_dangerous_method=false)
+            atm_float = interpolate_marcs(5000.0, 4.0, 0.0, 0.0, 0.0;
+                                          warn_about_dangerous_method=false)
+            @test Korg.get_temps(atm_int) == Korg.get_temps(atm_float)
+
+            # logg=4 (>= 3.5) should produce a PlanarAtmosphere, not a ShellAtmosphere
+            atm = interpolate_marcs(5000, 4, 0; warn_about_dangerous_method=false)
+            @test atm isa Korg.PlanarAtmosphere
+        end
+
         @testset "methods are equivalent" begin
             teff = 5000.0
             logg = 4.0

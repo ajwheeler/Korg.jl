@@ -489,5 +489,5 @@ end
 # handle the case where Teff, logg, and [m/H] are integers. As long as not all (interpolated) params
 # are passed in as integers, there's no problem.
 function interpolate_marcs(Teff::Int, logg::Int, M_H::Int, args...; kwargs...)
-    interpolate_marcs(Float64(Teff), args...; kwargs...)
+    interpolate_marcs(Float64(Teff), Float64(logg), Float64(M_H), args...; kwargs...)
 end
