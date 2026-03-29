@@ -1,6 +1,6 @@
 name = "Korg"
 uuid = "acafc109-a718-429c-b0e5-afd7f8c7ae46"
-version = "1.0.1"
+version = "1.1.1"
 authors = ["Adam Wheeler <adamwhlr@gmail.com>", "Matthew Abruzzo <matthewabruzzo@gmail.com>"]
 
 [workspace]
