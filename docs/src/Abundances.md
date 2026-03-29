@@ -11,7 +11,7 @@ The "abundance" of an element, ``X``, can refer to both ``A(X)``
 ("absolute") and \[``X``/H\] ("solar relative"). These are defined as:
 
 ```math
-A(X) = \log_{10} \left( \frac{n_X / n_\mathrm{H}} \right) + 12
+A(X) = \log_{10} \left( \frac{n_X}{n_\mathrm{H}} \right) + 12
 ```
 
 and
