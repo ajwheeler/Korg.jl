@@ -310,7 +310,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
     SynthesisResult(; flux, cntm, intensity, alpha=α,
                     mu_grid=collect(zip(μ_grid, μ_weights)), number_densities,
-                    electron_number_density=nₑs, wavelengths=wls .* 1e8,
+                    electron_number_density=nₑs, wavelengths=vcat(wls.wl_ranges_Å...),
                     subspectra=subspectrum_indices(wls))
 end
 
