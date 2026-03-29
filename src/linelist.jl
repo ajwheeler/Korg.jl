@@ -1,5 +1,4 @@
-using CSV, HDF5, LazyArtifacts, TableOperations
-using DataFrames: DataFrame, leftjoin, leftjoin!, rename!
+using CSV, HDF5, LazyArtifacts
 using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
@@ -204,17 +203,25 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
   - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
     linelist. See [`approximate_line_strength`](@ref) for more information.
   - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
-  - `isotopic_abundances`: the table of isotopic abundances to use (default: `Korg.isotopic_abundances`).
-    This is ignored if `isotopic_correction` is provided.
-  - `verbose`: if `true` (default), will print progress information to the console.
+
+  - `isotopic_abundances`: the table of isotopic abundances to use (default: `Korg.isotopic_abundances`).  This is ignored if `isotopic_correction` is provided.
+  - `verbose`: if `true` (default), will print progress information
+
+# Returns
+
+A linelist, as a vector of [`Line`](@ref)s.
+
 
 !!! warning
 
     This functionality is in beta. It's behavior may change without a major version number bump.
 """
-function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
+function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelength,
+                              upper_wavelength;
                               isotopes=nothing, isotopic_abundances=Korg.isotopic_abundances,
-                              line_strength_cutoff=-15, T_line_strength=3500.0, verbose=true)
+                              line_strength_cutoff=-15, T_line_strength=3500.0,
+                              verbose=true)::Vector{Line{Float64,Float64,Float64,Float64,Float64,
+                                                         Float64}}
     if spec isa AbstractString
         spec = Species(spec)
     end
@@ -226,41 +233,25 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
         @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
     end
 
-    # These contortions allow us to read only the first N columns, without parsing the rest.
-    # This is (probably) faster, and more memory efficient. But also the ExoMol files sometimes
-    # have various extra columns. Hopefully we can cound on the first three being consistent.
-    raw_transitions = CSV.File(transitions_file; delim=" ", ignorerepeated=true, header=false) |>
-                      TableOperations.select(:Column1, :Column2, :Column3) |>
-                      DataFrame
-    rename!(raw_transitions, :Column1 => :id_upper, :Column2 => :id_lower, :Column3 => :A)
-    states = CSV.File(states_file; delim=" ", ignorerepeated=true, header=false) |>
-             TableOperations.select(:Column1, :Column2, :Column3) |>
-             DataFrame
-    rename!(states, :Column1 => :id, :Column2 => :E_wavenumber, :Column3 => :g)
+    # convert wavelength limits in Å to wavenumber limits in cm^-1
+    wn_lower_limit = 1.0 / (upper_wavelength * 1e-8)
+    wn_upper_limit = 1.0 / (lower_wavelength * 1e-8)
 
-    # join the transitions and states tables on the id column to get the upper and lower level info
-    transitions = leftjoin(raw_transitions, states; on=:id_upper => :id)
-    rename!(transitions, :E_wavenumber => :wavenumber_upper, :g => :g_upper)
-    leftjoin!(transitions, states; on=:id_lower => :id)
-    rename!(transitions, :E_wavenumber => :wavenumber_lower, :g => :g_lower)
-
-    # if the column is missing, the join didn't find a matching state
-    if any(ismissing.(transitions.g_lower)) || any(ismissing.(transitions.g_upper))
-        throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
+    #  ExoMol files have various numbers of columns, but the first three (the
+    #  only ones we need) are consistent: id, wavenumber, g.
+    states = Dict{Int,Tuple{Float64,Float64}}()
+    for row in CSV.File(states_file; delim=" ", ignorerepeated=true, header=false)
+        id = Int(row.Column1)
+        wavenumber = Float64(row.Column2)
+        g = Float64(row.Column3)
+        states[id] = (wavenumber, g)
     end
 
-    # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere.
-    # Difference of 1e16 is due to Å vs cm
-    prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (8π^2 * Korg.electron_charge_cgs^2)
-
-    transitions.wavenumber = transitions.wavenumber_upper .- transitions.wavenumber_lower
-    transitions.f = @. transitions.A * prefactor * transitions.g_upper /
-                       (transitions.g_lower * transitions.wavenumber^2)
-    transitions.log_gf = log10.(transitions.g_lower .* transitions.f)
-
-    # perform isotopic correction to log gf values
+    # Precompute isotopic correction
     if isnothing(isotopes)
-        verbose && println("Assuming the most abundant isotope for all atoms.")
+        verbose &&
+            println("Assuming the most abundant isotope for all atoms. " *
+                    "Use the isotopes keyword argument to specify otherwise.")
         isotopes = map(get_atoms(spec)) do Z
             (Z, argmax(isotopic_abundances[Z]))
         end
@@ -272,28 +263,62 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, ll, ul;
     isotopic_correction -= log10(prod(isotopic_nuclear_spin_degeneracies[Z][iso]
                                       for (Z, iso) in isotopes))
 
-    transitions.log_gf .+= isotopic_correction
+    # Gray 4th ed, eq 11.12 (page 214) but with an extra factor of 1/4π for stradian vs unit sphere.
+    # Difference of 1e16 is due to Å vs cm
+    prefactor = (Korg.electron_mass_cgs * Korg.c_cgs) / (8π^2 * Korg.electron_charge_cgs^2)
 
-    transitions.E_lower = @. Korg.hplanck_eV * transitions.wavenumber_lower * Korg.c_cgs
-    transitions.wavelength = 1.0 ./ transitions.wavenumber
+    # Stream the transitions file line by line to avoid loading the entire file into memory.
+    # This is critical for large ExoMol files, which can be 10s of GB.
+    # Most lines will be too weak, or outside the wavelength limits.
+    lines = Line{Float64,Float64,Float64,Float64,Float64,Float64}[]
+    n_total = 0
+    n_unmapped = 0 # collect for error message
+    for row in CSV.File(transitions_file; delim=" ", ignorerepeated=true, header=false)
+        id_upper = Int(row.Column1)
+        id_lower = Int(row.Column2)
+        A = Float64(row.Column3)
 
-    region = transitions[ll.<transitions.wavelength.*1e8.<ul, :]
+        if !haskey(states, id_upper) || !haskey(states, id_lower)
+            n_unmapped += 1
+            continue
+        end
 
-    lines = map(eachrow(region)) do row
-        Korg.Line(row.wavelength, row.log_gf, spec, row.E_lower)
-    end |> reverse
+        wn_upper, g_upper = states[id_upper]
+        wn_lower, g_lower = states[id_lower]
+        wavenumber = wn_upper - wn_lower
 
-    # if there's nothing left, stop processing
-    if isempty(lines)
-        return lines
+        # Skip lines outside the wavelength range
+        if wavenumber <= 0 || wavenumber < wn_lower_limit || wavenumber > wn_upper_limit
+            n_total += 1
+            continue
+        end
+
+        # Assemble Line object
+        f = A * prefactor * g_upper / (g_lower * wavenumber^2)
+        log_gf = log10(g_lower * f) + isotopic_correction
+        E_lower = Korg.hplanck_eV * wn_lower * Korg.c_cgs
+        line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower)
+
+        n_total += 1
+
+        # Filter by line strength immediately to avoid accumulating weak lines
+        if approximate_line_strength(line, T_line_strength) > line_strength_cutoff
+            push!(lines, line)
+        end
     end
 
-    # Remove weak lines
-    mask = approximate_line_strength.(lines, T_line_strength) .> line_strength_cutoff
-    if verbose
-        println("Removed $(sum(.!mask)) lines with strength below $line_strength_cutoff at T = $T_line_strength K out of $(length(lines)) total lines ($(round(Int, 100 * sum(.!mask) / length(lines)))%).")
+    if n_unmapped > 0
+        throw(ArgumentError("Some of the transitions in $transitions_file can't be mapped to states in $states_file"))
     end
-    lines = lines[mask]
+
+    if n_total == 0 && verbose
+        println("no lines between $upper_wavelength Å and $lower_wavelength Å")
+    elseif isempty(lines) && verbose
+        println("All $n_total lines removed as too weak (strength below $line_strength_cutoff at T = $T_line_strength K)")
+    elseif verbose
+        n_removed = n_total - length(lines)
+        println("Removed $n_removed lines with strength below $line_strength_cutoff at T = $T_line_strength K out of $n_total total lines ($(round(Int, 100 * n_removed / n_total))%).")
+    end
 
     sort!(lines; by=l -> l.wl)
     lines
