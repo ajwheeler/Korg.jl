@@ -200,17 +200,16 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
 
   - `isotopes`: a vector of (atomic number, isotope number) pairs for each atom in the species.
     If not provided, Korg will assume that the molecule is the most abundant isotopologue.
+
   - `line_strength_cutoff`: the cutoff for the line strength (default: -15) used to filter the
     linelist. See [`approximate_line_strength`](@ref) for more information.
   - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
-
   - `isotopic_abundances`: the table of isotopic abundances to use (default: `Korg.isotopic_abundances`).  This is ignored if `isotopic_correction` is provided.
   - `verbose`: if `true` (default), will print progress information
 
 # Returns
 
 A linelist, as a vector of [`Line`](@ref)s.
-
 
 !!! warning
 
