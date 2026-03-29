@@ -1,6 +1,5 @@
 using CSV, HDF5, LazyArtifacts
 using Pkg.Artifacts: @artifact_str
-using ProgressMeter
 
 #This type represents an individual line.
 struct Line{F1,F2,F3,F4,F5,F6}
@@ -238,17 +237,14 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
     wn_lower_limit = 1.0 / (upper_wavelength * 1e-8)
     wn_upper_limit = 1.0 / (lower_wavelength * 1e-8)
 
-    # Load the states file. Exomol files have various number of columns, but the
-    # first three (the only ones we need) seem to be consistent: id, wavenumber, g.
-    level_wns = Float64[]
-    level_gs = Float64[]
+    #  ExoMol files have various numbers of columns, but the first three (the
+    #  only ones we need) are consistent: id, wavenumber, g.
+    states = Dict{Int,Tuple{Float64,Float64}}()
     for row in CSV.File(states_file; delim=" ", ignorerepeated=true, header=false)
         id = Int(row.Column1)
-        @assert id == length(level_wns) + 1
         wavenumber = Float64(row.Column2)
-        push!(level_wns, wavenumber)
         g = Float64(row.Column3)
-        push!(level_gs, g)
+        states[id] = (wavenumber, g)
     end
 
     # Precompute isotopic correction
@@ -273,7 +269,7 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
 
     # Stream the transitions file line by line to avoid loading the entire file into memory.
     # This is critical for large ExoMol files, which can be 10s of GB.
-    # most lines will be too weak, or outside the wavelength limits
+    # Most lines will be too weak, or outside the wavelength limits.
     lines = Line{Float64,Float64,Float64,Float64,Float64,Float64}[]
     n_total = 0
     n_unmapped = 0 # collect for error message
@@ -282,13 +278,13 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
         id_lower = Int(row.Column2)
         A = Float64(row.Column3)
 
-        if !(1 <= id_upper <= length(level_wns)) || !(1 <= id_lower <= length(level_wns))
+        if !haskey(states, id_upper) || !haskey(states, id_lower)
             n_unmapped += 1
             continue
         end
 
-        wn_upper = level_wns[id_upper]
-        wn_lower = level_wns[id_lower]
+        wn_upper, g_upper = states[id_upper]
+        wn_lower, g_lower = states[id_lower]
         wavenumber = wn_upper - wn_lower
 
         # Skip lines outside the wavelength range
@@ -297,12 +293,9 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
             continue
         end
 
-        g_upper = level_gs[id_upper]
-        g_lower = level_gs[id_lower]
-
-        # assemble Line object
+        # Assemble Line object
         f = A * prefactor * g_upper / (g_lower * wavenumber^2)
-        log_gf = log10(g_lower * f)
+        log_gf = log10(g_lower * f) + isotopic_correction
         E_lower = Korg.hplanck_eV * wn_lower * Korg.c_cgs
         line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower)
 
