@@ -28,6 +28,7 @@ are assumed to be in cm.
 """
 struct Wavelengths{F,R} <: AbstractArray{F,1}
     wl_ranges::Vector{R} # in cm, not Å
+    wl_ranges_Å::Vector  # original Å-scale ranges (avoids cm→Å round-trip errors)
     # Precomputed arrays. It may(?) be faster to lazily compute these.
     all_wls::Vector{F}
     all_freqs::Vector{F}
@@ -37,7 +38,10 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
                          wavelength_conversion_warn_threshold=1e-4) where R<:AbstractRange
         # if the first wavelength is > 1, assume it's in Å and convert to cm
         if first(first(wl_ranges)) >= 1
+            wl_ranges_Å = wl_ranges
             wl_ranges = wl_ranges .* 1e-8
+        else
+            wl_ranges_Å = wl_ranges .* 1e8
         end
 
         if !isconcretetype(eltype(wl_ranges))
@@ -50,7 +54,7 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
             throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
         end
 
-        # Convert air to vacuum wavelenths if necessary.
+        # Convert air to vacuum wavelengths if necessary.
         if air_wavelengths
             wl_ranges = map(wl_ranges) do wls
                 vac_start, vac_stop = air_to_vacuum.((first(wls), last(wls)))
@@ -65,12 +69,15 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
                 end
                 vac_wls
             end
+
+            # recompute Å ranges if air→vacuum conversion changed the ranges
+            wl_ranges_Å = wl_ranges .* 1e8
         end
 
-        # precompute all wavelengths and frequencies
+        # precompute monotonic frequencies
         all_freqs = reverse(Korg.c_cgs ./ all_wls)
 
-        new{eltype(all_wls),eltype(wl_ranges)}(wl_ranges, all_wls, all_freqs)
+        new{eltype(all_wls),eltype(wl_ranges)}(wl_ranges, collect(wl_ranges_Å), all_wls, all_freqs)
     end
 end
 function Wavelengths(wls::Wavelengths; air_wavelengths=false, kwargs...)
@@ -131,11 +138,11 @@ Base.getindex(wl::Wavelengths, i) = wl.all_wls[i]
 
 function Base.show(io::IO, wl::Wavelengths)
     print(io, "Korg.Wavelengths(")
-    for r in wl.wl_ranges[1:end-1]
-        print(io, Int(round(first(r * 1e8))), "—", Int(round(last(r * 1e8))), ", ")
+    for (i, r) in enumerate(wl.wl_ranges_Å)
+        i > 1 && print(io, ", ")
+        print(io, first(r), "—", last(r))
     end
-    println(io, Int(round(first(wl.wl_ranges[end] * 1e8))), "—",
-            Int(round(last(wl.wl_ranges[end]) * 1e8)), ")")
+    println(io, ")")
 end
 Base.show(io::IO, ::MIME"text/plain", wl::Wavelengths) = show(io, wl) # REPL/notebook
 
