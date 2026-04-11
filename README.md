@@ -11,7 +11,7 @@ Korg is a package for computing stellar spectra from 1D model atmospheres and li
 - Excitation-ionization balance from equivalent width data
 - Model atmosphere interpolation, parsing and using atmosphere files (MARCS)
 - Parsing and using linelists in VALD, Kurucz, MOOG, ExoMol, and Turbospectrum formats, with several defaults built-in.
-- Automatic differentiaion (via ForwardDiff.jl)
+- Automatic differentiation (via ForwardDiff.jl)
 - Synthesis with arbitrary abundances/solar abundance scales, with several defaults built-in.
 
 ## Example
