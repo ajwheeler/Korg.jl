@@ -62,7 +62,11 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32,
     # (in n_dict).
     Ts = 10 .^ log_temp_vals
     nₑ = zeros(length(log_temp_vals))
-    n_dict = Dict(species => 1 / cutoff_alpha)
+    # Korg will compute the effective broadener number density for vdW broadening, which requires 
+    # number density values for H I, He I, and H2. It will not be used, since only molecular lines 
+    # are present.
+    n_dict = Dict(species => 1 / cutoff_alpha,
+                  species"H I" => NaN, species"H2" => NaN, species"He I" => NaN)
     ξ = 0.0
     cntm = fill(λ -> 1.0, length(log_temp_vals))
 
