@@ -45,6 +45,19 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
         @error "Atomic hydrogen should not be in the linelist. Korg has built-in hydrogen lines."
     end
 
+    # precompute the effective perturber number density for vdW broadening.
+    # Coefficients from polarizability ratio and thermal velocity of He and H₂ relative to H.
+    # (a/a_H)^0.4 + (m/m_H)^-0.3
+    # species beyond these three are not important.
+    # these are in a.u. (not Å), from https://doi.org/10.1080/00268976.2018.1535143
+    a_H = 4.50711
+    a_He = 1.38375
+    a_H2 = 5.503   # ± 0.049 a.u. (in text, not Table 1)
+    c_He = (a_He / a_H)^0.4 * (atomic_masses[2] / atomic_masses[1])^-0.3
+    c_H2 = (a_H2 / a_H)^0.4 * 2^-0.3
+    n_eff_vdW = @. n_densities[species"H_I"] + c_He * n_densities[species"He_I"] +
+                   c_H2 * n_densities[species"H2"]
+
     n_chunks = tasks_per_thread * Threads.nthreads()
     chunk_size = max(1, length(linelist) ÷ n_chunks + (length(linelist) % n_chunks > 0))
     linelist_chunks = partition(linelist, chunk_size)
@@ -76,7 +89,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 Γ .= line.gamma_rad
                 if !ismolecule(line.species)
                     @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
-                    Γ .+= n_densities[species"H_I"] .* scaled_vdW.(Ref(line.vdW), m, temps)
+                    Γ .+= n_eff_vdW .* scaled_vdW.(Ref(line.vdW), m, temps)
                 end
                 # calculate the lorentz broadening parameter in wavelength. Doing this involves an
                 # implicit aproximation that λ(ν) is linear over the line window.

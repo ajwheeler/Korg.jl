@@ -1,12 +1,18 @@
-using Korg, Test, Logging, HDF5, ForwardDiff, FiniteDiff, Aqua
+# This file is automatically run by Pkg.test() when the Korg environment is activated.
+# This is the standard way that tests work in Julia packages. It's how the CI works, and it's a way
+# to run the whole test suite locally.
+#
+# When testing locally, another recommended workflow is to 
+#  - activate the test environment in the repl
+#  - import Revise
+#  - include("tests/imports.jl")
+#  - include other test files as needed, to run them
+#  - iterate on Korg and on the tests, rerunning as needed with minimal recompilation
 
-println("running test suite with ", Threads.nthreads(), " threads.")
+# Imports are in a separate file to facilitate running individual test files.
+include("imports.jl")
 
 @testset "Korg tests" verbose=true showtiming=true begin
-
-    # tools for testing: assert_allclose and assert_allclose_grid
-    include("utilities.jl")
-
     include("wavelengths.jl")
     include("molecular_cross_sections.jl")
     include("cubic_splines.jl")
