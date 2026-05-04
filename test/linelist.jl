@@ -10,7 +10,17 @@
         @test Korg.Line(l1; E_lower=2.0).E_lower == 2.0
         @test Korg.Line(l1; gamma_rad=1e-8).gamma_rad == 1e-8
         @test Korg.Line(l1; gamma_stark=1e-8).gamma_stark == 1e-8
+        @test Korg.Line(l1; gamma_mol_lorentz=1e-8).gamma_mol_lorentz == 1e-8
         @test Korg.Line(l1; vdW=-8.0).vdW[1] == 1e-8
+    end
+
+    @testset "gamma_mol_lorentz HDF5 roundtrip" begin
+        l2 = Korg.Line(5000.0, 0.0, Korg.species"FeH", 1.0; gamma_mol_lorentz=1e-8)
+        filename = tempname() * ".h5"
+        Korg.save_linelist(filename, [l2])
+        l3 = Korg.read_linelist(filename)
+        @test length(l3) == 1
+        @test l3[1].gamma_mol_lorentz == 1e-8
     end
 
     @testset "built-in linelists" begin

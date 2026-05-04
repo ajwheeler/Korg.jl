@@ -88,8 +88,12 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 # angular, not cyclical frequency (ω, not ν).
                 Γ .= line.gamma_rad
                 if !ismolecule(line.species)
-                    @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
-                    Γ .+= n_eff_vdW .* scaled_vdW.(Ref(line.vdW), m, temps)
+                    if !ismissing(line.gamma_mol_lorentz)
+                        @. Γ += line.gamma_mol_lorentz
+                    else
+                        @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
+                        Γ .+= n_eff_vdW .* scaled_vdW.(Ref(line.vdW), m, temps)
+                    end
                 end
                 # calculate the lorentz broadening parameter in wavelength. Doing this involves an
                 # implicit aproximation that λ(ν) is linear over the line window.
