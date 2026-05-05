@@ -87,10 +87,21 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in
                 # angular, not cyclical frequency (ω, not ν).
                 Γ .= line.gamma_rad
-                if !ismolecule(line.species)
-                    if !ismissing(line.gamma_mol_lorentz)
-                        @. Γ += line.gamma_mol_lorentz
-                    else
+                if !ismissing(line.gamma_mol_lorentz) && !ismissing(line.n_exp)
+                    # Mode 2: Molecular Lorentz broadening with temperature dependence
+                    # Sum contributions from H2 (index 1) and He (index 2)
+                    # Scale as: gamma * (T_ref / T)^n_exp
+                    # in Barton et al. 2017 eqn 1 as well as Gharib-Nezhad et al. 2021 eqn 2
+                    # (with opposite signs for the exponent)
+                    T_ref = 296 # Kelvin
+                    p_ref = 1 # bar
+                    kboltz_pressure = 1.380649e-22 # in cm^3 * bar / K
+                    # Sum over perturbers: H2 and He
+                    @. Γ += line.gamma_mol_lorentz[1] * (T_ref / temps)^line.n_exp[1] * (n_densities[species"H2"] * kboltz_pressure * temps / p_ref)  # H2 contribution
+                    @. Γ += line.gamma_mol_lorentz[2] * (T_ref / temps)^line.n_exp[2] * (n_densities[species"He"] * kboltz_pressure * temps / p_ref)  # He contribution
+                else
+                    if !ismolecule(line.species)
+                        # Mode 1: Default Stark and van der Waals broadening
                         @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
                         Γ .+= n_eff_vdW .* scaled_vdW.(Ref(line.vdW), m, temps)
                     end

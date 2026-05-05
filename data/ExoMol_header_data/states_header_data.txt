@@ -1,0 +1,10 @@
+VO id E gtot F unc τ pm ef J State nu Λ Σ Ω Source_Tag E_Duo
+TiO id E gtot J τ g pm ef State nu Λ Σ Ω E_Duo
+H2O id E gtot J Ka Kc ν1 ν2 ν3 S
+AlH id E gtot J unc τ Parity State nu Λ Σ Ω MaCa E_Duo
+CaH id E gtot J unc τ g Parity State nu Λ Σ Ω Label E_Duo
+MgH id E gtot J unc τ g Parity State nu Λ Σ Ω Label E_Duo
+CrH id E gtot J nu s Parity eS
+FeH id E gtot J nu Ω Parity eS
+TiH id E gtot J nu Ω Parity Parity_tot eS
+SiO id E gtot J unc τ g Parity State nu Λ Σ Ω Label E_Duo
