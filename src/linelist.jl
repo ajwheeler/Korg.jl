@@ -13,7 +13,7 @@ struct Line{F1,F2,F3,F4,F5,F6,F7}
     gamma_rad::F4                #s^-1
     gamma_stark::Union{F5,Missing}              #s^-1 (Mode 1)
     vdW::Union{Tuple{F7,F7},Missing}            # (Mode 1) either γ_vdW [s^-1] per electron (as the first element, with -1 as the second) or (σ, α) from ABO theory
-    gamma_mol_lorentz::Union{Tuple{F6,F6},Missing} #s^-1 (Mode 2, tuple for H2 and He). Replaces gamma_stark and vdW when provided
+    gamma_mol_lorentz::Union{Tuple{F6,F6},Missing} # cm^-1 (Mode 2, tuple for H2 and He). Replaces gamma_stark and vdW when provided
     n_exp::Union{Tuple{F7,F7},Missing}     # (Mode 2, tuple for H2 and He) temperature exponent for gamma_mol_lorentz
 
     @doc """
@@ -40,7 +40,7 @@ struct Line{F1,F2,F3,F4,F5,F6,F7}
         This behavior is intended to mirror that of Turbospectrum as closely as possible.
 
     Optional Arguments - Mode 2 (alternative to Mode 1):
-     - `gamma_mol_lorentz`: Tuple of two molecular Lorentz widths in cm⁻¹ at reference temperature,
+     - `gamma_mol_lorentz`: Tuple of two molecular Lorentz widths in s⁻¹ at reference temperature,
        (gamma_H2, gamma_He). When explicitly provided (along with `n_exp`), this replaces `gamma_stark`
        and `vdW` during line absorption calculations. Cannot be combined with `gamma_stark` or `vdW`.
      - `n_exp`: Tuple of two temperature exponents (n_H2, n_He) for the molecular Lorentz broadening
@@ -259,7 +259,7 @@ end
 Calculates the Padé equation approximation of the broadening coefficient (in s^-1 bar^-1).
 This prescription is to be used strictly for estimating the broadening per Gharib-Nezhad (2021).
 """
-function gamma_pade(J::Union{Integer, AbstractVector{<:Integer}}, 
+function gamma_pade(J::Union{AbstractFloat, AbstractVector{<:AbstractFloat}}, 
                     A::AbstractVector{<:AbstractFloat}, 
                     B::AbstractVector{<:AbstractFloat})
     # Unpack coefficients
@@ -270,18 +270,19 @@ function gamma_pade(J::Union{Integer, AbstractVector{<:Integer}},
     γ_L = (a_0 .+ a_1.*J .+ a_2.*J.^2 .+ a_3.*J.^3)/(1 .+ b_1.*J .+ b_2.*J.^2 .+ b_3.*J.^3 .+ b_4.*J.^4) # in cm^-1 bar^-1
 
     # convert cm^-1 atm^-1 to cm^-1 bar^-1
-    # could be considered cm^-1 if we multiply by p/p_ref in line_absorption where p_ref = 1 bar
+    # could be considered cm^-1 if we multiply by p/p_ref in line_absorption.jl where p_ref = 1 bar
     γ_L / 1.01325
 end
 
 function return_γ_b(J, absorber, broadener)
-    exoplines = CSV.read("../data/EXOPLINES_broadening_coeffs/table_3.txt", DataFrame, delim=" ")
+    exoplines = CSV.read(joinpath(_data_dir, "EXOPLINES_broadening_coeffs", "table_3.txt"), DataFrame, delim=" ")
     exoplines_species = Korg.Species.(exoplines.Absorber)
     row = (absorber .== exoplines_species) .&& (broadener .== exoplines.Broadener)
     γ_b = gamma_pade(J, 
                      vec([exoplines.a0[row][1], exoplines.a1[row][1], exoplines.a2[row][1], exoplines.a3[row][1]]),
                      vec([exoplines.b1[row][1], exoplines.b2[row][1], exoplines.b3[row][1], exoplines.b4[row][1]]))
-
+    # in cm^-1 bar^-1
+    # could be considered cm^-1 if we multiply by p/p_ref in line_absorption.jl where p_ref = 1 bar
     γ_b
 end
 
@@ -309,7 +310,8 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
   - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
   - `isotopic_abundances`: the table of isotopic abundances to use (default: `Korg.isotopic_abundances`).  This is ignored if `isotopic_correction` is provided.
   - `verbose`: if `true` (default), will print progress information
-  - `broad_file`: the location of the ExoMol .broad file. This is only used if this variable is set.
+  - `broad_files`: the location of the ExoMol .broad files for H2 and He. This is only used if this variable is set and only works with H2O currently.
+  - `path_flag`: integer value that determines what "path" of pressure broadening to follow. 0) no pressure broadening, 1) use ExoMol's .broad files, and 2) use the EXOPLINES approximations
 
 # Returns
 
@@ -325,8 +327,8 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
                               line_strength_cutoff=-15, T_line_strength=3500.0,
                               verbose=true,
                               broad_files=nothing,
-                              )::Vector{Line{Float64,Float64,Float64,Float64,Float64,
-                                                         Float64}}
+                              path_flag=0,
+                              )::Vector{<:Line}
     if spec isa AbstractString
         spec = Species(spec)
     end
@@ -338,29 +340,64 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
         @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
     end
 
-    if spec in Korg.Species.(["AlH", "CaH", "MgH", "CrH", "FeH", "TiH", "SiO", "TiO", "VO"])
-        if broad_file != nothing
-            println("ExoMol Broadening file specified, skipping EXOPLINES Padé approximation")
-            throw(ArgumentError("Trying to set broadening parameters for species with both EXOPLINES and ExoMol prescriptions."))
+    if path_flag == 2
+        if spec ∉ Korg.Species.(["AlH", "CaH", "MgH", "CrH", "FeH", "TiH", "SiO", "TiO", "VO"])
+            throw(ArgumentError("EXOPLINES approximation for pressure broadening not yet implemented for this species"))
+        end
+        if broad_files != nothing
+            throw(ArgumentError("Trying to set broadening parameters for species with both EXOPLINES and ExoMol prescriptions. For the following species, ExoMol broadening from the .broad files is not supported, but is for the EXOPLINES prescription: AlH CaH MgH CrH FeH TiH SiO TiO VO"))
         else
             J_ = vec([J for J in 0:0.5:500])
             γ_H2 = Dict(J => return_γ_b(J, spec, "H2") for J in J_)
             γ_He = Dict(J => return_γ_b(J, spec, "He") for J in J_)
-            path_flag = 2
         end
-    elseif spec in Korg.Species.(["H2O"])
-        # TO DO: make dictionary for H2O from .broad file
-        println("H20 ExoMol broadening not implemented yet! Sorry!")
-        path_flag=1
-    else
-        println("No complicated broadening applied for this species")
-        path_flag=0
+    elseif path_flag == 1
+        if spec ∉ Korg.Species.(["H2O"])
+            throw(ArgumentError("ExoMol .broad pressure broadening not yet implemented for this species"))
+        end
+        if broad_files == nothing
+            throw(ArgumentError("The following species require the .broad files for H2 and He from the ExoMol webpage: H2O"))
+        end
+        broad_H2 = nothing
+        broad_He = nothing
+        for broad_file in broad_files
+            if broad_file[end-7:end-6] == "H2"
+                broad_H2 = CSV.read(broad_file, DataFrame, delim=" ", silencewarnings=true, ignorerepeated=true, header=false)
+            elseif broad_file[end-7:end-6] == "He"
+                broad_He = CSV.read(broad_file, DataFrame, delim=" ", silencewarnings=true, ignorerepeated=true, header=false)
+            else
+                throw(ArgumentError("He or H2 are not the final characters before .broad"))
+            end            
+        end
+
+        broad_H2[ismissing.(broad_H2.Column5), "Column5"] .= -1
+        broad_He[ismissing.(broad_He.Column5), "Column5"] .= -1
+
+        # Use both J and K quantum numbers. See Table 1 of https://www.homepages.ucl.ac.uk/~ucapsy0/pdf/18BaHiCz.pdf
+        J_K_pairs_H2 = [(J,K) for (J,K) in zip(broad_H2.Column4, broad_H2.Column5)]
+        J_K_pairs_He = [(J,K) for (J,K) in zip(broad_He.Column4, broad_He.Column5)]
+
+        γ_H2 = Dict((J_, K_) => broad_H2[(broad_H2.Column4 .== J_) .& (broad_H2.Column5 .== K_), "Column2"][1]
+                                    for (J_, K_) in J_K_pairs_H2)
+        γ_He = Dict((J_, K_) => broad_He[(broad_He.Column4 .== J_) .& (broad_He.Column5 .== K_), "Column2"][1]
+                                    for (J_, K_) in J_K_pairs_He)
+        n_exp_H2 = Dict((J_, K_) => broad_H2[(broad_H2.Column4 .== J_) .& (broad_H2.Column5 .== K_), "Column3"][1]
+                                    for (J_, K_) in J_K_pairs_H2)
+        n_exp_He = Dict((J_, K_) => broad_He[(broad_He.Column4 .== J_) .& (broad_He.Column5 .== K_), "Column3"][1]
+                                    for (J_, K_) in J_K_pairs_He)
+
+    elseif path_flag == 0
+        println("Using default broadening (only radiative) for this species")
+
     end
     
-    header_data = CSV.read("../data/ExoMol_header_data/states_header_data.txt", DataFrame, header=false, delim=" ")
+    header_data = CSV.read(joinpath(_data_dir, "ExoMol_header_data", "states_header_data.txt"), DataFrame, header=false, delim=" ", silencewarnings=true)
     header_species = Korg.Species.(header_data.Column1) #[Korg.Species(a) for a in exoplines.Absorber]
     header_spec_ind = findall(header_species.==spec)[1]
-    J_column = findall(Vector(foo[header_spec_ind, :]) .== "J")[1] - 1
+    J_column = findall(isequal("J"), Vector(header_data[header_spec_ind, :]))[1] - 1
+    if path_flag==1
+        K_column = findall(isequal("Ka"), Vector(header_data[header_spec_ind, :]))[1] - 1
+    end
 
     # convert wavelength limits in Å to wavenumber limits in cm^-1
     wn_lower_limit = 1.0 / (upper_wavelength * 1e-8)
@@ -368,13 +405,22 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
 
     #  ExoMol files have various numbers of columns, but the first three (the
     #  only ones we need) are consistent: id, wavenumber, g.
-    states = Dict{Int,Tuple{Float64,Float64,Float64}}()
+    if path_flag == 1
+        states = Dict{Int,Tuple{Float64,Float64,Float64,Float64}}()
+    else
+        states = Dict{Int,Tuple{Float64,Float64,Float64}}()
+    end
     for row in CSV.File(states_file; delim=" ", ignorerepeated=true, header=false)
         id = Int(row.Column1)
         wavenumber = Float64(row.Column2)
         g = Float64(row.Column3)
         J = Float64(row[J_column])
-        states[id] = (wavenumber, g, J)
+        if path_flag==1
+            K = Float64(row[K_column])
+            states[id] = (wavenumber, g, J, K)
+        else
+            states[id] = (wavenumber, g, J)
+        end
     end
 
     # Precompute isotopic correction
@@ -400,7 +446,7 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
     # Stream the transitions file line by line to avoid loading the entire file into memory.
     # This is critical for large ExoMol files, which can be 10s of GB.
     # Most lines will be too weak, or outside the wavelength limits.
-    lines = Line{Float64,Float64,Float64,Float64,Float64,Float64}[]
+    lines = Line[]
     n_total = 0
     n_unmapped = 0 # collect for error message
     for row in CSV.File(transitions_file; delim=" ", ignorerepeated=true, header=false)
@@ -413,8 +459,13 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
             continue
         end
 
-        wn_upper, g_upper, J_upper = states[id_upper]
-        wn_lower, g_lower, J_lower = states[id_lower]
+        if path_flag == 1
+            wn_upper, g_upper, J_upper, K_upper = states[id_upper]
+            wn_lower, g_lower, J_lower, K_lower = states[id_lower]
+        else
+            wn_upper, g_upper, J_upper = states[id_upper]
+            wn_lower, g_lower, J_lower = states[id_lower]
+        end
         wavenumber = wn_upper - wn_lower
 
         # Skip lines outside the wavelength range
@@ -429,10 +480,30 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
         E_lower = Korg.hplanck_eV * wn_lower * Korg.c_cgs
         if path_flag == 2
             # n_exp set to 0.5 for all species given Gharib-Nezhad et al. 2021
-            line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower; gamma_mol_lorentz=(γ_H2[J], γ_He[J]), n_exp=(0.5, 0.5))
+            # also leave in cm^-1
+            line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower; 
+                                gamma_mol_lorentz=(γ_H2[J_lower], #^-1 * (Korg.c_cgs * 4π) * wavenumber^2, 
+                                                   γ_He[J_lower]), #^-1 * (Korg.c_cgs * 4π) * wavenumber^2), 
+                                n_exp=(0.5, 0.5))
         elseif path_flag == 1
-            # This is where H2O will go when implemented
-            line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower) 
+            # This needs to turn K_lower into -1 if (J_lower, K_lower) not in J_K_pairs_H2 or J_K_pairs_He
+            J_lower_ = Float64(J_lower)
+            K_lower_ = abs(Float64(K_lower))
+            if ((J_lower_, K_lower_) in J_K_pairs_H2) && ((J_lower_, K_lower_) in J_K_pairs_He)
+                line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower; 
+                                    gamma_mol_lorentz=(γ_H2[(J_lower_, K_lower_)], #^-1 * (Korg.c_cgs * 4π) * wavenumber^2, 
+                                                       γ_He[(J_lower_, K_lower_)]), #^-1 * (Korg.c_cgs * 4π) * wavenumber^2), 
+                                    n_exp=(n_exp_H2[(J_lower_, K_lower_)], 
+                                           n_exp_He[(J_lower_, K_lower_)]))
+            elseif ((J_lower_, -1.) in J_K_pairs_H2) && ((J_lower_, -1.) in J_K_pairs_He)
+                line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower; 
+                                    gamma_mol_lorentz=(γ_H2[(J_lower_, -1.)], #^-1 * (Korg.c_cgs * 4π) * wavenumber^2, 
+                                                       γ_He[(J_lower_, -1.)]), #^-1 * (Korg.c_cgs * 4π) * wavenumber^2), 
+                                    n_exp=(n_exp_H2[(J_lower_, -1.)], 
+                                           n_exp_He[(J_lower_, -1.)]))
+            else
+                line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower)
+            end
         else
             line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower)
         end

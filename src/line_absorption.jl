@@ -73,6 +73,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
             Γ = Vector{eltype(α)}(undef, size(temps))
             γ = Vector{eltype(α)}(undef, size(temps))
             σ = Vector{eltype(α)}(undef, size(temps))
+            gamma_total_lorentz = Vector{eltype(α)}(undef, size(temps))
             amplitude = Vector{eltype(α)}(undef, size(temps))
             levels_factor = Vector{eltype(α)}(undef, size(temps))
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
@@ -97,9 +98,13 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                     p_ref = 1 # bar
                     kboltz_pressure = 1.380649e-22 # in cm^3 * bar / K
                     # Sum over perturbers: H2 and He
-                    @. Γ += line.gamma_mol_lorentz[1] * (T_ref / temps)^line.n_exp[1] * (n_densities[species"H2"] * kboltz_pressure * temps / p_ref)  # H2 contribution
-                    @. Γ += line.gamma_mol_lorentz[2] * (T_ref / temps)^line.n_exp[2] * (n_densities[species"He"] * kboltz_pressure * temps / p_ref)  # He contribution
+                    # gamma_total_lorentz still in cm^-1 here
+                    @. gamma_total_lorentz = line.gamma_mol_lorentz[1] * (T_ref / temps)^(line.n_exp[1]) * (n_densities[species"H2"] * kboltz_pressure * temps / p_ref)  # H2 contribution
+                    @. gamma_total_lorentz += line.gamma_mol_lorentz[2] * (T_ref / temps)^(line.n_exp[2]) * (n_densities[species"He"] * kboltz_pressure * temps / p_ref)  # He contribution
+                    # sum in lorentz and convert to frequency s^-1
+                    @. Γ += gamma_total_lorentz * c_cgs * 4π #gamma_total_lorentz^-1 * (c_cgs * 4π) / line.wl^2
                 else
+                    # Mode 1: Normal broadening as per the Korg paper
                     if !ismolecule(line.species)
                         # Mode 1: Default Stark and van der Waals broadening
                         @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
