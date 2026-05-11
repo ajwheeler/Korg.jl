@@ -21,3 +21,4 @@ docs/src/generated/
 *.DS_Store
 results_*.json
 results_*.json.tmp
+.CondaPkg

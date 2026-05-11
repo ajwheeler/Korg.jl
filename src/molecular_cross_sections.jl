@@ -31,8 +31,8 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     at which to precompute the cross-section.
   - `log_temp_vals` (default: 3:0.025:5): The log10 of the temperatures at which to precompute the
     cross-section.
-  - `log_perturber_density` (default: 12:0.5:20): The log10 of the pertruber density at which to precompute the
-    cross-section. This is split into 85% H2 and 15% He.
+  - `log_perturber_density` (default: 12:0.5:20): The log10 of the perturber density at which to precompute the
+    cross-section. A mix of 85% H2 and 15% He is assumed.
 
 !!! warning
 
@@ -50,8 +50,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
 function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32,
                                vmic_vals=[(0.0:1/3:1.0)...; 1.5; (2:2/3:(5+1/3))...],
                                log_temp_vals=3:0.04:5,
-                               log_perturber_density=12:0.5:20, # in cm^-3
-                               )
+                               log_perturber_density=12:0.5:20,)
     wls = Wavelengths(wl_params)
     all_specs = [l.species for l in linelist]
     if !all(Ref(all_specs[1]) .== all_specs)
@@ -69,7 +68,8 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32,
     # Korg will compute the effective broadener number density for vdW broadening and the molecular 
     # lorentz coefficient
     n_dicts = [Dict(species => 1 / cutoff_alpha,
-                  species"H I" => NaN, species"H2" => 0.85 * 10^log_pd, species"He I" => 0.15 * 10^log_pd) for log_pd in log_perturber_density]
+                    species"H I" => NaN, species"H2" => 0.85 * 10^log_pd,
+                    species"He I" => 0.15 * 10^log_pd) for log_pd in log_perturber_density]
     ξ = 0.0
     cntm = fill(λ -> 1.0, length(log_temp_vals))
 
@@ -82,8 +82,10 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32,
     end
 
     species = all_specs[1]
-    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, log_perturber_density, collect(wls)), α .* cutoff_alpha,
-                                   (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))), 0.0)
+    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, log_perturber_density, collect(wls)),
+                                   α .* cutoff_alpha,
+                                   (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()),
+                                    Gridded(Linear()))), 0.0)
     MolecularCrossSection(wls, itp, species)
 end
 
@@ -100,7 +102,7 @@ end
                                           number_densities, perturber_densities)
 
 Interpolate the molecular cross-sections and add them to the total absorption coefficient `α`.
-`perturber_densities` should be a vector of total perturber number densities (H2 + He) per 
+`perturber_densities` should be a vector of total perturber number densities (H2 + He) per
 atmospheric layer, in cm^-3.
 See [`MolecularCrossSection`](@ref) for more information.
 """
@@ -113,10 +115,13 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
     end
 
     for sigma in molecular_cross_sections
+        # this is an inefficient order in which to write to α, but doing the interpolations this
+        # way uses less memory.
         for i in 1:size(α, 1)
             vm = vmic isa Number ? vmic : vmic[i]
             log_pd = log10(perturber_densities[i])
-            α[i, :] .+= sigma.itp.(vm, log10(Ts[i]), log_pd, λs) * number_densities[sigma.species][i]
+            α[i, :] .+= sigma.itp.(vm, log10(Ts[i]), log_pd, λs) *
+                        number_densities[sigma.species][i]
         end
     end
 end

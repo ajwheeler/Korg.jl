@@ -1,0 +1,3 @@
+The file `states_header_data.txt` contains the header information for the `.states` files for various ExoMol species. These header labels are drawn from a variety of papers that the ExoMol team has published, but they are always the recommended line list for eaech species.
+
+In this file, the first column is the species. The next three columns are always consistent: state `id`, the Term value `E` (in cm−1), and the total degeneracy `g_tot`. This header data is stored because we use the total angular momentum quantum number `J` and the rotational quantum number `K`.
