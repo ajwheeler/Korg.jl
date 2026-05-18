@@ -171,12 +171,13 @@ function read_molecular_cross_section(filename)
         end |> Wavelengths
         vmic_vals = HDF5.read(file, "vmic_vals")
         logT_vals = HDF5.read(file, "T_vals")
+        log_perturber_density_vals = HDF5.read(file, "log_perturber_density_vals")
         # doesn't actually matter that it's mmaped because it's passed to interpolate!
         alpha_vals = HDF5.readmmap(file["vals"])
         species = Species(HDF5.read(file, "species"))
 
-        itp = extrapolate(interpolate!((vmic_vals, logT_vals, wls), alpha_vals,
-                                       (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
+        itp = extrapolate(interpolate!((vmic_vals, logT_vals, log_perturber_density_vals, collect(wls)), alpha_vals,
+                                       (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
                           0.0)
 
         MolecularCrossSection(wls, itp, species)

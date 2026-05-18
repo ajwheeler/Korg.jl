@@ -22,3 +22,8 @@ docs/src/generated/
 results_*.json
 results_*.json.tmp
 .CondaPkg
+temp_figures
+line_strength_cutoff_comparison.ipynb
+.gitignore
+exomol_vs_h5_cross_section_comparison.ipynb
+tio_broadening_pf_comparison.ipynb
