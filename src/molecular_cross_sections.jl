@@ -25,7 +25,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
 
 # Keyword Arguments
 
-  - `cutoff_alpha` (default: 1e-30): The value of the single-line absorption coefficient (in cm^-1) at
+  - `cutoff_alpha` (default: 1e-32): The value of the single-line absorption coefficient (in cm^-1) at
     which to truncate the profile.
   - `vmic_vals` (default: [(0.0:1/3:1.0)...; 1.5; (2:2/3:(5+1/3))...]): The microturbulence velocities
     at which to precompute the cross-section.
