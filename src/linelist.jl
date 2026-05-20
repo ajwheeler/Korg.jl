@@ -396,21 +396,14 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
 
         # Use both J and K quantum numbers. See Table 1 of https://www.homepages.ucl.ac.uk/~ucapsy0/pdf/18BaHiCz.pdf
         # also found at https://doi.org/10.1016/j.jqsrt.2017.01.028
-        J_K_pairs_H2 = [(J, K) for (J, K) in zip(broad_H2.Column4, broad_H2.Column5)]
-        J_K_pairs_He = [(J, K) for (J, K) in zip(broad_He.Column4, broad_He.Column5)]
-
-        γ_H2 = Dict((J_, K_) => broad_H2[(broad_H2.Column4.==J_).&(broad_H2.Column5.==K_),
-                                         "Column2"][1]
-                    for (J_, K_) in J_K_pairs_H2)
-        γ_He = Dict((J_, K_) => broad_He[(broad_He.Column4.==J_).&(broad_He.Column5.==K_),
-                                         "Column2"][1]
-                    for (J_, K_) in J_K_pairs_He)
-        n_exp_H2 = Dict((J_, K_) => broad_H2[(broad_H2.Column4.==J_).&(broad_H2.Column5.==K_),
-                                             "Column3"][1]
-                        for (J_, K_) in J_K_pairs_H2)
-        n_exp_He = Dict((J_, K_) => broad_He[(broad_He.Column4.==J_).&(broad_He.Column5.==K_),
-                                             "Column3"][1]
-                        for (J_, K_) in J_K_pairs_He)
+        γ_H2 = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column2
+                    for row in eachrow(broad_H2))
+        γ_He = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column2
+                    for row in eachrow(broad_He))
+        n_exp_H2 = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column3
+                        for row in eachrow(broad_H2))
+        n_exp_He = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column3
+                        for row in eachrow(broad_He))
 
     elseif path_flag == 0
         println("Using default broadening (only radiative) for this species")
@@ -515,13 +508,13 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
             # This needs to turn K_lower into -1 if (J_lower, K_lower) not in J_K_pairs_H2 or J_K_pairs_He
             J_lower_ = Float64(J_lower)
             K_lower_ = abs(Float64(K_lower))
-            if ((J_lower_, K_lower_) in J_K_pairs_H2) && ((J_lower_, K_lower_) in J_K_pairs_He)
+            if haskey(γ_H2, (J_lower_, K_lower_)) && haskey(γ_He, (J_lower_, K_lower_))
                 line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower;
                                  gamma_mol_lorentz=(γ_H2[(J_lower_, K_lower_)],
                                                     γ_He[(J_lower_, K_lower_)]),
                                  n_exp=(n_exp_H2[(J_lower_, K_lower_)],
                                         n_exp_He[(J_lower_, K_lower_)]))
-            elseif ((J_lower_, -1.0) in J_K_pairs_H2) && ((J_lower_, -1.0) in J_K_pairs_He)
+            elseif haskey(γ_H2, (J_lower_, -1.0)) && haskey(γ_He, (J_lower_, -1.0))
                 line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower;
                                  gamma_mol_lorentz=(γ_H2[(J_lower_, -1.0)],
                                                     γ_He[(J_lower_, -1.0)]),
