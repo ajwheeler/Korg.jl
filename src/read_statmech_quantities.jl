@@ -53,9 +53,12 @@ provide.
 function setup_partition_funcs_and_equilibrium_constants()
     mol_U_path = joinpath(_data_dir, "barklem_collet_2016",
                           "BarklemCollet2016-molecular_partition.dat")
-    partition_funcs = merge(read_Barklem_Collet_table(mol_U_path),
-                            load_atomic_partition_functions(),
-                            load_exomol_partition_functions())
+    exomol_pfs = load_exomol_partition_functions()
+    # Use ExoMol partition functions in preference to Barklem-Collet when available for the same
+    # species.  filter! removes BC entries that are superseded so the merge doesn't restore them.
+    BC_pfs = read_Barklem_Collet_table(mol_U_path)
+    filter!(kv -> !haskey(exomol_pfs, kv.first), BC_pfs)
+    partition_funcs = merge(BC_pfs, load_atomic_partition_functions(), exomol_pfs)
 
     BC_Ks = read_Barklem_Collet_logKs(joinpath(_data_dir, "barklem_collet_2016",
                                                "barklem_collet_ks.h5"))
