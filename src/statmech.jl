@@ -1,6 +1,4 @@
-using NLsolve, ForwardDiff, LineSearches
-# TODO remove NLsolve
-# TODO remove LineSearches?
+using ForwardDiff
 
 """
     saha_ion_weights(T, nₑ, atom, ionization_energies, partition_functions)
@@ -8,7 +6,6 @@ using NLsolve, ForwardDiff, LineSearches
 Returns `(wII, wIII)`, where `wII` is the ratio of singly ionized to neutral atoms of a given
 
 element, and `wIII` is the ratio of doubly ionized to neutral atoms.
-
 
 arguments:
 
@@ -72,7 +69,8 @@ end
 Returns `nK` for the H⁻ formation reaction H I + e⁻ → H⁻, i.e. `n(H⁻) = nK(T) * n(H I) * nₑ`.
 
 The partition function of H⁻ is 1 (singlet ground state only), and the statistical weight of the
-free electron is 2.
+free electron is 2. Note that unlike the molecular equilibrium constants, this is in terms
+of number densities, not partial pressures.
 """
 function Hminus_nK(T)
     # fraction of H I in ground state
@@ -110,7 +108,6 @@ arguments:
 
 keyword arguments:
 
-
   - `x0` (default: `nothing`) is an initial guess for the solution (in a format internal to
 
     `chemical_equilibrium`). If not supplied, a good guess is computed by neglecting molecules.
@@ -123,15 +120,10 @@ keyword arguments:
 
     density is very small.
 
-
 The system of equations is specified with the number densities of the neutral atoms as free
 parameters.  Each equation specifies the conservation of a particular species, e.g. (simplified)
 
-
     n(O) = n(CO) + n(OH) + n(O I) + n(O II) + n(O III).
-
-
-
 
 for oxygen.  There is also one charge balance equation:
 
@@ -141,14 +133,11 @@ In these equations:
 
   - `n(O)` is the number density of oxygen atoms in any form.
 
-
   - `n(O I)` is a free parameter.  The numerical solver is varying this to satisfy the system of
     equations.
   - `n(O II)`, and `n(O III)` come from the Saha (ionization) equation given `n(O I)`
   - `n(CO)` and `n(OH)` come from the molecular equilibrium constants K, which are precomputed
     over a range of temperatures.
-
-
   - `n(e)` is a free parameter. (Thus the
     `electron_number_density_warn_threshold` kwarg, which warns you when the
     `n(e)` that the solver arrives at differs from that of the model atmosphere.)
@@ -193,7 +182,6 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
         number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
 
-    # TODO check
     number_densities[species"H-"] = Hminus_nK(temp) * number_densities[species"H I"] * nₑ
 
     #now the molecules
@@ -213,12 +201,6 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
     nₑ, number_densities
 end
 
-# TODO
-# I think this ftol might be tighter than it needs to be, since both methods are converging to 
-# identical solutions in tests. Loosening is probably a good avenue to getting convergence more
-# broadly, but it's not clear to me why ftol=1e-8 produces identical solutions, so I'm hesitant to 
-# mess with it.
-#
 # This function sets up the inital parameter guess, then runs the nonlinear solver with the 
 # appropriate method
 #
@@ -244,8 +226,8 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     residuals_full! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances,
                                                            ionization_energies, partition_fns,
                                                            log_equilibrium_constants, 0.0)
-    x, converged, last_inf = damped_newton(residuals_full!, copy(x0); tol=ftol, max_iter=50,
-                                           max_step=1.0)
+    x, converged, last_inf = clipped_newton(residuals_full!, copy(x0); tol=ftol, max_iter=50,
+                                            max_step=1.0)
     if !converged
         # Anneal logξ from -50 (molecules numerically off for Float64s) up to 0, bisecting the
         # interval whenever Newton fails so that we take only as many sub-steps as the regime
@@ -254,7 +236,7 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
             r! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances,
                                                       ionization_energies, partition_fns,
                                                       log_equilibrium_constants, logξ)
-            damped_newton(r!, copy(xstart); tol=ftol, max_iter=100, max_step=1.0)
+            clipped_newton(r!, copy(xstart); tol=ftol, max_iter=100, max_step=1.0)
         end
 
         # First find a starting value of ξ that works, but isn't too small.
@@ -358,44 +340,6 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
     end
 
     dual_zero
-end
-
-# Newton solver with step clipping. Returns (x, converged, final_residuals_inf_norm).
-# TODO put in separate file?
-function damped_newton(residuals!, x0; tol=1e-8, max_iter=200, max_step=1.0)
-    x = copy(x0)
-    F = zeros(eltype(x), length(x))
-    Fwork = similar(F)
-    inf_norm = oftype(real(zero(eltype(x))), Inf) # TODO could this be streamlined?
-    for _ in 1:max_iter
-        residuals!(F, x)
-        inf_norm = maximum(abs, F)
-        if !isfinite(inf_norm)
-            return x, false, inf_norm
-        end
-        if inf_norm < tol
-            return x, true, inf_norm
-        end
-
-        # else, take a step
-
-        # compute naïve Newton step
-        # TODO would be nice to not allocate
-        J = ForwardDiff.jacobian((Fout, xin) -> residuals!(Fout, xin), Fwork, x)
-        all(isfinite, J) || return x, false, inf_norm
-        step = try
-            -(J \ F)
-        catch
-            return x, false, inf_norm
-        end
-        all(isfinite, step) || return x, false, inf_norm
-
-        # clip the step so that the max diff in any dimension does not exceed max_step
-        smax = maximum(abs, step)
-        α = smax > max_step ? max_step / smax : one(eltype(step))
-        x .+= α .* step
-    end
-    return x, false, inf_norm
 end
 
 # returns the "residuals!" function that is solved.  
