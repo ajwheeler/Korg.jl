@@ -214,12 +214,26 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
                                      log_equilibrium_constants;
                                      ftol=1e-8, # TODO?
                                      minimum_annealing_Δlogξ=0.0625)
+    if any(x -> x isa ForwardDiff.Dual, (temp, nₜ, neutral_fraction_guess...))
+        vtemp = ForwardDiff.value(temp)
+        vnₜ = ForwardDiff.value(nₜ)
+        vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
+        vnₑ_guess = ForwardDiff.value(nₑ_guess)
+
+        zero = _solve_chemical_equilibrium(vtemp, vnₜ, absolute_abundances, vneutral_fraction_guess,
+                                           vnₑ_guess, ionization_energies, partition_fns,
+                                           log_equilibrium_constants;
+                                           ftol=ftol,
+                                           minimum_annealing_Δlogξ=minimum_annealing_Δlogξ)
+
+        return implicit_jacobian_diff(zero, temp, nₜ) do t, nt
+            setup_chemical_equilibrium_residuals(t, nt, absolute_abundances, ionization_energies,
+                                                 partition_fns, log_equilibrium_constants, 0.0)
+        end
+    end
+
     n_neutral_guess = (nₜ - nₑ_guess) .* absolute_abundances .* neutral_fraction_guess
     x0 = [log10.(n_neutral_guess); log10(nₑ_guess)]
-
-    # this wacky maneuver ensures that x0 has the appropriate dual number type for autodiff
-    # if that is going on.  I'm sure there's a better way...
-    x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
 
     # Try to solve first with full molecules (logξ=0). For warm and/or low-density regimes this 
     # converges in a handful of iterations.  If it fails, we use the continuation.
@@ -285,61 +299,6 @@ function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fr
     end
 
     x
-end
-
-# handle the case where a derivative is being taken with respect to T and ntot, but not abundances
-function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
-                                     nₜ::ForwardDiff.Dual{T,V2,P},
-                                     absolute_abundances::Vector{F},  # not duals!
-                                     neutral_fraction_guess::Vector{ForwardDiff.Dual{T,V3,P}},
-                                     nₑ_guess, # this type doesn't matter if the solver converges
-                                     # Require that the types of the following be the same as the
-                                     # default, thus containing no duals. This is over-restrictive,
-                                     # but I'm not sure how to enforce the more general condition
-                                     # via the type system.
-                                     ionization_energies::typeof(Korg.ionization_energies),
-                                     partition_fns::typeof(Korg.default_partition_funcs),
-                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)) where {
-                                                                                                                       T,
-                                                                                                                       V1,
-                                                                                                                       V2,
-                                                                                                                       V3,
-                                                                                                                       P,
-                                                                                                                       F<:AbstractFloat
-                                                                                                                       }
-    vtemp = ForwardDiff.value(temp)
-    vnₜ = ForwardDiff.value(nₜ)
-    vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
-    vnₑ_guess = ForwardDiff.value(nₑ_guess)
-
-    ptemp = ForwardDiff.partials(temp)
-    pnₜ = ForwardDiff.partials(nₜ)
-    partials = [ptemp pnₜ]'
-
-    zero = _solve_chemical_equilibrium(vtemp, vnₜ, absolute_abundances, vneutral_fraction_guess,
-                                       vnₑ_guess, ionization_energies, partition_fns,
-                                       log_equilibrium_constants)
-
-    residuals! = setup_chemical_equilibrium_residuals(vtemp, vnₜ, absolute_abundances,
-                                                      ionization_energies,
-                                                      partition_fns, log_equilibrium_constants, 0)
-
-    tmp = similar(zero) # for storing results of residuals!. jacobian handles this nicely.
-    drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, zero)
-    drdp = ForwardDiff.jacobian(tmp, [vtemp, vnₜ]) do tmp, p
-        r! = setup_chemical_equilibrium_residuals(p[1], p[2], absolute_abundances,
-                                                  ionization_energies, partition_fns,
-                                                  log_equilibrium_constants, 0)
-        r!(tmp, zero)
-    end
-    dxdp = -(drdx \ drdp)
-    partial_zero = dxdp * partials
-
-    dual_zero = map(zero, eachrow(partial_zero)) do v, p
-        ForwardDiff.Dual{T}(v, p...)
-    end
-
-    dual_zero
 end
 
 # returns the "residuals!" function that is solved.  

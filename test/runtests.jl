@@ -23,6 +23,7 @@ include("imports.jl")
     include("fit.jl")                            # slow
     include("autodiff.jl")                       # slow
     include("autodiffable_conv.jl")
+    include("newton.jl")
     include("atmosphere.jl")                     # slow
     include("abundances.jl")
     include("synthesize.jl")
