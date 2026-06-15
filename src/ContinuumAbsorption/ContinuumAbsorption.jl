@@ -43,17 +43,16 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
 
     kwargs = Dict(:out_α => α, :error_oobounds => error_oobounds)
 
-    #parameters used more than once
+    # used more than once
     nH_I = number_densities[species"H_I"]
-    nH_I_div_U = nH_I / partition_funcs[species"H_I"](log(T))
+    invU_H_I = partition_funcs[species"H I"](log(T))
 
     # Hydrogen continuum absorption
     # note: inclusion of He I ndens below is NOT a typo
-    α .+= H_I_bf(νs, T, nH_I, number_densities[species"He I"], nₑ,
-                 1 / partition_funcs[species"H I"](log(T)))
+    α .+= H_I_bf(νs, T, nH_I, number_densities[species"He I"], nₑ, invU_H_I)
 
-    Hminus_bf(νs, T, nH_I_div_U, nₑ; kwargs...)
-    Hminus_ff(νs, T, nH_I_div_U, nₑ; kwargs...)
+    Hminus_bf(νs, T, number_densities[species"H-"], nₑ; kwargs...)
+    Hminus_ff(νs, T, nH_I * invU_H_I, nₑ; kwargs...)
     H2plus_bf_and_ff(νs, T, nH_I, number_densities[species"H_II"]; kwargs...)
 
     # He continuum absorption isn't actually important, but here we are

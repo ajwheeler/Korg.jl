@@ -73,12 +73,9 @@ free electron is 2. Note that unlike the molecular equilibrium constants, this i
 of number densities, not partial pressures.
 """
 function Hminus_nK(T)
-    # fraction of H I in ground state
-    #H_I_frac_ground_state = TODO
-
     χ_ea = 0.754204 # [eV] electron affinity used by McLaughlin+ 2017 H⁻ ff cross sections
     # inverse of translational_U for the electron, times U(H⁻)/U(H I) = 1/2, times exp(χ_ea/kT)
-    exp(χ_ea / (kboltz_eV * T)) / (2 * translational_U(electron_mass_cgs, T))
+    exp(χ_ea / (kboltz_eV * T)) / (4 * translational_U(electron_mass_cgs, T))
 end
 
 struct ChemicalEquilibriumError <: Exception
