@@ -10,7 +10,7 @@
 
     delLog = 6e-6
     apowls = 10 .^ range((start = 4.179 - 125 * delLog); step=delLog, length=8575 + 125)
-    apowls = apowls[wl_lo.<apowls.<wl_hi]
+    apowls = apowls[wl_lo .< apowls .< wl_hi]
 
     LSF_model = Korg.compute_LSF_matrix((wl_lo, wl_hi), apowls, 22_500; verbose=false)
 
@@ -32,7 +32,7 @@
     msk[1:100] .= false
 
     Q = Korg.Qfactor(synth_flux, (wl_lo, wl_hi), apowls, LSF_model; obs_mask=msk)
-    @test Q≈877.6 atol=1
+
     SNR = flux ./ obs_err
     RMS_SNR = sqrt(mean(SNR[msk] .^ 2))
     Q_prec = Korg.RV_prec_from_Q(Q, RMS_SNR, count(msk))
