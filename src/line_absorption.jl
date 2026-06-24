@@ -12,9 +12,10 @@ wavelengths `λs`.
 # Arguments
 
   - `α`: absorption coefficient matrix to be filled in-place
+
   - `linelist`: vector of [`Korg.Line`](@ref)s.
   - `λs`: a [`Korg.Wavelengths`](@ref) object.
-  - `temp` the temerature in K (as a vector, for multiple layers, if you like)
+  - `temp` the temperature in K (as a vector, for multiple layers, if you like)
   - `n_densities`, a Dict mapping species to absolute number density in cm^-3 (as a vector, if temp is
     a vector).
   - `partition_fns`, a Dict containing the partition function of each species

@@ -173,32 +173,6 @@ function simple_hydrogen_bf_cross_section(n::Integer, ν::Real)
     end
 end
 
-"""
-    _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy = _H⁻_ion_energy)
-
-Compute the number density of H⁻ (implements eqn 5.10 of Kurucz 1970). This is an application of
-the saha equation where the "ground state" is H⁻ and the "first ionization state" is H I. The
-partition function of H⁻ is 1 at all temperatures.
-"""
-function _ndens_Hminus(nH_I_div_partition, ne, T, ion_energy=_H⁻_ion_energy)
-    # the Boltzmann factor is unity for the ground state, and the degeneracy, g, is 2.
-    nHI_groundstate = 2 * nH_I_div_partition
-
-    # should should probably factor this out
-    if T < 1000
-        # this isn't a hard requirement at all. This is just a sanity check in case an argument got
-        # forgotten (which is allowed since ion_energy has a default value)
-        # In reality, we should use the lower temperature limit in which the exponential evaluates
-        # to Inf. That should probably be our domain limit
-        throw(DomainError(T, "Unexpected T value."))
-    end
-
-    # coef = (h^2/(2*π*m))^1.5
-    coef = 3.31283018e-22 # cm³*eV^1.5
-    β = 1.0 / (kboltz_eV * T)
-    0.25 * nHI_groundstate * ne * coef * β^1.5 * exp(ion_energy * β)
-end
-
 const _Hminus_bf_cross_section_interp, _min_H⁻_interp_ν = let
     fn = joinpath(_data_dir, "McLaughlin2017Hminusbf.h5")
     ν = h5read(fn, "nu")
@@ -222,10 +196,9 @@ function _Hminus_bf_cross_section(ν)
     end
 end
 
-function _Hminus_bf(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
+function _Hminus_bf(ν::Real, T::Real, n_Hminus::Real, ne::Real)
     cross_section = _Hminus_bf_cross_section(ν) # in units of cm²
     stimulated_emission_correction = (1 - exp(-hplanck_cgs * ν / (kboltz_cgs * T)))
-    n_Hminus = _ndens_Hminus(nH_I_div_partition, ne, T, _H⁻_ion_energy)
     n_Hminus * cross_section * stimulated_emission_correction
 end
 

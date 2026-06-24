@@ -1,10 +1,11 @@
-using NLsolve, ForwardDiff
+using ForwardDiff
 
 """
     saha_ion_weights(T, nₑ, atom, ionization_energies, partition_functions)
 
 Returns `(wII, wIII)`, where `wII` is the ratio of singly ionized to neutral atoms of a given
-element, and `wIII` is the ration of doubly ionized to neutral atoms.
+
+element, and `wIII` is the ratio of doubly ionized to neutral atoms.
 
 arguments:
 
@@ -62,6 +63,21 @@ function get_log_nK(mol, T, log_equilibrium_constants)
     log_equilibrium_constants[mol](log(T)) - (n_atoms(mol) - 1) * log10(kboltz_cgs * T)
 end
 
+"""
+    Hminus_nK(T)
+
+Returns `nK` for the H⁻ formation reaction H I + e⁻ → H⁻, i.e. `n(H⁻) = nK(T) * n(H I) * nₑ`.
+
+The partition function of H⁻ is 1 (singlet ground state only), and the statistical weight of the
+free electron is 2. Note that unlike the molecular equilibrium constants, this is in terms
+of number densities, not partial pressures.
+"""
+function Hminus_nK(T)
+    χ_ea = 0.754204 # [eV] electron affinity used by McLaughlin+ 2017 H⁻ ff cross sections
+    # inverse of translational_U for the electron, times U(H⁻)/U(H I) = 1/2, times exp(χ_ea/kT)
+    exp(χ_ea / (kboltz_eV * T)) / (4 * translational_U(electron_mass_cgs, T))
+end
+
 struct ChemicalEquilibriumError <: Exception
     msg::String
 end
@@ -89,32 +105,41 @@ arguments:
 
 keyword arguments:
 
-  - `x0` (default: `nothing`) is an initial guess for the solution (in the format internal to
+  - `x0` (default: `nothing`) is an initial guess for the solution (in a format internal to
+
     `chemical_equilibrium`). If not supplied, a good guess is computed by neglecting molecules.
+
   - `electron_number_density_warn_threshold` (default: `0.1`) is the fractional difference between
     the calculated electron number density and the model atmosphere electron number density at which
     a warning is issued.
   - `electron_number_density_warn_min_value` (default: `1e-4`) is the minimum value of the electron
     number density at which a warning is issued.  This is to avoid warnings when the electron number
+
     density is very small.
-  - `method` (default: `:adaptive`) is the solver method to use. Options are `:newton`, `:trust_region`,
-    or `:adaptive`. The `:adaptive` method first attempts to solve with Newton's method (which is faster
-    when it converges), and falls back to the trust region method if Newton fails.
 
 The system of equations is specified with the number densities of the neutral atoms as free
 parameters.  Each equation specifies the conservation of a particular species, e.g. (simplified)
 
     n(O) = n(CO) + n(OH) + n(O I) + n(O II) + n(O III).
 
-In this equation:
+for oxygen.  There is also one charge balance equation:
 
-  - `n(O)`, the number density of oxygen atoms in any form comes `absolute_abundances` and the total
-    number density (supplied later)
+    0 = -n(e) - n(H-) + n(H II) + 2n(H III) + ...
+
+In these equations:
+
+  - `n(O)` is the number density of oxygen atoms in any form.
+
   - `n(O I)` is a free parameter.  The numerical solver is varying this to satisfy the system of
     equations.
   - `n(O II)`, and `n(O III)` come from the Saha (ionization) equation given `n(O I)`
   - `n(CO)` and `n(OH)` come from the molecular equilibrium constants K, which are precomputed
     over a range of temperatures.
+  - `n(e)` is a free parameter. (Thus the
+    `electron_number_density_warn_threshold` kwarg, which warns you when the
+    `n(e)` that the solver arrives at differs from that of the model atmosphere.)
+  - Like for oxygen, `n(H I)` is a free parameter, and `n(H-)`, `n(H II)`, and `n(H III)` are
+    computed from the free parameters.
 
 Equilibrium constants are defined in terms of partial pressures, so e.g.
 
@@ -123,33 +148,39 @@ Equilibrium constants are defined in terms of partial pressures, so e.g.
 function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, ionization_energies,
                               partition_fns, log_equilibrium_constants;
                               electron_number_density_warn_threshold=0.1,
-                              electron_number_density_warn_min_value=1e-4, method=:adaptive)
+                              electron_number_density_warn_min_value=1e-4)
     #compute good first guess by neglecting molecules
     neutral_fraction_guess = map(1:MAX_ATOMIC_NUMBER) do Z
         wII, wIII = saha_ion_weights(temp, model_atm_nₑ, Z, ionization_energies, partition_fns)
         1 / (1 + wII + wIII)
     end
 
-    nₑ, neutral_fractions = solve_chemical_equilibrium(temp, nₜ, absolute_abundances,
-                                                       neutral_fraction_guess, model_atm_nₑ,
-                                                       ionization_energies, partition_fns,
-                                                       log_equilibrium_constants, method)
+    #actually run the core solver, get back a "zero" for that system of equations
+    solver_zero = _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess,
+                                              model_atm_nₑ, ionization_energies, partition_fns,
+                                              log_equilibrium_constants)
+
+    # now put the solution from the solver in directly usable form
+    nₑ = 10.0^solver_zero[end]
 
     if ((nₑ / nₜ > electron_number_density_warn_min_value) &&
         (abs((nₑ - model_atm_nₑ) / model_atm_nₑ) > electron_number_density_warn_threshold))
         @warn "Electron number density differs from model atmosphere by a factor greater than $electron_number_density_warn_threshold. (calculated nₑ = $nₑ, model atmosphere nₑ = $model_atm_nₑ)"
     end
 
-    # start with the neutral atomic species.
-    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0)
-                            .=>
-                                (nₜ - nₑ) .* absolute_abundances .* neutral_fractions)
+    # neutral atomic species are what's solved for
+    n_neutral = 10.0 .^ solver_zero[1:(end-1)]
+    number_densities = Dict(Species.(Formula.(1:MAX_ATOMIC_NUMBER), 0) .=> n_neutral)
+
     #now the ionized atomic species
     for a in 1:MAX_ATOMIC_NUMBER
         wII, wIII = saha_ion_weights(temp, nₑ, a, ionization_energies, partition_fns)
         number_densities[Species(Formula(a), 1)] = wII * number_densities[Species(Formula(a), 0)]
         number_densities[Species(Formula(a), 2)] = wIII * number_densities[Species(Formula(a), 0)]
     end
+
+    number_densities[species"H-"] = Hminus_nK(temp) * number_densities[species"H I"] * nₑ
+
     #now the molecules
     for mol in keys(log_equilibrium_constants)
         log_nK = get_log_nK(mol, temp, log_equilibrium_constants)
@@ -167,81 +198,90 @@ function chemical_equilibrium(temp, nₜ, model_atm_nₑ, absolute_abundances, i
     nₑ, number_densities
 end
 
-function solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess, nₑ_guess,
-                                    ionization_energies, partition_fns, log_equilibrium_constants,
-                                    method)
-    zero = _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess,
-                                       nₑ_guess,
-                                       ionization_energies, partition_fns,
-                                       log_equilibrium_constants, method)
-    nₑ = abs(zero[end]) * nₜ * 1e-5
-    neutral_fractions = abs.(zero[1:end-1])
-    nₑ, neutral_fractions
-end
-
-# I think this ftol might be tighter than it needs to be, since both methods are converging to 
-# identical solutions in tests. Loosening is probably a good avenue to getting convergence more
-# broadly, but it's not clear to me why ftol=1e-8 produces identical solutions, so I'm hesitant to 
-# mess with it.
+# This function sets up the inital parameter guess, then runs the nonlinear solver with the 
+# appropriate method
+#
+# We solve in log10 number density space via damped Newton with continuation on the molecular
+# equilibrium and H-.  At ξ → 0 (logξ → -∞) molecules and H- are suppressed and the system 
+# reduces to atomic Saha (easy to solve). We then anneal logξ → 0. This is required for cool/dense 
+# regimes (T ≲ 3000 K, nₜ ≳ 1e15) where the atoms-only guess massively over-predicts molecule 
+# densities. 
 function _solve_chemical_equilibrium(temp, nₜ, absolute_abundances, neutral_fraction_guess,
                                      nₑ_guess, ionization_energies, partition_fns,
-                                     log_equilibrium_constants, method; ftol=1e-8)
-    #numerically solve for equilibrium.
-    residuals! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances,
-                                                      ionization_energies,
-                                                      partition_fns, log_equilibrium_constants)
-
-    x0 = [neutral_fraction_guess; nₑ_guess / nₜ * 1e5]
+                                     log_equilibrium_constants;
+                                     ftol=1e-8, minimum_annealing_Δlogξ=0.0625)
+    n_neutral_guess = (nₜ - nₑ_guess) .* absolute_abundances .* neutral_fraction_guess
+    x0 = [log10.(n_neutral_guess); log10(nₑ_guess)]
 
     # this wacky maneuver ensures that x0 has the appropriate dual number type for autodiff
     # if that is going on.  I'm sure there's a better way...
     x0 = x0 .* (absolute_abundances[1] / absolute_abundances[1])
 
-    # For adaptive method, try Newton first, then fall back to trust_region
-    methods_to_try = if method == :adaptive
-        [:newton, :trust_region]
-    else
-        [method]
-    end
-    sol = nothing
-    last_error = nothing
+    # Try to solve first with full molecules (logξ=0). For warm and/or low-density regimes this 
+    # converges in a handful of iterations.  If it fails, we use the continuation.
+    residuals_full! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances,
+                                                           ionization_energies, partition_fns,
+                                                           log_equilibrium_constants, 0.0)
+    x, converged,
+    last_inf = clipped_newton(residuals_full!, copy(x0); tol=ftol, max_iter=50,
+                              max_step=1.0)
+    if !converged
+        # Anneal logξ from -50 (molecules numerically off for Float64s) up to 0, bisecting the
+        # interval whenever Newton fails so that we take only as many sub-steps as the regime
+        # demands.  Each successful level warm-starts the next.
+        function solve_at(logξ, xstart)
+            r! = setup_chemical_equilibrium_residuals(temp, nₜ, absolute_abundances,
+                                                      ionization_energies, partition_fns,
+                                                      log_equilibrium_constants, logξ)
+            clipped_newton(r!, copy(xstart); tol=ftol, max_iter=100, max_step=1.0)
+        end
 
-    for current_method in methods_to_try
-        x0_attempt = copy(x0)
-
-        sol = try
-            nlsolve(residuals!, x0_attempt; method=current_method, iterations=100_000,
-                    store_trace=true, ftol=ftol, autodiff=:forward)
-        catch e
-            try
-                # try again with the nₑ guess set to be very small.  Much smaller than this and we start
-                # to get noninvertible matrices in the solver
-                x0_attempt[end] = 1e-5
-                nlsolve(residuals!, x0_attempt; method=current_method, iterations=1_000,
-                        store_trace=true, ftol=ftol, autodiff=:forward)
-            catch e
-                last_error = e
-                nothing
+        # First find a starting value of ξ that works, but isn't too small.
+        local x_anchor, anchor_converged, last_inf, logξ_anchor
+        for λ_try in [-5.0, -20.0, -50.0]
+            x_anchor, anchor_converged, last_inf = solve_at(λ_try, x0)
+            if anchor_converged
+                logξ_anchor = λ_try
+                break
             end
         end
+        anchor_converged ||
+            throw(ChemicalEquilibriumError("unconverged at anchor (inf-norm=$last_inf)"))
 
-        # If we got a converged solution, break out of the loop
-        if sol !== nothing && sol.f_converged && all(isfinite, sol.zero)
-            break
+        # Now solve system repeatedly, annealing ξ up to 1. Start with Δlogξ = 2, bisecting if that 
+        # fails.
+        x = x_anchor
+        Δlogξ_init = 2.0
+        Δlogξ = Δlogξ_init
+        logξ = logξ_anchor
+        while logξ < -1e-12
+            step = min(Δlogξ, 0 - logξ)
+            x_try, conv, last_inf = solve_at(logξ + step, x)
+            if !conv # step failed
+                # bisect down in step size
+                step /= 2
+                while !conv && step >= minimum_annealing_Δlogξ
+                    x_try, conv, last_inf = solve_at(logξ + step, x)
+                    conv || (step /= 2)
+                end
+                conv ||
+                    throw(ChemicalEquilibriumError("unconverged at logξ=$(logξ+ 2step) (inf-norm=$last_inf)"))
+
+                # shrink default step after a failure
+                Δlogξ = step
+            else # step succeeded
+                Δlogξ = min(Δlogξ_init, 2step)  # double step (capped to init value) after success
+            end
+            x = x_try
+            logξ += step
         end
     end
 
-    if sol === nothing
-        throw(ChemicalEquilibriumError("solver failed: $last_error"))
-    end
-
-    if !sol.f_converged
-        throw(ChemicalEquilibriumError("unconverged"))
-    elseif !all(isfinite, sol.zero)
+    if !all(isfinite, x)
         throw(ChemicalEquilibriumError("solution contains non-finite values"))
     end
 
-    sol.zero
+    x
 end
 
 # handle the case where a derivative is being taken with respect to T and ntot, but not abundances
@@ -256,8 +296,14 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
                                      # via the type system.
                                      ionization_energies::typeof(Korg.ionization_energies),
                                      partition_fns::typeof(Korg.default_partition_funcs),
-                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants),
-                                     method) where {T,V1,V2,V3,P,F<:AbstractFloat}
+                                     log_equilibrium_constants::typeof(Korg.default_log_equilibrium_constants)) where {
+                                                                                                                       T,
+                                                                                                                       V1,
+                                                                                                                       V2,
+                                                                                                                       V3,
+                                                                                                                       P,
+                                                                                                                       F<:AbstractFloat
+                                                                                                                       }
     vtemp = ForwardDiff.value(temp)
     vnₜ = ForwardDiff.value(nₜ)
     vneutral_fraction_guess = ForwardDiff.value.(neutral_fraction_guess)
@@ -268,20 +314,19 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
     partials = [ptemp pnₜ]'
 
     zero = _solve_chemical_equilibrium(vtemp, vnₜ, absolute_abundances, vneutral_fraction_guess,
-                                       vnₑ_guess,
-                                       ionization_energies, partition_fns,
-                                       log_equilibrium_constants, method)
+                                       vnₑ_guess, ionization_energies, partition_fns,
+                                       log_equilibrium_constants)
 
     residuals! = setup_chemical_equilibrium_residuals(vtemp, vnₜ, absolute_abundances,
                                                       ionization_energies,
-                                                      partition_fns, log_equilibrium_constants)
+                                                      partition_fns, log_equilibrium_constants, 0)
 
     tmp = similar(zero) # for storing results of residuals!. jacobian handles this nicely.
     drdx = ForwardDiff.jacobian((tmp, x) -> residuals!(tmp, x), tmp, zero)
     drdp = ForwardDiff.jacobian(tmp, [vtemp, vnₜ]) do tmp, p
         r! = setup_chemical_equilibrium_residuals(p[1], p[2], absolute_abundances,
-                                                  ionization_energies,
-                                                  partition_fns, log_equilibrium_constants)
+                                                  ionization_energies, partition_fns,
+                                                  log_equilibrium_constants, 0)
         r!(tmp, zero)
     end
     dxdp = -(drdx \ drdp)
@@ -294,75 +339,102 @@ function _solve_chemical_equilibrium(temp::ForwardDiff.Dual{T,V1,P},
     dual_zero
 end
 
+# returns the "residuals!" function that is solved.
+# This is the "heart" of the chemical/ionization solver.
 function setup_chemical_equilibrium_residuals(T, nₜ, absolute_abundances, ionization_energies,
-                                              partition_fns, log_equilibrium_constants)
+                                              partition_fns, log_equilibrium_constants, logξ)
     molecules = collect(keys(log_equilibrium_constants))
 
     # precalculate equilibrium coefficients. Here, K is in terms of number density, not partial
     # pressure, unlike those in equilibrium_constants.
     log_nKs = get_log_nK.(molecules, T, Ref(log_equilibrium_constants))
 
+    # H⁻: n(H⁻) = nK_Hminus(T) * n(H I) * nₑ  (formation reaction H I + e⁻ → H⁻).
+    # We scale this by mol_log_scale as well.
+    log_nK_Hminus = log10(Hminus_nK(T))
+
     # precompute the ratio of singly and doubly ionized to neutral atoms with factors of nₑ^-1 and
     # nₑ^-2 divided out
     pairs = map(1:MAX_ATOMIC_NUMBER) do Z
+        # plug in 1 for nₑ
         saha_ion_weights(T, 1, Z, ionization_energies, partition_fns)
     end
-    wII_ne, wIII_ne2 = first.(pairs), last.(pairs)
+    log_wII_ne, log_wIII_ne2 = log10.(first.(pairs)), log10.(last.(pairs))
 
     let nₜ = nₜ, log_nKs = log_nKs, molecules = molecules,
-        absolute_abundances = absolute_abundances, wII_ne = wII_ne, wIII_ne2 = wIII_ne2
+        absolute_abundances = absolute_abundances, log_wII_ne = log_wII_ne,
+        log_wIII_ne2 = log_wIII_ne2, log_nK_Hminus = log_nK_Hminus
         #`residuals!` puts the residuals the system of molecular equilibrium equations in `F`
         #`x` is a vector containing the number density of the neutral species of each element
         function residuals!(F, x)
-            # Don't allow negative number densities.  This is a trick to bound the possible values
-            # of x. Taking the log was less performant in tests.
-            nₑ = abs(x[end]) * nₜ * 1e-5
+            # free params: log10 nₑ and log10 n(X I) for each element
+            log_nₑ = x[end]
+            nₑ = 10.0^log_nₑ
+            log_n_neutral = view(x, 1:MAX_ATOMIC_NUMBER)   # allocation-free
 
-            # the first 92 elements of x are the fraction of each element in it's neutral atomic form
-            # the last is the electron number density in units of n_tot/10^5. The scaling allows us to
-            # better specify the tolerance for the solver.
-            atom_number_densities = absolute_abundances .* (nₜ - nₑ)
-            neutral_number_densities = atom_number_densities .* abs.(view(x, 1:MAX_ATOMIC_NUMBER))
-            F[end] = 0
+            # write zeros to F once and += it everywhere below
+            fill!(F, zero(eltype(F)))
 
-            # ion_factors is a vector of ( n(X I) + n(X II)+ n(X III) ) / n(X I) for each element X
-            for Z in 1:MAX_ATOMIC_NUMBER
-                wII = wII_ne[Z] / nₑ
-                wIII = wIII_ne2[Z] / nₑ^2
-                # LHS: total number of atoms, RHS: first through third ionization states
-                F[Z] = atom_number_densities[Z] - (1 + wII + wIII) * neutral_number_densities[Z]
-                # RHS: electrons freed from each ion
-                F[end] += (wII + 2wIII) * neutral_number_densities[Z]
-            end
-            F[end] -= nₑ #LHS: total electron number density
+            # initialize n_nuclei to the no-molecules case, adjust as we loop over mols
+            n_nuclei = nₜ - nₑ
 
-            # from here on, the first 92 elements of x are log10(neutral number densities)
-            # we reuse the variable to save memory
-            neutral_number_densities .= log10.(neutral_number_densities)
-            for (m, log_nK) in zip(molecules, log_nKs)
-                if m.charge == 1 # chared diatomic
-                    # the first element has a lower atomic number.  That is the charged one.
-                    Z1, Z2 = get_atoms(m.formula)
-                    wII = wII_ne[Z1] / nₑ
-                    n1_II = neutral_number_densities[Z1] + log10(wII)
-                    n2_I = neutral_number_densities[Z2]
-                    n_mol = 10^(n1_II + n2_I - log_nK)
-                    # RHS
-                    F[Z1] -= n_mol
-                    F[Z2] -= n_mol
-                    F[end] += n_mol
-                else # neutral molecule, possibly polyatomic
-                    els = get_atoms(m.formula)
-                    n_mol = 10^(sum(neutral_number_densities[el] for el in els) - log_nK)
-                    # RHS: atoms which are part of molecules
-                    for el in els
-                        F[el] -= n_mol
+            # loop over molecules first
+            for (mol, log_nK) in zip(molecules, log_nKs)
+                atoms = get_atoms(mol.formula)
+
+                # log n_mol = Σ log n(constituent) − log K_n
+                # constituent is neutral except for the first atom of a charged diatomic
+                log_n_mol = -log_nK + logξ
+                if mol.charge == 0 # neutral molecule, possibly polyatomic
+                    for Z in atoms
+                        log_n_mol += log_n_neutral[Z]
                     end
+                else # singly-ionized diatomic, first atom charged
+                    Z1, Z2 = atoms
+                    # log n(X₁ II) = log n(X1 I) + log wII_ne[Z1] − log nₑ
+                    log_n_X1_II = log_n_neutral[Z1] + log_wII_ne[Z1] - log_nₑ
+                    log_n_mol += log_n_X1_II + log_n_neutral[Z2]
                 end
+                n_mol = 10.0^log_n_mol
+
+                for Z in atoms
+                    F[Z] += n_mol # RHS molecular contribution
+                end
+
+                # "extra" nuclei because this is a molecule
+                n_nuclei += (n_atoms(mol) - 1) * n_mol
+
+                # charge conservation
+                F[end] += mol.charge * n_mol
             end
 
-            F[1:end-1] ./= atom_number_densities
-            F[end] /= nₑ * 1e-5
+            # H⁻: contributes to H nuclei and (negatively) to charge balance.
+            #   log n(H⁻) = log nK_Hminus + log n(H I) + log nₑ  + mol_log_scale
+            log_n_Hminus = log_nK_Hminus + log_n_neutral[1] + log_nₑ + logξ
+            n_Hminus = 10.0^log_n_Hminus
+            F[1] += n_Hminus            # counts toward H nuclei conservation
+            F[end] -= n_Hminus           # negative charge
+
+            # now loop over atoms, and compute
+            #   - atomic number densities  on RHS
+            #   - each element LHS (nucleus density)
+            #   - atomic ions charge balance RHS
+            for Z in 1:MAX_ATOMIC_NUMBER
+                log_n_I = log_n_neutral[Z]
+                n_I = 10.0^log_n_I
+                n_II = 10.0^(log_n_I + log_wII_ne[Z] - log_nₑ)
+                n_III = 10.0^(log_n_I + log_wIII_ne2[Z] - 2 * log_nₑ)
+
+                F[Z] += n_I + n_II + n_III - absolute_abundances[Z] * n_nuclei
+                F[end] += n_II + 2 * n_III
+            end
+
+            # LHS of charge balance
+            F[end] -= nₑ
+
+            # scaling
+            F[end] /= nₜ
+            F[1:MAX_ATOMIC_NUMBER] ./= absolute_abundances .* nₜ
         end
     end
 end
@@ -675,8 +747,9 @@ function hummer_mihalas_U_H(T, nH, nHe, ne; use_hubeny_generalization=false)
     # for each level calculate the correction, w, and add the term to U
     # the expression for w comes from Hummer and Mihalas 1988 equation 4.71
     U = 0.0
-    for (E, g, n) in zip(hydrogen_energy_levels, hydrogen_energy_level_degeneracies,
-                         hydrogen_energy_level_n)
+    for (E, g,
+    n) in zip(hydrogen_energy_levels, hydrogen_energy_level_degeneracies,
+              hydrogen_energy_level_n)
         n_eff = sqrt(RydbergH_eV / (RydbergH_eV - E)) # times Z, which is 1 for hydrogen
         w = hummer_mihalas_w(T, n_eff, nH, nHe, ne;
                              use_hubeny_generalization=use_hubeny_generalization)

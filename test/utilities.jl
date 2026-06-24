@@ -120,3 +120,91 @@ function assert_allclose_grid(actual, reference, independent_vars; kwargs...)
     end
     assert_allclose(actual, reference; error_location_fmt=error_location_fmt, kwargs...)
 end
+
+"""
+Same as the other assert_allclose testing utils, but for dicts.  Raises an
+assertion exception when any values in `actual` and `reference` are not equal up
+to the desired tolerance or when their keys are not the same.
+
+# Keywords
+
+  - `rtol`: The desired relative tolerance. Use 0 to skip.
+  - `atol`: The desired absolute tolerance. Skipped by default.
+  - `err_msg`: An optional error message that can be printed when the dicts are not close.
+  - `print_rachet_info`: set this to false to avoid printing a notice and stacktrace when rtol
+    or atol can be tightened.
+"""
+function assert_allclose_dict(actual::AbstractDict, reference::AbstractDict;
+                              rtol=1e-7, atol=0.0, err_msg=nothing, print_rachet_info=true)
+    actual_keys = Set(keys(actual))
+    reference_keys = Set(keys(reference))
+
+    if actual_keys != reference_keys
+        missing_keys = setdiff(reference_keys, actual_keys)
+        extra_keys = setdiff(actual_keys, reference_keys)
+        lines = isnothing(err_msg) ? String[] : [err_msg]
+        push!(lines, "The dictionaries do not contain the same keys.")
+        isempty(missing_keys) || push!(lines, "Missing keys: $(collect(missing_keys))")
+        isempty(extra_keys) || push!(lines, "Extra keys: $(collect(extra_keys))")
+        throw(ErrorException(join(lines, "\n")))
+    end
+
+    ks = collect(reference_keys)
+
+    diff = Dict(k => abs(actual[k] - reference[k]) for k in ks)
+
+    relative_diff = Dict{eltype(ks),Float64}()
+    for k in ks
+        if ForwardDiff.value(diff[k]) == 0
+            relative_diff[k] = 0.0
+        else
+            relative_diff[k] = diff[k] / abs(reference[k])
+        end
+    end
+
+    if print_rachet_info
+        if all(values(diff) .< 0.1 * atol)
+            @info "test can be racheted down: atol=$(atol), but the max diff is $(maximum(values(diff)))"
+            display(stacktrace())
+        end
+
+        if all(values(relative_diff) .< 0.1 * rtol)
+            @info("test can be racheted down: rtol=$(rtol), but the max relative diff is "*
+                  "$(maximum(values(relative_diff)))")
+            display(stacktrace())
+        end
+    end
+
+    if all(k -> (diff[k] == 0) ||
+               (diff[k] <= rtol * abs(reference[k]) + atol),
+           ks)
+        return true
+    end
+
+    diffmax = argmax(diff)
+    relmax = argmax(relative_diff)
+
+    lines = isnothing(err_msg) ? String[] : [err_msg]
+    push!(lines, "The dictionaries aren't consistent to within atol = $atol, rtol = $rtol")
+
+    if (rtol != 0.0) || (rtol == atol == 0.0)
+        err = @sprintf("Max Rel Diff:  %g = |%g - %g|/|%g|",
+                       relative_diff[relmax],
+                       actual[relmax],
+                       reference[relmax],
+                       reference[relmax])
+        err *= " at key $(repr(relmax))"
+        push!(lines, err)
+    end
+
+    if (atol != 0.0) || (rtol == atol == 0.0)
+        err = @sprintf("Max Abs Diff: %g = |%g - %g|",
+                       diff[diffmax],
+                       actual[diffmax],
+                       reference[diffmax])
+        err *= " at key $(repr(diffmax))"
+        push!(lines, err)
+    end
+
+    throw(ErrorException(join(lines, "\n")))
+end

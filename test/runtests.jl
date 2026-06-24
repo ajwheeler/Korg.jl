@@ -2,12 +2,10 @@
 # This is the standard way that tests work in Julia packages. It's how the CI works, and it's a way
 # to run the whole test suite locally.
 #
-# When testing locally, another recommended workflow is to 
-#  - activate the test environment in the repl
-#  - import Revise
-#  - include("tests/imports.jl")
-#  - include other test files as needed, to run them
-#  - iterate on Korg and on the tests, rerunning as needed with minimal recompilation
+# When testing locally, another recommended workflow is open a REPL and run
+#     cd("test/"); import Pkg; Pkg.activate("."); using Revise; include("imports.jl")
+# Then include individual test files as needed to run them. You can iterate on
+# Korg and on the tests, rerunning as needed with minimal recompilation
 
 # Imports are in a separate file to facilitate running individual test files.
 include("imports.jl")
@@ -25,6 +23,7 @@ include("imports.jl")
     include("fit.jl")                            # slow
     include("autodiff.jl")                       # slow
     include("autodiffable_conv.jl")
+    include("newton.jl")
     include("atmosphere.jl")                     # slow
     include("abundances.jl")
     include("synthesize.jl")

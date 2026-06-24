@@ -232,7 +232,7 @@ function Species(code::AbstractString)
     code = strip(code, ['0', ' ']) # Leading 0s are safe to remove
 
     # If the species ends in "+" or "-", convert it to a numerical charge. Remember, the ionization
-    # number is the charge+1, so for us "H 0" is H⁻ and "H 2" in H⁺.
+    # number is the charge+1, so for us "H 0" is H⁻ and "H 2" is H⁺.
     if code[end] == '+'
         code = code[1:end-1] * " 2"
     elseif code[end] == '-'
