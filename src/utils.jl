@@ -1,4 +1,5 @@
 using Statistics: quantile
+using Core: Argument
 using Interpolations: linear_interpolation, Flat
 using SparseArrays: spzeros
 
@@ -40,7 +41,12 @@ end
 
 # Convert R to a value based on its type
 # used in `_lsf_bounds_and_kernel`
-_resolve_R(R::Real, λ0) = R
+function _resolve_R(R::Real, λ0)
+    if !isfinite(R)
+        throw(ArgumentError("R (resolving power) must be a finite number (is $R)"))
+    end
+    R
+end
 _resolve_R(R::Function, λ0) = R(λ0 * 1e8)  # R is a function of λ in Å
 
 # Core LSF calculation shared by all variants
