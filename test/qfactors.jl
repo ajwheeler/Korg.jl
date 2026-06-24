@@ -10,7 +10,7 @@
 
     delLog = 6e-6
     apowls = 10 .^ range((start = 4.179 - 125 * delLog); step=delLog, length=8575 + 125)
-    apowls = apowls[wl_lo .< apowls .< wl_hi]
+    apowls = apowls[wl_lo.<apowls.<wl_hi]
 
     LSF_model = Korg.compute_LSF_matrix((wl_lo, wl_hi), apowls, 22_500; verbose=false)
 
