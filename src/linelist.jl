@@ -1,22 +1,26 @@
-using CSV, HDF5, LazyArtifacts
+using CSV, HDF5, LazyArtifacts, DataFrames
 using Pkg.Artifacts: @artifact_str
 
 #This type represents an individual line.
-struct Line{F1,F2,F3,F4,F5,F6}
+#The Line type has two broadening modes:
+# Mode 1 (default): gamma_stark and vdW broadening (backward compatible)
+# Mode 2 (optional): gamma_mol_lorentz with temperature exponent n_exp
+struct Line{F1,F2,F3,F4,F5,F6,F7}
     wl::F1                       #cm
     log_gf::F2                   #unitless
     species::Species
     E_lower::F3                  #eV (also called the excitation potential)
     gamma_rad::F4                #s^-1
-    gamma_stark::F5              #s^-1
-    # either γ_vdW [s^-1] per electron (as the first element, with -1 as the second) or (σ, α) from
-    # ABO theory
-    vdW::Tuple{F6,F6}
+    gamma_stark::Union{F5,Missing}              #s^-1 (Mode 1)
+    vdW::Union{Tuple{F7,F7},Missing}            # (Mode 1) either γ_vdW [s^-1] per electron (as the first element, with -1 as the second) or (σ, α) from ABO theory
+    gamma_mol_lorentz::Union{Tuple{F6,F6},Missing} # cm^-1 (Mode 2, tuple for H2 and He). Replaces gamma_stark and vdW when provided
+    n_exp::Union{Tuple{F7,F7},Missing}     # (Mode 2, tuple for H2 and He) temperature exponent for gamma_mol_lorentz
 
     @doc """
         Line(wl::F, log_gf::F, species::Species, E_lower::F,
              gamma_rad::Union{F, Missing}=missing, gamma_stark::Union{F, Missing}=missing,
-             vdW::Union{F, Tuple{F, F}, Missing}=missing) where F <: Real
+             vdW::Union{F, Tuple{F, F}, Missing}=missing; gamma_mol_lorentz::Union{Tuple{F, F}, Missing}=missing,
+             n_exp::Union{Tuple{F, F}, Missing}=missing) where F <: Real
 
     Arguments:
      - `wl`: wavelength (Assumed to be in cm if < 1, otherwise in Å)
@@ -24,7 +28,7 @@ struct Line{F1,F2,F3,F4,F5,F6}
      - `species`: the `Species` associated with the line
      - `E_lower`: The energy (excitation potential) of the lower energy level (eV)
 
-    Optional Arguments (these override default recipes):
+    Optional Arguments - Mode 1 (default, backward compatible):
      - `gamma_rad`: Fundamental width
      - `gamma_stark`: per-perturber Stark broadening width at 10,000 K (s⁻¹).
      - `vdW`: If this is present, it may be
@@ -33,8 +37,19 @@ struct Line{F1,F2,F3,F4,F5,F6}
          - A fudge factor for the Unsöld approximation, assumed if between 0 and 20
          - The [ABO parameters](https://github.com/barklem/public-data/tree/master/broadening-howto)
            as packed float (assumed if >= 20) or a `Tuple`, `(σ, α)`.
-
         This behavior is intended to mirror that of Turbospectrum as closely as possible.
+
+    Optional Arguments - Mode 2 (alternative to Mode 1):
+     - `gamma_mol_lorentz`: Tuple of two molecular Lorentz widths in s⁻¹ at reference temperature,
+       (gamma_H2, gamma_He). When explicitly provided (along with `n_exp`), this replaces `gamma_stark`
+       and `vdW` during line absorption calculations. Cannot be combined with `gamma_stark` or `vdW`.
+     - `n_exp`: Tuple of two temperature exponents (n_H2, n_He) for the molecular Lorentz broadening
+       width scaling (T/T_ref)^n. Required when using `gamma_mol_lorentz`. Cannot be combined with
+       `gamma_stark` or `vdW`.
+
+    !!! warning
+        Providing both Mode 1 (`gamma_stark` or `vdW`) and Mode 2 (`gamma_mol_lorentz` or `n_exp`)
+        parameters together will raise an error.
 
     See [`approximate_gammas`](@ref) for more information on the default recipes for `gamma_stark`
     and `vdW`.
@@ -54,56 +69,119 @@ struct Line{F1,F2,F3,F4,F5,F6}
         type are not, and may change in the future without a major version bump.
     """
     function Line(wl::F1, log_gf::F2, species::Species, E_lower::F3,
-                  gamma_rad::Union{F4,Missing}=missing, gamma_stark::Union{F5,Missing}=missing,
-                  vdW::Union{F6,Tuple{F6,F6},Missing}=missing) where {F1<:Real,F2<:Real,F3<:Real,
-                                                                      F4<:Real,F5<:Real,F6<:Real}
+                  gamma_rad::Union{F4,Missing}=missing,
+                  gamma_stark::Union{F5,Missing}=missing,
+                  vdW::Union{Real,Tuple{Real,Real},Missing}=missing;
+                  gamma_mol_lorentz::Union{Tuple{Real,Real},Missing}=missing,
+                  n_exp::Union{Tuple{Real,Real},Missing}=missing) where {F1<:Real,F2<:Real,F3<:Real,
+                                                                         F4<:Real,F5<:Real}
         if wl >= 1
             wl *= 1e-8 #convert Å to cm
         end
-        # if one or both of stark or vdW are missing, approximate them
-        if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) ||
-           (!(vdW isa Tuple) && isnan(vdW))
-            gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
-            if ismissing(gamma_stark) || isnan(gamma_stark)
-                gamma_stark = gamma_stark_approx
+
+        # Determine which mode is being used
+        mol_lorentz_provided = !ismissing(gamma_mol_lorentz) &&
+                               !(gamma_mol_lorentz isa Tuple && all(isnan.(gamma_mol_lorentz)))
+        n_exp_provided = !ismissing(n_exp) &&
+                         !(n_exp isa Tuple && all(isnan.(n_exp)))
+        stark_provided = !ismissing(gamma_stark) && !(gamma_stark isa Real && isnan(gamma_stark))
+        vdw_provided = !ismissing(vdW) && !(!(vdW isa Tuple) && isnan(vdW))
+
+        # Validation: cannot mix modes
+        if mol_lorentz_provided || n_exp_provided
+            if stark_provided || vdw_provided
+                error("Cannot provide both gamma_mol_lorentz/n_exp (Mode 2) and gamma_stark/vdW (Mode 1). " *
+                      "Use Mode 2 (gamma_mol_lorentz + n_exp) to provide molecular broadening with temperature dependence, " *
+                      "or Mode 1 (gamma_stark + vdW) for default Stark and van der Waals broadening.")
             end
-            if ismissing(vdW) || isnan(vdW)
-                # this is log10(γ_vdW), not γ_vdW. It is converted to (γ_vdW, -1) below
-                vdW = vdW_approx
+            if mol_lorentz_provided && !n_exp_provided
+                error("When providing gamma_mol_lorentz, n_exp must also be provided.")
             end
+            if n_exp_provided && !mol_lorentz_provided
+                error("When providing n_exp, gamma_mol_lorentz must also be provided.")
+            end
+            # Mode 2: use gamma_mol_lorentz and n_exp
+            gamma_stark = missing
+            vdW = missing
+        else
+            # Mode 1 (default): approximate gamma_stark and vdW if needed
+            if ismissing(gamma_stark) || isnan(gamma_stark) || ismissing(vdW) ||
+               (!(vdW isa Tuple) && isnan(vdW))
+                gamma_stark_approx, vdW_approx = approximate_gammas(wl, species, E_lower)
+                if ismissing(gamma_stark) || isnan(gamma_stark)
+                    gamma_stark = gamma_stark_approx
+                end
+                if ismissing(vdW) || isnan(vdW)
+                    # this is log10(γ_vdW), not γ_vdW. It is converted to (γ_vdW, -1) below
+                    vdW = vdW_approx
+                end
+            end
+
+            # if vdW is a tuple, assume it's (σ, α) from ABO theory
+            # if it's a float, there are four possibilities (one of which is a packed tuple)
+            @assert !ismissing(vdW) && !(!(vdW isa Tuple) && isnan(vdW))
+            if !(vdW isa Tuple)
+                if vdW < 0
+                    vdW = (10^vdW, -1.0)  # if vdW is negative, assume it's log(γ_vdW)
+                elseif vdW == 0
+                    vdW = (0.0, -1.0)  # if it's exactly 0, leave it as 0 (no vdW broadening)
+                elseif 0 < vdW < 20
+                    # if it's between 0 and 20, assume it's a fudge factor for the Unsoeld approximation
+                    vdW = (vdW * 10^(approximate_gammas(wl, species, E_lower)[2]), -1.0)
+                else #if it's >= 20 assume it's packed ABO params
+                    vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
+                end
+            end
+
+            # Clear Mode 2 parameters in Mode 1
+            gamma_mol_lorentz = missing
+            n_exp = missing
         end
+
         # if gamma_rad is missing, approximate it
         if ismissing(gamma_rad) || isnan(gamma_rad)
             gamma_rad = approximate_radiative_gamma(wl, log_gf)
         end
 
-        # if vdW is a tuple, assume it's (σ, α) from ABO theory
-        # if it's a float, there are four possibilities (one of which is a packed tuple)
-        # this assert is for my sanity.
-        @assert !ismissing(vdW) && !(!(vdW isa Tuple) && isnan(vdW))
-        if !(vdW isa Tuple)
-            if vdW < 0
-                vdW = (10^vdW, -1.0)  # if vdW is negative, assume it's log(γ_vdW)
-            elseif vdW == 0
-                vdW = (0.0, -1.0)  # if it's exactly 0, leave it as 0 (no vdW broadening)
-            elseif 0 < vdW < 20
-                # if it's between 0 and 20, assume it's a fudge factor for the Unsoeld approximation
-                vdW = (vdW * 10^(approximate_gammas(wl, species, E_lower)[2]), -1.0)
-            else #if it's >= 20 assume it's packed ABO params
-                vdW = (floor(vdW) * bohr_radius_cgs * bohr_radius_cgs, vdW - floor(vdW))
-            end
+        # Compute the field types based on mode
+        F6_type = if ismissing(gamma_mol_lorentz)
+            Float64  # placeholder for Mode 1
+        else
+            eltype(gamma_mol_lorentz)
+        end
+        F7_type = if ismissing(vdW)
+            eltype(n_exp)
+        else
+            typeof(first(vdW))
         end
 
-        new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),eltype(vdW)}(wl, log_gf, species,
-                                                                        E_lower, gamma_rad,
-                                                                        gamma_stark, vdW)
+        new{F1,F2,F3,typeof(gamma_rad),typeof(gamma_stark),F6_type,F7_type}(wl, log_gf, species,
+                                                                            E_lower, gamma_rad,
+                                                                            gamma_stark, vdW,
+                                                                            gamma_mol_lorentz,
+                                                                            n_exp)
     end
 end
 # constructor to allow for copying a line and modifying some values (see docstring)
 function Line(line::Line; wl=line.wl, log_gf=line.log_gf, species=line.species,
               E_lower=line.E_lower, gamma_rad=line.gamma_rad, gamma_stark=line.gamma_stark,
-              vdW=line.vdW)
-    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW)
+              gamma_mol_lorentz=line.gamma_mol_lorentz, vdW=line.vdW, n_exp=line.n_exp)
+
+    # Handle mode switching when user provides Mode 2 params but original is Mode 1
+    if !ismissing(gamma_mol_lorentz) && ismissing(line.gamma_mol_lorentz)
+        # Switching to Mode 2 from Mode 1
+        gamma_stark = missing
+        vdW = missing
+    end
+    # Handle mode switching when user provides Mode 1 params but original is Mode 2
+    if (!ismissing(gamma_stark) || !ismissing(vdW)) && !ismissing(line.gamma_mol_lorentz)
+        # Switching to Mode 1 from Mode 2
+        gamma_mol_lorentz = missing
+        n_exp = missing
+    end
+
+    Line(wl, log_gf, species, E_lower, gamma_rad, gamma_stark, vdW;
+         gamma_mol_lorentz=gamma_mol_lorentz, n_exp=n_exp)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", line::Line)
@@ -183,6 +261,49 @@ function approximate_gammas(wl, species, E_lower; ionization_energies=ionization
 end
 
 """
+    gamma_pade(J, A, B)
+
+Calculates the Padé equation approximation of the broadening coefficient (in s^-1 barye^-1).
+This prescription is to be used strictly for estimating the broadening per Gharib-Nezhad (2021) (https://doi.org/10.3847/1538-4365/abf504).
+"""
+function gamma_pade(J::Union{AbstractFloat,AbstractVector{<:AbstractFloat}},
+                    A::AbstractVector{<:AbstractFloat},
+                    B::AbstractVector{<:AbstractFloat})
+    # Unpack coefficients
+    a_0, a_1, a_2, a_3 = A
+    b_1, b_2, b_3, b_4 = B
+
+    # Calculate γ_L per Gharib-Nezhad (2021) equation 4
+    γ_L = (a_0 .+ a_1 .* J .+ a_2 .* J .^ 2 .+ a_3 .* J .^ 3) /
+          (1 .+ b_1 .* J .+ b_2 .* J .^ 2 .+ b_3 .* J .^ 3 .+ b_4 .* J .^ 4)
+
+    # convert cm^-1 atm^-1 to cm^-1 barye^-1
+    1e-6 * γ_L / 1.01325
+end
+
+function load_γ_b(J, absorber, broadener)
+    exoplines = CSV.read(joinpath(_data_dir, "EXOPLINES_broadening_coeffs", "table_3.txt"),
+                         DataFrame; delim=" ")
+    exoplines_species = Korg.Species.(exoplines.Absorber)
+    row = (absorber .== exoplines_species) .&& (broadener .== exoplines.Broadener)
+    γ_b = gamma_pade(J,
+                     vec([
+                             exoplines.a0[row][1],
+                             exoplines.a1[row][1],
+                             exoplines.a2[row][1],
+                             exoplines.a3[row][1]
+                         ]),
+                     vec([
+                             exoplines.b1[row][1],
+                             exoplines.b2[row][1],
+                             exoplines.b3[row][1],
+                             exoplines.b4[row][1]
+                         ]))
+    # in cm^-1 barye^-1
+    γ_b
+end
+
+"""
     load_ExoMol_linelist(species, states_file, transitions_file, lower_wavelength, upper_wavelength;
                          isotopes=nothing, other_kwargs...)
 
@@ -206,6 +327,8 @@ Load a linelist from ExoMol. Returns a vector of [`Line`](@ref)s, the same as [`
   - `T_line_strength`: the temperature (K) at which to evaluate the line strength (default: 3500.0)
   - `isotopic_abundances`: the table of isotopic abundances to use (default: `Korg.isotopic_abundances`).  This is ignored if `isotopic_correction` is provided.
   - `verbose`: if `true` (default), will print progress information
+  - `broad_files`: the location of the ExoMol .broad files for H2 and He. These .broad files are only used if this variable is set to not `nothing`. It is only implemented for H2O currently.
+  - `path_flag`: integer value that determines what "path" of pressure broadening to follow. 0) no pressure broadening, 1) use ExoMol's .broad files, and 2) use the EXOPLINES approximations
 
 # Returns
 
@@ -219,8 +342,9 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
                               upper_wavelength;
                               isotopes=nothing, isotopic_abundances=Korg.isotopic_abundances,
                               line_strength_cutoff=-15, T_line_strength=3500.0,
-                              verbose=true)::Vector{Line{Float64,Float64,Float64,Float64,Float64,
-                                                         Float64}}
+                              verbose=true,
+                              broad_files=nothing,
+                              path_flag=0,)::Vector{<:Line}
     if spec isa AbstractString
         spec = Species(spec)
     end
@@ -232,18 +356,90 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
         @info "The states and transitions files, $states_file and $transitions_file, don't contain the string 'states' or 'trans', respectively. You may have mixed them up."
     end
 
+    if path_flag == 2
+        if spec ∉ Korg.Species.(["AlH", "CaH", "MgH", "CrH", "FeH", "TiH", "SiO", "TiO", "VO"])
+            throw(ArgumentError("The EXOPLINES approximation for pressure broadening of molecular lines only exists for AlH, CaH, MgH, CrH, FeH, TiH, SiO, TiO, and VO"))
+        end
+        if broad_files != nothing
+            throw(ArgumentError("Trying to set broadening parameters for species with both EXOPLINES and ExoMol prescriptions. For the following species, ExoMol broadening from the .broad files is not supported, but is for the EXOPLINES prescription: AlH CaH MgH CrH FeH TiH SiO TiO VO"))
+        else
+            # J is the total angular momentum quantum number
+            # and the EXOPLINES functions are only valid from 0 to 500
+            J_ = vec([J for J in 0:0.5:500])
+            # Make a dictionary of the broadening coefficient
+            γ_H2 = Dict(J => load_γ_b(J, spec, "H2") for J in J_)
+            γ_He = Dict(J => load_γ_b(J, spec, "He") for J in J_)
+        end
+    elseif path_flag == 1
+        if spec ∉ Korg.Species.(["H2O"])
+            throw(ArgumentError("ExoMol .broad pressure broadening not yet implemented for this species"))
+        end
+        if broad_files == nothing
+            throw(ArgumentError("The following species require the .broad files for H2 and He from the ExoMol webpage: H2O"))
+        end
+        broad_H2 = nothing
+        broad_He = nothing
+        for broad_file in broad_files
+            if broad_file[end-7:end-6] == "H2"
+                broad_H2 = CSV.read(broad_file, DataFrame; delim=" ", silencewarnings=true,
+                                    ignorerepeated=true, header=false)
+            elseif broad_file[end-7:end-6] == "He"
+                broad_He = CSV.read(broad_file, DataFrame; delim=" ", silencewarnings=true,
+                                    ignorerepeated=true, header=false)
+            else
+                throw(ArgumentError("He or H2 are not the final characters before .broad"))
+            end
+        end
+
+        broad_H2[ismissing.(broad_H2.Column5), "Column5"] .= -1
+        broad_He[ismissing.(broad_He.Column5), "Column5"] .= -1
+
+        # Use both J and K quantum numbers. See Table 1 of https://www.homepages.ucl.ac.uk/~ucapsy0/pdf/18BaHiCz.pdf
+        # also found at https://doi.org/10.1016/j.jqsrt.2017.01.028
+        γ_H2 = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column2
+                    for row in eachrow(broad_H2))
+        γ_He = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column2
+                    for row in eachrow(broad_He))
+        n_exp_H2 = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column3
+                        for row in eachrow(broad_H2))
+        n_exp_He = Dict((Float64(row.Column4), Float64(row.Column5)) => row.Column3
+                        for row in eachrow(broad_He))
+
+    elseif path_flag == 0
+        println("Using default broadening (only radiative) for this species")
+    end
+
+    header_data = CSV.read(joinpath(_data_dir, "ExoMol_header_data", "states_header_data.txt"),
+                           DataFrame; header=false, delim=" ", silencewarnings=true)
+    header_species = Korg.Species.(header_data.Column1) #[Korg.Species(a) for a in exoplines.Absorber]
+    header_spec_ind = findall(header_species .== spec)[1]
+    J_column = findall(isequal("J"), Vector(header_data[header_spec_ind, :]))[1] - 1
+    if path_flag == 1
+        K_column = findall(isequal("Ka"), Vector(header_data[header_spec_ind, :]))[1] - 1
+    end
+
     # convert wavelength limits in Å to wavenumber limits in cm^-1
     wn_lower_limit = 1.0 / (upper_wavelength * 1e-8)
     wn_upper_limit = 1.0 / (lower_wavelength * 1e-8)
 
     #  ExoMol files have various numbers of columns, but the first three (the
     #  only ones we need) are consistent: id, wavenumber, g.
-    states = Dict{Int,Tuple{Float64,Float64}}()
+    if path_flag == 1
+        states = Dict{Int,Tuple{Float64,Float64,Float64,Float64}}()
+    else
+        states = Dict{Int,Tuple{Float64,Float64,Float64}}()
+    end
     for row in CSV.File(states_file; delim=" ", ignorerepeated=true, header=false)
         id = Int(row.Column1)
         wavenumber = Float64(row.Column2)
         g = Float64(row.Column3)
-        states[id] = (wavenumber, g)
+        J = Float64(row[J_column])
+        if path_flag == 1
+            K = Float64(row[K_column])
+            states[id] = (wavenumber, g, J, K)
+        else
+            states[id] = (wavenumber, g, J)
+        end
     end
 
     # Precompute isotopic correction
@@ -269,7 +465,7 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
     # Stream the transitions file line by line to avoid loading the entire file into memory.
     # This is critical for large ExoMol files, which can be 10s of GB.
     # Most lines will be too weak, or outside the wavelength limits.
-    lines = Line{Float64,Float64,Float64,Float64,Float64,Float64}[]
+    lines = Line[]
     n_total = 0
     n_unmapped = 0 # collect for error message
     for row in CSV.File(transitions_file; delim=" ", ignorerepeated=true, header=false)
@@ -282,8 +478,13 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
             continue
         end
 
-        wn_upper, g_upper = states[id_upper]
-        wn_lower, g_lower = states[id_lower]
+        if path_flag == 1
+            wn_upper, g_upper, J_upper, K_upper = states[id_upper]
+            wn_lower, g_lower, J_lower, K_lower = states[id_lower]
+        else
+            wn_upper, g_upper, J_upper = states[id_upper]
+            wn_lower, g_lower, J_lower = states[id_lower]
+        end
         wavenumber = wn_upper - wn_lower
 
         # Skip lines outside the wavelength range
@@ -296,7 +497,35 @@ function load_ExoMol_linelist(spec, states_file, transitions_file, lower_wavelen
         f = A * prefactor * g_upper / (g_lower * wavenumber^2)
         log_gf = log10(g_lower * f) + isotopic_correction
         E_lower = Korg.hplanck_eV * wn_lower * Korg.c_cgs
-        line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower)
+        if path_flag == 2
+            # n_exp set to 0.5 for all species given Gharib-Nezhad et al. 2021
+            # also leave in cm^-1
+            line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower;
+                             gamma_mol_lorentz=(γ_H2[J_lower],
+                                                γ_He[J_lower]),
+                             n_exp=(0.5, 0.5))
+        elseif path_flag == 1
+            # This needs to turn K_lower into -1 if (J_lower, K_lower) not in J_K_pairs_H2 or J_K_pairs_He
+            J_lower_ = Float64(J_lower)
+            K_lower_ = abs(Float64(K_lower))
+            if haskey(γ_H2, (J_lower_, K_lower_)) && haskey(γ_He, (J_lower_, K_lower_))
+                line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower;
+                                 gamma_mol_lorentz=(γ_H2[(J_lower_, K_lower_)],
+                                                    γ_He[(J_lower_, K_lower_)]),
+                                 n_exp=(n_exp_H2[(J_lower_, K_lower_)],
+                                        n_exp_He[(J_lower_, K_lower_)]))
+            elseif haskey(γ_H2, (J_lower_, -1.0)) && haskey(γ_He, (J_lower_, -1.0))
+                line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower;
+                                 gamma_mol_lorentz=(γ_H2[(J_lower_, -1.0)],
+                                                    γ_He[(J_lower_, -1.0)]),
+                                 n_exp=(n_exp_H2[(J_lower_, -1.0)],
+                                        n_exp_He[(J_lower_, -1.0)]))
+            else
+                line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower)
+            end
+        else
+            line = Korg.Line(1.0 / wavenumber, log_gf, spec, E_lower)
+        end
 
         n_total += 1
 
@@ -783,7 +1012,6 @@ end
 Save a Korg linelist (a `Vector{Line}`) to an HDF5 file which can be read by `read_linelist`.
 """
 function save_linelist(path, linelist)
-    vdW = [l.vdW for l in linelist]
     h5open(path, "w") do f
         attributes(f)["version"] = "2024-12-18"
 
@@ -808,14 +1036,38 @@ function save_linelist(path, linelist)
         f["gamma_rad"] = [l.gamma_rad for l in linelist]
         attributes(f["gamma_rad"])["description"] = "Radiative damping parameter in rad/s"
 
-        f["gamma_stark"] = [l.gamma_stark for l in linelist]
-        attributes(f["gamma_stark"])["description"] = "Stark broadening parameter"
+        # Mode 1 (backward compatible): gamma_stark and vdW
+        f["gamma_stark"] = [ismissing(l.gamma_stark) ? NaN : l.gamma_stark for l in linelist]
+        attributes(f["gamma_stark"])["description"] = "Stark broadening parameter (Mode 1)"
 
-        f["vdW_1"] = first.(vdW)
-        attributes(f["vdW_1"])["description"] = "First van der Waals broadening parameter"
+        f["vdW_1"] = [ismissing(l.vdW) ? NaN : first(l.vdW) for l in linelist]
+        attributes(f["vdW_1"])["description"] = "First van der Waals broadening parameter (Mode 1)"
 
-        f["vdW_2"] = last.(vdW)
-        attributes(f["vdW_2"])["description"] = "Second van der Waals broadening parameter"
+        f["vdW_2"] = [ismissing(l.vdW) ? NaN : last(l.vdW) for l in linelist]
+        attributes(f["vdW_2"])["description"] = "Second van der Waals broadening parameter (Mode 1)"
+
+        # Mode 2: gamma_mol_lorentz and n_exp (now tuples for H2 and He)
+        f["gamma_mol_lorentz_H2"] = [if ismissing(l.gamma_mol_lorentz)
+                                         NaN
+                                     else
+                                         first(l.gamma_mol_lorentz)
+                                     end
+                                     for l in linelist]
+        attributes(f["gamma_mol_lorentz_H2"])["description"] = "Molecular Lorentz width for H2 in s^-1 (Mode 2). When set, replaces gamma_stark and vdW."
+
+        f["gamma_mol_lorentz_He"] = [if ismissing(l.gamma_mol_lorentz)
+                                         NaN
+                                     else
+                                         last(l.gamma_mol_lorentz)
+                                     end
+                                     for l in linelist]
+        attributes(f["gamma_mol_lorentz_He"])["description"] = "Molecular Lorentz width for He in s^-1 (Mode 2). When set, replaces gamma_stark and vdW."
+
+        f["n_exp_H2"] = [ismissing(l.n_exp) ? NaN : first(l.n_exp) for l in linelist]
+        attributes(f["n_exp_H2"])["description"] = "Temperature exponent for H2 molecular Lorentz broadening (Mode 2). Used only with gamma_mol_lorentz."
+
+        f["n_exp_He"] = [ismissing(l.n_exp) ? NaN : last(l.n_exp) for l in linelist]
+        attributes(f["n_exp_He"])["description"] = "Temperature exponent for He molecular Lorentz broadening (Mode 2). Used only with gamma_mol_lorentz."
     end
 end
 
@@ -827,14 +1079,59 @@ function read_korg_linelist(path)
             formula = Formula(atoms[i:end])
             Species(formula, charge)
         end
-        vdW = tuple.(read(f["vdW_1"]), read(f["vdW_2"]))
-        Line.(read(f["wl"]),
-              read(f["log_gf"]),
-              species,
-              read(f["E_lower"]),
-              read(f["gamma_rad"]),
-              read(f["gamma_stark"]),
-              vdW)
+        wl = read(f["wl"])
+
+        # Read Mode 1 (backward compatible): gamma_stark and vdW
+        gamma_stark = if haskey(f, "gamma_stark")
+            map(x -> isnan(x) ? missing : x, read(f["gamma_stark"]))
+        else
+            fill(missing, length(wl))
+        end
+        vdW_1 = if haskey(f, "vdW_1")
+            read(f["vdW_1"])
+        else
+            fill(NaN, length(wl))
+        end
+        vdW_2 = if haskey(f, "vdW_2")
+            read(f["vdW_2"])
+        else
+            fill(NaN, length(wl))
+        end
+        vdW = map((v1, v2) -> (isnan(v1) || isnan(v2)) ? missing : (v1, v2), vdW_1, vdW_2)
+
+        # Read Mode 2: gamma_mol_lorentz and n_exp (now tuples for H2 and He)
+        gamma_mol_lorentz_H2 = if haskey(f, "gamma_mol_lorentz_H2")
+            read(f["gamma_mol_lorentz_H2"])
+        else
+            fill(NaN, length(wl))
+        end
+        gamma_mol_lorentz_He = if haskey(f, "gamma_mol_lorentz_He")
+            read(f["gamma_mol_lorentz_He"])
+        else
+            fill(NaN, length(wl))
+        end
+        gamma_mol_lorentz = map((h2, he) -> (isnan(h2) || isnan(he)) ? missing : (h2, he),
+                                gamma_mol_lorentz_H2, gamma_mol_lorentz_He)
+
+        n_exp_H2 = if haskey(f, "n_exp_H2")
+            read(f["n_exp_H2"])
+        else
+            fill(NaN, length(wl))
+        end
+        n_exp_He = if haskey(f, "n_exp_He")
+            read(f["n_exp_He"])
+        else
+            fill(NaN, length(wl))
+        end
+        n_exp = map((h2, he) -> (isnan(h2) || isnan(he)) ? missing : (h2, he),
+                    n_exp_H2, n_exp_He)
+
+        # Reconstruct Line objects using map to handle both modes
+        map(wl, read(f["log_gf"]), species, read(f["E_lower"]),
+            read(f["gamma_rad"]), gamma_stark, vdW, gamma_mol_lorentz,
+            n_exp) do w, lg, sp, el, gr, gs, vdw, gml, nexp
+            Line(w, lg, sp, el, gr, gs, vdw; gamma_mol_lorentz=gml, n_exp=nexp)
+        end
     end
 end
 

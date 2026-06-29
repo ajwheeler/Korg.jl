@@ -21,3 +21,14 @@ docs/src/generated/
 *.DS_Store
 results_*.json
 results_*.json.tmp
+.CondaPkg
+temp_figures
+line_strength_cutoff_comparison.ipynb
+.gitignore
+exomol_vs_h5_cross_section_comparison.ipynb
+tio_broadening_pf_comparison.ipynb
+h2o_pokazatel_comparison.png
+partition_funcs_comparison.png
+plot_partition_funcs.jl
+test_exomol_H2O.ipynb
+

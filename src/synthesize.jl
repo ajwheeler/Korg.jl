@@ -209,7 +209,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
     #float-like type general to handle dual numbers
-    α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
+    α_type = promote_type(eltype(atm.layers).parameters..., Float64,
                           eltype(wls), eltype(vmic), typeof.(abs_abundances)...)
     #the absorption coefficient, α, for each wavelength and atmospheric layer
     α = Matrix{α_type}(undef, length(atm.layers), length(wls))
@@ -270,7 +270,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                                               Korg.Wavelengths([atm.reference_wavelength * 1e8]),
                                               get_temps(atm),
                                               vmic,
-                                              number_densities)
+                                              number_densities,
+                                              number_densities[species"H2"] .+
+                                              number_densities[species"He I"])
     end
 
     source_fn = blackbody.((l -> l.temp).(atm.layers), wls')
@@ -296,7 +298,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
                      vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
-                                          number_densities)
+                                          number_densities,
+                                          number_densities[species"H2"] .+
+                                          number_densities[species"He I"])
 
     flux, intensity, μ_grid, μ_weights = RadiativeTransfer.radiative_transfer(atm, α, source_fn,
                                                                               mu_values;

@@ -31,6 +31,8 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     at which to precompute the cross-section.
   - `log_temp_vals` (default: 3:0.025:5): The log10 of the temperatures at which to precompute the
     cross-section.
+  - `log_perturber_density` (default: 12:0.5:20): The log10 of the perturber density at which to precompute the
+    cross-section. A mix of 85% H2 and 15% He is assumed.
 
 !!! warning
 
@@ -47,7 +49,8 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
 """
 function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32,
                                vmic_vals=[(0.0:1/3:1.0)...; 1.5; (2:2/3:(5+1/3))...],
-                               log_temp_vals=3:0.04:5)
+                               log_temp_vals=3:0.04:5,
+                               log_perturber_density=12:0.5:20,)
     wls = Wavelengths(wl_params)
     all_specs = [l.species for l in linelist]
     if !all(Ref(all_specs[1]) .== all_specs)
@@ -55,30 +58,34 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32,
     end
     species = all_specs[1]
 
-    α = zeros(length(vmic_vals), length(log_temp_vals), length(wls))
+    α = zeros(length(vmic_vals), length(log_temp_vals), length(log_perturber_density), length(wls))
 
     # set both the continuum absorption coef (cntm) and the cutoff absorption coef to
     # unity.  Handle the cutoff value by scaling the number density of the molecule
     # (in n_dict).
     Ts = 10 .^ log_temp_vals
     nₑ = zeros(length(log_temp_vals))
-    # Korg will compute the effective broadener number density for vdW broadening, which requires 
-    # number density values for H I, He I, and H2. It will not be used, since only molecular lines 
-    # are present.
-    n_dict = Dict(species => 1 / cutoff_alpha,
-                  species"H I" => NaN, species"H2" => NaN, species"He I" => NaN)
+    # Korg will compute the effective broadener number density for vdW broadening and the molecular 
+    # lorentz coefficient
+    n_dicts = [Dict(species => 1 / cutoff_alpha,
+                    species"H I" => NaN, species"H2" => 0.85 * 10^log_pd,
+                    species"He I" => 0.15 * 10^log_pd) for log_pd in log_perturber_density]
     ξ = 0.0
     cntm = fill(λ -> 1.0, length(log_temp_vals))
 
     for (i, vmic) in enumerate(vmic_vals)
-        ξ = vmic * 1e5 #km/s to cm/s
-        Korg.line_absorption!(view(α, i, :, :), linelist, wls, Ts, nₑ, n_dict,
-                              Korg.default_partition_funcs, ξ, cntm; cutoff_threshold=1.0)
+        ξ = vmic * 1e5  # km/s to cm/s
+        for (j, n_dict) in enumerate(n_dicts)
+            Korg.line_absorption!(view(α, i, :, j, :), linelist, wls, Ts, nₑ, n_dict,
+                                  Korg.default_partition_funcs, ξ, cntm; cutoff_threshold=1.0)
+        end
     end
 
     species = all_specs[1]
-    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, wls), α .* cutoff_alpha,
-                                   (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))), 0.0)
+    itp = extrapolate(interpolate!((vmic_vals, log_temp_vals, log_perturber_density, collect(wls)),
+                                   α .* cutoff_alpha,
+                                   (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()),
+                                    Gridded(Linear()))), 0.0)
     MolecularCrossSection(wls, itp, species)
 end
 
@@ -91,14 +98,18 @@ function Base.show(io::IO, sigma::MolecularCrossSection)
 end
 
 """
-    interpolate_molecular_cross_sections!(α, molecular_cross_sections, λs, Ts, vmic, number_densities)
+    interpolate_molecular_cross_sections!(α, molecular_cross_sections, λs, Ts, vmic, 
+                                          number_densities, perturber_densities)
 
 Interpolate the molecular cross-sections and add them to the total absorption coefficient `α`.
+`perturber_densities` should be a vector of total perturber number densities (H2 + He) per
+atmospheric layer, in cm^-3.
 See [`MolecularCrossSection`](@ref) for more information.
 """
 function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_cross_sections,
                                                λs::Wavelengths, Ts, vmic,
-                                               number_densities) where R<:Real
+                                               number_densities,
+                                               perturber_densities) where R<:Real
     if length(molecular_cross_sections) == 0
         return
     end
@@ -108,7 +119,9 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
         # way uses less memory.
         for i in 1:size(α, 1)
             vm = vmic isa Number ? vmic : vmic[i]
-            α[i, :] .+= sigma.itp.(vm, log10(Ts[i]), λs) * number_densities[sigma.species][i]
+            log_pd = log10(perturber_densities[i])
+            α[i, :] .+= sigma.itp.(vm, log10(Ts[i]), log_pd, λs) *
+                        number_densities[sigma.species][i]
         end
     end
 end
@@ -133,6 +146,7 @@ function save_molecular_cross_section(filename, cross_section)
         HDF5.write(file, "wls", [(l[begin], step(l), l[end]) for l in wls.wl_ranges])
         HDF5.write(file, "vmic_vals", collect(itp.itp.knots[1]))
         HDF5.write(file, "T_vals", collect(itp.itp.knots[2]))
+        HDF5.write(file, "log_perturber_density_vals", collect(itp.itp.knots[3]))
         HDF5.write(file, "vals", itp.itp.coefs)
         HDF5.write(file, "species", string(species))
     end
@@ -157,12 +171,13 @@ function read_molecular_cross_section(filename)
         end |> Wavelengths
         vmic_vals = HDF5.read(file, "vmic_vals")
         logT_vals = HDF5.read(file, "T_vals")
+        log_perturber_density_vals = HDF5.read(file, "log_perturber_density_vals")
         # doesn't actually matter that it's mmaped because it's passed to interpolate!
         alpha_vals = HDF5.readmmap(file["vals"])
         species = Species(HDF5.read(file, "species"))
 
-        itp = extrapolate(interpolate!((vmic_vals, logT_vals, wls), alpha_vals,
-                                       (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
+        itp = extrapolate(interpolate!((vmic_vals, logT_vals, log_perturber_density_vals, collect(wls)), alpha_vals,
+                                       (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
                           0.0)
 
         MolecularCrossSection(wls, itp, species)

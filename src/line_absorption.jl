@@ -74,6 +74,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
             Γ = Vector{eltype(α)}(undef, size(temps))
             γ = Vector{eltype(α)}(undef, size(temps))
             σ = Vector{eltype(α)}(undef, size(temps))
+            gamma_total_lorentz = Vector{eltype(α)}(undef, size(temps))
             amplitude = Vector{eltype(α)}(undef, size(temps))
             levels_factor = Vector{eltype(α)}(undef, size(temps))
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
@@ -88,7 +89,35 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 # sum up the damping parameters.  These are FWHM (γ is usually the Lorentz HWHM) values in
                 # angular, not cyclical frequency (ω, not ν).
                 Γ .= line.gamma_rad
-                if !ismolecule(line.species)
+                if !ismissing(line.gamma_mol_lorentz) && !ismissing(line.n_exp)
+                    # Mode 2: Molecular Lorentz broadening with temperature dependence
+                    # Sum contributions from H2 (index 1) and He (index 2)
+                    # Scale as: gamma * (T_ref / T)^n_exp
+                    # in Barton et al. 2017 eqn 1 as well as Gharib-Nezhad et al. 2021 eqn 2.
+                    # Due to convention, these equations have opposite signs for the temperature 
+                    # exponent n_exp, but we correct for that here.
+                    T_ref = 296 # Kelvin
+                    # Barton and Gharib-Nezhad also define the pressure dependence differently
+                    # where the former defines gamma as cm^-1 and the pressure as (p / p_ref)
+                    # and the latter with gamma as cm^-1 bar^-1 multiplied by the pressure in bar. 
+                    # However, in Barton et al. they set the reference pressure to unity so these
+                    # are equivalent. I'm leaving p_ref in as a reminder.
+                    p_ref = 1 # barye
+                    # Sum over perturbers: H2 and He
+                    # gamma_total_lorentz still in cm^-1 here
+                    @. gamma_total_lorentz = line.gamma_mol_lorentz[1] *
+                                             (T_ref / temps)^(line.n_exp[1]) *
+                                             (n_densities[species"H2"] * kboltz_cgs * temps /
+                                              p_ref)  # H2 contribution
+                    @. gamma_total_lorentz += line.gamma_mol_lorentz[2] *
+                                              (T_ref / temps)^(line.n_exp[2]) *
+                                              (n_densities[species"He"] * kboltz_cgs * temps /
+                                               p_ref)  # He contribution
+                    # sum in lorentz and convert to frequency s^-1
+                    @. Γ += gamma_total_lorentz * c_cgs * 4π #gamma_total_lorentz^-1 * (c_cgs * 4π) / line.wl^2
+                elseif !ismolecule(line.species)
+                    # Mode 1: Normal broadening as per the Korg paper
+                    # with default Stark and van der Waals broadening
                     @. Γ += nₑ * scaled_stark.(line.gamma_stark, temps)
                     Γ .+= n_eff_vdW .* scaled_vdW.(Ref(line.vdW), m, temps)
                 end
