@@ -2,6 +2,7 @@ name: Benchmark
 
 on:
   pull_request:
+    types: [ opened, synchronize, labeled ]
     branches: [ main ]   # change if your default branch differs
   workflow_dispatch:     # allows manual triggering for PRs from forks
 
@@ -11,6 +12,7 @@ permissions:
 jobs:
   bench:
     runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'run-benchmarks')
     strategy:
       matrix:
         julia-version: ["1"] # could also add 1.10 (LTS), but not needed
