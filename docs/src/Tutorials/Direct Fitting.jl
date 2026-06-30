@@ -84,11 +84,13 @@ ylabel(L"χ^2")
 xlabel("optimizer step")
 gcf() # hide #md
 
-# Here's the temperature as a function of the optimizer step.
+# Here's the infinity norm of the gradient as a function of the optimizer step, which approaches zero
+# as the fit converges.
 
 figure(; figsize=(3, 3)) # hide #md
-plot([t["Teff"] for t in fit_result.trace])
-ylabel(L"$T_\mathrm{eff}$ [K]")
+plot([t["g_norm"] for t in fit_result.trace])
+yscale("log")
+ylabel(L"\|\nabla \chi^2\|_\infty")
 xlabel("optimizer step")
 gcf() # hide #md
 
@@ -135,10 +137,11 @@ na_result.best_fit_params["Na"]
 
 # # Parameter uncertainty
 #
-# Under the hood, [`Korg.Fit.fit_spectrum`](@ref) uses
-# [LBFGS](https://en.wikipedia.org/wiki/Limited-memory_BFGS) to find the best-fit parameters.
-# That means it produces an estimate of the Hessian of the likelihood function, and thus the
-# covariance matrix of the best-fit parameters.
+# Under the hood, [`Korg.Fit.fit_spectrum`](@ref) uses the
+# [Levenberg-Marquardt](https://en.wikipedia.org/wiki/Levenberg%E2%80%93Marquardt_algorithm)
+# algorithm to find the best-fit parameters. As a byproduct, it computes the Jacobian of the model
+# at the best-fit point, which yields a Gauss-Newton estimate of the covariance matrix of the
+# best-fit parameters.
 
 fit_result.covariance
 

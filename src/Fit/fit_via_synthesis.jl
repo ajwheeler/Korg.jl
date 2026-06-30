@@ -1,58 +1,37 @@
-using LineSearches, Optim
+using LsqFit
+using LinearAlgebra: cond
 using Interpolations: linear_interpolation, Line
 
-# used by scale and unscale for some parameters
-function tan_scale(p, lower, upper)
-    if !(lower <= p <= upper)
-        throw(ArgumentError("p=$p is not in the range $lower to $upper"))
-    end
-    tan(π * (((p - lower) / (upper - lower)) - 0.5))
+# Bounds for each paramter the fit_spectrum can fit. These are passed to the Levenberg-Marquardt 
+# optimizer, and also define the linear scaling that the optimization works in (see scale_param).
+const param_bounds = Dict("epsilon" => (0.0, 1.0),
+                          "cntm_offset" => (-0.5, 0.5),
+                          "cntm_slope" => (-0.1, 0.1),
+                          # These limits come from what is supported by Korg.interpolate_marcs.
+                          "Teff" => (2800.0, 8000.0),
+                          "logg" => (-0.5, 5.5),
+                          "M_H" => (-5.0, 1.0),
+                          # this allows all the atmospheres supported by the grid, but also many that are not.
+                          # alpha will be clamped to the nearest supported value.
+                          "alpha_H" => (-3.5, 2.0),
+                          # vmic and vsini must be non-negative. The lower bound on vmic is a small
+                          # positive number to avoid null derivatives.
+                          "vmic" => (1e-3, 250.0),
+                          "vsini" => (0.0, 250.0),
+                          map(Korg.atomic_symbols) do el
+                              el => (-10.0, +4.0)
+                          end...)
+
+# The optimizer works in scaled coordinates, in which each parameter varies between 0 and 1. This is 
+# to make the parameters comparably sized, so that convergence conditions in terms of x_tol are 
+# sensible.
+function scale_param(p, name)
+    (lower, upper) = param_bounds[name]
+    (p - lower) / (upper - lower)
 end
-tan_unscale(p, lower, upper) = (atan(p) / π + 0.5) * (upper - lower) + lower
-
-# these are the parameters which are scaled by tan_scale
-const tan_scale_params = Dict("epsilon" => (0, 1),
-                              "cntm_offset" => (-0.5, 0.5),
-                              "cntm_slope" => (-0.1, 0.1),
-                              # we can't get these directly from Korg.get_atmosphere_archive() because it will fail in the
-                              # test environment, but they are simply the boundaries of the SDSS marcs grid used by
-                              # Korg.interpolate_marcs.
-                              "Teff" => (2800, 8000),
-                              "logg" => (-0.5, 5.5),
-                              "M_H" => (-5, 1),
-                              # this allows all the atmospheres supported by the grid, but also many that are not.
-                              # alpha will be clamped to the nearest supported value.
-                              "alpha_H" => (-3.5, 2),
-                              map(Korg.atomic_symbols) do el
-                                  el => (-10, +4)
-                              end...)
-
-"""
-Rescale each parameter so that it lives on (-∞, ∞).
-"""
-scale(params::Dict) = map(collect(params)) do (name, p)
-    name => if name in keys(tan_scale_params)
-        tan_scale(p, tan_scale_params[name]...)
-    elseif name in ["vmic", "vsini"]
-        tan_scale(sqrt(p), 0, sqrt(250))
-    else
-        @error "$name is not a parameter I know how to scale."
-    end
-end |> Dict
-
-"""
-Unscale each parameter so that it lives on the appropriate range instead of (-∞, ∞).
-"""
-function unscale(params::Dict)
-    map(collect(params)) do (name, p)
-        name => if name in keys(tan_scale_params)
-            tan_unscale(p, tan_scale_params[name]...)
-        elseif name in ["vmic", "vsini"]
-            tan_unscale(p, 0, sqrt(250))^2
-        else
-            @error "$name is not a parameter I know how to unscale."
-        end
-    end |> Dict
+function unscale_param(p, name)
+    (lower, upper) = param_bounds[name]
+    p * (upper - lower) + lower
 end
 
 """
@@ -93,15 +72,14 @@ function postprocessed_synthetic_spectrum(synth_wls, linelist, LSF_matrix, param
     flux = try
         synthetic_spectrum(synth_wls, linelist, LSF_matrix, params, synthesis_kwargs)
     catch e
-        if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError)
-            # chemical equilibrium errors happen for a few unphysical model atmospheres
-
-            # LazyMultilinearInterpError happens when logg is oob for the low-Z atmosphere grid
-
-            # This is a nice huge chi2 value, but not too big.  It's what you get if
-            # difference at each pixel in the (rectified) spectra is 1, which is
-            # more-or-less an upper bound.
-            return sum(1 ./ obs_err .^ 2)
+        if (e isa Korg.ChemicalEquilibriumError) || (e isa Korg.LazyMultilinearInterpError) ||
+           (e isa Korg.AtmosphereInterpolationError)
+            # These errors happen at a few parameter values that synthesis can't handle.
+            # LazyMultilinearInterpError: happens when logg is out of bounds for the low-Z 
+            # atmosphere grid (can't be expressed with box constraints.) The other two are rarer 
+            # failure modes.
+            # Return Inf as the residuals at all pixels, to ensure the step is rejected.
+            return fill(oftype(float(first(obs_err)), Inf), length(obs_flux))
         else
             rethrow(e)
         end
@@ -272,14 +250,18 @@ values are used.
   - `time_limit` is the maximum number of seconds to spend in the optimizer. (default: `10_000`).
     The optimizer will only checks against the time limit after each step, so the actual wall time
     may exceed this limit.
-  - `precision` specifies the tolerance for the solver to accept a solution. The solver operates on
-    transformed parameters, so `precision` doesn't translate straightforwardly to Teff, logg, etc, but
-    the default value, `1e-4`, provides a theoretical worst-case tolerance of about 0.15 K in `Teff`,
-    0.0002 in `logg`, 0.0001 in `M_H`, and 0.0004 in detailed abundances. In practice the precision
-    achieved by the optimizer is about 10x bigger than this.
+  - `precision` specifies the tolerance for the solver to accept a solution (passed to the
+    Levenberg-Marquardt optimizer as `x_tol`). The solver operates on scaled parameters, in which
+    each parameter's allowed range maps onto `[0, 1]`, so `precision` is roughly a fraction of each
+    parameter's full range. The default value, `1e-4`, corresponds to a worst-case tolerance of about
+    0.5 K in `Teff`, 0.0006 in `logg`, 0.0006 in `M_H`, and 0.0014 in detailed abundances. In
+    practice the precision achieved by the optimizer is about 10x bigger than this. TODO
   - `postprocess` can be used to arbitrarilly transform the synthesized (and LSF-convolved) spectrum
     before calculating the chi2.  It should take the form `postprocess(flux, data, err)` and write
     its changes in-place to the flux array.
+  - `condition_number_warning_threshold` (default: `1e3`): if the condition
+    number of the approximation of the covariance at the solution (see the `condition_number` field
+    of the returned object) exceeds this, a warning is emitted that the fit is poorly constrained.
   - `LSF_matrix`: this can be provedided along with `synthesis_wls` in place of specifying `R` if
     you have a precomputed custom LSF matrix.
   - `synthesis_wls`: see `LSF_matrix` above. This can be a Korg.Wavelengths object or any arguments
@@ -297,61 +279,74 @@ A NamedTuple with the following fields:
   - `best_fit_flux`: the best-fit flux, with LSF applied, resampled, and rectified.
   - `obs_wl_mask`: a bitmask for `obs_wls` which selects the wavelengths used in the fit (i.e. those
     in the `windows`)
-  - `solver_result`: the result object from `Optim.jl`
-  - `trace`: a vector of NamedTuples, each of which contains the parameters at each step of the
-    optimization. This is empty for single parameter fits, because the underlying solver doesn't
-    supply it.
+  - `solver_result`: the result object from `LsqFit.jl`
+  - `trace`: a vector of Dicts, one per optimization step, each containing the χ² (`"chi2"`), the
+    infinity norm of the gradient (`"g_norm"`), and the Levenberg-Marquardt damping parameter
+    (`"lambda"`) at that step.
   - `covariance`: a pair `(params, Σ)` where `params` is vector of parameter name (providing an
     order), and `Σ` is an estimate of the covariance matrix of the parameters.  It is the approximate
     inverse hessian of the log likelihood at the best-fit parameter calculated by the BGFS algorithm,
     and should be interpreted with caution.
-
-!!! tip
-
-    This function takes a long time to compile the first time it is called. Compilation performance
-    is significantly better on Julia 1.10+ than previous versions, so if you are using an older
-    version of Julia, you may want to upgrade.
+  - `condition_number`: the condition number of the weighted Gauss-Newton approximation to the
+    Hessian at the solution, in the optimizer's scaled coordinates. A large value (`> 1e3`, which
+    also triggers a warning) indicates a poorly-constrained, near-degenerate fit whose best-fit
+    parameters may be unreliable even when χ² is small.
 """
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                       windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
-                      time_limit=10_000, adjust_continuum=false, synthesis_kwargs...)
+                      time_limit=10_000, adjust_continuum=false,
+                      condition_number_warning_threshold=1e3, synthesis_kwargs...)
     # wavelengths, windows and LSF
-    synthesis_wls, obs_wl_mask, LSF_matrix = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls,
-                                                                        LSF_matrix, R, windows,
-                                                                        wl_buffer)
+    (synthesis_wls, obs_wl_mask,
+     LSF_matrix) = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows,
+                                              wl_buffer)
 
     _validate_observed_spectrum(obs_wls, obs_flux, obs_err, obs_wl_mask)
 
     initial_guesses, fixed_params = validate_params(initial_guesses, fixed_params)
-    ps = collect(pairs(scale(initial_guesses)))
+    ps = collect(pairs(initial_guesses))
     params_to_fit = first.(ps)
-    p0 = last.(ps) # the initial guess as a vector of scaled values
+    # the initial guess in scaled coords
+    p0 = [scale_param(p, name) for (name, p) in ps]
 
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
-    chi2 = let obs_flux = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
+    # the model that LsqFit optimizes: given scaled parameters, return the synthesized flux. 
+    model = let obs_flux = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
         obs_wls = obs_wls[obs_wl_mask], synthesis_wls = synthesis_wls, LSF_matrix = LSF_matrix,
         linelist = linelist, params_to_fit = params_to_fit, fixed_params = fixed_params
 
-        function chi2(scaled_p)
-            # this extremely weak prior helps to regularize the optimization
-            negative_log_scaled_prior = sum(@. scaled_p^2 / 100^2)
-            guess = unscale(Dict(params_to_fit .=> scaled_p))
+        function model(_, scaled_p)
+            guess = Dict(name => unscale_param(p, name)
+                         for (name, p) in zip(params_to_fit, scaled_p))
             params = merge(guess, fixed_params)
-            flux = postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
-                                                    synthesis_kwargs, obs_wls, windows, obs_flux,
-                                                    obs_err, postprocess, adjust_continuum)
-            sum(((flux .- obs_flux) ./ obs_err) .^ 2) + negative_log_scaled_prior
+            postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
+                                             synthesis_kwargs, obs_wls, windows, obs_flux,
+                                             obs_err, postprocess, adjust_continuum)
         end
     end
 
     # call optimization library
-    res = optimize(chi2, p0, BFGS(; linesearch=LineSearches.BackTracking(; maxstep=1.0)),
-                   Optim.Options(; x_abstol=precision, time_limit=time_limit, store_trace=true,
-                                 extended_trace=true); autodiff=:forward)
+    lower_bounds = zeros(length(params_to_fit))
+    upper_bounds = ones(length(params_to_fit))
+    result = curve_fit(model,
+                       obs_wls[obs_wl_mask],
+                       obs_flux[obs_wl_mask],
+                       1 ./ obs_err[obs_wl_mask] .^ 2, # weights are inverse variance
+                       p0;
+                       lower=lower_bounds,
+                       upper=upper_bounds,
+                       x_tol=precision,
+                       maxTime=Float64(time_limit),
+                       store_trace=true,
+                       autodiff=:forwarddiff)
+    best_fit_params = Dict(name => unscale_param(p, name)
+                           for (name, p) in zip(params_to_fit, result.param))
 
-    best_fit_params = unscale(Dict(params_to_fit .=> res.minimizer))
+    # raise warnings if the fit seems bad, and get the condition number of Σ
+    condition_number = sanity_check_result(result, condition_number_warning_threshold,
+                                           params_to_fit)
 
     best_fit_flux = try
         full_solution = merge(best_fit_params, fixed_params)
@@ -364,29 +359,21 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         rethrow(e)
     end
 
-    trace = map(res.trace) do t
-        unscaled_params = unscale(Dict(params_to_fit .=> t.metadata["x"]))
-        unscaled_params["chi2"] = t.value
-        unscaled_params
+    trace = map(result.trace) do t
+        Dict("chi2" => t.value, "g_norm" => t.g_norm, "lambda" => t.metadata["lambda"])
     end
 
-    invH = let
-        # derivate relating the scaled parameters to the unscaled parameters
-        # (used to convert the approximate hessian to a covariance matrix in the unscaled params)
-        dp_dscaledp = map(res.minimizer, params_to_fit) do scaled_param, param_name
-            ForwardDiff.derivative(scaled_param) do scaled_param
-                unscale(Dict(param_name => scaled_param))[param_name]
-            end
-        end
-        # the fact that the scaling is a diagonal operation means that we can do this as an
-        # element-wise product.  If we think of ds/dp as a (diagonal) matrix, this is equivalent to
-        # (ds/dp)^T * invH * (ds/dp)
-        invH_scaled = res.trace[end].metadata["~inv(H)"]
-        invH_scaled .* dp_dscaledp .* dp_dscaledp'
+    # covariance of the best-fit parameters, from the Gauss-Newton approximation, computed by from 
+    # the Jacobian at the solution. TODO audit
+    scales = map(params_to_fit) do name
+        l, u = param_bounds[name]
+        l-u
     end
+    Σ = vcov(result) .* scales .* scales'
 
     (best_fit_params=best_fit_params, best_fit_flux=best_fit_flux, obs_wl_mask=obs_wl_mask,
-     solver_result=res, trace=trace, covariance=(params_to_fit, invH))
+     solver_result=result, trace=trace, covariance=(params_to_fit, Σ),
+     condition_number=condition_number)
 end
 
 """
@@ -468,4 +455,26 @@ function _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windo
 
         synthesis_wls, obs_wl_mask, LSF_matrix
     end
+end
+
+function sanity_check_result(result, condition_number_warning_threshold, params_to_fit)
+    # Diagnose whether the problem is degenerate. 
+    # J' J is the inverse convariance of the scaled params.
+    condition_number = cond(result.jacobian' * result.jacobian)
+    if condition_number > condition_number_warning_threshold
+        @warn "The fit is poorly constrained (condition number of JᵀWJ is $condition_number, " *
+              "above the condition_number_warning_threshold of " *
+              "$condition_number_warning_threshold). The best-fit parameters may be unreliable: " *
+              "different parameter combinations likely produce nearly indistinguishable spectra. " *
+              "Consider fitting fewer parameters, or using more/broader wavelength windows to break " *
+              "the degeneracy. (Raise condition_number_warning_threshold to silence this.)"
+    end
+    # flag parameters that ended up pinned against their box bounds, which also indicates a bad fit
+    pinned = [name for (name, p) in zip(params_to_fit, result.param)
+              if p < 1e-4 || p > 1 - 1e-4]
+    if !isempty(pinned)
+        @warn "These parameters converged to (or very near) their bounds: $pinned. This usually " *
+              "means the fit is under-constrained or the bounds are too tight for this data."
+    end
+    condition_number
 end

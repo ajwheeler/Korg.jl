@@ -1,6 +1,7 @@
 using DiffResults, Trapz
 using Statistics: mean, std
 using Optim
+using LineSearches
 
 """
     calculate_EWs(atm, linelist, A_X; kwargs...)

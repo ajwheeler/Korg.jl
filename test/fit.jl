@@ -3,12 +3,16 @@ using Random
 # print the timing info because this is kinda slow
 @testset "Fit" verbose=true showtiming=true begin
     @testset "fit_spectrum" begin
-        @testset "parameter scaling" begin
-            params = Dict("Teff" => 3200.0, "logg" => 4.5, "M_H" => -2.0, "vmic" => 3.2,
-                          "vsini" => 10.0, "O" => -1.0)
-            sparams = Korg.Fit.scale(params)
-            uparams = Korg.Fit.unscale(sparams)
-            @test all(isapprox.(values(uparams), values(params); rtol=1e-3))
+        @testset "parameter bounds" begin
+            # every parameter that can be fit should have bounds, with lower < upper, and an
+            # initial guess in the middle of the range should be strictly inside them
+            for name in ["Teff", "logg", "M_H", "alpha_H", "vmic", "vsini", "epsilon", "O", "Fe"]
+                lower, upper = Korg.Fit.get_param_bounds(name)
+                @test lower < upper
+            end
+            # vmic and vsini must be non-negative
+            @test Korg.Fit.get_param_bounds("vmic")[1] >= 0
+            @test Korg.Fit.get_param_bounds("vsini")[1] >= 0
         end
 
         @testset "fit param validation" begin
@@ -98,7 +102,7 @@ using Random
 
             @testset "fit test" begin
                 result = Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
-                                               precision=1e-2, # loose tolerances for speed
+                                               precision=1e-4,
                                                postprocess=perturb!,
                                                adjust_continuum=true,
                                                R=R,
@@ -118,6 +122,37 @@ using Random
                 # check that best-fit flux is within 1% of the true flux at all pixels
                 @test assert_allclose(fake_data[result.obs_wl_mask], result.best_fit_flux,
                                       rtol=0.001)
+
+                # this is a well-constrained fit, so the condition number should be modest (well
+                # below the 1e3 threshold that triggers the degeneracy warning)
+                @test result.condition_number < 1e3
+            end
+
+            @testset "condition number flags degenerate fits" begin
+                # Fit the europium abundance, which the data here can't constrain (these narrow
+                # windows contain no Eu features strong enough to register), alongside Teff. The Eu
+                # column of the Jacobian is then ~zero, so JᵀWJ is wildly ill-conditioned and Eu runs
+                # off to its bound. We want fit_spectrum to surface this via a large condition_number
+                # (and a warning) rather than silently returning a meaningless Eu.
+                degen_p0 = (; Teff=5000.0, Eu=0.0)
+                degen_result = @test_logs (:warn, r"poorly constrained") match_mode=:any begin
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, degen_p0, fixed_params;
+                                          precision=1e-4, postprocess=perturb!,
+                                          adjust_continuum=true, R=R, windows=windows)
+                end
+                @test degen_result.condition_number > 1e3
+
+                # raising condition_number_warning_threshold above the actual condition number
+                # suppresses the poorly-constrained warning. (The separate "converged to bounds"
+                # warning for Eu still fires, so we check the specific message is absent rather than
+                # that no warnings occur.)
+                logs, _ = Test.collect_test_logs(min_level=Logging.Warn) do
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, degen_p0, fixed_params;
+                                          precision=1e-4, postprocess=perturb!,
+                                          adjust_continuum=true, R=R, windows=windows,
+                                          condition_number_warning_threshold=Inf)
+                end
+                @test !any(occursin("poorly constrained", string(l.message)) for l in logs)
             end
 
             # get rid of the bad pixels to make it easer to test the error messages below
