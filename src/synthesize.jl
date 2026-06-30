@@ -40,6 +40,19 @@ The result of a synthesis. Returned by [`synthesize`](@ref).
     subspectra::Vector
 end
 
+function Base.show(io::IO, r::SynthesisResult)
+    subs = r.subspectra
+    if length(subs) <= 3
+        ranges = join([string(round(r.wavelengths[s[1]], digits=2), "–", round(r.wavelengths[s[end]], digits=2), " Å")
+                       for s in subs], ", ")
+    else
+        ranges = string(round(r.wavelengths[subs[1][1]], digits=2), "–",
+                        round(r.wavelengths[subs[end][end]], digits=2), " Å (",
+                        length(subs), " subspectra)")
+    end
+    print(io, "SynthesisResult($(ranges))")
+end
+
 """
     synthesize(atm, linelist, A_X, (λ_start, λ_stop); kwargs... )
 
