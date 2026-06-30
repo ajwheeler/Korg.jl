@@ -4,12 +4,12 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/" # Location of package manifests
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     cooldown:
       default-days: 30
   - package-ecosystem: "julia"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     cooldown:
       default-days: 30
