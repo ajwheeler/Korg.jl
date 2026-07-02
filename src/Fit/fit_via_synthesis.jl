@@ -299,8 +299,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                       condition_number_warning_threshold=1e3, synthesis_kwargs...)
     # wavelengths, windows and LSF
     (synthesis_wls, obs_wl_mask,
-     LSF_matrix) = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows,
-                                              wl_buffer)
+    LSF_matrix) = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows,
+                                             wl_buffer)
 
     _validate_observed_spectrum(obs_wls, obs_flux, obs_err, obs_wl_mask)
 
@@ -348,16 +348,10 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     condition_number = sanity_check_result(result, condition_number_warning_threshold,
                                            params_to_fit)
 
-    best_fit_flux = try
-        full_solution = merge(best_fit_params, fixed_params)
-        postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, full_solution,
-                                         synthesis_kwargs, obs_wls[obs_wl_mask], windows,
-                                         obs_flux[obs_wl_mask], obs_err[obs_wl_mask],
-                                         postprocess, adjust_continuum)
-    catch e
-        println(stderr, "Exception while synthesizing best-fit spectrum")
-        rethrow(e)
-    end
+    # recover the best-fit flux from the solver's stored residuals rather than re-synthesizing.
+    # LsqFit stores resid = √wt .* (model - obs_flux) evaluated at the converged parameters, and we
+    # pass wt = 1 ./ obs_err.^2, so model = resid .* obs_err + obs_flux.
+    best_fit_flux = result.resid .* obs_err[obs_wl_mask] .+ obs_flux[obs_wl_mask]
 
     trace = map(result.trace) do t
         Dict("chi2" => t.value, "g_norm" => t.g_norm, "lambda" => t.metadata["lambda"])
@@ -367,7 +361,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
     # the Jacobian at the solution. TODO audit
     scales = map(params_to_fit) do name
         l, u = param_bounds[name]
-        l-u
+        l - u
     end
     Σ = vcov(result) .* scales .* scales'
 
