@@ -45,7 +45,7 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
 
     # used more than once
     nH_I = number_densities[species"H_I"]
-    invU_H_I = partition_funcs[species"H I"](log(T))
+    invU_H_I = 1 / partition_funcs[species"H I"](log(T))
 
     # Hydrogen continuum absorption
     # note: inclusion of He I ndens below is NOT a typo
