@@ -208,14 +208,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     abs_abundances = @. 10^(A_X - 12) # n(X) / n_tot
     abs_abundances ./= sum(abs_abundances) #normalize so that sum(n(X)/n_tot) = 1
 
-    #float-like type general to handle dual numbers
-    α_type = promote_type(eltype(atm.layers).parameters..., eltype(linelist).parameters...,
-                          eltype(wls), eltype(vmic), typeof.(abs_abundances)...)
-    #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α = Matrix{α_type}(undef, length(atm.layers), length(wls))
-    # each layer's absorption at reference λ. This isn't used with the "anchored" τ scheme.
-    α_ref = Vector{α_type}(undef, length(atm.layers))
-    triples = map(enumerate(atm.layers)) do (i, layer)
+    layer_results = map(enumerate(atm.layers)) do (i, layer)
         nₑ, n_dict = if isnothing(use_chemical_equilibrium_from)
             chemical_equilibrium(layer.temp, layer.number_density,
                                  layer.electron_number_density,
@@ -233,24 +226,40 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         α_cntm_vals = reverse(total_continuum_absorption(eachfreq(cntm_wls), layer.temp, nₑ, n_dict,
                                                          partition_funcs))
         α_cntm_layer = linear_interpolation(cntm_wls, α_cntm_vals)
-        α[i, :] .= α_cntm_layer(wls)
+        α_row = α_cntm_layer(wls)
 
-        if tau_scheme == "anchored"
-            α_ref[i] = total_continuum_absorption([c_cgs / atm.reference_wavelength], layer.temp,
-                                                  nₑ, n_dict,
-                                                  partition_funcs)[1]
+        α_ref_val = if tau_scheme == "anchored"
+            total_continuum_absorption([c_cgs / atm.reference_wavelength], layer.temp,
+                                       nₑ, n_dict,
+                                       partition_funcs)[1]
+        else
+            zero(eltype(α_row))
         end
 
-        nₑ, n_dict, α_cntm_layer
+        (; nₑ, n_dict, α_cntm_interp=α_cntm_layer, α_row, α_ref_val)
     end
-    nₑs = first.(triples)
+
+    α_eltype = eltype(first(layer_results).α_row)
+    if !isempty(linelist)
+        # typeof(first(...)) on an actual value is always a concrete DataType, so .parameters is 
+        # safe, unlike eltype(Line[])
+        α_eltype = promote_type(α_eltype, typeof(first(linelist)).parameters...)
+    end
+    #the absorption coefficient, α, for each wavelength and atmospheric layer
+    α = Matrix{α_eltype}(undef, length(atm.layers), length(wls))
+    for (i, r) in enumerate(layer_results)
+        α[i, :] .= r.α_row
+    end
+    # each layer's absorption at reference λ
+    α_ref = α_eltype.(getproperty.(layer_results, :α_ref_val))
+    nₑs = getproperty.(layer_results, :nₑ)
     #put number densities in a dict of vectors, rather than a vector of dicts.
-    n_dicts = getindex.(triples, 2)
+    n_dicts = getproperty.(layer_results, :n_dict)
     number_densities = Dict([spec => [n[spec] for n in n_dicts]
                              for spec in keys(n_dicts[1])
                              if spec != species"H III"])
     #vector of continuum-absorption interpolators
-    α_cntm = last.(triples)
+    α_cntm = getproperty.(layer_results, :α_cntm_interp)
 
     # line contributions to α5
     if tau_scheme == "anchored"

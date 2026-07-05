@@ -5,6 +5,12 @@
         Korg.PlanarAtmosphere(atm.layers[40:43], atm.reference_wavelength)
     end
 
+    @testset "empty linelist type" begin
+        # at one point this errored because of type shenanagans, even when 
+        # passing [] for the linelist worked fine.
+        synthesize(atm_small, Korg.Line[], format_A_X(), (6000, 6000))
+    end
+
     @testset "vmic specification" begin
         linelist = [Korg.Line(6000e-8, -1.0, Korg.species"Fe I", 0.3)]
 
