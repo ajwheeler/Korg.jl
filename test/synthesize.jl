@@ -8,7 +8,7 @@
     @testset "empty linelist type" begin
         # at one point this errored because of type shenanagans, even when 
         # passing [] for the linelist worked fine.
-        synthesize(atm_small, Korg.Line[], format_A_X(), (6000,6000))
+        synthesize(atm_small, Korg.Line[], format_A_X(), (6000, 6000))
     end
 
     @testset "vmic specification" begin

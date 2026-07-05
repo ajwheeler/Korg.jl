@@ -230,8 +230,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
 
         α_ref_val = if tau_scheme == "anchored"
             total_continuum_absorption([c_cgs / atm.reference_wavelength], layer.temp,
-                                      nₑ, n_dict,
-                                      partition_funcs)[1]
+                                       nₑ, n_dict,
+                                       partition_funcs)[1]
         else
             zero(eltype(α_row))
         end
@@ -239,10 +239,19 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
         (; nₑ, n_dict, α_cntm_interp=α_cntm_layer, α_row, α_ref_val)
     end
 
+    α_eltype = eltype(first(layer_results).α_row)
+    if !isempty(linelist)
+        # typeof(first(...)) on an actual value is always a concrete DataType, so .parameters is 
+        # safe, unlike eltype(Line[])
+        α_eltype = promote_type(α_eltype, typeof(first(linelist)).parameters...)
+    end
     #the absorption coefficient, α, for each wavelength and atmospheric layer
-    α = reduce(vcat, transpose.(getproperty.(layer_results, :α_row)))
+    α = Matrix{α_eltype}(undef, length(atm.layers), length(wls))
+    for (i, r) in enumerate(layer_results)
+        α[i, :] .= r.α_row
+    end
     # each layer's absorption at reference λ
-    α_ref = getproperty.(layer_results, :α_ref_val)
+    α_ref = α_eltype.(getproperty.(layer_results, :α_ref_val))
     nₑs = getproperty.(layer_results, :nₑ)
     #put number densities in a dict of vectors, rather than a vector of dicts.
     n_dicts = getproperty.(layer_results, :n_dict)
@@ -313,7 +322,6 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                     electron_number_density=nₑs, wavelengths=vcat(wls.wl_ranges_Å...),
                     subspectra=subspectrum_indices(wls))
 end
-
 
 """
     filter_linelist(linelist, wls, line_buffer)
