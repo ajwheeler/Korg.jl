@@ -194,11 +194,12 @@ end
 """
     fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params; kwargs...)
 
-Find the parameters and abundances that best match a rectified observed spectrum.
+Find the parameters and abundances that best match a rectified (continuum-normalized) observed
+spectrum.
 
 # Arguments:
 
-  - `obs_wls`: the wavelengths of the observed spectrum in any format accepted by synthesize
+  - `obs_wls`: the wavelengths of the observed spectrum, in any format accepted by synthesize
     (see [Wavelengths](https://ajwheeler.github.io/Korg.jl/stable/Wavelengths/))
   - `obs_flux`: the observed flux
   - `obs_err`: the uncertainty in the observed flux
@@ -208,10 +209,10 @@ Find the parameters and abundances that best match a rectified observed spectrum
   - `fixed_params`: a NamedTuple containing parameters to hold fixed during fitting (default: empty).
     See "Specifying parameters" below.
 
+# Specifying parameters
+
 `initial_guesses` and `fixed_params` can also be specified as Dicts instead of NamedTuples, which is
 more convenient when calling Korg from python.
-
-# Specifying parameters
 
 Parameters are specified as named tuples or dictionaries. Named tuples look like this:
 `(Teff=5000, logg=4.5, M_H=0.0)`.  Single-element named tuples require a semicolon: `(; Teff=5000)`.
@@ -238,11 +239,11 @@ values are used.
 
 # Keyword arguments
 
-  - `R`, the resolution of the observed spectrum. This is required.  It can be specified as a
-    function of wavelength, in which case it will be evaluated at the observed wavelengths.
-  - `windows` is a vector of wavelength pairs, each of which specifies a wavelength
-    "window" to synthesize and contribute to the total χ². If not specified, the entire spectrum is
-    used. Overlapping windows are automatically merged.
+  - `R`, the resolution of the observed spectrum. This is required, unless you specify `LSF_matrix`
+    directly.  It can be specified as a function of wavelength, in which case it will be evaluated
+    at the observed wavelengths.
+  - `windows` is a vector of wavelength pairs, specifying the range(s) to jointly fit. If `windows`
+    is not specified, the entire spectrum is used. Overlapping windows are automatically merged.
   - `adjust_continuum` (default: `false`) if true, adjust the continuum with the best-fit linear
     correction within each window, minimizing the chi-squared between data and model at every step
     of the optimization.
@@ -254,14 +255,14 @@ values are used.
     Levenberg-Marquardt optimizer as `x_tol`). The solver operates on scaled parameters, in which
     each parameter's allowed range maps onto `[0, 1]`, so `precision` is roughly a fraction of each
     parameter's full range. The default value, `1e-4`, corresponds to a worst-case tolerance of about
-    0.5 K in `Teff`, 0.0006 in `logg`, 0.0006 in `M_H`, and 0.0014 in detailed abundances. In
-    practice the precision achieved by the optimizer is about 10x bigger than this. TODO
-  - `postprocess` can be used to arbitrarilly transform the synthesized (and LSF-convolved) spectrum
+    0.5 K in `Teff`, 0.0006 in `logg`, 0.0006 in `M_H`, and 0.001 in detailed abundances.
+  - `postprocess` can be used to arbitrarilly transform the synthesized, LSF-convolved spectrum
     before calculating the chi2.  It should take the form `postprocess(flux, data, err)` and write
     its changes in-place to the flux array.
   - `condition_number_warning_threshold` (default: `1e3`): if the condition
-    number of the approximation of the covariance at the solution (see the `condition_number` field
-    of the returned object) exceeds this, a warning is emitted that the fit is poorly constrained.
+    number of the approximation of the covariance at the solution (the `condition_number` field of
+    the returned object) exceeds this value, a warning is emitted that the fit is
+    poorly-constrained.
   - `LSF_matrix`: this can be provedided along with `synthesis_wls` in place of specifying `R` if
     you have a precomputed custom LSF matrix.
   - `synthesis_wls`: see `LSF_matrix` above. This can be a Korg.Wavelengths object or any arguments
@@ -273,7 +274,7 @@ values are used.
 
 # Returns
 
-A NamedTuple with the following fields:
+A dict with the following fields:
 
   - `best_fit_params`: the best-fit parameters
   - `best_fit_flux`: the best-fit flux, with LSF applied, resampled, and rectified.
@@ -285,12 +286,12 @@ A NamedTuple with the following fields:
     (`"lambda"`) at that step.
   - `covariance`: a pair `(params, Σ)` where `params` is vector of parameter name (providing an
     order), and `Σ` is an estimate of the covariance matrix of the parameters.  It is the approximate
-    inverse hessian of the log likelihood at the best-fit parameter calculated by the BGFS algorithm,
+    inverse hessian of the log likelihood at the best-fit parameter calculated by the optimizer,
     and should be interpreted with caution.
   - `condition_number`: the condition number of the weighted Gauss-Newton approximation to the
-    Hessian at the solution, in the optimizer's scaled coordinates. A large value (`> 1e3`, which
-    also triggers a warning) indicates a poorly-constrained, near-degenerate fit whose best-fit
-    parameters may be unreliable even when χ² is small.
+    Hessian at the solution, in the optimizer's scaled coordinates. A large value indicates a
+    poorly-constrained, near-degenerate fit whose best-fit parameters may be unreliable even when
+    χ² is small.
 """
 function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fixed_params=(;);
                       windows=nothing, R=nothing, LSF_matrix=nothing, synthesis_wls=nothing,

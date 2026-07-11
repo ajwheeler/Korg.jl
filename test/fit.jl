@@ -1,4 +1,4 @@
-using Random
+using Random, FiniteDiff
 
 # print the timing info because this is kinda slow
 @testset "Fit" verbose=true showtiming=true begin
@@ -142,6 +142,38 @@ using Random
                                                                           err[obs_wl_mask],
                                                                           perturb!, true)
                 @test result.best_fit_flux ≈ resynthesized
+            end
+
+            @testset "FiniteDiff Hessian reproduces Σ" begin
+                synthesis_wls, obs_wl_mask, LSF_matrix = Korg.Fit._setup_wavelengths_and_LSF(obs_wls,
+                                                                                             nothing,
+                                                                                             nothing,
+                                                                                             R,
+                                                                                             windows,
+                                                                                             1.0)
+                _, validated_fixed = Korg.Fit.validate_params(p0, fixed_params)
+                masked_wls = obs_wls[obs_wl_mask]
+                masked_flux = fake_data[obs_wl_mask]
+                masked_err = err[obs_wl_mask]
+
+                # ½χ² as a function of the fitted params (in the order Σ uses them), holding the
+                # fixed/default params constant. Use the same synthesis pipeline the fit used. Σ is
+                # the inverse Hessian of this negative-log-likelihood, so inv(H) should reproduce it.
+                function neg_log_likelihood(θ)
+                    p = merge(validated_fixed, Dict(zip(params, θ)))
+                    model_spec = Korg.Fit.postprocessed_synthetic_spectrum(synthesis_wls, linelist,
+                                                                           LSF_matrix, p,
+                                                                           (;), masked_wls, windows,
+                                                                           masked_flux,
+                                                                           masked_err, perturb!,
+                                                                           true)
+                    1 / 2 * sum((model_spec .- masked_flux) .^ 2 ./ masked_err .^ 2)
+                end
+
+                θ_best = [result.best_fit_params[p] for p in params]
+                H = FiniteDiff.finite_difference_hessian(neg_log_likelihood, θ_best)
+
+                @test inv(H)≈Σ rtol=1e-5
             end
 
             # this is a well-constrained fit, so the condition number should be modest (well
