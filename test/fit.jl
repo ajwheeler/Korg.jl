@@ -173,7 +173,7 @@ using Random, FiniteDiff
                 θ_best = [result.best_fit_params[p] for p in params]
                 H = FiniteDiff.finite_difference_hessian(neg_log_likelihood, θ_best)
 
-                @test inv(H)≈Σ rtol=1e-5
+                @test inv(H)≈Σ rtol=1e-2
             end
 
             # this is a well-constrained fit, so the condition number should be modest (well

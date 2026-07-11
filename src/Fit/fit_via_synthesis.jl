@@ -358,8 +358,7 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
         Dict("chi2" => t.value, "g_norm" => t.g_norm, "lambda" => t.metadata["lambda"])
     end
 
-    # covariance of the best-fit parameters, from the Gauss-Newton approximation, computed by from 
-    # the Jacobian at the solution. TODO audit
+    # covariance of the best-fit parameters, computed from the Jacobian of the model at the solution
     scales = map(params_to_fit) do name
         l, u = param_bounds[name]
         l - u
