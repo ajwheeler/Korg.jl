@@ -140,10 +140,7 @@ na_result.best_fit_params["Na"]
 # Under the hood, [`Korg.Fit.fit_spectrum`](@ref) uses the
 # [Levenberg-Marquardt](https://en.wikipedia.org/wiki/Levenberg%E2%80%93Marquardt_algorithm)
 # algorithm to find the best-fit parameters. As a byproduct, it computes the Jacobian of the model
-# at the best-fit point, which yields a Gauss-Newton estimate of the covariance matrix of the
-# best-fit parameters.
+# at the best-fit point, which yields an estimate of the covariance matrix of the best-fit 
+# parameters.
 
 fit_result.covariance
-
-# We caution the user that this is a very rough estimate, likely
-# appropriate only for identifying pathological cases or the order of magnitude of the uncertainties.
