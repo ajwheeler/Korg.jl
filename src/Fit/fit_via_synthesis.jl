@@ -159,6 +159,14 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
               "may be removed in a future version of Korg."
     end
 
+    for (param, value) in [pairs(initial_guesses)...; pairs(fixed_params)...]
+        (lower, upper) = param_bounds[param]
+        if !(lower <= value <= upper)
+            throw(ArgumentError("$param = $value is outside the range supported by " *
+                                "Korg.Fit.fit_spectrum, $lower to $upper."))
+        end
+    end
+
     initial_guesses, fixed_params
 end
 
