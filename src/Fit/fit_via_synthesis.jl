@@ -313,19 +313,18 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     @assert length(initial_guesses)>0 "Must specify at least one parameter to fit."
 
-    # the model that LsqFit optimizes: given scaled parameters, return the synthesized flux. 
-    model = let obs_flux = obs_flux[obs_wl_mask], obs_err = obs_err[obs_wl_mask],
-        obs_wls = obs_wls[obs_wl_mask], synthesis_wls = synthesis_wls, LSF_matrix = LSF_matrix,
-        linelist = linelist, params_to_fit = params_to_fit, fixed_params = fixed_params
-
-        function model(_, scaled_p)
-            guess = Dict(name => unscale_param(p, name)
-                         for (name, p) in zip(params_to_fit, scaled_p))
-            params = merge(guess, fixed_params)
-            postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
-                                             synthesis_kwargs, obs_wls, windows, obs_flux,
-                                             obs_err, postprocess, adjust_continuum)
-        end
+    # the model that LsqFit optimizes: given scaled parameters, return the synthesized flux.
+    masked_obs_flux = obs_flux[obs_wl_mask]
+    masked_obs_err = obs_err[obs_wl_mask]
+    masked_obs_wls = obs_wls[obs_wl_mask]
+    function model(_, scaled_p)
+        guess = Dict(name => unscale_param(p, name)
+                     for (name, p) in zip(params_to_fit, scaled_p))
+        params = merge(guess, fixed_params)
+        postprocessed_synthetic_spectrum(synthesis_wls, linelist, LSF_matrix, params,
+                                         synthesis_kwargs, masked_obs_wls, windows,
+                                         masked_obs_flux, masked_obs_err, postprocess,
+                                         adjust_continuum)
     end
 
     # call optimization library
