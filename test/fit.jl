@@ -44,11 +44,16 @@ using Random, FiniteDiff
 
             # params outside the supported range should be rejected with an informative error,
             # whether they are initial guesses or fixed params
-            @test_throws "Teff = 2000.0 is outside" Korg.Fit.validate_params((Teff=2000, logg=4.5), (;))
-            @test_throws "Teff = 9000.0 is outside" Korg.Fit.validate_params((Teff=9000, logg=4.5), (;))
-            @test_throws "Teff = 2000.0 is outside" Korg.Fit.validate_params((; logg=4.5), (; Teff=2000))
-            @test_throws "vsini = -1.0 is outside" Korg.Fit.validate_params((Teff=4500, logg=4.5, vsini=-1), (;))
-            @test_throws "Fe = -20.0 is outsid" Korg.Fit.validate_params((Teff=4500, logg=4.5, Fe=-20), (;))
+            @test_throws "Teff = 2000.0 is outside" Korg.Fit.validate_params((Teff=2000, logg=4.5),
+                                                                             (;))
+            @test_throws "Teff = 9000.0 is outside" Korg.Fit.validate_params((Teff=9000, logg=4.5),
+                                                                             (;))
+            @test_throws "Teff = 2000.0 is outside" Korg.Fit.validate_params((; logg=4.5),
+                                                                             (; Teff=2000))
+            @test_throws "vsini = -1.0 is outside" Korg.Fit.validate_params((Teff=4500, logg=4.5,
+                                                                             vsini=-1), (;))
+            @test_throws "Fe = -20.0 is outsid" Korg.Fit.validate_params((Teff=4500, logg=4.5,
+                                                                          Fe=-20), (;))
             # NaN is not in any range, and would otherwise scale to NaN silently
             @test_throws "is outside the range" Korg.Fit.validate_params((Teff=NaN, logg=4.5), (;))
 
