@@ -282,7 +282,7 @@ values are used.
 
 # Returns
 
-A dict with the following fields:
+An object with the following fields:
 
   - `best_fit_params`: the best-fit parameters
   - `best_fit_flux`: the best-fit flux, with LSF applied, resampled, and rectified.
