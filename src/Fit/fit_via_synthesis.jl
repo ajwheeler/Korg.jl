@@ -312,8 +312,8 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
 
     # wavelengths, windows and LSF
     (synthesis_wls, obs_wl_mask,
-     LSF_matrix) = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows,
-                                              wl_buffer)
+    LSF_matrix) = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows,
+                                             wl_buffer)
 
     _validate_observed_spectrum(obs_wls, obs_flux, obs_err, obs_wl_mask)
 
