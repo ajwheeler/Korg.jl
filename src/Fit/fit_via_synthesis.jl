@@ -254,7 +254,7 @@ values are used.
     is not specified, the entire spectrum is used. Overlapping windows are automatically merged.
   - `adjust_continuum` (default: `false`) if true, adjust the continuum with the best-fit linear
     correction within each window, minimizing the chi-squared between data and model at every step
-    of the optimization.
+    of the optimization. Note that this will result in underestimated parameter uncertainty.
   - `wl_buffer` is the number of Å to add to each side of the synthesis range for each window.
   - `time_limit` is the maximum number of seconds to spend in the optimizer. (default: `10_000`).
     The optimizer will only checks against the time limit after each step, so the actual wall time
@@ -306,10 +306,14 @@ function fit_spectrum(obs_wls, obs_flux, obs_err, linelist, initial_guesses, fix
                       wl_buffer=1.0, precision=1e-4, postprocess=Returns(nothing),
                       time_limit=10_000, adjust_continuum=false,
                       condition_number_warning_threshold=1e3, synthesis_kwargs...)
+    if adjust_continuum
+        @warn "Note that setting adjust_continuum=true will result in underestimated best-fit parameter uncertainty."
+    end
+
     # wavelengths, windows and LSF
     (synthesis_wls, obs_wl_mask,
-    LSF_matrix) = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows,
-                                             wl_buffer)
+     LSF_matrix) = _setup_wavelengths_and_LSF(obs_wls, synthesis_wls, LSF_matrix, R, windows,
+                                              wl_buffer)
 
     _validate_observed_spectrum(obs_wls, obs_flux, obs_err, obs_wl_mask)
 
@@ -460,7 +464,7 @@ end
 
 function sanity_check_result(result, condition_number_warning_threshold, params_to_fit)
     # Diagnose whether the problem is degenerate. 
-    # J' J is the inverse convariance of the scaled params.
+    # J' J is the inverse covariance of the scaled params.
     condition_number = cond(result.jacobian' * result.jacobian)
     if condition_number > condition_number_warning_threshold
         @warn "The fit is poorly constrained (condition number of JᵀWJ is $condition_number, " *
