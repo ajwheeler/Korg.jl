@@ -1,7 +1,7 @@
 let # for namespace hygiene
-    ll, ul = 5000, 5100
+    ll, ul = 4000, 4500
     synth_wls = Korg.Wavelengths((ll, ul))
-    obs_wls = (ll-10):0.07:(ul+10)
+    obs_wls = (ll+10):0.07:(ul-10)
 
     linelist = filter(Korg.get_VALD_solar_linelist()) do line
         synth_wls[1] < line.wl < synth_wls[2] # each of these is in cm
@@ -14,8 +14,9 @@ let # for namespace hygiene
     M_H = 0.11
     logg = 4.52
 
-    _, flux, _ = Korg.synth(; Teff=Teff, logg=logg, M_H=M_H, linelist=linelist,
-                            wavelengths=synth_wls)
+    _, flux,
+    _ = Korg.synth(; Teff=Teff, logg=logg, M_H=M_H, linelist=linelist,
+                   wavelengths=synth_wls)
     LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, R)
     fake_data = LSF * flux
 
@@ -26,5 +27,5 @@ let # for namespace hygiene
     SUITE["fit"] = BenchmarkGroup()
     SUITE["fit"]["fit_spectrum"] = @benchmarkable Korg.Fit.fit_spectrum($obs_wls, $fake_data,
                                                                         $err, $linelist, $p0;
-                                                                        R=$R) setup=(GC.gc()) samples=1
+                                                                        R=($R)) setup=(GC.gc()) samples=1
 end

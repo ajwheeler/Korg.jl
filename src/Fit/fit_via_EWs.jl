@@ -1,6 +1,5 @@
 using DiffResults, Trapz
 using Statistics: mean, std
-using Optim
 
 """
     calculate_EWs(atm, linelist, A_X; kwargs...)
@@ -251,35 +250,36 @@ end
 Find stellar parameters from equivalent widths the "direct" way, e.g. by forward modelling the
 equivalent widths and minimizing the chi-squared.
 
-Returns a vector of parameters `[Teff, logg, vmic, [m/H]]`, and an estimate of the uncertainties
-from the approximate inverse Hessian matrix from BFGS.
+Returns a vector of parameters `[Teff, logg, vmic, [m/H]]`, and an estimate of the covariance matrix
+of the parameters from the approximate Hessian at the solution (`vcov` from `LsqFit.jl`).
 """
 function ews_to_stellar_parameters_direct(linelist, measured_EWs,
                                           measured_EW_err=ones(length(measured_EWs));
                                           verbose=false, p0=[5.0, 3.5, 1.0, 0.0], precision=1e-5,
                                           time_limit=500)
-    function cost(params)
+    # forward-model the EWs from the (Teff/1e3, logg, vmic, M_H) parameter vector.  LsqFit minimizes
+    # the weighted sum of squared residuals, which with wt = 1 ./ measured_EW_err.^2 is exactly
+    # sum(((EWs - measured_EWs) ./ measured_EW_err).^2).
+    function model(_, params)
         Teff, logg, vmic, M_H = params
         Teff = Teff * 1e3
         A_X = format_A_X(M_H)
         atm = interpolate_marcs(Teff, logg, A_X)
-        EWs = calculate_EWs(atm, linelist, A_X; vmic=vmic)
-        sum(@. ((EWs - measured_EWs) / measured_EW_err)^2)
+        calculate_EWs(atm, linelist, A_X; vmic=vmic)
     end
 
-    @time res = optimize(cost, p0, BFGS(; linesearch=LineSearches.BackTracking(; maxstep=1.0)),
-                         Optim.Options(; x_abstol=precision, time_limit=time_limit,
-                                       extended_trace=true, store_trace=true, show_trace=verbose);
-                         autodiff=:forward)
+    @time res = curve_fit(model, measured_EWs, measured_EWs, 1 ./ measured_EW_err .^ 2, p0;
+                          x_tol=precision, maxTime=Float64(time_limit), store_trace=true,
+                          show_trace=verbose, autodiff=:forwarddiff)
 
-    if !Optim.converged(res)
+    if !res.converged
         @warn "Stellar parameter fit to EWs did not converge"
     end
-    params = res.minimizer
+    params = copy(res.param)
     params[1] *= 1e3
 
     scales = [1e3, 1.0, 1.0, 1.0]
-    uncertainties = res.trace[end].metadata["~inv(H)"]
+    uncertainties = vcov(res)
     uncertainties .*= scales .* scales'
 
     params, uncertainties

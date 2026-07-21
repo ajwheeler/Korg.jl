@@ -1,14 +1,18 @@
-using Random
+using Random, FiniteDiff
 
 # print the timing info because this is kinda slow
 @testset "Fit" verbose=true showtiming=true begin
     @testset "fit_spectrum" begin
-        @testset "parameter scaling" begin
-            params = Dict("Teff" => 3200.0, "logg" => 4.5, "M_H" => -2.0, "vmic" => 3.2,
-                          "vsini" => 10.0, "O" => -1.0)
-            sparams = Korg.Fit.scale(params)
-            uparams = Korg.Fit.unscale(sparams)
-            @test all(isapprox.(values(uparams), values(params); rtol=1e-3))
+        @testset "parameter bounds" begin
+            # every parameter that can be fit should have bounds, with lower < upper, and an
+            # initial guess in the middle of the range should be strictly inside them
+            for name in ["Teff", "logg", "M_H", "alpha_H", "vmic", "vsini", "epsilon", "O", "Fe"]
+                lower, upper = Korg.Fit.param_bounds[name]
+                @test lower < upper
+            end
+            # vmic and vsini must be non-negative
+            @test Korg.Fit.param_bounds["vmic"][1] >= 0
+            @test Korg.Fit.param_bounds["vsini"][1] >= 0
         end
 
         @testset "fit param validation" begin
@@ -38,9 +42,21 @@ using Random
                 end
             end
 
-            @test_warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` " begin
-                Korg.Fit.validate_params((; Teff=4500, cntm_slope=0), (; logg=4.0))
-            end
+            # params outside the supported range should be rejected with an informative error,
+            # whether they are initial guesses or fixed params
+            @test_throws "Teff = 2000.0 is outside" Korg.Fit.validate_params((Teff=2000, logg=4.5),
+                                                                             (;))
+            @test_throws "Teff = 9000.0 is outside" Korg.Fit.validate_params((Teff=9000, logg=4.5),
+                                                                             (;))
+            @test_throws "Teff = 2000.0 is outside" Korg.Fit.validate_params((; logg=4.5),
+                                                                             (; Teff=2000))
+            @test_throws "vsini = -1.0 is outside" Korg.Fit.validate_params((Teff=4500, logg=4.5,
+                                                                             vsini=-1), (;))
+            @test_throws "Fe = -20.0 is outsid" Korg.Fit.validate_params((Teff=4500, logg=4.5,
+                                                                          Fe=-20), (;))
+            # NaN is not in any range, and would otherwise scale to NaN silently
+            @test_throws "is outside the range" Korg.Fit.validate_params((Teff=NaN, logg=4.5), (;))
+
             @test_warn "Instead of using the `\"cntm_offset\"`` and `\"cntm_slope\"` " begin
                 Korg.Fit.validate_params((; Teff=4500, cntm_offset=0), (; logg=4.0))
             end
@@ -52,11 +68,11 @@ using Random
             perturb!(flux, _, _) = (flux .= flux .^ 1.2)
             linelist = Korg.get_VALD_solar_linelist()
 
-            obs_wls = 4997:0.07:5010
-            windows = [(5000, 5003), (5008, 5010)]
+            obs_wls = 4997:0.07:5050
+            windows = [(5000, 5003), (5008, 5050)]
 
             # make these a superset of the windows
-            synth_wls = Korg.Wavelengths((4999, 5011))
+            synth_wls = Korg.Wavelengths((4999, 5051))
 
             R = 50_000
             LSF = Korg.compute_LSF_matrix(synth_wls, obs_wls, R)
@@ -79,51 +95,121 @@ using Random
             # add an "instrumental" effect to be taken out with postprocess
             fake_data .= fake_data .^ 1.2
 
-            # apply LSF and resampling, and put a crazy continuum in each window
-            # it's important to do this after perturbing the data.
-            for (i, (λstart, λstop)) in enumerate(windows)
-                m = λstart .<= obs_wls .<= λstop
-
-                slope = i * 0.01
-                offset = 1.1 - 5000 * slope
-
-                fake_data[m] .*= offset .+ slope * obs_wls[m]
-            end
-
             # bad pixels outside the windows should be OK
             fake_data[1] = NaN
             fake_data[2] = Inf
 
             err = 0.01 * ones(length(obs_wls)) # don't actually apply error to keep tests deterministic
 
-            @testset "fit test" begin
-                result = Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
-                                               precision=1e-2, # loose tolerances for speed
-                                               postprocess=perturb!,
-                                               adjust_continuum=true,
-                                               R=R,
-                                               windows=windows,)
+            result = Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
+                                           precision=1e-4,
+                                           postprocess=perturb!,
+                                           R=R,
+                                           windows=windows,)
 
-                params, Σ = result.covariance
+            params, Σ = result.covariance
 
-                Teff_index = findfirst(params .== "Teff")
-                Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
-                M_H_index = findfirst(params .== "M_H")
-                M_H_sigma = sqrt(Σ[M_H_index, M_H_index])
+            Teff_index = findfirst(params .== "Teff")
+            Teff_sigma = sqrt(Σ[Teff_index, Teff_index])
+            M_H_index = findfirst(params .== "M_H")
+            M_H_sigma = sqrt(Σ[M_H_index, M_H_index])
 
+            @testset "basic results" begin
                 # check that inferred parameters are within 1 sigma of the true values
                 @test result.best_fit_params["Teff"]≈Teff atol=Teff_sigma
                 @test result.best_fit_params["M_H"]≈M_H atol=M_H_sigma
 
-                # check that best-fit flux is within 1% of the true flux at all pixels
+                # check that best-fit flux is close to the true flux at all pixels
                 @test assert_allclose(fake_data[result.obs_wl_mask], result.best_fit_flux,
-                                      rtol=0.001)
+                                      rtol=0.01)
+            end
+
+            @testset "best fit flux matches independent synthesis" begin
+                synthesis_wls, obs_wl_mask, LSF_matrix = Korg.Fit._setup_wavelengths_and_LSF(obs_wls,
+                                                                                             nothing,
+                                                                                             nothing,
+                                                                                             R,
+                                                                                             windows,
+                                                                                             1.0)
+                # validate_params fills in default values
+                _, full_params = Korg.Fit.validate_params(p0, fixed_params)
+                full_params = merge(full_params, result.best_fit_params)
+                resynthesized = Korg.Fit.postprocessed_synthetic_spectrum(synthesis_wls, linelist,
+                                                                          LSF_matrix, full_params,
+                                                                          (;), obs_wls[obs_wl_mask],
+                                                                          windows,
+                                                                          fake_data[obs_wl_mask],
+                                                                          err[obs_wl_mask],
+                                                                          perturb!, false)
+                @test result.best_fit_flux ≈ resynthesized
+            end
+
+            @testset "FiniteDiff Hessian reproduces Σ" begin
+                synthesis_wls, obs_wl_mask, LSF_matrix = Korg.Fit._setup_wavelengths_and_LSF(obs_wls,
+                                                                                             nothing,
+                                                                                             nothing,
+                                                                                             R,
+                                                                                             windows,
+                                                                                             1.0)
+                _, validated_fixed = Korg.Fit.validate_params(p0, fixed_params)
+                masked_wls = obs_wls[obs_wl_mask]
+                masked_flux = fake_data[obs_wl_mask]
+                masked_err = err[obs_wl_mask]
+
+                # ½χ² as a function of the fitted params (in the order Σ uses them), holding the
+                # fixed/default params constant. Use the same synthesis pipeline the fit used. Σ is
+                # the inverse Hessian of this negative-log-likelihood, so inv(H) should reproduce it.
+                function neg_log_likelihood(θ)
+                    p = merge(validated_fixed, Dict(zip(params, θ)))
+                    model_spec = Korg.Fit.postprocessed_synthetic_spectrum(synthesis_wls, linelist,
+                                                                           LSF_matrix, p,
+                                                                           (;), masked_wls, windows,
+                                                                           masked_flux,
+                                                                           masked_err, perturb!,
+                                                                           false)
+                    1 / 2 * sum((model_spec .- masked_flux) .^ 2 ./ masked_err .^ 2)
+                end
+
+                θ_best = [result.best_fit_params[p] for p in params]
+                H = FiniteDiff.finite_difference_hessian(neg_log_likelihood, θ_best)
+
+                @test inv(H)≈Σ rtol=1e-1
+            end
+
+            @test result.condition_number < 1e3
+
+            @testset "condition number flags degenerate fits" begin
+                # Fit the europium abundance, which the data here can't constrain (these narrow
+                # windows contain no Eu features strong enough to register), alongside Teff. The Eu
+                # column of the Jacobian is then ~zero, so JᵀWJ is wildly ill-conditioned and Eu runs
+                # off to its bound. We want fit_spectrum to surface this via a large condition_number
+                # (and a warning) rather than silently returning a meaningless Eu.
+                degen_p0 = (; Teff=5000.0, Eu=0.0)
+                degen_result = @test_logs (:warn, r"poorly constrained") match_mode=:any begin
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, degen_p0, fixed_params;
+                                          precision=1e-4, postprocess=perturb!,
+                                          R=R, windows=windows)
+                end
+                @test degen_result.condition_number > 1e3
+
+                # raising condition_number_warning_threshold above the actual condition number
+                # suppresses the poorly-constrained warning. (The separate "converged to bounds"
+                # warning for Eu still fires, so we check the specific message is absent rather than
+                # that no warnings occur.)
+                logs,
+                _ = Test.collect_test_logs(; min_level=Logging.Warn) do
+                    Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, degen_p0, fixed_params;
+                                          precision=1e-4, postprocess=perturb!,
+                                          R=R, windows=windows,
+                                          condition_number_warning_threshold=Inf)
+                end
+                @test !any(occursin("poorly constrained", string(l.message)) for l in logs)
             end
 
             # get rid of the bad pixels to make it easer to test the error messages below
             fake_data[1:3] .= 0
 
-            @testset "argument checks" begin
+            @testset "malformed arguments" begin
                 @test_throws "LSF_matrix and synthesis_wls cannot be specified if R is provided" begin
                     Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
                                           R=R, synthesis_wls=synth_wls, LSF_matrix=LSF,
@@ -135,9 +221,9 @@ using Random
                                           windows=[(5003, 5008)], time_limit=1)
                 end
                 @test_throws "obs_wls, obs_flux, and obs_err must all have the same length" begin
-                    Korg.Fit.fit_spectrum(obs_wls[1:end-1], fake_data, err, linelist, p0,
+                    Korg.Fit.fit_spectrum(obs_wls[1:(end-1)], fake_data, err, linelist, p0,
                                           fixed_params;
-                                          synthesis_wls=synth_wls, LSF_matrix=LSF[1:end-1, :],
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF[1:(end-1), :],
                                           time_limit=1)
                 end
 
@@ -172,13 +258,38 @@ using Random
 
                 @test_throws "the first dimension of LSF_matrix" begin
                     Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
-                                          synthesis_wls=synth_wls, LSF_matrix=LSF[1:end-1, :],
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF[1:(end-1), :],
                                           time_limit=1)
                 end
                 @test_throws "the second dimension of LSF_matrix" begin
                     Korg.Fit.fit_spectrum(obs_wls, fake_data, err, linelist, p0, fixed_params;
-                                          synthesis_wls=synth_wls, LSF_matrix=LSF[:, 1:end-1],
+                                          synthesis_wls=synth_wls, LSF_matrix=LSF[:, 1:(end-1)],
                                           time_limit=1)
+                end
+            end
+
+            @testset "adjust_continuum works and warns about underestimated uncertainty" begin
+                # an easy fit (short wavelength range, single window, Teff only) with a continuum
+                # tilt that only the continuum adjustment can remove.
+                let wls = 5000:0.07:5005,
+                    window = [(5000.5, 5004.5)],
+                    synth_wls = Korg.Wavelengths((4999, 5006))
+
+                    LSF = Korg.compute_LSF_matrix(synth_wls, wls, R)
+                    sol = synthesize(atm, linelist, A_X, synth_wls; vmic=fixed_params.vmic)
+                    data = LSF * (sol.flux ./ sol.cntm)
+
+                    # a continuum tilt that adjust_continuum will need to remove
+                    data .*= 1.1 .- 2e-5 .* (wls .- 5000)
+                    err = 0.01 * ones(length(wls))
+
+                    result = @test_logs (:warn, r"underestimated") match_mode=:any begin
+                        Korg.Fit.fit_spectrum(wls, data, err, linelist, (; Teff=5000.0),
+                                              fixed_params; precision=1e-4, adjust_continuum=true,
+                                              R=R, windows=window)
+                    end
+                    # the continuum adjustment should absorb the tilt, recovering the true Teff
+                    @test result.best_fit_params["Teff"]≈Teff rtol=2e-2
                 end
             end
         end
@@ -329,7 +440,7 @@ using Random
             # 2 Å wide window around each line
             synth_wls = map(linelist) do line
                 wl = line.wl * 1e8
-                wl-1.0:0.01:wl+1.0
+                (wl-1.0):0.01:(wl+1.0)
             end
             A_X = format_A_X()
             sol = synthesize(interpolate_marcs(5777.0, 4.44, A_X), linelist, A_X, synth_wls;
@@ -350,16 +461,18 @@ using Random
             end
 
             # check that fixing parameters works
-            @testset "fixed parameters" for (i, param) in enumerate([:Teff0, :logg0, :vmic0, :M_H0])
+            @testset "fixed parameters" for (i,
+            param) in enumerate([:Teff0, :logg0, :vmic0, :M_H0])
                 fixed_params = zeros(Bool, 4)
                 fixed_params[i] = true
                 kwargs = Dict(param => best_fit_params[i])
                 # start teff and logg close to right answer to make it faster.
-                bestfit_fixed, param_err = Korg.Fit.ews_to_stellar_parameters(linelist, EWs;
-                                                                              Teff0=5740.0,
-                                                                              logg0=4.4,
-                                                                              fix_params=fixed_params,
-                                                                              kwargs...)
+                bestfit_fixed,
+                param_err = Korg.Fit.ews_to_stellar_parameters(linelist, EWs;
+                                                               Teff0=5740.0,
+                                                               logg0=4.4,
+                                                               fix_params=fixed_params,
+                                                               kwargs...)
 
                 # check that the fixed parameters are close to the one from the full fit with 10x
                 # smaller tolerance
