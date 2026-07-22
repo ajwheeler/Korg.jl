@@ -12,6 +12,10 @@ include("absorption_He.jl")
 include("absorption_ff_positive_ion.jl")
 include("absorption_metals_bf.jl")
 include("scattering.jl")
+include("absorption_mol_photodissociation.jl")
+include("absorption_H2_CIA.jl")
+include("absorption_He1_detailed.jl")
+include("absorption_hotop_bf.jl")
 
 """
     total_continuum_absorption(νs, T, nₑ, number_densities, partition_funcs; error_oobounds)
@@ -65,6 +69,21 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
 
     # bf absorption by metals from TOPBase and NORAD
     metal_bf_absorption!(α, νs, T, number_densities)
+
+    # He I detailed bound-free (HE1OP port from SYNTHE)
+    # This adds opacity from 10 resolved He I states + high-n levels +
+    # inner-shell ionization + dissolved levels near the series limit.
+    # He I free-free is NOT included here (it's in positive_ion_ff_absorption!).
+    He1_detailed_bf!(α, νs, T, number_densities, partition_funcs)
+
+    # molecular photodissociation (specifically OH and CH)
+    mol_photodissociation_absorption!(α, νs, T, number_densities)
+
+    # H2 collision-induced absorption (CIA)
+    H2_CIA_absorption!(α, νs, T, number_densities)
+
+    # HOTOP bound-free absorption from doubly+ ionized metals
+    hotop_bf_absorption!(α, νs, T, number_densities, partition_funcs)
 
     # scattering
     α .+= electron_scattering(nₑ)
