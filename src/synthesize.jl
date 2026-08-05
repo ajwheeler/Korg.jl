@@ -127,7 +127,7 @@ result = synthesize(atm, linelist, A_X, (5000, 5100))
     [`MolecularCrossSection`](@ref) for how to generate these. If you are using the default radiative
     transfer scheme and set `use_internal_reference_linelist=false`, your molecular cross-sections
     should cover the reference wavelength only if your linelist does.
-  - `tau_scheme` (default: "linear"): how to compute the optical depth.  Options are "linear" and
+  - `tau_scheme` (default: "anchored"): how to compute the optical depth.  Options are "linear" and
     "bezier" (testing only--not recommended).
   - `I_scheme` (default: `"linear_flux_only"`): how to compute the intensity.  Options are `"linear"`,
     `"linear_flux_only"`, and `"bezier"`.  `"linear_flux_only"` is the fastest, but does not return the
