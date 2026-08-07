@@ -3,7 +3,7 @@ using Interpolations: linear_interpolation, Flat
 
 metal_bf_cross_sections = let
     cross_sections = Dict{Species,Any}()
-    h5open(joinpath(_data_dir, "bf_cross-sections", "bf_cross-sections.h5")) do f
+    h5open(joinpath(_data_dir, "bf_cross-sections", "bf_cross-sections_APsmooth.h5")) do f
         T_grid = read(f["logT_min"]):read(f["logT_step"]):read(f["logT_max"])
         ν_grid = read(f["nu_min"]):read(f["nu_step"]):read(f["nu_max"])
         for dataset in f["cross-sections"]
