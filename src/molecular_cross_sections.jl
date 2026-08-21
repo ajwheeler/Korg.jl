@@ -62,7 +62,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     applications by comparing spectra synthesize with and without precomputing the molecular
     cross-section.
 """
-function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32, vmic_vals=nothing,
+function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-26, vmic_vals=nothing,
                                log_temp_vals=3:0.04:5)
     wls = Wavelengths(wl_params)
     all_specs = [l.species for l in linelist]
@@ -85,10 +85,8 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32, vmic_val
 
     itp = if isnothing(vmic_vals)
         α = zeros(length(log_temp_vals), length(wls))
-        @show size(α)
         Korg.line_absorption!(α, linelist, wls, Ts, nₑ, n_dict,
                               Korg.default_partition_funcs, 0.0, cntm; cutoff_threshold=1.0)
-        @show "opacity calculation done"
         extrapolate(interpolate!((log_temp_vals, wls), α .* cutoff_alpha,
                                  (Gridded(Linear()), Gridded(Linear()))), 0.0)
     else
