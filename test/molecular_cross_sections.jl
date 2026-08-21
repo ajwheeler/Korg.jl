@@ -31,7 +31,7 @@
     @test table.species == deserialized_table.species
 
     depth_dependent_vmics = fill(0.5, length(atm.layers))
-    depth_dependent_vmics[20:end] .= 1.0
+    depth_dependent_vmics[20:end] .= 0.0
     @testset for vmic in [0.5, 1.2, depth_dependent_vmics]
         sol_without = synthesize(atm, linelist, format_A_X(), wls; vmic=vmic)
         sol_with = synthesize(atm, linelist_less_water, format_A_X(), wls;
