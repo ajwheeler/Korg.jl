@@ -61,8 +61,8 @@
             end
 
             f = vmic -> convolved_alpha(vmic, wavelengths)
-            @test ForwardDiff.derivative(f, 1.0) ≈
-                  FiniteDiff.finite_difference_derivative(f, 1.0) rtol=1e-6
+            @test ForwardDiff.derivative(f, 1.0)≈
+            FiniteDiff.finite_difference_derivative(f, 1.0) rtol=1e-6
 
             # the derivative with respect to vmic vanishes at vmic = 0
             @test ForwardDiff.derivative(f, 0.0) == 0

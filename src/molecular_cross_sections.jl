@@ -36,7 +36,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     same species.
   - `wl_param`: Parameters specifying the wavelengths in the same format that [`synthesize`](@ref)
     expects.  Because microturbulence is applied by convolution at synthesis time, the wavelength range of
-    the cross-section should extend a few Å beyond the range you plan to synthesize.  Otherwise 
+    the cross-section should extend a few Å beyond the range you plan to synthesize.  Otherwise
     absorption from just outside the table will be missing near its edges.
 
 # Keyword Arguments
@@ -90,7 +90,7 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-26, vmic_val
         extrapolate(interpolate!((log_temp_vals, wls), α .* cutoff_alpha,
                                  (Gridded(Linear()), Gridded(Linear()))), 0.0)
     else
-        @warn _VMIC_GRID_DEPRECATION_MSG maxlog = 1
+        @warn _VMIC_GRID_DEPRECATION_MSG maxlog=1
         α = zeros(length(vmic_vals), length(log_temp_vals), length(wls))
         for (i, vmic) in enumerate(vmic_vals)
             ξ = vmic * 1e5 #km/s to cm/s
@@ -155,7 +155,7 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
 
         # deprecated, backwards-compatible branch
         if is_vmic_gridded(sigma)
-            @warn _VMIC_GRID_DEPRECATION_MSG maxlog = 1
+            @warn _VMIC_GRID_DEPRECATION_MSG maxlog=1
             # this is an inefficient order in which to write to α, but doing the interpolations
             # this way uses less memory.
             for i in 1:n_layers
@@ -175,7 +175,8 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
 
         # Below this microturbulence value, the convolution kernel is narrower than the table
         # spacing, so we interpolate the table directly. Note that the vmic partials are exactly 0.
-        vmic_threshold = 1e-5 * sqrt(2) * c_cgs * cross_section_max_step / (2 * vmic_window_size * first(sigma.wls))
+        vmic_threshold = 1e-5 * sqrt(2) * c_cgs * cross_section_max_step /
+                         (2 * vmic_window_size * first(sigma.wls))
 
         # one broadening matrix per unique vmic value, shared across layers
         unique_vmics = vmic isa Number ? [vmic] : unique(vmic)
@@ -231,7 +232,7 @@ function save_molecular_cross_section(filename, cross_section)
     HDF5.h5open(filename, "w") do file
         HDF5.write(file, "wls", [(l[begin], step(l), l[end]) for l in wls.wl_ranges])
         if is_vmic_gridded(cross_section)
-            @warn _VMIC_GRID_DEPRECATION_MSG maxlog = 1
+            @warn _VMIC_GRID_DEPRECATION_MSG maxlog=1
             HDF5.write(file, "vmic_vals", collect(itp.itp.knots[1]))
             HDF5.write(file, "T_vals", collect(itp.itp.knots[2]))
         else
@@ -268,7 +269,7 @@ function read_molecular_cross_section(filename)
         species = Species(HDF5.read(file, "species"))
 
         itp = if haskey(file, "vmic_vals")
-            @warn _VMIC_GRID_DEPRECATION_MSG maxlog = 1
+            @warn _VMIC_GRID_DEPRECATION_MSG maxlog=1
             vmic_vals = HDF5.read(file, "vmic_vals")
             extrapolate(interpolate!((vmic_vals, logT_vals, wls), alpha_vals,
                                      (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))),
