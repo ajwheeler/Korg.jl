@@ -85,8 +85,10 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-32, vmic_val
 
     itp = if isnothing(vmic_vals)
         α = zeros(length(log_temp_vals), length(wls))
+        @show size(α)
         Korg.line_absorption!(α, linelist, wls, Ts, nₑ, n_dict,
                               Korg.default_partition_funcs, 0.0, cntm; cutoff_threshold=1.0)
+        @show "opacity calculation done"
         extrapolate(interpolate!((log_temp_vals, wls), α .* cutoff_alpha,
                                  (Gridded(Linear()), Gridded(Linear()))), 0.0)
     else
@@ -192,18 +194,21 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
             # unecessary interpolation from the cross-section table). sub_wls is a Wavelengths 
             # object to serve as the common axis between the broadening matrix and the interpolated 
             # cross section values.
-            σ_max = last(λs) * vm * 1e5 / (sqrt(2) * c_cgs)
-            sub_wls = subset(sigma.wls, λs; pad=vmic_window_size * σ_max + cross_section_max_step)
+            σ_λ_max = last(λs) * vm * 1e5 / (sqrt(2) * c_cgs)
+            sub_wls = clipped(sigma.wls, λs;
+                              pad=vmic_window_size * σ_λ_max + cross_section_max_step)
             isnothing(sub_wls) && continue # no table points are within reach of any kernel
 
-            # Use the LSF machinery to compute a sparse matrix that applies a velocity-space
-            # gaussian convolution and resamples from the cross-section λs to the synthesis λs.
-            vmic_matrix = compute_LSF_matrix(sub_wls, λs, _vmic_equivalent_R(vm * 1e5);
-                                             window_size=vmic_window_size, verbose=false)
+            # a sparse matrix which applies a velocity-space gaussian convolution and resamples
+            # from the cross-section λs to the synthesis λs
+            vmic_broadening_matrix = _gaussian_resample_matrix(sub_wls, λs,
+                                                               _vmic_equivalent_R(vm * 1e5);
+                                                               window_size=vmic_window_size)
 
             for i in 1:n_layers
                 (vmic isa Number ? vmic : vmic[i]) == vm || continue
-                α[i, :] .+= (vmic_matrix * sigma.itp.(log10(Ts[i]), sub_wls)) .* n_species[i]
+                α[i, :] .+= (vmic_broadening_matrix *
+                             sigma.itp.(log10(Ts[i]), sub_wls)) .* n_species[i]
             end
         end
     end
