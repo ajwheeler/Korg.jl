@@ -48,8 +48,7 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
             @warn "Korg.Wavelengths is being constructed with an abstract range type, which will hurt performance."
         end
 
-        # this could be more efficient
-        all_wls = vcat(wl_ranges...)
+        all_wls = collect(Iterators.flatten(wl_ranges)) # this allows for the eltype to be inferred
         if !issorted(all_wls)
             throw(ArgumentError("wl_ranges must be sorted and non-overlapping"))
         end
@@ -106,7 +105,7 @@ end
 # this handles the vector-of-bounds case. Each element can be a tuple of (λ_start, λ_stop) or
 # (λ_start, λ_stop, λ_step). We don't enforce tuple size here in order to make sure that  literals
 # pass correctly.
-function Wavelengths(tuples::AbstractVector{<:Tuple{Vararg{<:Real}}}, ; kwargs...)
+function Wavelengths(tuples::AbstractVector{<:Tuple{Vararg{<:Real}}}; kwargs...)
     ranges = map(tuples) do tuple
         if !(2 .<= length(tuple) .<= 3)
             throw(ArgumentError("Each wavelength range must be specified as a tuple of (λ_start, λ_stop) or (λ_start, λ_stop, λ_step). Got $tuple."))
@@ -177,11 +176,29 @@ function subspectrum_indices(wls::Wavelengths)
     wl_lb_ind = 1 # the index into α of the lowest λ in the current wavelength range
     indices = []
     for λs in wls.wl_ranges
-        wl_inds = wl_lb_ind:wl_lb_ind+length(λs)-1
+        wl_inds = wl_lb_ind:(wl_lb_ind+length(λs)-1)
         push!(indices, wl_inds)
         wl_lb_ind += length(λs)
     end
     indices
+end
+
+"""
+    clipped(wls::Wavelengths, keep::Wavelengths; pad=0.0)
+
+Return a new `Wavelengths` containing the points of `wls` which lie within `pad` (in cm) of one of
+the wavelength ranges of `keep`, or `nothing` if there are none.  Only the extent of `keep`'s
+ranges matters, not their spacing.  The underlying ranges of `wls` are sliced, so the grid values
+are preserved exactly.
+"""
+function clipped(wls::Wavelengths, keep::Wavelengths; pad=0.0)
+    # dilate each window of `keep` by `pad`, merging any that then overlap or touch, so that
+    # the slices taken below can't overlap
+    merged, _ = merge_bounds([(λ_lo - pad, λ_hi + pad) for (λ_lo, λ_hi) in eachwindow(keep)])
+    sub_ranges = [r[searchsortedfirst(r, λ_lo):searchsortedlast(r, λ_hi)]
+                  for r in wls.wl_ranges for (λ_lo, λ_hi) in merged]
+    filter!(!isempty, sub_ranges)
+    isempty(sub_ranges) ? nothing : Wavelengths(sub_ranges)
 end
 
 # index of the first element greater than or equal to λ

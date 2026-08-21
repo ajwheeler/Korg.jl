@@ -1,5 +1,4 @@
 using Interpolations: interpolate!, Gridded, Linear, extrapolate
-using SparseArrays: rowvals, nzrange
 using HDF5
 
 struct MolecularCrossSection
@@ -37,8 +36,8 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
     same species.
   - `wl_param`: Parameters specifying the wavelengths in the same format that [`synthesize`](@ref)
     expects.  Because microturbulence is applied by convolution at synthesis time, the wavelength range of
-    the cross-section should extend a few Å beyond the range you plan to synthesize.
-    Otherwise absorption from just outside the table will be missing near its edges.
+    the cross-section should extend a few Å beyond the range you plan to synthesize.  Otherwise 
+    absorption from just outside the table will be missing near its edges.
 
 # Keyword Arguments
 
@@ -132,7 +131,10 @@ Evaluate the molecular cross-sections at each wavelength and layer and add them 
 absorption coefficient, `α`.
 
 Microturbulent broadening is applied via (sparse) matrix multiplication (convolution in velocity
-space), extending `vmic_window_size` standard deviations from the center.
+space), with a kernel extending `vmic_window_size` standard deviations from the center.  The
+cross-section wavelengths must be sampled at least as finely as `λs` (an `ArgumentError` is thrown
+otherwise).  For microturbulence values so small that the kernel is narrower than the table spacing,
+broadening is negligible and the cross-section is interpolated directly.
 
 See [`MolecularCrossSection`](@ref) for more information.
 """
@@ -143,6 +145,10 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
         return
     end
     n_layers = size(α, 1)
+
+    # Get the finest synthesis wavelength spacing, used to check that each table is sampled at least
+    # as finely.  Single-wavelength requests (e.g. just the reference wavelength) are allowed.
+    synth_steps = [step(r) for r in λs.wl_ranges if length(r) > 1]
 
     for sigma in molecular_cross_sections
         n_species = number_densities[sigma.species]
@@ -159,12 +165,22 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
             continue
         end
 
+        cross_section_max_step = maximum(step, sigma.wls.wl_ranges)
+        if !isempty(synth_steps) && cross_section_max_step > minimum(synth_steps) * (1 + 1e-10)
+            throw(ArgumentError("the molecular cross-section for $(sigma.species) is more coarsely " *
+                                "sampled ($(round(cross_section_max_step * 1e8; sigdigits=3)) Å) than the " *
+                                "synthesis wavelengths ($(round(minimum(synth_steps) * 1e8; sigdigits=3)) Å). " *
+                                "Regenerate it with spacing no coarser than the synthesis grid."))
+        end
+
+        # Below this microturbulence value, the convolution kernel is narrower than the table
+        # spacing, so we interpolate the table directly. Note that the vmic partials are exactly 0.
+        vmic_threshold = 1e-5 * sqrt(2) * c_cgs * cross_section_max_step / (2 * vmic_window_size * first(sigma.wls))
+
         # one broadening matrix per unique vmic value, shared across layers
         unique_vmics = vmic isa Number ? [vmic] : unique(vmic)
         for vm in unique_vmics
-            # at vmic == 0 the kernel is a delta function, so interpolate directly.
-            # when vmic == 0, ∂α/∂vmic == 0 as well, so it's legit to drop any partials of vmic
-            if vm == 0
+            if vm <= vmic_threshold
                 for i in 1:n_layers
                     (vmic isa Number ? vmic : vmic[i]) == vm || continue
                     α[i, :] .+= sigma.itp.(log10(Ts[i]), λs) * n_species[i]
@@ -172,36 +188,22 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
                 continue
             end
 
-            # Use the LSF machinery to compure a sparse matrix that applies a velocity-space 
+            # It's faster to do this calculation with only the wavelengths required (mostly to avoid 
+            # unecessary interpolation from the cross-section table). sub_wls is a Wavelengths 
+            # object to serve as the common axis between the broadening matrix and the interpolated 
+            # cross section values.
+            σ_max = last(λs) * vm * 1e5 / (sqrt(2) * c_cgs)
+            sub_wls = subset(sigma.wls, λs; pad=vmic_window_size * σ_max + cross_section_max_step)
+            isnothing(sub_wls) && continue # no table points are within reach of any kernel
+
+            # Use the LSF machinery to compute a sparse matrix that applies a velocity-space
             # gaussian convolution and resamples from the cross-section λs to the synthesis λs.
-            vmic_matrix = compute_LSF_matrix(sigma.wls, λs, _vmic_equivalent_R(vm * 1e5);
-                                   window_size=vmic_window_size, verbose=false)
-
-            # keep track of which wavelengths get nothing from the matrix, becaue they are outside 
-            # the precomputed cross-section's wavelength regions
-            row_has_kernel = falses(length(λs))
-            row_has_kernel[rowvals(vmic_matrix)] .= true
-            fallback_inds = findall(!, row_has_kernel)
-
-            # restrict the matrix product to the table columns under some kernel.  This makes
-            # requests for a few wavelengths (α at the reference wavelength for anchored radiative
-            # transfer) cheap: only a small piece of the table is interpolated per layer.
-            cols = let nonempty = j -> !isempty(nzrange(vmic_matrix, j))
-                first_col = findfirst(nonempty, 1:size(vmic_matrix, 2))
-                isnothing(first_col) ? (1:0) : (first_col:findlast(nonempty, 1:size(vmic_matrix, 2)))
-            end
-            Msub = vmic_matrix[:, cols]
-            sub_wls = sigma.wls[cols]
+            vmic_matrix = compute_LSF_matrix(sub_wls, λs, _vmic_equivalent_R(vm * 1e5);
+                                             window_size=vmic_window_size, verbose=false)
 
             for i in 1:n_layers
                 (vmic isa Number ? vmic : vmic[i]) == vm || continue
-                logT = log10(Ts[i])
-                if !isempty(cols)
-                    α[i, :] .+= (Msub * sigma.itp.(logT, sub_wls)) .* n_species[i]
-                end
-                for j in fallback_inds
-                    α[i, j] += sigma.itp(logT, λs[j]) * n_species[i]
-                end
+                α[i, :] .+= (vmic_matrix * sigma.itp.(log10(Ts[i]), sub_wls)) .* n_species[i]
             end
         end
     end

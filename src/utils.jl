@@ -1,6 +1,6 @@
 using Statistics: quantile
 using Interpolations: linear_interpolation, Flat
-using SparseArrays: spzeros
+using SparseArrays: sparse
 
 normal_pdf(Δ, σ) = exp(-0.5 * Δ^2 / σ^2) / √(2π) / σ
 
@@ -122,9 +122,6 @@ Construct a sparse matrix, which when multiplied with a flux vector defined over
 
   - `window_size` (default: 4): how far out to extend the convolution kernel in units of the LSF width (σ, not HWHM)
   - `verbose` (default: `true`): whether or not to emit warnings and information to stdout/stderr.
-  - `step_tolerance`: the maximum difference between adjacent wavelengths in `synth_wls` for them to be
-    considered linearly spaced.  This is only used if `synth_wls` is a vector of wavelengths rather
-    than a range or vector or ranges.
 
 For the best match to data, your wavelength range should extend a couple ``\\Delta\\lambda`` outside
 the region you are going to compare.
@@ -139,18 +136,25 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
         obs_wls = obs_wls / 1e8 # Å to cm
     end
     synth_wls = Wavelengths(synth_wls)
+
+    tol = 0.01e-8 # 0.01 Å in cm
     if verbose &&
-       !((first(synth_wls) - 0.01) <= first(obs_wls) <= last(obs_wls) <= (last(synth_wls) + 0.01))
+       !((first(synth_wls) - tol) <= first(obs_wls) <= last(obs_wls) <= (last(synth_wls) + tol))
         @warn "Synthesis wavelenths $(synth_wls) are not superset of observation wavelenths" *
               " ($(first(obs_wls)*1e8) Å—$(last(obs_wls)*1e8) Å) in LSF matrix."
     end
-    LSF = spzeros((length(synth_wls), length(obs_wls)))
+
+    # build sparse matrix in COO form (fastest)
+    T = promote_type(eltype(synth_wls), typeof(_resolve_R(R, first(synth_wls))))
+    Is, Js, Vs = Int[], Int[], T[]
     for i in eachindex(obs_wls)
         λ0 = obs_wls[i]
         lb, ub, normalized_ϕ = _lsf_bounds_and_kernel(synth_wls, λ0, R, window_size)
-        LSF[lb:ub, i] .+= normalized_ϕ
+        append!(Is, fill(i, ub - lb + 1))
+        append!(Js, lb:ub)
+        append!(Vs, normalized_ϕ)
     end
-    LSF'
+    sparse(Is, Js, Vs, length(obs_wls), length(synth_wls))
 end
 
 """
@@ -211,10 +215,10 @@ function _apply_rotation_core(flux, wls::StepRangeLen, vsini, ε=0.6)
         ub = searchsortedlast(wls, wls[i] + Δλrot)
         Fwindow = flux[lb:ub]
 
-        detunings = [-Δλrot; (lb-i+1/2:ub-i-1/2) * step(wls); Δλrot]
+        detunings = [-Δλrot; ((lb-i+1/2):(ub-i-1/2)) * step(wls); Δλrot]
 
         ks = _rotation_kernel_integral_kernel.(c1, c2, c3 * Δλrot, detunings, Δλrot)
-        newF[i] = sum(ks[2:end] .* Fwindow) - sum(ks[1:end-1] .* Fwindow)
+        newF[i] = sum(ks[2:end] .* Fwindow) - sum(ks[1:(end-1)] .* Fwindow)
     end
     newF
 end
@@ -317,8 +321,9 @@ Returns a range of indices denoting the elements of `vals` (which are assumed to
 increasing order) that are contained by `interval`. When no entries are contained by interval,
 this returns `(1,0)` (which is a valid empty slice).
 """
-contained_slice(vals::AbstractVector, interval::Interval) = searchsortedfirst(vals, interval.lower):searchsortedlast(vals,
-                                                                                                                     interval.upper)
+function contained_slice(vals::AbstractVector, interval::Interval)
+    searchsortedfirst(vals, interval.lower):searchsortedlast(vals, interval.upper)
+end
 
 function _convert_λ_endpoint(λ_endpoint::AbstractFloat, λ_lower_bound::Bool)
     # determine the functions that:
@@ -353,5 +358,6 @@ end
 Converts a λ `Inverval` (in cm) to an equivalent ν `Interval` (in Hz), correctly accounting for
 tricky floating point details at the bounds.
 """
-λ_to_ν_bound(λ_bound::Interval) = Interval(_convert_λ_endpoint(λ_bound.upper, false),
-                                           _convert_λ_endpoint(λ_bound.lower, true))
+function λ_to_ν_bound(λ_bound::Interval)
+    Interval(_convert_λ_endpoint(λ_bound.upper, false), _convert_λ_endpoint(λ_bound.lower, true))
+end

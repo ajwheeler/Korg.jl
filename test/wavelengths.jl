@@ -1,4 +1,5 @@
 @testset "Wavelengths" begin
+
     @testset "constructor" begin
         @test_throws "wavelengths must be non-empty" Korg.Wavelengths([])
 
@@ -101,5 +102,39 @@
         freqs = Korg.eachfreq(wls)
         @test issorted(freqs)
         @test length(freqs) == length(wls)
+    end
+
+    @testset "clipped" begin
+        wls = Korg.Wavelengths([5000:0.01:5010, 5020:0.01:5030])
+
+        # boundaries chosen between wls grid points, so the tests are robust to roundoff
+        sub = Korg.clipped(wls, Korg.Wavelengths(5004.995:0.01:5025.005))
+        @test sub ≈ Korg.Wavelengths([5005:0.01:5010, 5020:0.01:5025])
+        # clipping slices the wavelengths rather than reconstructing them
+        @test all(in(wls), sub)
+
+        # pad (in cm) dilates the kept windows
+        sub = Korg.clipped(wls, Korg.Wavelengths(5005:0.01:5007); pad=1.005e-8)
+        @test sub ≈ Korg.Wavelengths(5004:0.01:5008)
+
+        # windows entirely within a gap or outside the wavelengths yield nothing
+        @test isnothing(Korg.clipped(wls, Korg.Wavelengths(5012:0.01:5018)))
+        @test isnothing(Korg.clipped(wls, Korg.Wavelengths(4000:0.01:4500)))
+
+        # a contiguous Wavelengths clipped with a multi-window keep becomes multi-range
+        contiguous = Korg.Wavelengths(6000:0.01:6100)
+        sub = Korg.clipped(contiguous, Korg.Wavelengths([6010:0.01:6020, 6050:0.01:6060]);
+                           pad=0.005e-8)
+        @test sub ≈ Korg.Wavelengths([6010:0.01:6020, 6050:0.01:6060])
+
+        # windows which overlap after padding are merged
+        sub = Korg.clipped(contiguous, Korg.Wavelengths([6010:0.01:6020, 6020.5:0.01:6030]);
+                           pad=1.005e-8)
+        @test sub ≈ Korg.Wavelengths(6009:0.01:6031)
+
+        # clipped and the constructor it calls are type-stable (up to `nothing`),
+        @test isconcretetype(only(Base.return_types(Korg.Wavelengths, (typeof(wls.wl_ranges),))))
+        @test only(Base.return_types(Korg.clipped, (typeof(wls), typeof(wls)))) ==
+              Union{Nothing,typeof(wls)}
     end
 end
