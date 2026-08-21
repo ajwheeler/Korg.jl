@@ -39,19 +39,19 @@ function merge_bounds(bounds, merge_distance=0.0)
 end
 
 # Convert R to a value based on its type
-# used in `_lsf_bounds_and_kernel`
+# used in `_gaussian_bounds_and_kernel`
 _resolve_R(R::Real, λ0) = R
 _resolve_R(R::Function, λ0) = R(λ0 * 1e8)  # R is a function of λ in Å
 
-# Core LSF calculation shared by all variants
-function _lsf_bounds_and_kernel(synth_wls::Wavelengths, λ0, R, window_size)
+# Core Gaussian-kernel calculation shared by all variants.  
+function _gaussian_bounds_and_kernel(wls::Wavelengths, λ0, R, window_size)
     R_val = _resolve_R(R, λ0)
     σ = λ0 / R_val / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
 
     # Calculate bounds and kernel
-    lb = searchsortedfirst(synth_wls, λ0 - window_size * σ)
-    ub = searchsortedlast(synth_wls, λ0 + window_size * σ)
-    @views ϕ = normal_pdf.(synth_wls[lb:ub] .- λ0, σ)
+    lb = searchsortedfirst(wls, λ0 - window_size * σ)
+    ub = searchsortedlast(wls, λ0 + window_size * σ)
+    @views ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
     normalized_ϕ = ϕ ./ sum(ϕ)
 
     lb, ub, normalized_ϕ
@@ -99,7 +99,7 @@ function apply_LSF(flux::AbstractVector{F}, wls, R; window_size=4) where F<:Real
     convF = zeros(F, length(flux))
     for i in eachindex(wls)
         λ0 = wls[i]
-        lb, ub, normalized_ϕ = _lsf_bounds_and_kernel(wls, λ0, R, window_size)
+        lb, ub, normalized_ϕ = _gaussian_bounds_and_kernel(wls, λ0, R, window_size)
         convF[i] = sum(flux[lb:ub] .* normalized_ϕ)
     end
     convF
@@ -144,17 +144,25 @@ function compute_LSF_matrix(synth_wls, obs_wls, R; window_size=4, verbose=true)
               " ($(first(obs_wls)*1e8) Å—$(last(obs_wls)*1e8) Å) in LSF matrix."
     end
 
+    _gaussian_resample_matrix(synth_wls, obs_wls, R; window_size=window_size)
+end
+
+# Sparse matrix which convolves a vector defined on `in_wls` with a Gaussian
+# whose FWHM is λ/R(λ), and resamples onto `out_wls` (both in cm). Used by
+# compute_LSF_matrix for the LSF and also for applying vmic to molecular
+# cross-sections.
+function _gaussian_resample_matrix(in_wls::Wavelengths, out_wls, R; window_size=4)
     # build sparse matrix in COO form (fastest)
-    T = promote_type(eltype(synth_wls), typeof(_resolve_R(R, first(synth_wls))))
+    T = promote_type(eltype(in_wls), typeof(_resolve_R(R, first(in_wls))))
     Is, Js, Vs = Int[], Int[], T[]
-    for i in eachindex(obs_wls)
-        λ0 = obs_wls[i]
-        lb, ub, normalized_ϕ = _lsf_bounds_and_kernel(synth_wls, λ0, R, window_size)
+    for i in eachindex(out_wls)
+        λ0 = out_wls[i]
+        lb, ub, normalized_ϕ = _gaussian_bounds_and_kernel(in_wls, λ0, R, window_size)
         append!(Is, fill(i, ub - lb + 1))
         append!(Js, lb:ub)
         append!(Vs, normalized_ϕ)
     end
-    sparse(Is, Js, Vs, length(obs_wls), length(synth_wls))
+    sparse(Is, Js, Vs, length(out_wls), length(in_wls))
 end
 
 """
