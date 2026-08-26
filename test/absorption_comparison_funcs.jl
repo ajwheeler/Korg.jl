@@ -172,11 +172,10 @@ function Hminus_bf_coefficient(λ, T, Pₑ, ion_energy_H⁻=0.7552)
     # just divide out all dependence on these variables.
     nH_I, nH, ρ = _semi_realisitic_dens(ne)
 
-    # Hminus_bf now takes n(H⁻) directly rather than computing it from n(H I).
     n_Hminus = Korg.Hminus_nK(T) * nH_I * ne
     ν = (Korg.c_cgs * 1e8) / λ
 
-    linear_absorb_coef = Korg.ContinuumAbsorption.Hminus_bf([ν], T, n_Hminus, ne)[1]
+    linear_absorb_coef = Korg.ContinuumAbsorption._Hminus_bf(ν, T, n_Hminus, ne)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -192,7 +191,7 @@ function Hminus_ff_coefficient(λ, T, Pₑ)
     partition_func = 2.0 # may want to include the temperature dependence of the partition function
     ν = (Korg.c_cgs * 1e8) / λ
 
-    linear_absorb_coef = Korg.ContinuumAbsorption.Hminus_ff([ν], T, nH_I / partition_func, ne)[1]
+    linear_absorb_coef = Korg.ContinuumAbsorption._Hminus_ff(ν, T, nH_I / partition_func, ne)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -215,7 +214,7 @@ function H2plus_coefficient(λ, T, Pₑ)
     nH_II = nH * wII / (1 + wII)
 
     ν = (Korg.c_cgs * 1e8) / λ
-    linear_absorb_coef = Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I, nH_II)[1]
+    linear_absorb_coef = Korg.ContinuumAbsorption._H2plus_bf_and_ff(ν, T, nH_I, nH_II)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 
@@ -247,7 +246,7 @@ function Heminus_ff_coefficient(λ, T, Pₑ)
     nHe_I = nHe * 1 / (1 + wII)
 
     ν = (Korg.c_cgs * 1e8) / λ
-    linear_absorb_coef = Korg.ContinuumAbsorption.Heminus_ff([ν], T, nHe_I / UI, ne)[1]
+    linear_absorb_coef = Korg.ContinuumAbsorption._Heminus_ff(ν, T, nHe_I / UI, ne)
     linear_absorb_coef / (Pₑ * nH_I)
 end
 

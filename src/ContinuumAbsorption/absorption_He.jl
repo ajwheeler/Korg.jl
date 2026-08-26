@@ -62,8 +62,11 @@ function _Heminus_ff(ν::Real, T::Real, nHe_I_div_partition::Real, ne::Real)
     K * nHe_I_gs * Pe
 end
 
+const Heminus_ff_ν_bounds = λ_to_ν_bound(closed_interval(5.063e-5, 1.518780e-03))
+const Heminus_ff_temp_bounds = closed_interval(1400, 10080)
+
 """
-    Heminus_ff(ν, T, nHe_I_div_partition, ne; kwargs...)
+    Heminus_ff!(α, νs, T, nHe_I_div_partition, ne)
 
 Compute the He⁻ free-free opacity κ.
 
@@ -72,24 +75,27 @@ reaction:  `photon + e⁻ + He I -> e⁻ + He I.`
 
 # Arguments
 
-  - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
+  - `α::AbstractVector`: the absorption coefficient vector, modified in place
+  - `νs::AbstractVector{<:Real}`: sorted frequency vector in Hz
   - `T`: temperature in K
   - `nHe_I_div_partition`: the total number density of H I divided by its partition function.
   - `ne`: the number density of free electrons.
-
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 
 This uses the tabulated values from
 [John (1994)](https://ui.adsabs.harvard.edu/abs/1994MNRAS.269..871J/abstract).  The quantity K is
 the same used by [Bell and Berrington (1987)](https://doi.org/10.1088/0022-3700/20/4/019).  See
-[`Hminus_ff`](@ref) for an explanation.
+[`Hminus_ff!`](@ref) for an explanation.
 
 According to John (1994), improved calculations are unlikely to alter the tabulated data for
 λ > 1e4Å, "by more than about 2%." The errors introduced by the approximations for
 5.06e3 Å ≤ λ ≤ 1e4 Å "are expected to be well below 10%."
 """
-Heminus_ff = bounds_checked_absorption(_Heminus_ff;
-                                       ν_bound=λ_to_ν_bound(closed_interval(5.063e-5, 1.518780e-03)),
-                                       temp_bound=closed_interval(1400, 10080))
+function Heminus_ff!(α::AbstractVector, νs::AbstractVector, T::Real,
+                     nHe_I_div_partition::Real, ne::Real)
+    contained(T, Heminus_ff_temp_bounds) || return
+    idx = contained_slice(νs, Heminus_ff_ν_bounds)
+    view(α, idx) .+= _Heminus_ff.(view(νs, idx), T, nHe_I_div_partition, ne)
+    return
+end

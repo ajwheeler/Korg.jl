@@ -23,7 +23,7 @@ using Interpolations: bounds
         # n(H I, n = 1) = n(H I).
         nH_I_div_partition = nH_I / 2.0
 
-        linear_abs_coef = Korg.ContinuumAbsorption.Hminus_ff([ν], T, nH_I_div_partition, ne)[1]
+        linear_abs_coef = Korg.ContinuumAbsorption._Hminus_ff(ν, T, nH_I_div_partition, ne)
         Pₑ = ne * Korg.kboltz_cgs * T
         linear_abs_coef / (nH_I * Pₑ * 1e-26)
     end
@@ -279,7 +279,7 @@ using Interpolations: bounds
 
         const_factor = 1e39 / (nH_I * nH_II)
         function calc_func(ν, T)
-            const_factor * Korg.ContinuumAbsorption.H2plus_bf_and_ff([ν], T, nH_I, nH_II)[1]
+            const_factor * Korg.ContinuumAbsorption._H2plus_bf_and_ff(ν, T, nH_I, nH_II)
         end
 
         λ_cgs = 1.0 ./ _wavenumbers
