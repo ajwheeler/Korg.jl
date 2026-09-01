@@ -202,22 +202,25 @@ function _Hminus_bf(ν::Real, T::Real, n_Hminus::Real, ne::Real)
     n_Hminus * cross_section * stimulated_emission_correction
 end
 
+const Hminus_bf_ν_bounds = closed_interval(0.0, 2.417989242625068e19)
+const Hminus_bf_temp_bounds = Interval(0, Inf)
+
 """
-    Hminus_bf(ν, T, nH_I_div_partition, ne; kwargs...)
+    Hminus_bf!(α, νs, T, n_Hminus, ne)
 
 Compute the H⁻ bound-free linear absorption coefficient α,
 ``\\alpha_\\nu = \\sigma_{bf}(H^-) n(H⁻) (1 - \\exp \\left( \\frac{-h\\nu}{k T}\\right))``
 
 # Arguments
 
-  - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
+  - `α::AbstractVector`: the absorption coefficient vector, modified in place
+  - `νs::AbstractVector{<:Real}`: sorted frequency vector in Hz
   - `T`: temperature in K
-  - `nH_I_div_partition`: the total number density of H I divided by its partition function.
+  - `n_Hminus`: the number density of H⁻
   - `ne`: the electron number density
 
 This uses cross-sections from
 [McLaughlin 2017](https://ui.adsabs.harvard.edu/abs/2017JPhB...50k4001M/abstract).
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 
@@ -231,9 +234,12 @@ as part of Korg's molecular equlibrium, it's computed here instead.
     `data/McLaughlin2017Hminusbf.dat` for archival purposes.  (Korg doesn't read this file, it reads
     `data/McLaughlin2017Hminusbf.h5`.)
 """
-Hminus_bf = bounds_checked_absorption(_Hminus_bf;
-                                      ν_bound=closed_interval(0.0, 2.417989242625068e19),
-                                      temp_bound=Interval(0, Inf))
+function Hminus_bf!(α::AbstractVector, νs::AbstractVector, T::Real, n_Hminus::Real, ne::Real)
+    contained(T, Hminus_bf_temp_bounds) || return
+    idx = contained_slice(νs, Hminus_bf_ν_bounds)
+    view(α, idx) .+= _Hminus_bf.(view(νs, idx), T, n_Hminus, ne)
+    return
+end
 
 const _Hminus_ff_absorption_interp = let
     # table from Bell & Berrington (1987) https://doi.org/10.1088/0022-3700/20/4/019 
@@ -288,8 +294,11 @@ function _Hminus_ff(ν::Real, T::Real, nH_I_div_partition::Real, ne::Real)
     return K * Pₑ * nHI_gs
 end
 
+const Hminus_ff_ν_bounds = λ_to_ν_bound(closed_interval(1823e-8, 151890e-8))
+const Hminus_ff_temp_bounds = closed_interval(1400, 10080)
+
 """
-    Hminus_ff(ν, T, nH_I_div_partition, ne; kwargs...)
+    Hminus_ff!(α, νs, T, nH_I_div_partition, ne)
 
 Compute the H⁻ free-free linear absorption coefficient α
 
@@ -298,12 +307,11 @@ reaction:  photon + e⁻ + H I -> e⁻ + H I.
 
 # Arguments
 
-  - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
+  - `α::AbstractVector`: the absorption coefficient vector, modified in place
+  - `νs::AbstractVector{<:Real}`: sorted frequency vector in Hz
   - `T`: temperature in K
   - `nH_I_div_partition::Flt`: the total number density of H I divided by its partition function.
   - `ne`: the number density of free electrons.
-
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 
@@ -323,9 +331,13 @@ refers to this, it implicitly assumes that `n(H I, n = 1) ≈ n(H I)`.  Note tha
 
 Since U(T) ≈ 2 up to fairly large temperatures, this is not unreasonable.
 """
-Hminus_ff = bounds_checked_absorption(_Hminus_ff;
-                                      ν_bound=λ_to_ν_bound(closed_interval(1823e-8, 151890e-8)),
-                                      temp_bound=closed_interval(1400, 10080))
+function Hminus_ff!(α::AbstractVector, νs::AbstractVector, T::Real,
+                    nH_I_div_partition::Real, ne::Real)
+    contained(T, Hminus_ff_temp_bounds) || return
+    idx = contained_slice(νs, Hminus_ff_ν_bounds)
+    view(α, idx) .+= _Hminus_ff.(view(νs, idx), T, nH_I_div_partition, ne)
+    return
+end
 
 include("Stancil1994.jl") #used for H2plus_bf_and_ff
 function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I::Real, nH_II::Real)
@@ -340,8 +352,11 @@ function _H2plus_bf_and_ff(ν::Real, T::Real, nH_I::Real, nH_II::Real)
     (σbf / K + σff) * nH_I * nH_II * stimulated_emission_correction
 end
 
+const H2plus_bf_and_ff_ν_bounds = λ_to_ν_bound(closed_interval(7e-6, 2e-3))
+const H2plus_bf_and_ff_temp_bounds = closed_interval(3150, 25200)
+
 """
-    H2plus_bf_and_ff(ν, T, nH_I_div_partition, n_HII; kwargs...)
+    H2plus_bf_and_ff!(α, νs, T, nH_I, nH_II)
 
 Compute the combined H₂⁺ bound-free and free-free linear absorption coefficient α using the tables
 from [Stancil 1994](https://ui.adsabs.harvard.edu/abs/1994ApJ...430..360S/abstract). Note that
@@ -350,13 +365,12 @@ ionized H2, i.e. the b-f interaction is photodissociation, not photoionization.
 
 # Arguments
 
-  - `ν::AbstractVector{<:Real}`: sorted frequency vector in Hz
+  - `α::AbstractVector`: the absorption coefficient vector, modified in place
+  - `νs::AbstractVector{<:Real}`: sorted frequency vector in Hz
   - `T`: temperature in K
   - `nH_I`: the total number density of H I divided by its partition
     function.
   - `nH_II`: the number density of H II (not of H₂⁺).
-
-For a description of the kwargs, see [Continuum Absorption Kwargs](@ref).
 
 # Notes
 
@@ -375,6 +389,10 @@ Gray (2005) all use n(H I), but Kurucz (1970) notes in section 5.2 that the phot
 produces a ground state H atom and that we should therefore use n(H I, n=1) instead. This difference
 causes a descrepancy of a fraction of a percent (at most) for T ≤ 1.2e4 K. Here we use n(H I).
 """
-H2plus_bf_and_ff = bounds_checked_absorption(_H2plus_bf_and_ff;
-                                             ν_bound=λ_to_ν_bound(closed_interval(7e-6, 2e-3)),
-                                             temp_bound=closed_interval(3150, 25200))
+function H2plus_bf_and_ff!(α::AbstractVector, νs::AbstractVector, T::Real, nH_I::Real,
+                           nH_II::Real)
+    contained(T, H2plus_bf_and_ff_temp_bounds) || return
+    idx = contained_slice(νs, H2plus_bf_and_ff_ν_bounds)
+    view(α, idx) .+= _H2plus_bf_and_ff.(view(νs, idx), T, nH_I, nH_II)
+    return
+end
