@@ -136,4 +136,26 @@
         @test only(Base.return_types(Korg.clipped, (typeof(wls), typeof(wls)))) ==
               Union{Nothing,typeof(wls)}
     end
+
+    @testset "stepsize" begin
+        # single range: every index has the same spacing, in cm
+        wls = Korg.Wavelengths(5000:0.01:5010)
+        @test all(Korg.stepsize(wls, i) ≈ 0.01e-8 for i in eachindex(wls))
+
+        # ranges with different spacings: each index gets the step of its own range.
+        # 5000:0.01:5010 is 1001 points, so indices 1:1001 are the first range and
+        # 1002:1502 (6000:0.02:6010, 501 points) are the second.
+        wls = Korg.Wavelengths([5000:0.01:5010, 6000:0.02:6010])
+        @test Korg.stepsize(wls, 1) ≈ 0.01e-8
+        @test Korg.stepsize(wls, 1001) ≈ 0.01e-8   # last point of the first range
+        @test Korg.stepsize(wls, 1002) ≈ 0.02e-8   # first point of the second range
+        @test Korg.stepsize(wls, 1502) ≈ 0.02e-8
+
+        # the step changes exactly at the range boundary, and nowhere else
+        steps = [Korg.stepsize(wls, i) for i in eachindex(wls)]
+        @test findall(diff(steps) .!= 0) == [1001]
+
+        # type stability: the return type matches the wavelength eltype
+        @test only(Base.return_types(Korg.stepsize, (typeof(wls), Int))) == eltype(wls)
+    end
 end

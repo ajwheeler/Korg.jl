@@ -43,8 +43,14 @@ end
 _resolve_R(R::Real, λ0) = R
 _resolve_R(R::Function, λ0) = R(λ0 * 1e8)  # R is a function of λ in Å
 
-# Core Gaussian-kernel calculation shared by all variants.  
-function _gaussian_bounds_and_kernel(wls::Wavelengths, λ0, R, window_size)
+# `renormalize` controls what happens where `wls` doesn't span the full support
+# of the truncated Gaussian when `renormalize` is true the kernel is divided by
+# its own sum so that it always integrates to exactly 1. For an LSF, where the
+# spectrum continues past the last synthesized wavelength, the points we have
+# are # as good an estimate as we're gonna get. and this make sense For other
+# applying vmic to molecular αs, where the edge of the table is treated at the
+# real edge of the absoption, it's not appropriate.
+function _gaussian_bounds_and_kernel(wls::Wavelengths, λ0, R, window_size; renormalize=true)
     R_val = _resolve_R(R, λ0)
     σ = λ0 / R_val / (2sqrt(2log(2))) # convert Δλ = λ0/R (FWHM) to sigma
 
@@ -52,9 +58,14 @@ function _gaussian_bounds_and_kernel(wls::Wavelengths, λ0, R, window_size)
     lb = searchsortedfirst(wls, λ0 - window_size * σ)
     ub = searchsortedlast(wls, λ0 + window_size * σ)
     @views ϕ = normal_pdf.(wls[lb:ub] .- λ0, σ)
-    normalized_ϕ = ϕ ./ sum(ϕ)
+    kernel = if renormalize
+        ϕ ./ sum(ϕ)
+    else
+        # multiplying by the local Δλ makes this a quadrature weight rather than a sampled density
+        ϕ .* stepsize.(Ref(wls), lb:ub)
+    end
 
-    lb, ub, normalized_ϕ
+    lb, ub, kernel
 end
 
 """
@@ -150,17 +161,19 @@ end
 # Sparse matrix which convolves a vector defined on `in_wls` with a Gaussian
 # whose FWHM is λ/R(λ), and resamples onto `out_wls` (both in cm). Used by
 # compute_LSF_matrix for the LSF and also for applying vmic to molecular
-# cross-sections.
-function _gaussian_resample_matrix(in_wls::Wavelengths, out_wls, R; window_size=4)
+# cross-sections.  See `_gaussian_bounds_and_kernel` for the meaning of `renormalize`.
+function _gaussian_resample_matrix(in_wls::Wavelengths, out_wls, R; window_size=4,
+                                   renormalize=true)
     # build sparse matrix in COO form (fastest)
     T = promote_type(eltype(in_wls), typeof(_resolve_R(R, first(in_wls))))
     Is, Js, Vs = Int[], Int[], T[]
     for i in eachindex(out_wls)
         λ0 = out_wls[i]
-        lb, ub, normalized_ϕ = _gaussian_bounds_and_kernel(in_wls, λ0, R, window_size)
+        lb, ub, kernel = _gaussian_bounds_and_kernel(in_wls, λ0, R, window_size;
+                                                     renormalize=renormalize)
         append!(Is, fill(i, ub - lb + 1))
         append!(Js, lb:ub)
-        append!(Vs, normalized_ϕ)
+        append!(Vs, kernel)
     end
     sparse(Is, Js, Vs, length(out_wls), length(in_wls))
 end

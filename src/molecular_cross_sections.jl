@@ -132,9 +132,10 @@ absorption coefficient, `α`.
 
 Microturbulent broadening is applied via (sparse) matrix multiplication (convolution in velocity
 space), with a kernel extending `vmic_window_size` standard deviations from the center.  The
-cross-section wavelengths must be sampled at least as finely as `λs` (an `ArgumentError` is thrown
-otherwise).  For microturbulence values so small that the kernel is narrower than the table spacing,
-broadening is negligible and the cross-section is interpolated directly.
+cross-section is taken to be zero outside the table.  The cross-section wavelengths must be
+sampled at least as finely as `λs` (an `ArgumentError` is thrown otherwise).  For microturbulence
+values so small that the kernel is narrower than the table spacing, broadening is negligible and the
+cross-section is interpolated directly.
 
 See [`MolecularCrossSection`](@ref) for more information.
 """
@@ -200,9 +201,11 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
 
             # a sparse matrix which applies a velocity-space gaussian convolution and resamples
             # from the cross-section λs to the synthesis λs
+            # renormalize=false because the cross-section is treated as zero outside the table
             vmic_broadening_matrix = _gaussian_resample_matrix(sub_wls, λs,
                                                                _vmic_equivalent_R(vm * 1e5);
-                                                               window_size=vmic_window_size)
+                                                               window_size=vmic_window_size,
+                                                               renormalize=false)
 
             for i in 1:n_layers
                 (vmic isa Number ? vmic : vmic[i]) == vm || continue

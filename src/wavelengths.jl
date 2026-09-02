@@ -29,6 +29,7 @@ are assumed to be in cm.
 struct Wavelengths{F,R} <: AbstractArray{F,1}
     wl_ranges::Vector{R} # in cm, not Å
     wl_ranges_Å::Vector  # original Å-scale ranges (avoids cm→Å round-trip errors)
+
     # Precomputed arrays. It may(?) be faster to lazily compute these.
     all_wls::Vector{F}
     all_freqs::Vector{F}
@@ -156,6 +157,25 @@ end
 Returns an iterator over the wavelength ranges `(λ_low, λ_hi)` in `wls` (in cm, not Å).
 """
 eachwindow(wls::Wavelengths) = ((first(r), last(r)) for r in wls.wl_ranges)
+
+"""
+    stepsize(wls::Wavelengths, i)
+
+The wavelength spacing (in cm) of the range that `wls[i]` belongs to.  `wls` can be built from
+ranges with different spacings, so this is not a single number for the whole object.  Used to turn
+a sampled profile into a quadrature weight.
+"""
+function stepsize(wls::Wavelengths, i)
+    range_lb = 1 # index into wls of the first element of the current range
+    for r in wls.wl_ranges
+        range_ub = range_lb + length(r) - 1
+        if i <= range_ub
+            return step(r)
+        end
+        range_lb = range_ub + 1
+    end
+    step(last(wls.wl_ranges))
+end
 
 """
     eachfreq(wls::Wavelengths)
