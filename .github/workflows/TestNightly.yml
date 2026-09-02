@@ -22,7 +22,7 @@ jobs:
         arch:
           - x64
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - uses: julia-actions/setup-julia@v3.0.2
         with:
           version: nightly
