@@ -41,7 +41,7 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
 
 # Keyword Arguments
 
-  - `cutoff_alpha` (default: 1e-32): The value of the single-line absorption coefficient (in cm^-1) at
+  - `cutoff_alpha` (default: 1e-26): The value of the single-line absorption coefficient (in cm^-1) at
     which to truncate the profile.
   - `log_temp_vals` (default: 3:0.04:5): The log10 of the temperatures at which to precompute the
     cross-section.
@@ -177,7 +177,7 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
         # Below this microturbulence value, the convolution kernel is narrower than the table
         # spacing, so we interpolate the table directly. Note that the vmic partials are exactly 0.
         vmic_threshold = 1e-5 * sqrt(2) * c_cgs * cross_section_max_step /
-                         (2 * vmic_window_size * first(sigma.wls))
+                         (2 * vmic_window_size * last(sigma.wls))
 
         # one broadening matrix per unique vmic value, shared across layers
         unique_vmics = vmic isa Number ? [vmic] : unique(vmic)

@@ -53,13 +53,6 @@
 
         # (single wavelength is like the reference wavelength in anchored radiative transfer)
         for wavelengths in Korg.Wavelengths.([wls, [15022.0]])
-            function f(vmic)
-                α = zeros(promote_type(typeof(vmic), Float64), length(Ts), length(wavelengths))
-                Korg.interpolate_molecular_cross_sections!(α, [table], wavelengths, Ts, vmic,
-                                                           number_densities)
-                sum(α) # arbitrary, just to give the function a scalar output
-            end
-
             f = vmic -> convolved_alpha(vmic, wavelengths)
             @test ForwardDiff.derivative(f, 1.0)≈
             FiniteDiff.finite_difference_derivative(f, 1.0) rtol=1e-6
