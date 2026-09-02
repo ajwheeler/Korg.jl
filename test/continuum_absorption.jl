@@ -681,7 +681,7 @@ using Interpolations: bounds
         νs = Korg.c_cgs ./ [1.7e-4, 1.6e-4, 1.5e-4] # 1.5, 1.6, 1.7 μm
         α = Korg.ContinuumAbsorption.total_continuum_absorption(νs, T, n_e, number_densities,
                                                                 Korg.default_partition_funcs)
-        @test α[2] < α[1] 
-        @test α[2] < α[3] 
+        @test α[2] < α[1]
+        @test α[2] < α[3]
     end
 end
