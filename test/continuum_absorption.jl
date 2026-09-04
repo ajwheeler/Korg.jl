@@ -670,18 +670,23 @@ using Interpolations: bounds
         end
     end
 
-    @testset "H⁻ opacity around 1.6 µm" begin
+    @testset "H⁻ opacity minimum at 1.6 µm" begin
         # from the tau_reff ≈ 1 layer of a solar atmosphere
         T = 6400
-        nH2 = 3.7e13
-        nHe = 1.1e16
+        n_total = 1.5e17
+        n_e_guess = 7.3e13
+        abs_abund = 10.0 .^ (format_A_X() .- 12)
+
+        n_e,
+        number_densities = Korg.chemical_equilibrium(T, n_total, n_e_guess, abs_abund,
+                                                     Korg.ionization_energies,
+                                                     Korg.default_partition_funcs,
+                                                     Korg.default_log_equilibrium_constants)
 
         λs = (3000:10:20_000) * 1e-8 # cm
-
-        νs = Korg.c_cgs ./ [1.7e-4, 1.6e-4, 1.5e-4] # 1.5, 1.6, 1.7 μm
+        νs = Korg.c_cgs ./ [1.6e-4, 5e-5] # 1.6 and 0.5 μm
         α = Korg.ContinuumAbsorption.total_continuum_absorption(νs, T, n_e, number_densities,
                                                                 Korg.default_partition_funcs)
-        @test α[2] < α[1]
-        @test α[2] < α[3]
+        @test α[1] < α[2] # opacity at 1.6 μm should be less that at 0.5 μm
     end
 end

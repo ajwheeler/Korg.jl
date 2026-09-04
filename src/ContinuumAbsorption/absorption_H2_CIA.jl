@@ -1,4 +1,4 @@
-using Interpolations: linear_interpolation
+using Interpolations: linear_interpolation, Line
 
 # grid axes shared by the H2-H2 and H2-He tables
 const _H2_CIA_T_grid = 1000.0:1000.0:7000.0        # K, 7 points
@@ -177,8 +177,10 @@ const H2H2_table = permutedims([-46.0 -46.0 -46.0 -46.0 -46.0 -46.0 -46.0;
                                 -55.417 -52.584 -51.288 -50.399 -49.642 -48.903 -48.268;
                                 -55.685 -52.778 -51.42 -50.527 -49.732 -48.981 -48.338])
 # Interpolants over log₁₀ of the coefficient. 
-const _H2HE_itp = linear_interpolation((_H2_CIA_T_grid, _H2_CIA_wavenumber_grid), H2HE_table)
-const _H2H2_itp = linear_interpolation((_H2_CIA_T_grid, _H2_CIA_wavenumber_grid), H2H2_table)
+const _H2HE_itp = linear_interpolation((_H2_CIA_T_grid, _H2_CIA_wavenumber_grid), H2HE_table;
+                                       extrapolation_bc=Line())
+const _H2H2_itp = linear_interpolation((_H2_CIA_T_grid, _H2_CIA_wavenumber_grid), H2H2_table;
+                                       extrapolation_bc=Line())
 
 # ν̃ ∈ (0,20,000) cm⁻¹ ↔ λ ∈ (500 nm, ∞)
 const H2_CIA_ν_bounds = closed_interval(0.0, 20000.0 * c_cgs)
