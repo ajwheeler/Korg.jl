@@ -11,6 +11,7 @@ include("absorption_He.jl")
 include("absorption_ff_positive_ion.jl")
 include("absorption_metals_bf.jl")
 include("scattering.jl")
+include("absorption_H2_CIA.jl")
 
 """
     total_continuum_absorption(νs, T, nₑ, number_densities, partition_funcs)
@@ -54,6 +55,10 @@ function total_continuum_absorption(νs, T, nₑ, number_densities::Dict, partit
 
     # bf absorption by metals from TOPBase and NORAD
     metal_bf_absorption!(α, νs, T, number_densities)
+
+    # H2 collision-induced absorption (CIA)
+    H2H2_H2He_CIA_absorption!(α, νs, T, number_densities[species"H2"],
+                              number_densities[species"He I"])
 
     # scattering
     α .+= electron_scattering(nₑ)

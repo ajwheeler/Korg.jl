@@ -567,6 +567,109 @@ using Interpolations: bounds
                                    print_rachet_info=true)
     end
 
+    @testset "H₂ collision-induced absorption" begin
+        # a cool, dense photosphere where CIA matters: H₂ and He are both abundant
+        T = 3500.0
+        nH2 = 1e16
+        nHe = 1e16
+
+        λs = (6_000:1000.0:50_000) * 1e-8 # cm
+        νs = reverse(Korg.c_cgs ./ λs)
+
+        @testset "basic properties" begin
+            α = zeros(length(νs))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α, νs, T, nH2, nHe)
+
+            @test all(isfinite.(α))
+            @test all(α .> 0) # it actually does something here
+        end
+
+        @testset "scales as n(H₂)·(n(H₂) + n(He))" begin
+            α1 = zeros(length(νs))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α1, νs, T, nH2, nHe)
+            α2 = zeros(length(νs))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α2, νs, T, 2nH2, 2nHe)
+
+            @test α2≈4α1 rtol=1e-10
+        end
+
+        @testset "no H₂ means no absorption" begin
+            α = zeros(length(νs))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α, νs, T, 0.0, nHe)
+            @test all(α .== 0)
+        end
+
+        @testset "α is additive, not overwritten" begin
+            α = zeros(length(νs))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α, νs, T, nH2, nHe)
+            α_twice = zeros(length(νs))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α_twice, νs, T, nH2, nHe)
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α_twice, νs, T, nH2, nHe)
+            @test α_twice ≈ 2α
+        end
+
+        @testset "bounds checking" begin
+            # T outside 1000–7000 K contributes nothing
+            for T_oob in [500.0, 8000.0]
+                α = zeros(length(νs))
+                Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α, νs, T_oob, nH2, nHe)
+                @test all(α .== 0)
+            end
+
+            # frequencies above ν̃ = 20,000 cm⁻¹ are out of the table's range
+            ν_oob = sort(Korg.c_cgs ./ ((2000:100.0:4000) * 1e-8)) # 0.2–0.4 µm, ν̃ > 20,000
+            α = zeros(length(ν_oob))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α, ν_oob, T, nH2, nHe)
+            @test all(α .== 0)
+        end
+
+        @testset "interpolation hits tabulated values at grid points" begin
+            # at an exact (T, ν̃) grid point the bilinear interpolation should return the
+            # tabulated value, so we can check against the tables directly
+            for (T_i, T_grid) in enumerate(1000.0:1000.0:7000.0)
+                for ν̃_i in [1, 10, 41, 81]
+                    ν̃ = (ν̃_i - 1) * 250.0
+                    for (itp, table) in [
+                        (Korg.ContinuumAbsorption._H2HE_itp,
+                         Korg.ContinuumAbsorption.H2HE_table),
+                        (Korg.ContinuumAbsorption._H2H2_itp,
+                         Korg.ContinuumAbsorption.H2H2_table)]
+                        @test exp10(itp(T_grid, ν̃))≈exp10(table[T_i, ν̃_i]) rtol=1e-12
+                    end
+                end
+            end
+        end
+
+        @testset "monotonic in temperature at fixed ν̃" begin
+            # the tables increase with T over most of their range; check a representative
+            # wavenumber well inside the grid
+            ν̃ = 4000.0
+            vals = [exp10(Korg.ContinuumAbsorption._H2H2_itp(T_i, ν̃))
+                    for T_i in 1000.0:500.0:7000.0]
+            @test issorted(vals)
+        end
+
+        @testset "autodiffable through number densities" begin
+            # the bug this guards against: storing densities in a container typed on T
+            f(n) = begin
+                α = zeros(typeof(n), length(νs))
+                Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α, νs, T, n, nHe)
+                sum(α)
+            end
+            d = ForwardDiff.derivative(f, nH2)
+            @test isfinite(d)
+            @test d > 0
+        end
+
+        @testset "integer temperature" begin
+            # T::Int must not force the α eltype to Int
+            α = zeros(length(νs))
+            Korg.ContinuumAbsorption.H2H2_H2He_CIA_absorption!(α, νs, 3500, nH2, nHe)
+            @test all(isfinite.(α))
+            @test any(α .> 0)
+        end
+    end
+
     @testset "H⁻ opacity minimum at 1.6 µm" begin
         # from the tau_reff ≈ 1 layer of a solar atmosphere
         T = 6400
@@ -584,7 +687,6 @@ using Interpolations: bounds
         νs = Korg.c_cgs ./ [1.6e-4, 5e-5] # 1.6 and 0.5 μm
         α = Korg.ContinuumAbsorption.total_continuum_absorption(νs, T, n_e, number_densities,
                                                                 Korg.default_partition_funcs)
-        print(α)
         @test α[1] < α[2] # opacity at 1.6 μm should be less that at 0.5 μm
     end
 end
