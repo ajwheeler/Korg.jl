@@ -1,0 +1,24 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+jobs:
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    # On PRs, only build/deploy a preview when the PR is labelled `build-docs`.
+    # (Dependabot and fork PRs can't push previews, so this also keeps CI green.)
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build-docs')
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-docdeploy@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

@@ -1,0 +1,63 @@
+name: Doc Preview Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+  # Manual run: sweep away previews left behind by PRs that are already closed.
+  workflow_dispatch:
+
+concurrency:
+  group: doc-preview-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v7.0.0
+        with:
+          ref: gh-pages
+
+      - name: Delete the preview for this PR
+        if: github.event_name == 'pull_request'
+        env:
+          PREVIEW_DIR: previews/PR${{ github.event.number }}
+        run: |
+          if [ -d "$PREVIEW_DIR" ]; then
+            git rm -rf --quiet "$PREVIEW_DIR"
+          fi
+
+      - name: Delete previews for all closed PRs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for dir in previews/PR*; do
+            [ -d "$dir" ] || continue
+            pr="${dir#previews/PR}"
+            state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json state --jq .state 2>/dev/null || echo UNKNOWN)
+            if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
+              echo "removing $dir (PR #$pr is $state)"
+              git rm -rf --quiet "$dir"
+            else
+              echo "keeping $dir (PR #$pr is $state)"
+            fi
+          done
+
+      # Squashing keeps gh-pages from growing without bound: every preview build
+      # adds a commit whose blobs would otherwise be kept forever.
+      - name: Commit, squash history, and push
+        run: |
+          if git diff --cached --quiet; then
+            echo "nothing to clean up"
+            exit 0
+          fi
+          git config user.name "Documenter.jl"
+          git config user.email "documenter@juliadocs.github.io"
+          git commit -m "delete preview"
+          git branch gh-pages-new $(echo "delete history" | git commit-tree HEAD^{tree})
+          git push --force origin gh-pages-new:gh-pages
