@@ -12,13 +12,17 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
-    # On PRs, only build/deploy a preview when the PR is labelled `build-docs`.
-    # (Dependabot and fork PRs can't push previews, so this also keeps CI green.)
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build-docs')
+    env:
+      # The docs are always built (so doc errors are caught), but they are only
+      # deployed on pushes to main/tags, or on PRs labelled `build-docs`.
+      # Without credentials, Documenter builds and then skips deployment.
+      # (Dependabot and fork PRs can't push previews at all, so this also keeps
+      # their Documentation check green.)
+      DEPLOY: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build-docs') }}
     steps:
       - uses: actions/checkout@v7.0.0
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-docdeploy@latest
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          GITHUB_TOKEN: ${{ env.DEPLOY == 'true' && secrets.GITHUB_TOKEN || '' }}
+          DOCUMENTER_KEY: ${{ env.DEPLOY == 'true' && secrets.DOCUMENTER_KEY || '' }}
