@@ -34,11 +34,20 @@ using Random, FiniteDiff
             p0, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (;))
             @test !("alpha_H" in keys(p0)) && !("alpha_H" in keys(fixed))
 
-            for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff" => 4500, "logg" => 4.5)]
-                for fixed_params in [(;), Dict()]
-                    _, fixed_params = Korg.Fit.validate_params(initial_guess, fixed_params)
-                    @test fixed_params["M_H"] == 0
-                    @test fixed_params["vmic"] == 1
+            # Note that an empty Dict, and Dicts with abstract element types (which is what you
+            # get when calling Korg from Python, via PythonCall), must result in concretely-typed
+            # validated params.  Otherwise the params dict constructed by fit_spectrum has valtype
+            # Any, A_X ends up a Vector{Any} in synthetic_spectrum, and the call to
+            # interpolate_marcs hits the wrong method. See issue #580.
+            for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff" => 4500, "logg" => 4.5),
+                Dict{Any,Any}("Teff" => 4500, "logg" => 4.5)]
+                for fixed in [(;), Dict(), Dict{Any,Any}(), Dict{Any,Any}("alpha_H" => 0.1)]
+                    validated_guess, validated_fixed = Korg.Fit.validate_params(initial_guess,
+                                                                                fixed)
+                    @test validated_guess isa Dict{String,Float64}
+                    @test validated_fixed isa Dict{String,Float64}
+                    @test validated_fixed["M_H"] == 0
+                    @test validated_fixed["vmic"] == 1
                 end
             end
 
@@ -122,6 +131,21 @@ using Random, FiniteDiff
                 # check that best-fit flux is close to the true flux at all pixels
                 @test assert_allclose(fake_data[result.obs_wl_mask], result.best_fit_flux,
                                       rtol=0.01)
+            end
+
+            @testset "abstractly-typed params (issue #580)" begin
+                # An empty Dict of fixed params (which is what the Python interface passes when
+                # the user doesn't specify any) used to make the params dict that fit_spectrum
+                # passes to synthetic_spectrum a Dict{Any,Any}, so that A_X was a Vector{Any},
+                # which doesn't dispatch to the interpolate_marcs method taking A_X.
+                guess, fixed = Korg.Fit.validate_params(Dict("Teff" => 5000.0, "M_H" => 0.0,
+                                                             "logg" => 4.52), Dict())
+                params = merge(guess, fixed)
+                @test valtype(params) <: Real
+
+                flux = Korg.Fit.synthetic_spectrum(synth_wls, linelist, LSF, params, (;))
+                @test length(flux) == length(obs_wls)
+                @test all(isfinite, flux)
             end
 
             @testset "best fit flux matches independent synthesis" begin

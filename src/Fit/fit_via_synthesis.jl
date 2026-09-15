@@ -117,9 +117,15 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
                                              "cntm_slope" => 0.0),
                          allowed_params=Set(["alpha_H"; required_params; keys(default_params)...;
                                              Korg.atomic_symbols]))
-    # convert all parameter values to Float64
-    initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
-    fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
+    # Convert all parameter values to Float64.  The dict types must be specified explicitly. If
+    # they aren't, an empty initial_guesses or fixed_params (the latter is what the Python
+    # interface passes when the user doesn't specify any) yields a Dict{Any,Any}, because there
+    # are no values to narrow the type from. That propagates to the params dict constructed in
+    # fit_spectrum, making A_X a Vector{Any} in synthetic_spectrum, which doesn't dispatch to the
+    # interpolate_marcs method that takes A_X. (See issue #580.)
+    initial_guesses = Dict{String,Float64}(string(p[1]) => Float64(p[2])
+                                           for p in pairs(initial_guesses))
+    fixed_params = Dict{String,Float64}(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
 
     # check that all required params are specified
     all_params = keys(initial_guesses) ∪ keys(fixed_params)
