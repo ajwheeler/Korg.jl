@@ -130,7 +130,7 @@ using Random, FiniteDiff
             end
 
             @testset "abstractly-typed params (issue #580)" begin
-                fixed_params = Dict{Any, Any}() # happens when using JuliaCall
+                fixed_params = Dict{Any,Any}() # happens when using JuliaCall
                 guess, fixed = Korg.Fit.validate_params(Dict("Teff" => 5000.0, "M_H" => 0.0,
                                                              "logg" => 4.52), fixed_params)
                 params = merge(guess, fixed)
