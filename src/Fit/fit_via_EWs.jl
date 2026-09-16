@@ -555,16 +555,23 @@ function _stellar_param_residual_uncertainties(params, linelist, EW, abundance_a
                                                                    abundance_adjustments,
                                                                    solar_abundances,
                                                                    passed_kwargs)
+    finitemask = isfinite.(A)
+    # use the same lines the residuals are computed from
+    neutrals = neutrals .& finitemask
+    ions = (.!neutrals) .& finitemask
+
     # assume the total (including systematic) err in the abundances of each line can be obtained
     # from the line-to-line scatter
-    estimated_err = std(A[isfinite.(A)])
+    estimated_err = std(A[finitemask])
 
-    sigma_mean = estimated_err ./ sqrt(length(estimated_err))
     teff_residual_sigma = estimated_err *
                           get_slope_uncertainty([line.E_lower for line in linelist[neutrals]])
     vmic_residual_sigma = estimated_err * get_slope_uncertainty(REWs[neutrals])
+    # eq. 2 is a difference of two means, eq. 4 a mean compared to the model atmosphere [m/H]
+    logg_residual_sigma = estimated_err * sqrt(1 / count(neutrals) + 1 / count(ions))
+    feh_residual_sigma = estimated_err / sqrt(count(finitemask))
 
-    [teff_residual_sigma, sigma_mean, vmic_residual_sigma, sigma_mean]
+    [teff_residual_sigma, logg_residual_sigma, vmic_residual_sigma, feh_residual_sigma]
 end
 
 function _stellar_param_equations_precalculation(exact_calculation, params, linelist, EW,
