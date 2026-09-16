@@ -34,11 +34,16 @@ using Random, FiniteDiff
             p0, fixed = Korg.Fit.validate_params((Teff=4500, logg=4.5), (;))
             @test !("alpha_H" in keys(p0)) && !("alpha_H" in keys(fixed))
 
-            for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff" => 4500, "logg" => 4.5)]
-                for fixed_params in [(;), Dict()]
-                    _, fixed_params = Korg.Fit.validate_params(initial_guess, fixed_params)
-                    @test fixed_params["M_H"] == 0
-                    @test fixed_params["vmic"] == 1
+            # All the {Any, Any} is per #580
+            for initial_guess in [(Teff=4500, logg=4.5), Dict("Teff" => 4500, "logg" => 4.5),
+                Dict{Any,Any}("Teff" => 4500, "logg" => 4.5)]
+                for fixed in [(;), Dict(), Dict{Any,Any}(), Dict{Any,Any}("alpha_H" => 0.1)]
+                    validated_guess, validated_fixed = Korg.Fit.validate_params(initial_guess,
+                                                                                fixed)
+                    @test validated_guess isa Dict{String,Float64}
+                    @test validated_fixed isa Dict{String,Float64}
+                    @test validated_fixed["M_H"] == 0
+                    @test validated_fixed["vmic"] == 1
                 end
             end
 
@@ -122,6 +127,14 @@ using Random, FiniteDiff
                 # check that best-fit flux is close to the true flux at all pixels
                 @test assert_allclose(fake_data[result.obs_wl_mask], result.best_fit_flux,
                                       rtol=0.01)
+            end
+
+            @testset "abstractly-typed params (issue #580)" begin
+                fixed_params = Dict{Any, Any}() # happens when using JuliaCall
+                guess, fixed = Korg.Fit.validate_params(Dict("Teff" => 5000.0, "M_H" => 0.0,
+                                                             "logg" => 4.52), fixed_params)
+                params = merge(guess, fixed)
+                @test valtype(params) <: Real
             end
 
             @testset "best fit flux matches independent synthesis" begin
