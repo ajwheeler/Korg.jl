@@ -117,9 +117,10 @@ function validate_params(initial_guesses::AbstractDict, fixed_params::AbstractDi
                                              "cntm_slope" => 0.0),
                          allowed_params=Set(["alpha_H"; required_params; keys(default_params)...;
                                              Korg.atomic_symbols]))
-    # convert all parameter values to Float64
-    initial_guesses = Dict(string(p[1]) => Float64(p[2]) for p in pairs(initial_guesses))
-    fixed_params = Dict(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
+    # Dict types must be explicit for JuliaCall (#580), in case it passes an empty fixed_params
+    initial_guesses = Dict{String,Float64}(string(p[1]) => Float64(p[2])
+                                           for p in pairs(initial_guesses))
+    fixed_params = Dict{String,Float64}(string(p[1]) => Float64(p[2]) for p in pairs(fixed_params))
 
     # check that all required params are specified
     all_params = keys(initial_guesses) ∪ keys(fixed_params)
