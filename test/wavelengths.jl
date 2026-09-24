@@ -102,4 +102,60 @@
         @test issorted(freqs)
         @test length(freqs) == length(wls)
     end
+
+    @testset "clipped" begin
+        wls = Korg.Wavelengths([5000:0.01:5010, 5020:0.01:5030])
+
+        # boundaries chosen between wls grid points, so the tests are robust to roundoff
+        sub = Korg.clipped(wls, Korg.Wavelengths(5004.995:0.01:5025.005))
+        @test sub ≈ Korg.Wavelengths([5005:0.01:5010, 5020:0.01:5025])
+        # clipping slices the wavelengths rather than reconstructing them
+        @test all(in(wls), sub)
+
+        # pad (in cm) dilates the kept windows
+        sub = Korg.clipped(wls, Korg.Wavelengths(5005:0.01:5007); pad=1.005e-8)
+        @test sub ≈ Korg.Wavelengths(5004:0.01:5008)
+
+        # windows entirely within a gap or outside the wavelengths yield nothing
+        @test isnothing(Korg.clipped(wls, Korg.Wavelengths(5012:0.01:5018)))
+        @test isnothing(Korg.clipped(wls, Korg.Wavelengths(4000:0.01:4500)))
+
+        # a contiguous Wavelengths clipped with a multi-window keep becomes multi-range
+        contiguous = Korg.Wavelengths(6000:0.01:6100)
+        sub = Korg.clipped(contiguous, Korg.Wavelengths([6010:0.01:6020, 6050:0.01:6060]);
+                           pad=0.005e-8)
+        @test sub ≈ Korg.Wavelengths([6010:0.01:6020, 6050:0.01:6060])
+
+        # windows which overlap after padding are merged
+        sub = Korg.clipped(contiguous, Korg.Wavelengths([6010:0.01:6020, 6020.5:0.01:6030]);
+                           pad=1.005e-8)
+        @test sub ≈ Korg.Wavelengths(6009:0.01:6031)
+
+        # clipped and the constructor it calls are type-stable (up to `nothing`),
+        @test isconcretetype(only(Base.return_types(Korg.Wavelengths, (typeof(wls.wl_ranges),))))
+        @test only(Base.return_types(Korg.clipped, (typeof(wls), typeof(wls)))) ==
+              Union{Nothing,typeof(wls)}
+    end
+
+    @testset "stepsize" begin
+        # single range: every index has the same spacing, in cm
+        wls = Korg.Wavelengths(5000:0.01:5010)
+        @test all(Korg.stepsize(wls, i) ≈ 0.01e-8 for i in eachindex(wls))
+
+        # ranges with different spacings: each index gets the step of its own range.
+        # 5000:0.01:5010 is 1001 points, so indices 1:1001 are the first range and
+        # 1002:1502 (6000:0.02:6010, 501 points) are the second.
+        wls = Korg.Wavelengths([5000:0.01:5010, 6000:0.02:6010])
+        @test Korg.stepsize(wls, 1) ≈ 0.01e-8
+        @test Korg.stepsize(wls, 1001) ≈ 0.01e-8   # last point of the first range
+        @test Korg.stepsize(wls, 1002) ≈ 0.02e-8   # first point of the second range
+        @test Korg.stepsize(wls, 1502) ≈ 0.02e-8
+
+        # the step changes exactly at the range boundary, and nowhere else
+        steps = [Korg.stepsize(wls, i) for i in eachindex(wls)]
+        @test findall(diff(steps) .!= 0) == [1001]
+
+        # type stability: the return type matches the wavelength eltype
+        @test only(Base.return_types(Korg.stepsize, (typeof(wls), Int))) == eltype(wls)
+    end
 end
