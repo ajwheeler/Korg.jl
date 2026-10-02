@@ -39,7 +39,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
     β = @. 1 / (kboltz_eV * temps)
 
     # precompute number density / partition function for each species in the linelist
-    n_div_U = map(unique([l.species for l in linelist])) do spec
+    n_div_U = map(unique(l.species for l in linelist)) do spec
         spec => @. (n_densities[spec] / partition_fns[spec](log(temps)))
     end |> Dict
     if species"H I" in keys(n_div_U)
@@ -104,7 +104,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 #total wl-integrated absorption coefficient
                 integrated_cross_section = 10.0^line.log_gf * sigma_line(line.wl)
                 @. amplitude = integrated_cross_section * levels_factor *
-                            n_div_U[line.species]
+                               n_div_U[line.species]
 
                 ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
                 inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
