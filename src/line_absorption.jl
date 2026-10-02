@@ -102,8 +102,9 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 @. levels_factor = exp(-β * line.E_lower) - exp(-β * E_upper)
 
                 #total wl-integrated absorption coefficient
-                @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor *
-                               n_div_U[line.species]
+                integrated_cross_section = 10.0^line.log_gf * sigma_line(line.wl)
+                @. amplitude = integrated_cross_section * levels_factor *
+                            n_div_U[line.species]
 
                 ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
                 inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
