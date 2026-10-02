@@ -72,3 +72,77 @@
         @test abs(peak_wl - λ₀) < window / 500
     end
 end
+
+@testset "shared continuum thresholds" begin
+    cutoff_threshold = 3e-4
+
+    @testset "interpolation and bounds" begin
+        # Compare directly with the original per-layer interpolation. Different layer values
+        # check that only the interval and weights are shared, not the continuum itself.
+        for T in (Float32, Float64)
+            grids = (T[1, 1.25, 2, 4],
+                     Korg.Wavelengths([(5000.0, 5001.0, 0.25), (5004.0, 5005.0, 0.5)]))
+            for knots in grids
+                α_cntm_vals = [T[1 + i / 10 for i in eachindex(knots)],
+                    T[2 + 1 / i for i in eachindex(knots)]]
+                callbacks = [Korg.linear_interpolation(knots, row) for row in α_cntm_vals]
+                α_cntm = Korg.SharedLinearContinuum(knots, α_cntm_vals)
+                amplitude = T[0.7, 1.9]
+                # Nonuniform knots and separated windows exercise interval selection.
+                # Include endpoints, midpoints, and adjacent floats to catch boundary errors.
+                positions = [collect(knots); (knots[1:end-1] .+ knots[2:end]) ./ 2]
+                append!(positions,
+                        [x for k in knots
+                         for x in (prevfloat(k), nextfloat(k))
+                         if first(knots) <= x <= last(knots)])
+
+                for λ in positions
+                    expected = (λ .|> callbacks) .* cutoff_threshold ./ amplitude
+                    ρ = similar(expected)
+                    Korg.continuum_threshold!(ρ, α_cntm, λ, cutoff_threshold, amplitude)
+                    @test isequal(ρ, expected)
+                end
+                # Clamping the interval index must not silently allow extrapolation.
+                for λ in (prevfloat(first(knots)), nextfloat(last(knots)), NaN)
+                    @test_throws BoundsError callbacks[1](λ)
+                    @test_throws BoundsError Korg.continuum_threshold!(zeros(2), α_cntm,
+                                                                       λ, cutoff_threshold,
+                                                                       amplitude)
+                end
+            end
+        end
+    end
+
+    @testset "callback compatibility" begin
+        # Reference opacity and molecular cross sections still supply constant callbacks.
+        # Other internal callers can also supply wavelength-dependent callbacks.
+        callbacks = [x -> 2.0, x -> 3x]
+        ρ = zeros(2)
+        Korg.continuum_threshold!(ρ, callbacks, 1.5, cutoff_threshold, [0.7, 1.9])
+        @test ρ == [2.0, 4.5] .* cutoff_threshold ./ [0.7, 1.9]
+    end
+
+    @testset "automatic differentiation" begin
+        # Compare values and derivatives with the original interpolation. The four parameters
+        # are wavelength, continuum scale, amplitude scale, and cutoff, respectively.
+        knots = [1.0, 1.25, 2.0, 4.0]
+        function thresholds(p, shared)
+            α_cntm_vals = [p[2] .* [1.0, 3.0, 2.0, 6.0], p[2] .* [2.0, 4.0, 7.0, 5.0]]
+            α_cntm = if shared
+                Korg.SharedLinearContinuum(knots, α_cntm_vals)
+            else
+                [Korg.linear_interpolation(knots, row) for row in α_cntm_vals]
+            end
+            ρ = similar(p, 2)
+            Korg.continuum_threshold!(ρ, α_cntm, p[1], p[4], [p[3], 2p[3]])
+            ρ
+        end
+        # At an interior knot, the selected interval determines the wavelength derivative.
+        for λ in (1.0, 1.1, 1.25, prevfloat(2.0), 2.0, nextfloat(2.0), 3.5)
+            p = [λ, 1.3, 0.7, cutoff_threshold]
+            @test thresholds(p, true) == thresholds(p, false)
+            @test ForwardDiff.jacobian(p -> thresholds(p, true), p) ≈
+                  ForwardDiff.jacobian(p -> thresholds(p, false), p)
+        end
+    end
+end

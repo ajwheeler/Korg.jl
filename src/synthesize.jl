@@ -236,7 +236,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             zero(eltype(α_row))
         end
 
-        (; nₑ, n_dict, α_cntm_interp=α_cntm_layer, α_row, α_ref_val)
+        (; nₑ, n_dict, α_cntm_vals, α_row, α_ref_val)
     end
 
     α_eltype = eltype(first(layer_results).α_row)
@@ -258,8 +258,9 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     number_densities = Dict([spec => [n[spec] for n in n_dicts]
                              for spec in keys(n_dicts[1])
                              if spec != species"H III"])
-    #vector of continuum-absorption interpolators
-    α_cntm = getproperty.(layer_results, :α_cntm_interp)
+    # Continuum values on the common wavelength grid.
+    α_cntm = SharedLinearContinuum(cntm_wls,
+                                   getproperty.(layer_results, :α_cntm_vals))
 
     # line contributions to α5
     if tau_scheme == "anchored"

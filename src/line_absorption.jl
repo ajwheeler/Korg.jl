@@ -3,6 +3,47 @@ using ProgressMeter: @showprogress
 using Base.Iterators: partition
 
 """
+Continuum opacity (cm^-1) on common wavelength knots (cm).
+The knots must be strictly increasing, with at least two points. Each entry of `values`
+contains one atmospheric layer's values at those knots. Treat both arrays as read-only.
+"""
+struct SharedLinearContinuum{K,V}
+    knots::K
+    values::V
+end
+
+"""
+    continuum_threshold!(ρ, α_cntm, λ, cutoff_threshold, amplitude)
+
+Fill profile-density thresholds (cm^-1) for the line-window calculation.
+`α_cntm` is a shared linear table or one callable per atmospheric layer.
+`λ` is in cm; `amplitude` holds the wavelength-integrated line opacity per layer.
+"""
+function continuum_threshold!(ρ, callbacks, λ, cutoff_threshold, amplitude)
+    ρ .= (λ .|> callbacks) .* cutoff_threshold ./ amplitude
+    return nothing
+end
+
+function continuum_threshold!(ρ, α_cntm::SharedLinearContinuum,
+                              λ, cutoff_threshold, amplitude)
+    knots = α_cntm.knots
+    first(knots) <= λ <= last(knots) ||
+        throw(BoundsError(knots, λ))
+
+    # Match the gridded interpolation's choice of interval at an exact knot.
+    i = clamp(searchsortedfirst(knots, λ, Base.Order.ForwardOrdering()) - 1,
+              1, length(knots) - 1)
+    weight = (λ - knots[i]) / (knots[i+1] - knots[i])
+
+    for depth in eachindex(ρ, amplitude, α_cntm.values)
+        α_cntm_vals = α_cntm.values[depth]
+        α_cntm_val = weight * α_cntm_vals[i+1] + (1 - weight) * α_cntm_vals[i]
+        ρ[depth] = α_cntm_val * cutoff_threshold / amplitude[depth]
+    end
+    return nothing
+end
+
+"""
     line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
                    ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
 
@@ -20,9 +61,10 @@ wavelengths `λs`.
     a vector).
   - `partition_fns`, a Dict containing the partition function of each species
   - `ξ` is the microturbulent velocity in cm/s (n.b. NOT km/s)
-  - `α_cntm` is as a callable returning the continuum opacity as a function of wavelength. The window
-    within which a line is calculated will extend to the wavelength at which the Lorentz wings or
-    Doppler core of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.
+  - `α_cntm`: continuum opacity (cm^-1), supplied as a `SharedLinearContinuum` table or one
+    callable per atmospheric layer. The line window extends to where the Lorentz wings or
+    Doppler core reach `cutoff_threshold` times the continuum at the line centre, whichever
+    gives the larger window.
 
 # Keyword Arguments
 
@@ -105,7 +147,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 @. amplitude = 10.0^line.log_gf * sigma_line(line.wl) * levels_factor *
                                n_div_U[line.species]
 
-                ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
+                continuum_threshold!(ρ_crit, α_cntm, line.wl, cutoff_threshold, amplitude)
                 inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
                 doppler_line_window = maximum(inverse_densities)
                 inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)
