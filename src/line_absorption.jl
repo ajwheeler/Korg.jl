@@ -119,7 +119,8 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                     continue
                 end
 
-                α_task[:, lb:ub] .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+                destination = view(α_task, :, lb:ub)
+                destination .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
             end
             return α_task
         end
