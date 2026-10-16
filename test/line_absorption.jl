@@ -72,26 +72,3 @@
         @test abs(peak_wl - λ₀) < window / 500
     end
 end
-
-@testset "continuum thresholds" begin
-    cutoff_threshold = 3e-4
-    amplitude = [0.7, 1.9]
-
-    # Reference opacity and molecular cross sections still supply callbacks.
-    callbacks = [x -> 2.0, x -> 3x]
-    ρ = zeros(2)
-    Korg.continuum_threshold!(ρ, callbacks, 1.5, cutoff_threshold, amplitude)
-    @test ρ == [2.0, 4.5] .* cutoff_threshold ./ amplitude
-
-    # The shared-knots method must agree exactly with the per-layer callback method.
-    knots = [1.0, 1.25, 2.0, 4.0]
-    vals = [[1.0, 3.0, 2.0, 6.0], [2.0, 4.0, 7.0, 5.0]]
-    shared = Korg.SharedKnotsLinearInterpolants(knots, vals)
-    itps = [Korg.linear_interpolation(knots, row) for row in vals]
-    for λ in (1.0, 1.1, 2.0, 3.5)
-        ρ_shared, ρ_callbacks = zeros(2), zeros(2)
-        Korg.continuum_threshold!(ρ_shared, shared, λ, cutoff_threshold, amplitude)
-        Korg.continuum_threshold!(ρ_callbacks, itps, λ, cutoff_threshold, amplitude)
-        @test isequal(ρ_shared, ρ_callbacks)
-    end
-end

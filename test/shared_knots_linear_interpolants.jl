@@ -1,4 +1,5 @@
 # tests of things in src/shared_knots_linear_interpolants.jl
+using Interpolations: linear_interpolation
 
 @testset "SharedKnotsLinearInterpolants" begin
     @testset "matches linear_interpolation" begin
@@ -10,7 +11,7 @@
             for knots in grids
                 vals = [T[1 + i / 10 for i in eachindex(knots)],
                     T[2 + 1 / i for i in eachindex(knots)]]
-                itps = [Korg.linear_interpolation(knots, row) for row in vals]
+                itps = [linear_interpolation(knots, row) for row in vals]
                 shared = Korg.SharedKnotsLinearInterpolants(knots, vals)
                 # Nonuniform knots and separated windows exercise interval selection.
                 # Include endpoints, midpoints, and adjacent floats to catch boundary errors.
@@ -45,7 +46,7 @@
                 Korg.interpolate_all!(similar(p, 2),
                                       Korg.SharedKnotsLinearInterpolants(knots, vals), p[1])
             else
-                [Korg.linear_interpolation(knots, row)(p[1]) for row in vals]
+                [linear_interpolation(knots, row)(p[1]) for row in vals]
             end
         end
         # At an interior knot, the selected interval determines the derivative wrt x.
