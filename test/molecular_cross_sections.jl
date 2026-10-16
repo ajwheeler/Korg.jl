@@ -59,10 +59,17 @@
 
             # the derivative with respect to vmic vanishes at vmic = 0
             @test ForwardDiff.derivative(f, 0.0) == 0
-            # for kernels narrower than the table spacing (vmic below ~0.04 km/s here), the
+            # for kernels narrower than the table spacing (vmic below ~0.28 km/s here), the
             # cross-section is interpolated without broadening and the derivative is taken as 0
             @test f(0.01) == f(0.0)
             @test ForwardDiff.derivative(f, 0.01) == 0
+        end
+
+        # around that threshold, broadening should conserve the integrated cross-section both on
+        # and between the table points (convolving with a too-narrow kernel gets this badly wrong)
+        for offset in [0.0, 0.005], vmic in [0.05, 0.1, 0.3]
+            wavelengths = Korg.Wavelengths(15021+offset:0.01:15024+offset)
+            @test convolved_alpha(vmic, wavelengths)≈convolved_alpha(0.0, wavelengths) rtol=1e-3
         end
     end
 

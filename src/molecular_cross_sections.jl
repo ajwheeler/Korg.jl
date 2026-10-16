@@ -37,7 +37,10 @@ this function, though they can be saved and loaded using [`save_molecular_cross_
   - `wl_param`: Parameters specifying the wavelengths in the same format that [`synthesize`](@ref)
     expects.  Because microturbulence is applied by convolution at synthesis time, the wavelength range of
     the cross-section should extend a few Å beyond the range you plan to synthesize.  Otherwise
-    absorption from just outside the table will be missing near its edges.
+    absorption from just outside the table will be missing near its edges.  Microturbulence is
+    neglected when the broadening kernel is narrower than the table spacing, i.e. when
+    vmic < √2 c Δλ/λ (≈ 0.28 km/s for 0.01 Å spacing at 15000 Å, ≈ 0.85 km/s at 5000 Å), so use a
+    finer spacing if you need small microturbulence values to be accounted for.
 
 # Keyword Arguments
 
@@ -174,10 +177,11 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
                                 "Regenerate it with spacing no coarser than the synthesis grid."))
         end
 
-        # Below this microturbulence value, the convolution kernel is narrower than the table
-        # spacing, so we interpolate the table directly. Note that the vmic partials are exactly 0.
-        vmic_threshold = 1e-5 * sqrt(2) * c_cgs * cross_section_max_step /
-                         (2 * vmic_window_size * last(sigma.wls))
+        # Below this microturbulence value, the convolution kernel (σ_λ = λ vmic / √2c) is narrower
+        # than the table spacing somewhere, and the convolution, would be inaccurate.  
+        # In this case we interpolate vmic.  Note that the vmic partials are exactly 0.
+        vmic_threshold = 1e-5 * sqrt(2) * c_cgs *
+                         maximum(step(r) / first(r) for r in sigma.wls.wl_ranges)
 
         # one broadening matrix per unique vmic value, shared across layers
         unique_vmics = vmic isa Number ? [vmic] : unique(vmic)
