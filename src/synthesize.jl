@@ -236,7 +236,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
             zero(eltype(α_row))
         end
 
-        (; nₑ, n_dict, α_cntm_interp=α_cntm_layer, α_row, α_ref_val)
+        (; nₑ, n_dict, α_cntm_vals, α_row, α_ref_val)
     end
 
     α_eltype = eltype(first(layer_results).α_row)
@@ -258,12 +258,13 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     number_densities = Dict([spec => [n[spec] for n in n_dicts]
                              for spec in keys(n_dicts[1])
                              if spec != species"H III"])
-    #vector of continuum-absorption interpolators
-    α_cntm = getproperty.(layer_results, :α_cntm_interp)
+    # Continuum values on the common wavelength grid.
+    α_cntm = SharedKnotsLinearInterpolants(cntm_wls,
+                                           getproperty.(layer_results, :α_cntm_vals))
 
     # line contributions to α5
     if tau_scheme == "anchored"
-        α_cntm_ref = [_ -> a for a in copy(α_ref)] # lambda per layer
+        α_cntm_ref = copy(α_ref)
         line_absorption!(view(α_ref, :, 1),
                          linelist5,
                          Korg.Wavelengths([atm.reference_wavelength * 1e8]),
@@ -272,7 +273,7 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                          number_densities,
                          partition_funcs,
                          vmic * 1e5,
-                         α_cntm_ref;
+                         (out, _) -> out .= α_cntm_ref;
                          cutoff_threshold=line_cutoff_threshold)
         interpolate_molecular_cross_sections!(view(α_ref, :, 1),
                                               molecular_cross_sections,
@@ -303,7 +304,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
     end
 
     line_absorption!(α, linelist, wls, get_temps(atm), nₑs, number_densities, partition_funcs,
-                     vmic * 1e5, α_cntm; cutoff_threshold=line_cutoff_threshold)
+                     vmic * 1e5, (out, λ) -> interpolate_all!(out, α_cntm, λ);
+                     cutoff_threshold=line_cutoff_threshold)
     interpolate_molecular_cross_sections!(α, molecular_cross_sections, wls, get_temps(atm), vmic,
                                           number_densities)
 

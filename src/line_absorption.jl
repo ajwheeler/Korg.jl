@@ -3,8 +3,8 @@ using ProgressMeter: @showprogress
 using Base.Iterators: partition
 
 """
-    line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ
-                   ; α_cntm=nothing, cutoff_threshold=1e-3, window_size=20.0*1e-8)
+    line_absorption!(α, linelist, λs, temp, nₑ, n_densities, partition_fns, ξ, α_cntm!;
+                     cutoff_threshold=3e-4, tasks_per_thread=1)
 
 Calculate the opacity coefficient, `α`, in units of cm^-1 from all lines in `linelist`, at
 wavelengths `λs`.
@@ -20,18 +20,19 @@ wavelengths `λs`.
     a vector).
   - `partition_fns`, a Dict containing the partition function of each species
   - `ξ` is the microturbulent velocity in cm/s (n.b. NOT km/s)
-  - `α_cntm` is as a callable returning the continuum opacity as a function of wavelength. The window
-    within which a line is calculated will extend to the wavelength at which the Lorentz wings or
-    Doppler core of the line are at `cutoff_threshold * α_cntm[line.wl]`, whichever is greater.
+  - `α_cntm!`: a function `(out, λ)` that sets `out` to the continuum opacity (cm^-1) at `λ` (cm)
+    in each atmospheric layer. The window over which each line is computed will extend to where the
+    Lorentz wings or Doppler core reach `cutoff_threshold` times the continuum at the line centre,
+    whichever gives the larger window.
 
 # Keyword Arguments
 
-  - `cuttoff_threshold` (default: 3e-4): see `α_cntm`
+  - `cuttoff_threshold` (default: 3e-4): see `α_cntm!`
   - `tasks_per_thread` (default: 1): the number of tasks to run per Julia thread. This function
     is multithreaded over the lines in `linelist`.
 """
 function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densities, partition_fns, ξ,
-                          α_cntm; cutoff_threshold=3e-4, tasks_per_thread=1)
+                          α_cntm!; cutoff_threshold=3e-4, tasks_per_thread=1)
     if length(linelist) == 0
         return zeros(length(λs))
     end
@@ -106,7 +107,8 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                 @. amplitude = integrated_cross_section * levels_factor *
                                n_div_U[line.species]
 
-                ρ_crit .= (line.wl .|> α_cntm) .* cutoff_threshold ./ amplitude
+                α_cntm!(ρ_crit, line.wl)
+                ρ_crit .= ρ_crit .* cutoff_threshold ./ amplitude
                 inverse_densities .= inverse_gaussian_density.(ρ_crit, σ)
                 doppler_line_window = maximum(inverse_densities)
                 inverse_densities .= inverse_lorentz_density.(ρ_crit, γ)

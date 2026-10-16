@@ -5,6 +5,7 @@ _data_dir = joinpath(@__DIR__, "../data")
 include("CubicSplines.jl")             # 1D cubic Splines with arbitrarily spaced knots
 include("newton.jl")                   # clipped Newton-Raphson solver 
 include("lazy_multilinear_interpolation.jl") # linear interpolation with minimal memory overhead
+include("shared_knots_linear_interpolants.jl") # multiple interpolants with shared knots
 include("constants.jl")                # physical constants
 include("atomic_data.jl")              # symbols and atomic weights
 include("isotopic_data.jl")            # abundances and nuclear spins
