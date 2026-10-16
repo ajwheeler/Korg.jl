@@ -73,8 +73,9 @@
                                                        vmics, number_densities)
             sum(α[1, :]) + 2 * sum(α[2, :]) # weight the layers differently
         end
-        @test ForwardDiff.gradient(per_layer_alpha, [1.0, 1.0])≈
-              FiniteDiff.finite_difference_gradient(per_layer_alpha, [1.0, 1.0]) rtol=1e-6
+        @test ForwardDiff.gradient(per_layer_alpha,
+                                   [1.0, 1.0])≈
+        FiniteDiff.finite_difference_gradient(per_layer_alpha, [1.0, 1.0]) rtol=1e-6
 
         # around that threshold, broadening should conserve the integrated cross-section both on
         # and between the table points (convolving with a too-narrow kernel gets this badly wrong)

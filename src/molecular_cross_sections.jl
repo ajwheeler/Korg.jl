@@ -197,9 +197,9 @@ function interpolate_molecular_cross_sections!(α::AbstractArray{R}, molecular_c
             # catch tables generated over exactly the synthesis wavelengths, which lack the padding
             # needed for the broadening kernel
             if first(sigma.wls) ≈ first(λs) || last(sigma.wls) ≈ last(λs)
-                @warn "The molecular cross-section for $(sigma.species) ends at the edge of the " *
-                      "synthesis wavelengths. It is treated as zero outside its wavelength range, " *
-                      "so microturbulent broadening will underestimate absorption near the edges."  maxlog=1
+                @warn "The molecular cross-section for $(sigma.species) ends at the edge of the "*
+                      "synthesis wavelengths. It is treated as zero outside its wavelength range, "*
+                      "so microturbulent broadening will underestimate absorption near the edges." maxlog=1
             end
 
             # It's faster to do this calculation with only the wavelengths required (mostly to avoid 
