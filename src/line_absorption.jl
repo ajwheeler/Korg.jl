@@ -3,43 +3,21 @@ using ProgressMeter: @showprogress
 using Base.Iterators: partition
 
 """
-Continuum opacity (cm^-1) on common wavelength knots (cm).
-The knots must be strictly increasing, with at least two points. Each entry of `values`
-contains one atmospheric layer's values at those knots. Treat both arrays as read-only.
-"""
-struct SharedLinearContinuum{K,V}
-    knots::K
-    values::V
-end
-
-"""
     continuum_threshold!(ρ, α_cntm, λ, cutoff_threshold, amplitude)
 
 Fill profile-density thresholds (cm^-1) for the line-window calculation.
-`α_cntm` is a shared linear table or one callable per atmospheric layer.
-`λ` is in cm; `amplitude` holds the wavelength-integrated line opacity per layer.
+`α_cntm` is a [`SharedKnotsLinearInterpolants`](@ref) over atmospheric layers or one callable per
+layer. `λ` is in cm; `amplitude` holds the wavelength-integrated line opacity at each layer.
 """
 function continuum_threshold!(ρ, callbacks, λ, cutoff_threshold, amplitude)
     ρ .= (λ .|> callbacks) .* cutoff_threshold ./ amplitude
     return nothing
 end
 
-function continuum_threshold!(ρ, α_cntm::SharedLinearContinuum,
+function continuum_threshold!(ρ, α_cntm::SharedKnotsLinearInterpolants,
                               λ, cutoff_threshold, amplitude)
-    knots = α_cntm.knots
-    first(knots) <= λ <= last(knots) ||
-        throw(BoundsError(knots, λ))
-
-    # Match the gridded interpolation's choice of interval at an exact knot.
-    i = clamp(searchsortedfirst(knots, λ, Base.Order.ForwardOrdering()) - 1,
-              1, length(knots) - 1)
-    weight = (λ - knots[i]) / (knots[i+1] - knots[i])
-
-    for depth in eachindex(ρ, amplitude, α_cntm.values)
-        α_cntm_vals = α_cntm.values[depth]
-        α_cntm_val = weight * α_cntm_vals[i+1] + (1 - weight) * α_cntm_vals[i]
-        ρ[depth] = α_cntm_val * cutoff_threshold / amplitude[depth]
-    end
+    interpolate_all!(ρ, α_cntm, λ)
+    ρ .= ρ .* cutoff_threshold ./ amplitude
     return nothing
 end
 
@@ -61,10 +39,10 @@ wavelengths `λs`.
     a vector).
   - `partition_fns`, a Dict containing the partition function of each species
   - `ξ` is the microturbulent velocity in cm/s (n.b. NOT km/s)
-  - `α_cntm`: continuum opacity (cm^-1), supplied as a `SharedLinearContinuum` table or one
-    callable per atmospheric layer. The line window extends to where the Lorentz wings or
-    Doppler core reach `cutoff_threshold` times the continuum at the line centre, whichever
-    gives the larger window.
+  - `α_cntm`: continuum opacity (cm^-1), supplied as a `SharedKnotsLinearInterpolants` over
+    layers or one callable per atmospheric layer. The window over which each line is computed will
+    extend to where the Lorentz wings or Doppler core reach `cutoff_threshold` times the continuum
+    at the line centre, whichever gives the larger window.
 
 # Keyword Arguments
 

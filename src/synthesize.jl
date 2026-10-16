@@ -259,8 +259,8 @@ function synthesize(atm::ModelAtmosphere, linelist, A_X::AbstractVector{<:Real},
                              for spec in keys(n_dicts[1])
                              if spec != species"H III"])
     # Continuum values on the common wavelength grid.
-    α_cntm = SharedLinearContinuum(cntm_wls,
-                                   getproperty.(layer_results, :α_cntm_vals))
+    α_cntm = SharedKnotsLinearInterpolants(cntm_wls,
+                                           getproperty.(layer_results, :α_cntm_vals))
 
     # line contributions to α5
     if tau_scheme == "anchored"
