@@ -65,6 +65,17 @@
             @test ForwardDiff.derivative(f, 0.01) == 0
         end
 
+        # depth-dependent vmic where layers share a value but not partials (e.g. when fitting
+        # each layer's vmic separately) must keep each layer's own derivative
+        function per_layer_alpha(vmics)
+            α = zeros(eltype(vmics), length(Ts), length(Korg.Wavelengths(wls)))
+            Korg.interpolate_molecular_cross_sections!(α, [table], Korg.Wavelengths(wls), Ts,
+                                                       vmics, number_densities)
+            sum(α[1, :]) + 2 * sum(α[2, :]) # weight the layers differently
+        end
+        @test ForwardDiff.gradient(per_layer_alpha, [1.0, 1.0])≈
+              FiniteDiff.finite_difference_gradient(per_layer_alpha, [1.0, 1.0]) rtol=1e-6
+
         # around that threshold, broadening should conserve the integrated cross-section both on
         # and between the table points (convolving with a too-narrow kernel gets this badly wrong)
         for offset in [0.0, 0.005], vmic in [0.05, 0.1, 0.3]
