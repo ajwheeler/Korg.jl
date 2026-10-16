@@ -84,6 +84,18 @@
         end
     end
 
+    @testset "warning for tables ending at the synthesis edge" begin
+        Ts = [3500.0]
+        number_densities = Dict(Korg.species"H2O" => [1e10])
+        synth_wls = Korg.Wavelengths(15020:0.01:15025)
+        α = zeros(length(Ts), length(synth_wls))
+        f(tab) = Korg.interpolate_molecular_cross_sections!(α, [tab], synth_wls, Ts, 1.0,
+                                                            number_densities)
+        @test_logs (:warn, r"ends at the edge") f(Korg.MolecularCrossSection(water_lines,
+                                                                             15020:0.01:15025))
+        @test_logs f(table)
+    end
+
     @testset "tables with too-coarse wl sampling error" begin
         coarse_table = Korg.MolecularCrossSection(water_lines, 15019:0.02:15026)
         Ts = [3500.0, 4500.0]
@@ -103,20 +115,22 @@
     end
 
     @testset "legacy vmic-gridded tables" begin
-        legacy_table = Korg.MolecularCrossSection(water_lines, table_wls;
-                                                  vmic_vals=[0.0, 0.5, 1.0])
+        dep = (:warn, r"deprecated")
+        legacy_table = @test_logs dep Korg.MolecularCrossSection(water_lines, table_wls;
+                                                                 vmic_vals=[0.0, 0.5, 1.0])
         @test Korg.is_vmic_gridded(legacy_table)
 
         tmp = tempname()
-        Korg.save_molecular_cross_section(tmp, legacy_table)
-        deserialized_legacy = Korg.read_molecular_cross_section(tmp)
+        @test_logs dep Korg.save_molecular_cross_section(tmp, legacy_table)
+        deserialized_legacy = @test_logs dep Korg.read_molecular_cross_section(tmp)
 
         @test Korg.is_vmic_gridded(deserialized_legacy)
         @test legacy_table.itp.itp.coefs == deserialized_legacy.itp.itp.coefs
 
         sol_without = synthesize(atm, linelist, format_A_X(), wls; vmic=0.5)
-        sol_legacy = synthesize(atm, linelist_less_water, format_A_X(), wls;
-                                molecular_cross_sections=[deserialized_legacy], vmic=0.5)
+        sol_legacy = @test_logs dep synthesize(atm, linelist_less_water, format_A_X(), wls;
+                                               molecular_cross_sections=[deserialized_legacy],
+                                               vmic=0.5)
         @test assert_allclose(sol_without.flux, sol_legacy.flux; rtol=1e-3)
     end
 end
