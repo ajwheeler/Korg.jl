@@ -38,12 +38,15 @@
               Korg.compute_LSF_matrix(range_wls, obs_wls, R)
 
         convF = Korg.apply_LSF(flux, wls, R)
-        convF_5sigma = Korg.apply_LSF(flux, wls, R; window_size=5)
+        convF5 = Korg.apply_LSF(flux, wls, R; window_size=5)
         convF_mat = Korg.compute_LSF_matrix(wls, wls, R) * flux
         convF_mat5 = Korg.compute_LSF_matrix(wls, wls, R; window_size=5) * flux
         convF_mat_vec = Korg.compute_LSF_matrix([5900:0.35:5935, 5935.35:0.35:6100], wls, R) * flux
         convF_changing_R = Korg.apply_LSF(flux, wls, wl -> wl / 6000 * R)
         convF_mat_changing_R = Korg.compute_LSF_matrix(wls, wls, wl -> wl / 6000 * R) * flux
+
+        @test convF ≈ convF_mat
+        @test convF5 ≈ convF_mat5
 
         @test convF_mat_changing_R≈convF_changing_R rtol=1e-10
 
@@ -53,7 +56,7 @@
 
         # normalized?
         @test sum(flux)≈sum(convF) rtol=1e-3
-        @test sum(flux)≈sum(convF_5sigma) rtol=1e-3
+        @test sum(flux)≈sum(convF5) rtol=1e-3
         @test sum(flux)≈sum(convF_mat) rtol=1e-3
         @test sum(flux)≈sum(convF_mat5) rtol=1e-3
         @test sum(flux)≈sum(convF_mat5) rtol=1e-3
@@ -64,7 +67,7 @@
 
         # preserves line center?
         @test argmax(convF) == spike_ind
-        @test argmax(convF_5sigma) == spike_ind
+        @test argmax(convF5) == spike_ind
         @test argmax(convF_mat) == spike_ind
         @test argmax(convF_mat5) == spike_ind
         @test argmax(convF_mat_vec) == spike_ind
@@ -73,11 +76,11 @@
 
         # make sure the default window_size values are OK
         @test assert_allclose(convF, convF_mat5; atol=1e-4)
-        @test assert_allclose(convF_5sigma, convF_mat5; rtol=1e-11)
+        @test assert_allclose(convF5, convF_mat5; rtol=1e-11)
         @test assert_allclose(convF_mat, convF_mat5; atol=1e-4)
 
         # but also check that they are definitely doing something
-        @test !(convF ≈ convF_5sigma)
+        @test !(convF ≈ convF5)
         @test !(convF_mat ≈ convF_mat5)
     end
 
