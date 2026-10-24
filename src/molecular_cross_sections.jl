@@ -84,12 +84,12 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-26, vmic_val
     # are present.
     n_dict = Dict(species => 1 / cutoff_alpha,
                   species"H I" => NaN, species"H2" => NaN, species"He I" => NaN)
-    cntm = fill(λ -> 1.0, length(log_temp_vals))
+    α_cntm!(out, _) = out .= 1.0
 
     itp = if isnothing(vmic_vals)
         α = zeros(length(log_temp_vals), length(wls))
         Korg.line_absorption!(α, linelist, wls, Ts, nₑ, n_dict,
-                              Korg.default_partition_funcs, 0.0, cntm; cutoff_threshold=1.0)
+                              Korg.default_partition_funcs, 0.0, α_cntm!; cutoff_threshold=1.0)
         extrapolate(interpolate!((log_temp_vals, wls), α .* cutoff_alpha,
                                  (Gridded(Linear()), Gridded(Linear()))), 0.0)
     else
@@ -98,7 +98,7 @@ function MolecularCrossSection(linelist, wl_params; cutoff_alpha=1e-26, vmic_val
         for (i, vmic) in enumerate(vmic_vals)
             ξ = vmic * 1e5 #km/s to cm/s
             Korg.line_absorption!(view(α, i, :, :), linelist, wls, Ts, nₑ, n_dict,
-                                  Korg.default_partition_funcs, ξ, cntm; cutoff_threshold=1.0)
+                                  Korg.default_partition_funcs, ξ, α_cntm!; cutoff_threshold=1.0)
         end
         extrapolate(interpolate!((vmic_vals, log_temp_vals, wls), α .* cutoff_alpha,
                                  (Gridded(Linear()), Gridded(Linear()), Gridded(Linear()))), 0.0)
