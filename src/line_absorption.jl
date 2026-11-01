@@ -79,6 +79,9 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
             levels_factor = Vector{eltype(α)}(undef, size(temps))
             ρ_crit = Vector{eltype(α)}(undef, size(temps))
             inverse_densities = Vector{eltype(α)}(undef, size(temps))
+            inv_σsqrt2 = Vector{eltype(α)}(undef, size(temps))
+            a = Vector{eltype(α)}(undef, size(temps))
+            scaling = Vector{eltype(α)}(undef, size(temps))
 
             for line in linelist_chunk
                 m = get_mass(line.species)
@@ -121,8 +124,7 @@ function line_absorption!(α, linelist, λs::Wavelengths, temps, nₑ, n_densiti
                     continue
                 end
 
-                destination = view(α_task, :, lb:ub)
-                destination .+= line_profile.(line.wl, σ, γ, amplitude, view(λs, lb:ub)')
+                _accumulate_line!(α_task, λs, line, σ, γ, amplitude, inv_σsqrt2, a, scaling, lb, ub)
             end
             return α_task
         end
@@ -238,6 +240,23 @@ function sigma_line(λ::Real)
 
     #the factor of |dλ/dν| = λ²/c is because we are working in wavelength rather than frequency
     (π * e^2 / mₑ / c) * (λ^2 / c)
+end
+
+function _accumulate_line!(α_task, λs, line, σ, γ, amplitude, inv_σsqrt2, a, scaling, lb, ub)
+    @inbounds for i in eachindex(σ)
+        s = 1 / (σ[i] * sqrt(2))
+        inv_σsqrt2[i] = s
+        a[i] = γ[i] * s
+        scaling[i] = s / sqrt(π) * amplitude[i]
+    end
+    λ₀ = line.wl
+    @inbounds for j in lb:ub
+        x = abs(λs[j] - λ₀)
+        for i in eachindex(σ)
+            α_task[i, j] += @inline(voigt_hjerting(a[i], x * inv_σsqrt2[i])) * scaling[i]
+        end
+    end
+    return nothing
 end
 
 """
