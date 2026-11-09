@@ -70,8 +70,9 @@ struct Wavelengths{F,R} <: AbstractArray{F,1}
                 vac_wls
             end
 
-            # recompute Å ranges if air→vacuum conversion changed the ranges
+            # recompute Å ranges and wavelengths if air→vacuum conversion changed the ranges
             wl_ranges_Å = wl_ranges .* 1e8
+            all_wls = collect(Iterators.flatten(wl_ranges))
         end
 
         # precompute monotonic frequencies
