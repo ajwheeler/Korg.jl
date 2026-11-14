@@ -372,17 +372,19 @@ function get_reference_wavelength_linelist(linelist, reference_wavelength;
         return _alpha_5000_default_linelist
     end
 
-    # start by getting the lines in the provided linelist which effect the synthesis at 5000 Å
-    # use a 21 Å line buffer, which 1 Å bigger than the coverage of the fallback linelist.
-    filtered_linelist = filter_linelist(linelist, Korg.Wavelengths((5000, 5000)), 21e-8;
-                                        warn_empty=false)
+    # start by getting the lines in the provided linelist which effect the synthesis at the
+    # reference wavelength. use a 21 Å line buffer, which 1 Å bigger than the coverage of the
+    # fallback linelist.
+    reference_wavelength_Å = reference_wavelength * 1e8
+    filtered_linelist = filter_linelist(linelist, Korg.Wavelengths([reference_wavelength_Å]),
+                                        21e-8; warn_empty=false)
 
     # handle non-5000 Å reference wavelengths. There's no built-in fallback for these.
     if reference_wavelength != 5e-5
         if length(filtered_linelist) == 0
-            throw(ArgumentError("The provided linelist does not contain any lines near the reference wavelength of $reference_wavelength Å. Korg has an internal reference linelist for 5000 Å (the MARCS default), but not for other values."))
+            throw(ArgumentError("The provided linelist does not contain any lines near the reference wavelength of $reference_wavelength_Å Å. Korg has an internal reference linelist for 5000 Å (the MARCS default), but not for other values."))
         else
-            filtered_linelist
+            return filtered_linelist
         end
     end
 
