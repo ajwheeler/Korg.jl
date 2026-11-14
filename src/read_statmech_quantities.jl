@@ -118,7 +118,7 @@ function read_Barklem_Collet_logKs(fname)
     C2ind = findfirst(mols .== Korg.species"C2")
     BC_C2_E0 = 6.371 # value from Barklem and Collet (in table), eV
     Visser_C2_E0 = 6.24 # value from Visser+ 2019, eV
-    correction = @. log10(ℯ) / (kboltz_eV * exp(lnTs[C2ind, :])) * (Visser_C2_E0 - BC_C2_E0)
+    correction = @. log10(ℯ) / (kboltz_eV * exp(lnTs[C2ind, :])) * (BC_C2_E0 - Visser_C2_E0)
 
     logKs[C2ind, :] .+= correction
 
