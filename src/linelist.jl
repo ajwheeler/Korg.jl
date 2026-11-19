@@ -636,9 +636,12 @@ end
 
 #it would be good to support moog linelists with broadening parameters?
 function parse_moog_linelist(f, isotopic_abundances, vacuum_wavelengths)
-    lines = collect(eachline(f))
-    # The first line is ignored.  It's for human-readability only.
-    linelist = map(lines[2:end]) do line
+    # The first line is ignored.  (Also, skip empty lines)
+    lines = filter(collect(eachline(f))[2:end]) do l
+        strip(l) != "" # skip empty lines
+    end
+
+    linelist = map(lines) do line
         toks = split(line)
 
         # special handling for the decimal part of species strings.  MOOG uses the first digit only
