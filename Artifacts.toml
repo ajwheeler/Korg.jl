@@ -4,25 +4,25 @@ lazy = true
 
     [[Heiter_2021_GES_linelist.download]]
     sha256 = "f6eedce5e5a1a16428875b4a0ad94bc9fd205098d285ac7a5598c70091f3446e"
-    url = "https://korg-data.s3.amazonaws.com/Heiter_el_al_2021_2024_06_17.tar.gz"
+    url = "https://f001.backblazeb2.com/file/Korg-data/Heiter_el_al_2021_2024_06_17.tar.gz"
 
 [MARCS_metal_poor_atmospheres]
 git-tree-sha1 = "7ccbdaf1a3709772953d75b0888e6d5ec359d90b"
 
     [[MARCS_metal_poor_atmospheres.download]]
     sha256 = "d08dce5f1bb98e2f8b74db563ad47182722ba354d6cf8690aacac28bbd1f64f0"
-    url = "https://korg-data.s3.amazonaws.com/MARCS_metal_poor_atmospheres.tar.gz"
+    url = "https://f001.backblazeb2.com/file/Korg-data/MARCS_metal_poor_atmospheres.tar.gz"
 
 [SDSS_MARCS_atmospheres_v2]
 git-tree-sha1 = "0e9cca0d99f7ad79aa966aa28c7be962071893e2"
 
     [[SDSS_MARCS_atmospheres_v2.download]]
     sha256 = "98a2d96805d255539e47ef3ae8671bcf776ca80cc4a50e09a47100c8477d80be"
-    url = "https://korg-data.s3.amazonaws.com/SDSS_MARCS_atmospheres_v2.tar.gz"
+    url = "https://f001.backblazeb2.com/file/Korg-data/SDSS_MARCS_atmospheres_v2.tar.gz"
 
 [resampled_cool_dwarf_atmospheres]
 git-tree-sha1 = "cd6250126e449334f340641a545c2ab5c3d1bf7c"
 
     [[resampled_cool_dwarf_atmospheres.download]]
     sha256 = "385133c3b06f0a632ec05e3e58feaa7587b673c4a805eea07b9d0aa33386e940"
-    url = "https://korg-data.s3.amazonaws.com/resampled_cool_dwarf_atmospheres.tar.gz"
+    url = "https://f001.backblazeb2.com/file/Korg-data/resampled_cool_dwarf_atmospheres.tar.gz"
